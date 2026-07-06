@@ -381,7 +381,7 @@ const log = getLogger("lets-nav-helper");
     class="navigation-container {deviceType}"
     class:scrolling-down={isScrollingDown}
     style="
-      --nav-zindex: {getConfig().navJustInMain ? 0 : 9999};
+      --nav-zindex: {getConfig().navJustInMain ? 3 : 9999};
     "
     on:click={(e) => {
       if (isScrollingDown && deviceType === "mobile") {
