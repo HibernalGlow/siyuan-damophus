@@ -375,12 +375,20 @@ const log = getLogger("lets-nav-helper");
 </script>
 
 {#if isVisible}
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
   <div
     class="navigation-container {deviceType}"
     class:scrolling-down={isScrollingDown}
     style="
       --nav-zindex: {getConfig().navJustInMain ? 0 : 9999};
     "
+    on:click={(e) => {
+      if (isScrollingDown && deviceType === "mobile") {
+        isScrollingDown = false;
+        e.stopPropagation();
+      }
+    }}
   >
     {#if deviceType === "desktop"}
       <button class="fab-button" on:click={showDesktopMenu}>
@@ -434,22 +442,58 @@ const log = getLogger("lets-nav-helper");
 
   .navigation-container.mobile {
     bottom: env(safe-area-inset-bottom, 16px);
-    left: 16px;
-    right: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - 32px);
+    max-width: 500px;
     height: var(--nav-height);
-    width: auto;
     justify-content: space-around;
     border-radius: 999px;
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+    transition: max-width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                opacity 0.3s ease;
+    cursor: default;
+  }
+
+  /* Safari Pill Handle */
+  .navigation-container.mobile::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--b3-theme-on-surface, #888);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
   }
 
   .navigation-container.mobile.scrolling-down {
-    transform: translateY(150%);
+    max-width: 56px;
+    height: 36px;
+    opacity: 0.85;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .navigation-container.mobile.scrolling-down::after {
     opacity: 0.5;
+  }
+
+  /* Hide buttons gracefully */
+  .navigation-container.mobile :global(button) {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .navigation-container.mobile.scrolling-down :global(button) {
+    opacity: 0;
+    transform: scale(0.5);
     pointer-events: none;
   }
 
