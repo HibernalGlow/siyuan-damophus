@@ -1,5 +1,11 @@
 # siyuan-hqweay-go
 
+## 0.25.3
+
+### Patch Changes
+
+- - 压缩预览图，减小插件包体积。
+
 ## 0.25.2
 
 ### Patch Changes
