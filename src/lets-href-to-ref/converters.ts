@@ -48,13 +48,12 @@ function buildEditableSelector(availableBlocks: string[]): string {
  */
 export function buildBlockGroups(
   blockElements: HTMLElement[],
-  availableBlocks: string[]
+  _availableBlocks: string[]
 ): TransformGroup[] {
-  const sel = buildEditableSelector(availableBlocks);
   return blockElements.map((item) => ({
     nodeId: item.dataset.nodeId!,
     operationElement: item,
-    searchRoots: Array.from(item.querySelectorAll(sel)) as HTMLElement[],
+    searchRoots: Array.from(item.querySelectorAll('[contenteditable="true"]')) as HTMLElement[],
   }));
 }
 
@@ -71,11 +70,14 @@ export function buildPageGroups(
     Array.from(
       protyle.wysiwyg.element.querySelectorAll(sel)
     ) as HTMLElement[]
-  ).map((editable) => ({
-    nodeId: editable.parentElement!.dataset.nodeId!,
-    operationElement: editable.parentElement!,
-    searchRoots: [editable],
-  }));
+  ).map((editable) => {
+    const blockElement = editable.closest<HTMLElement>("[data-node-id]")!;
+    return {
+      nodeId: blockElement.dataset.nodeId!,
+      operationElement: blockElement,
+      searchRoots: [editable],
+    };
+  });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

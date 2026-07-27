@@ -29,6 +29,7 @@ async function getDocBlockIds(
   const apiTypeMap: Record<string, string> = {
     NodeParagraph: "p",
     NodeHeading: "h",
+    NodeTable: "t",
   };
   const inClause = availableBlocks
     .map((b) => apiTypeMap[b])

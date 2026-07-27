@@ -19,6 +19,7 @@ export const en = {
 
   "lets-href-to-ref.headingBlocks": "标题块中",
   "lets-href-to-ref.paragraphBlocks": "段落块中",
+  "lets-href-to-ref.tableBlocks": "表格块中",
   "lets-href-to-ref.allBlocks": "以上所有块中",
   "lets-href-to-ref.cleanStarRef": "清理文档的 * 引用",
   "lets-href-to-ref.allInlineToText": "下列所有行内元素👉文本",
@@ -64,6 +65,7 @@ export const zhCN: typeof en = {
 
   "lets-href-to-ref.headingBlocks": "标题块中",
   "lets-href-to-ref.paragraphBlocks": "段落块中",
+  "lets-href-to-ref.tableBlocks": "表格块中",
   "lets-href-to-ref.allBlocks": "以上所有块中",
   "lets-href-to-ref.cleanStarRef": "清理文档的 * 引用",
   "lets-href-to-ref.allInlineToText": "下列所有行内元素👉文本",

@@ -25,8 +25,12 @@ const PAGE_SCOPES = [
     availableBlocks: ["NodeParagraph"],
   },
   {
+    key: "lets-href-to-ref.tableBlocks",
+    availableBlocks: ["NodeTable"],
+  },
+  {
     key: "lets-href-to-ref.allBlocks",
-    availableBlocks: ["NodeParagraph", "NodeHeading"],
+    availableBlocks: ["NodeParagraph", "NodeHeading", "NodeTable"],
   },
 ] as const;
 
@@ -34,7 +38,7 @@ const PAGE_SCOPES = [
 
 export default class HrefToRef extends SubPluginBase {
   /** Block types searched when iterating the document. */
-  availableBlocks = ["NodeParagraph", "NodeHeading"];
+  availableBlocks = ["NodeParagraph", "NodeHeading", "NodeTable"];
 
   override onload(): void {
     registerCommands(this.availableBlocks);
@@ -45,7 +49,10 @@ export default class HrefToRef extends SubPluginBase {
   // ─── Doc title icon menu (page scope with sub-menu scope selection) ─────────
 
   public editortitleiconEvent({ detail }: { detail: any }): void {
-    const styleNesting = settings.getBySpace("convert", "styleNesting") as boolean;
+    const styleNesting = settings.getBySpace(
+      "convert",
+      "styleNesting",
+    ) as boolean;
 
     // ── Clean self-reference ──────────────────────────────────────────────────
     detail.menu.addItem({
@@ -78,7 +85,11 @@ export default class HrefToRef extends SubPluginBase {
       submenu: PAGE_SCOPES.map((scope) => ({
         iconHTML: "",
         label: this.t(scope.key),
-        submenu: this.buildPageActionItems(detail, scope.availableBlocks, styleNesting),
+        submenu: this.buildPageActionItems(
+          detail,
+          scope.availableBlocks,
+          styleNesting,
+        ),
       })),
     });
   }
@@ -86,7 +97,10 @@ export default class HrefToRef extends SubPluginBase {
   // ─── Block icon menu (flat, scope = selected blocks) ─────────────────────────
 
   public blockIconEvent({ detail }: { detail: any }): void {
-    const styleNesting = settings.getBySpace("convert", "styleNesting") as boolean;
+    const styleNesting = settings.getBySpace(
+      "convert",
+      "styleNesting",
+    ) as boolean;
 
     detail.menu.addItem({
       iconHTML: "",
@@ -98,7 +112,7 @@ export default class HrefToRef extends SubPluginBase {
           click: () => {
             const groups = buildBlockGroups(
               detail.blockElements,
-              this.availableBlocks
+              this.availableBlocks,
             );
             detail.protyle.getInstance().transaction(refToLink(groups));
           },
@@ -109,7 +123,7 @@ export default class HrefToRef extends SubPluginBase {
           click: () => {
             const groups = buildBlockGroups(
               detail.blockElements,
-              this.availableBlocks
+              this.availableBlocks,
             );
             detail.protyle.getInstance().transaction(linkToRef(groups));
           },
@@ -118,7 +132,11 @@ export default class HrefToRef extends SubPluginBase {
           iconHTML: "",
           label: this.t("lets-href-to-ref.allInlineToText"),
           click: () => {
-            this.blockInlineToTextBatch(detail, styleNesting, ALL_INLINE_SELECTORS);
+            this.blockInlineToTextBatch(
+              detail,
+              styleNesting,
+              ALL_INLINE_SELECTORS,
+            );
           },
         },
         {
@@ -145,7 +163,11 @@ export default class HrefToRef extends SubPluginBase {
           iconHTML: "",
           label: this.t("lets-href-to-ref.strongToText"),
           click: () => {
-            this.blockInlineToText(detail, styleNesting, '[data-type~="strong"]');
+            this.blockInlineToText(
+              detail,
+              styleNesting,
+              '[data-type~="strong"]',
+            );
           },
         },
         {
@@ -205,11 +227,10 @@ export default class HrefToRef extends SubPluginBase {
             if (!docId) return;
             const groups = buildBlockGroups(
               detail.blockElements,
-              this.availableBlocks
+              this.availableBlocks,
             );
             const ops = cleanSelfRef(groups, docId);
-            if (ops.length > 0)
-              detail.protyle.getInstance().transaction(ops);
+            if (ops.length > 0) detail.protyle.getInstance().transaction(ops);
           },
         },
         {
@@ -218,11 +239,10 @@ export default class HrefToRef extends SubPluginBase {
           click: () => {
             const groups = buildBlockGroups(
               detail.blockElements,
-              this.availableBlocks
+              this.availableBlocks,
             );
             const ops = cleanStarRef(groups);
-            if (ops.length > 0)
-              detail.protyle.getInstance().transaction(ops);
+            if (ops.length > 0) detail.protyle.getInstance().transaction(ops);
           },
         },
       ],
@@ -238,7 +258,7 @@ export default class HrefToRef extends SubPluginBase {
   private buildPageActionItems(
     detail: any,
     scopeBlocks: readonly string[],
-    styleNesting: boolean
+    styleNesting: boolean,
   ) {
     const blocks = [...scopeBlocks];
     const pageGroups = () => buildPageGroups(detail.protyle, blocks);
@@ -276,10 +296,12 @@ export default class HrefToRef extends SubPluginBase {
             inlineToText(
               groups,
               '[data-type~="a"][data-href^="siyuan://"]',
-              styleNesting
-            )
+              styleNesting,
+            ),
           );
-          commit(inlineToText(groups, '[data-type~="block-ref"]', styleNesting));
+          commit(
+            inlineToText(groups, '[data-type~="block-ref"]', styleNesting),
+          );
         },
       },
       {
@@ -288,26 +310,34 @@ export default class HrefToRef extends SubPluginBase {
         click: () => {
           const groups = pageGroups();
           commit(inlineToText(groups, '[data-type~="a"]', styleNesting));
-          commit(inlineToText(groups, '[data-type~="block-ref"]', styleNesting));
+          commit(
+            inlineToText(groups, '[data-type~="block-ref"]', styleNesting),
+          );
         },
       },
       {
         iconHTML: "",
         label: this.t("lets-href-to-ref.strongToText"),
         click: () =>
-          commit(inlineToText(pageGroups(), '[data-type~="strong"]', styleNesting)),
+          commit(
+            inlineToText(pageGroups(), '[data-type~="strong"]', styleNesting),
+          ),
       },
       {
         iconHTML: "",
         label: this.t("lets-href-to-ref.markToText"),
         click: () =>
-          commit(inlineToText(pageGroups(), '[data-type~="mark"]', styleNesting)),
+          commit(
+            inlineToText(pageGroups(), '[data-type~="mark"]', styleNesting),
+          ),
       },
       {
         iconHTML: "",
         label: this.t("lets-href-to-ref.tagToText"),
         click: () =>
-          commit(inlineToText(pageGroups(), '[data-type~="tag"]', styleNesting)),
+          commit(
+            inlineToText(pageGroups(), '[data-type~="tag"]', styleNesting),
+          ),
       },
       {
         iconHTML: "",
@@ -331,13 +361,17 @@ export default class HrefToRef extends SubPluginBase {
         iconHTML: "",
         label: this.t("lets-href-to-ref.supToText"),
         click: () =>
-          commit(inlineToText(pageGroups(), '[data-type~="sup"]', styleNesting)),
+          commit(
+            inlineToText(pageGroups(), '[data-type~="sup"]', styleNesting),
+          ),
       },
       {
         iconHTML: "",
         label: this.t("lets-href-to-ref.subToText"),
         click: () =>
-          commit(inlineToText(pageGroups(), '[data-type~="sub"]', styleNesting)),
+          commit(
+            inlineToText(pageGroups(), '[data-type~="sub"]', styleNesting),
+          ),
       },
     ];
   }
@@ -346,7 +380,7 @@ export default class HrefToRef extends SubPluginBase {
   private blockInlineToText(
     detail: any,
     styleNesting: boolean,
-    selector: string
+    selector: string,
   ): void {
     const groups = buildBlockGroups(detail.blockElements, this.availableBlocks);
     const ops = inlineToText(groups, selector, styleNesting);
@@ -357,11 +391,11 @@ export default class HrefToRef extends SubPluginBase {
   private blockInlineToTextBatch(
     detail: any,
     styleNesting: boolean,
-    selectors: string[]
+    selectors: string[],
   ): void {
     const groups = buildBlockGroups(detail.blockElements, this.availableBlocks);
     const allOps = selectors.flatMap((sel) =>
-      inlineToText(groups, sel, styleNesting)
+      inlineToText(groups, sel, styleNesting),
     );
     if (allOps.length > 0) detail.protyle.getInstance().transaction(allOps);
   }
