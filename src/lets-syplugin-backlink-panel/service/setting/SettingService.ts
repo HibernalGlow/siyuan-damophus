@@ -2,7 +2,7 @@ import { EnvConfig } from "@/lets-syplugin-backlink-panel/config/EnvConfig";
 import { SettingConfig } from "@/lets-syplugin-backlink-panel/models/setting-model";
 import { sql } from "@/lets-syplugin-backlink-panel/utils/api";
 import Instance from "@/lets-syplugin-backlink-panel/utils/Instance";
-import { getCreateBlocksParentIdIdxSql } from "../backlink/backlink-sql";
+import { getCreateBlocksParentIdIdxSql, getCreateRefsDefBlockIdIdxSql, getCreateRefsBlockIdIdxSql } from "../backlink/backlink-sql";
 import { setReplacer } from "@/lets-syplugin-backlink-panel/utils/json-util";
 import { mergeObjects } from "@/lets-syplugin-backlink-panel/utils/object-util";
 import { getLogger } from "@/libs/logger";
