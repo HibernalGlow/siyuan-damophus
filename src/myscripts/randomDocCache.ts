@@ -6,9 +6,7 @@
 import { sql as executeSql } from "@/api";
 import { getCurrentDocId, openBlockByID } from "./syUtils";
 import { openMobileFileById, openTab, showMessage } from "siyuan";
-import { mobileUtils } from "@/lets-nav-helper/utils";
 import { isMobile, plugin } from "@/utils";
-import { navigation } from "@/lets-nav-helper/navigation";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("randomDocCache");
 
@@ -291,7 +289,6 @@ export const goToRandomBlock = async (sql: string) => {
     //     });
     openBlockByID(randomDocId);
     showMessage("已跳转到随机文档");
-    mobileUtils.vibrate(50);
   } catch (error) {
     log.error("跳转到随机文档失败:", error);
     showMessage("跳转到随机文档失败");
