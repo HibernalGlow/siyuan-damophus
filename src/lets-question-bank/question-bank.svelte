@@ -5,6 +5,7 @@
     AttemptAggregate,
     MasteryRating,
     Question,
+    QuestionGroup,
     ShuffledOption,
     ShuffledQuestion,
     TopicNode,
@@ -16,7 +17,10 @@
     AttemptImportResult,
     QuestionIndexPreview,
   } from "@/question-bank/application";
-  import type { QuestionBankInitializationPreview } from "@/question-bank/adapters/siyuan";
+  import type {
+    QuestionBankInitializationPreview,
+    QuestionBankRebindingPreview,
+  } from "@/question-bank/adapters/siyuan";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController } from "./controller";
@@ -33,6 +37,8 @@
   let documentId = initialDocumentId ?? recent?.documentId ?? "";
   let binding = controller.getBinding();
   let initializationPreview: QuestionBankInitializationPreview | undefined;
+  let systemDocumentId = "";
+  let rebindingPreview: QuestionBankRebindingPreview | undefined;
   let preview: QuestionIndexPreview | undefined;
   let aggregates: ReadonlyMap<string, AttemptAggregate> = new Map();
   let dueCards: ReadonlyMap<string, RiffCard> = new Map();
@@ -61,7 +67,11 @@
   let complete = false;
 
   $: questions = preview?.scan.report.document.questions ?? [];
+  $: groups = preview?.scan.report.document.groups ?? [];
   $: topics = preview?.scan.report.document.topics ?? [];
+  $: currentGroup = currentQuestion?.metadata.parentId
+    ? groups.find((group: QuestionGroup) => group.id === currentQuestion?.metadata.parentId)
+    : undefined;
   $: suggestedRating = revealed
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
@@ -96,6 +106,20 @@
     });
   }
 
+  function previewRebinding(): void {
+    void run(async () => {
+      rebindingPreview = await controller.previewRebinding(systemDocumentId);
+    });
+  }
+
+  function confirmRebinding(): void {
+    if (!rebindingPreview) return;
+    void run(async () => {
+      binding = await controller.confirmRebinding(systemDocumentId, rebindingPreview!.token);
+      rebindingPreview = undefined;
+    });
+  }
+
   function scanDocument(): void {
     void run(async () => {
       preview = await controller.previewSync(documentId);
@@ -105,7 +129,12 @@
       ]);
       syncComplete = false;
       const saved = controller.getRecentScope();
-      topicId = saved?.documentId === documentId ? saved.topicId ?? "" : "";
+      const savedTopicId = saved?.documentId === documentId ? saved.topicId : undefined;
+      const topicExists = savedTopicId
+        ? preview.scan.report.document.topics.some((topic) => topic.id === savedTopicId)
+        : false;
+      topicId = topicExists ? savedTopicId! : "";
+      if (savedTopicId && !topicExists) controller.saveRecentScope({ documentId });
     });
   }
 
@@ -113,7 +142,11 @@
     if (!preview) return;
     void run(async () => {
       preview = await controller.confirmSync(documentId, preview!.token);
-      syncComplete = true;
+      const failures = preview.results.filter((result) => result.status === "failed");
+      syncComplete = failures.length === 0;
+      if (failures.length > 0) {
+        error = failures.map((failure) => `${failure.questionId}: ${failure.message ?? "failed"}`).join("; ");
+      }
     });
   }
 
@@ -294,6 +327,23 @@
           </button>
         </div>
       {/if}
+      <div class="rebind-setup">
+        <label for="system-document-id">{label("systemDocumentId", "Existing Damophus system document ID")}</label>
+        <div class="document-row">
+          <input id="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" />
+          <button class="secondary" disabled={!/^\d{14}-[a-z0-9]{7}$/u.test(systemDocumentId) || busy} on:click={previewRebinding}>
+            {label("previewRebinding", "Preview reconnection")}
+          </button>
+        </div>
+        {#if rebindingPreview}
+          <div class="preview-line">
+            <span>{label("rebindingReady", "Question index and attempt log are ready to reconnect")}</span>
+            <button class="primary" disabled={busy} on:click={confirmRebinding}>
+              {label("confirmRebinding", "Reconnect")}
+            </button>
+          </div>
+        {/if}
+      </div>
     </section>
   {:else if queue.length === 0 && !complete}
     <section class="workspace">
@@ -403,6 +453,12 @@
       </div>
       <article class="question">
         <h2>{currentQuestion.title}</h2>
+        {#if currentGroup}
+          <div class="group-material">
+            <strong>{label("sharedMaterial", "Shared material")}</strong>
+            <div class="markdown">{@html renderMarkdownHtml(currentGroup.materialMarkdown)}</div>
+          </div>
+        {/if}
         <div class="markdown stem">{@html renderMarkdownHtml(currentQuestion.stemMarkdown)}</div>
         {#if displayedOptions.length > 0}
           <div class="options">
@@ -486,6 +542,8 @@
   .setup { max-width: 760px; }
   .setup > label { display: block; margin-bottom: 7px; }
   .setup .document-row { grid-template-columns: minmax(220px, 1fr) auto; }
+  .rebind-setup { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--b3-border-color); }
+  .rebind-setup > label { display: block; margin-bottom: 7px; }
   .preview-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
   .notice { margin: 12px 20px 0; padding: 10px 12px; border-left: 3px solid var(--b3-theme-error); display: flex; gap: 8px; font-size: 13px; }
   .notice span { overflow-wrap: anywhere; }
@@ -517,6 +575,8 @@
   .markdown :global(p:first-child) { margin-top: 0; }
   .markdown :global(p:last-child) { margin-bottom: 0; }
   .stem { margin-top: 14px; line-height: 1.75; }
+  .group-material { margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
+  .group-material > strong { display: block; margin-bottom: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .options { margin-top: 18px; display: grid; gap: 8px; }
   .option { width: 100%; min-height: 48px; padding: 9px 12px; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: start; gap: 8px; text-align: left; background: transparent; }
   .option.selected { border-color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }

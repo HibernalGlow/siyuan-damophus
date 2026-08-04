@@ -12,6 +12,12 @@ Open a SiYuan document, then choose **Question Bank** from the Damophus top-bar 
 
 Damophus creates one question index and one attempt log. Their immutable IDs and managed column key IDs are stored in plugin settings. If that binding becomes invalid, Damophus stops writes instead of creating another database.
 
+### Reconnect An Existing System Document
+
+Damophus also records its verified binding on the system document. If plugin settings are reset, enter the existing `/Damophus` document ID under **Existing Damophus system document ID**, preview the reconnection, and confirm it. Damophus verifies the document, both databases, every managed key ID, and the question relation before restoring the setting.
+
+Initialization refuses to create another `/Damophus` document in the same notebook. Reconnect the existing document instead.
+
 ## Scan And Synchronize
 
 1. Open the source document and choose **Scan document**.
@@ -29,6 +35,8 @@ Synchronization indexes question title blocks. It does not rewrite stems, option
 - Reveal an answer before rating mastery.
 - Use **Undo and retry** before rating to discard an accidental answer without creating an attempt.
 - Rate the final attempt as Again, Hard, Good, or Easy.
+
+For a question group, the shared material is displayed above each independently answered child question.
 
 Objective correctness and mastery rating are independent. Subjective questions use an optional 0-100 self score and always leave objective correctness empty.
 

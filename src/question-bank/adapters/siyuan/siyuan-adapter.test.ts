@@ -4,7 +4,9 @@ import { createAttemptEvent } from "../../core/attempts";
 import { appendAttemptEvent, readAttemptEvents, rebuildAttemptStatistics } from "./attempt-store";
 import {
   confirmQuestionBankInitialization,
+  confirmQuestionBankRebinding,
   previewQuestionBankInitialization,
+  previewQuestionBankRebinding,
   verifyQuestionBankBinding,
   type QuestionBankBinding,
 } from "./binding";
@@ -30,6 +32,7 @@ function idGenerator(start = 0): NodeIdGenerator {
 class MockKernelClient implements SiyuanKernelClient {
   readonly requests: RequestRecord[] = [];
   readonly documents = new Map<string, string>();
+  readonly blockAttrs = new Map<string, Record<string, string>>();
   readonly attributeViews = new Map<string, RawAttributeView>();
   private primaryIndex = 0;
   failNextCellWrite = false;
@@ -45,6 +48,16 @@ class MockKernelClient implements SiyuanKernelClient {
       const kramdown = this.documents.get(payload.id);
       if (kramdown === undefined) throw new Error(`Block not found: ${payload.id}`);
       return { id: payload.id, kramdown } as T;
+    }
+    if (endpoint === "/api/attr/setBlockAttrs") {
+      this.blockAttrs.set(payload.id, {
+        ...(this.blockAttrs.get(payload.id) ?? {}),
+        ...payload.attrs,
+      });
+      return null as T;
+    }
+    if (endpoint === "/api/attr/getBlockAttrs") {
+      return (this.blockAttrs.get(payload.id) ?? {}) as T;
     }
     if (endpoint === "/api/av/renderAttributeView") {
       if (!this.attributeViews.has(payload.id)) {
@@ -69,6 +82,23 @@ class MockKernelClient implements SiyuanKernelClient {
         values: [],
       });
       return null as T;
+    }
+    if (endpoint === "/api/transactions") {
+      for (const transaction of payload.transactions) {
+        for (const operation of transaction.doOperations) {
+          if (operation.action !== "updateAttrViewColRelation") continue;
+          const av = this.requireAv(operation.avID);
+          const key = av.keyValues.find((value) => value.key.id === operation.keyID)?.key;
+          if (!key) throw new Error(`Key not found: ${operation.keyID}`);
+          key.name = operation.format;
+          key.relation = {
+            avID: operation.id,
+            backKeyID: operation.isTwoWay ? operation.backRelationKeyID : "",
+            isTwoWay: operation.isTwoWay,
+          };
+        }
+      }
+      return [{}] as T;
     }
     if (endpoint === "/api/av/addAttributeViewBlocks") {
       const av = this.requireAv(payload.avID);
@@ -156,8 +186,20 @@ describe("SiYuan question bank adapter", () => {
 
     expect(verification).toEqual({ ok: true, errors: [] });
     expect(Object.keys(binding.questionIndex.keys)).toHaveLength(11);
-    expect(Object.keys(binding.attemptLog.keys)).toHaveLength(13);
+    expect(Object.keys(binding.attemptLog.keys)).toHaveLength(14);
     expect(client.requests.filter((request) => request.endpoint === "/api/av/renderAttributeView")).toHaveLength(2);
+    expect(client.requests.find((request) => request.endpoint === "/api/transactions")?.payload.reqId)
+      .toEqual(expect.any(Number));
+  });
+
+  it("reconnects a verified binding from the system document manifest", async () => {
+    const { client, binding } = await initialized();
+
+    const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
+    const rebound = await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
+
+    expect(rebound).toEqual(binding);
+    expect(preview.systemDocumentId).toBe(binding.systemDocumentId);
   });
 
   it("does not initialize when the preview token was modified", async () => {
@@ -210,6 +252,30 @@ describe("SiYuan question bank adapter", () => {
     expect(client.attributeViews.get(binding.questionIndex.avId)!.keyValues).toContain(custom);
   });
 
+  it("reports per-question sync failures and allows an idempotent retry", async () => {
+    const { client, binding } = await initialized();
+    const documentId = "20260804120000-sourced";
+    client.documents.set(documentId, fixture("siyuan-kramdown"));
+    const preview = await previewQuestionIndexSync(client, binding, documentId);
+    client.failNextCellWrite = true;
+
+    const failed = await confirmQuestionIndexSync(client, binding, documentId, preview.token);
+    const retryPreview = await previewQuestionIndexSync(client, binding, documentId);
+    const retried = await confirmQuestionIndexSync(client, binding, documentId, retryPreview.token);
+
+    expect(failed.results).toEqual([{
+      questionId: "civil-kramdown-108",
+      status: "failed",
+      message: "cell write failed",
+    }]);
+    expect(retryPreview.blockers).toEqual([]);
+    expect(retryPreview.actions.map((action) => action.kind)).toEqual(["update"]);
+    expect(retried.results).toEqual([{
+      questionId: "civil-kramdown-108",
+      status: "synced",
+    }]);
+  });
+
   it("stops writes when a managed key binding is missing", async () => {
     const { client, binding } = await initialized();
     const av = client.attributeViews.get(binding.attemptLog.avId)!;
@@ -235,6 +301,7 @@ describe("SiYuan question bank adapter", () => {
     const event = createAttemptEvent({
       attemptId: "attempt-1",
       questionId: "civil-kramdown-108",
+      questionRelation: "20260804000200-quest01",
       sessionId: "session-1",
       answeredAt: "2026-08-04T12:00:00.000Z",
       questionType: "multiple",

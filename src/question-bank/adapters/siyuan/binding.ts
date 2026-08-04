@@ -20,6 +20,7 @@ export const attemptFields = [
   "schema_version",
   "attempt_id",
   "question_id",
+  "question_relation",
   "session_id",
   "answered_at",
   "question_type",
@@ -91,6 +92,7 @@ const attemptColumns: readonly ColumnDefinition<Exclude<AttemptField, "entry">>[
   { field: "schema_version", name: "Schema Version", type: "number" },
   { field: "attempt_id", name: "Attempt ID", type: "text" },
   { field: "question_id", name: "Question ID", type: "text" },
+  { field: "question_relation", name: "Question", type: "relation" },
   { field: "session_id", name: "Session ID", type: "text" },
   { field: "answered_at", name: "Answered At", type: "date" },
   { field: "question_type", name: "Question Type", type: "text" },
@@ -170,14 +172,53 @@ async function initializeAttributeView<Field extends string>(
   return keys;
 }
 
-function initializationToken(preview: Omit<QuestionBankInitializationPreview, "token">): string {
-  const source = JSON.stringify(preview);
+function hashToken(value: unknown): string {
+  const source = JSON.stringify(value);
   let hash = 2166136261;
   for (let index = 0; index < source.length; index += 1) {
     hash ^= source.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(36);
+}
+
+function initializationToken(preview: Omit<QuestionBankInitializationPreview, "token">): string {
+  return hashToken(preview);
+}
+
+const bindingAttribute = "custom-damophus-question-bank-binding";
+
+async function configureQuestionRelation(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<void> {
+  await client.request("/api/transactions", {
+    session: "siyuan-damophus",
+    app: "siyuan-damophus",
+    reqId: Date.now(),
+    transactions: [{
+      doOperations: [{
+        action: "updateAttrViewColRelation",
+        avID: binding.attemptLog.avId,
+        keyID: binding.attemptLog.keys.question_relation,
+        id: binding.questionIndex.avId,
+        backRelationKeyID: "",
+        isTwoWay: false,
+        name: "",
+        format: "Question",
+      }],
+    }],
+  });
+}
+
+async function persistQuestionBankBinding(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<void> {
+  await client.request("/api/attr/setBlockAttrs", {
+    id: binding.systemDocumentId,
+    attrs: { [bindingAttribute]: JSON.stringify(binding) },
+  });
 }
 
 export function previewQuestionBankInitialization(
@@ -248,11 +289,67 @@ export async function confirmQuestionBankInitialization(
     },
     attemptLog: { avId: preview.attemptAvId, blockId: preview.attemptBlockId, keys: attemptKeys },
   };
+  await configureQuestionRelation(client, binding);
   const verification = await verifyQuestionBankBinding(client, binding);
   if (!verification.ok) {
     throw new Error(`Question bank initialization verification failed: ${verification.errors.join("; ")}`);
   }
+  await persistQuestionBankBinding(client, binding);
   return binding;
+}
+
+export interface QuestionBankRebindingPreview {
+  token: string;
+  systemDocumentId: string;
+  binding: QuestionBankBinding;
+}
+
+function rebindingToken(binding: QuestionBankBinding): string {
+  return hashToken(binding);
+}
+
+export async function previewQuestionBankRebinding(
+  client: SiyuanKernelClient,
+  systemDocumentId: string,
+): Promise<QuestionBankRebindingPreview> {
+  const attrs = await client.request<Record<string, string>>("/api/attr/getBlockAttrs", {
+    id: systemDocumentId,
+  });
+  const source = attrs[bindingAttribute];
+  if (!source) {
+    throw new Error("This document has no Damophus question-bank binding manifest");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    throw new Error("The Damophus question-bank binding manifest is invalid JSON");
+  }
+  const parsed = QuestionBankBindingSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error(`The Damophus question-bank binding manifest is invalid: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`);
+  }
+  const binding = parsed.data as QuestionBankBinding;
+  if (binding.systemDocumentId !== systemDocumentId) {
+    throw new Error("The binding manifest belongs to a different system document");
+  }
+  const verification = await verifyQuestionBankBinding(client, binding);
+  if (!verification.ok) {
+    throw new Error(`Question bank binding is invalid: ${verification.errors.join("; ")}`);
+  }
+  return { token: rebindingToken(binding), systemDocumentId, binding };
+}
+
+export async function confirmQuestionBankRebinding(
+  client: SiyuanKernelClient,
+  systemDocumentId: string,
+  expectedToken: string,
+): Promise<QuestionBankBinding> {
+  const preview = await previewQuestionBankRebinding(client, systemDocumentId);
+  if (preview.token !== expectedToken) {
+    throw new Error("Question bank rebinding preview is stale; preview it again");
+  }
+  return preview.binding;
 }
 
 export interface BindingVerification {
@@ -304,6 +401,12 @@ export async function verifyQuestionBankBinding(
     ]);
     verifyKeys(questionAv, binding.questionIndex.keys, questionColumns, "block_id", errors);
     verifyKeys(attemptAv, binding.attemptLog.keys, attemptColumns, "entry", errors);
+    const relationKey = attemptAv.keyValues.find(
+      (value) => value.key.id === binding.attemptLog.keys.question_relation,
+    )?.key;
+    if (relationKey?.relation?.avID !== binding.questionIndex.avId || relationKey.relation.isTwoWay) {
+      errors.push("Managed key 'question_relation' does not target the question index as a one-way relation");
+    }
   } catch (error) {
     errors.push(error instanceof Error ? error.message : String(error));
   }

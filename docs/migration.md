@@ -10,6 +10,8 @@ The retained tools are Dashboard, block attributes, link/reference conversion, a
 
 Upgrading does not scan or modify documents automatically. Open Damophus, preview initialization, confirm the system document, then scan each intended question-bank document manually. Resolve all reported conflicts before confirming an index sync.
 
+New Damophus system documents store a recoverable binding manifest on the document itself. If plugin settings are lost later, use the reconnection flow rather than creating a second system document.
+
 Existing question content must follow [Question Bank Contract](question-bank-contract.md). A permanent `custom-qb-id` is required for indexed questions. SiYuan block IDs, visible question numbers, and database row IDs are not substitutes.
 
 ## Existing Flashcards

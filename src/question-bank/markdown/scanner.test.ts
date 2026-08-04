@@ -39,16 +39,43 @@ describe("question Markdown scanner", () => {
     expect(question.metadata.collection).toBe("gold");
   });
 
-  it("parses SiYuan getBlockKramdown inline list IAL", () => {
-    const report = scanQuestionMarkdown(fixture("siyuan-kramdown"));
+  it("removes nested block IAL from real SiYuan getBlockKramdown content", () => {
+    const report = scanQuestionMarkdown(fixture("siyuan-host-kramdown"));
     const question = report.document.questions[0];
 
     expect(report.conflicts).toEqual([]);
     expect(report.issues).toEqual([]);
-    expect(question.id).toBe("civil-kramdown-108");
+    expect(report.document.topics[0]).toMatchObject({
+      id: "civil-contract-validity",
+      title: "合同效力",
+      explicit: true,
+    });
+    expect(question.id).toBe("civil-fixture-single-1");
     expect(question.options.map((option) => option.id)).toEqual(["A", "B", "C", "D"]);
-    expect(question.solutionMarkdown).toContain("解析内容");
-    expect(question.solutionMarkdown).not.toContain("custom-qb-section");
+    expect(question.metadata).toMatchObject({
+      subject: "civil",
+      category: "contract",
+      year: "2025",
+      topicId: "civil-contract-validity",
+    });
+    expect(question.stemMarkdown).toContain("关于合同效力");
+    expect(question.solutionMarkdown).toContain("解析：无效合同自始没有法律约束力");
+    for (const markdown of [
+      question.stemMarkdown,
+      question.solutionMarkdown,
+      ...question.options.map((option) => option.markdown),
+    ]) {
+      expect(markdown).not.toContain("{:");
+      expect(markdown).not.toContain("custom-qb-");
+    }
+  });
+
+  it("preserves indented IAL-like code without a SiYuan block ID", () => {
+    const markdown = `##### 2. 主观题\n{: custom-qb-id="subjective-code-example" custom-qb-type="subjective"}\n\n下面是属性示例：\n\n    {: custom-example="keep"}\n\n评分要点：保留示例。\n{: custom-qb-section="solution"}`;
+    const report = scanQuestionMarkdown(markdown);
+
+    expect(report.issues).toEqual([]);
+    expect(report.document.questions[0].stemMarkdown).toContain('{: custom-example="keep"}');
   });
 
   it("supports true/false and subjective questions", () => {
@@ -108,5 +135,24 @@ describe("question Markdown scanner", () => {
     expect(report.inferences.map((inference) => inference.code)).toEqual(
       expect.arrayContaining(["inferred-topic", "inferred-question-type"]),
     );
+    expect(report.document.questions[0].stemMarkdown).not.toContain("正确答案");
+    expect(report.document.questions[0].solutionMarkdown).toContain("正确答案");
+  });
+
+  it("infers a labelled solution boundary without leaking the answer into the stem", () => {
+    const markdown = `##### 7. 单选\n{: custom-qb-id="legacy-boundary-7" custom-qb-type="single" custom-qb-answer="A"}\n\n- 题干\n  - [ ] A. 对\n  - [ ] B. 错\n\n答案与解析：A 正确。\n\n正确答案为 A。`;
+    const report = scanQuestionMarkdown(markdown);
+
+    expect(report.inferences.map((inference) => inference.code)).toContain("inferred-solution-boundary");
+    expect(report.document.questions[0].stemMarkdown).not.toContain("答案与解析");
+    expect(report.document.questions[0].solutionMarkdown).toContain("答案与解析");
+  });
+
+  it("does not index a question when the answer boundary cannot be inferred safely", () => {
+    const markdown = `##### 7. 单选\n{: custom-qb-id="legacy-no-boundary-7" custom-qb-type="single" custom-qb-answer="A"}\n\n- 题干\n  - [ ] A. 对\n  - [ ] B. 错\n\n这段文字没有答案标签。`;
+    const report = scanQuestionMarkdown(markdown);
+
+    expect(report.document.questions).toEqual([]);
+    expect(report.issues.map((issue) => issue.code)).toContain("missing-solution-boundary");
   });
 });

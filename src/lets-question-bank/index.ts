@@ -5,8 +5,7 @@ import { mount, unmount } from "svelte";
 import pluginManifest from "../../plugin.json";
 import QuestionBank from "./question-bank.svelte";
 import { QuestionBankController } from "./controller";
-
-const tabType = "question-bank";
+import { questionBankCustomTabId, questionBankTabType } from "./tab-contract";
 
 export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
@@ -17,7 +16,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.registered = true;
     const owner = this;
     plugin.addTab({
-      type: tabType,
+      type: questionBankTabType,
       init() {
         const element = this.element as HTMLElement;
         const app = owner.mountQuestionBank(element, this.data?.documentId);
@@ -50,7 +49,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   private currentDocumentId(): string | undefined {
-    return getAllEditor()[0]?.protyle?.block?.rootID;
+    const activeId = document.querySelector<HTMLElement>(
+      ".layout__wnd--active .protyle.fn__flex-1:not(.fn__none) .protyle-background",
+    )?.dataset.nodeId;
+    return activeId ?? getAllEditor()[0]?.protyle?.block?.rootID;
   }
 
   private open(): void {
@@ -76,7 +78,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         icon: "iconDatabase",
         title: this.t("lets-question-bank.displayName"),
         data: { documentId },
-        id: `${plugin.name}-${tabType}`,
+        id: questionBankCustomTabId(plugin.name),
       },
     });
   }

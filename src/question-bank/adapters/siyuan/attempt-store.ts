@@ -7,7 +7,7 @@ import {
   type AttemptField,
   type QuestionBankBinding,
 } from "./binding";
-import { dateCell, numberCell, setAttributeViewCell, textCell } from "./cells";
+import { dateCell, numberCell, relationCell, setAttributeViewCell, textCell } from "./cells";
 import type { AttributeViewValue, NodeIdGenerator, RawAttributeView, SiyuanKernelClient } from "./types";
 
 function fieldValues(
@@ -45,6 +45,12 @@ function parseObjectiveResult(value: string | undefined): boolean | null {
   throw new Error("Expected objective result to be 'true', 'false', or empty");
 }
 
+function relationValue(value: AttributeViewValue | undefined): string | undefined {
+  const blockIds = value?.relation?.blockIDs ?? [];
+  if (blockIds.length > 1) throw new Error("Expected at most one question relation");
+  return blockIds[0];
+}
+
 export interface ReadAttemptsResult {
   events: AttemptEvent[];
   issues: ScanMessage[];
@@ -66,6 +72,7 @@ export async function readAttemptEvents(
       "schema_version",
       "attempt_id",
       "question_id",
+      "question_relation",
       "session_id",
       "answered_at",
       "question_type",
@@ -88,6 +95,7 @@ export async function readAttemptEvents(
         schema_version: numberValue(fields.schema_version.get(itemID)),
         attempt_id: textValue(fields.attempt_id.get(itemID)),
         question_id: textValue(fields.question_id.get(itemID)),
+        question_relation: relationValue(fields.question_relation.get(itemID)),
         session_id: textValue(fields.session_id.get(itemID)),
         answered_at: answeredAt === undefined ? undefined : new Date(answeredAt).toISOString(),
         question_type: textValue(fields.question_type.get(itemID)),
@@ -149,6 +157,7 @@ export async function appendAttemptEvent(
     schema_version: numberCell(attempt.schema_version),
     attempt_id: textCell(attempt.attempt_id),
     question_id: textCell(attempt.question_id),
+    question_relation: relationCell(attempt.question_relation),
     session_id: textCell(attempt.session_id),
     answered_at: dateCell(Date.parse(attempt.answered_at)),
     question_type: textCell(attempt.question_type),

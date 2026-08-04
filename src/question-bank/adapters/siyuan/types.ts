@@ -21,6 +21,11 @@ export interface AttributeViewKey {
   id: string;
   name: string;
   type: AttributeViewKeyType;
+  relation?: {
+    avID?: string;
+    backKeyID?: string;
+    isTwoWay?: boolean;
+  };
 }
 
 export interface AttributeViewValue {
@@ -34,6 +39,7 @@ export interface AttributeViewValue {
   number?: { content?: number; isNotEmpty?: boolean };
   date?: { content?: number; isNotEmpty?: boolean };
   checkbox?: { checked?: boolean };
+  relation?: { blockIDs: string[]; contents?: AttributeViewValue[] };
 }
 
 export interface AttributeViewKeyValues {

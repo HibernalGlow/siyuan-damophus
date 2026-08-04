@@ -6,6 +6,7 @@ import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
   QuestionBankBinding,
   QuestionBankInitializationPreview,
+  QuestionBankRebindingPreview,
 } from "@/question-bank/adapters/siyuan";
 import { QUICK_RIFF_DECK_ID, type RiffCard } from "@/question-bank/adapters/siyuan/riff";
 import QuestionBank from "./question-bank.svelte";
@@ -13,6 +14,7 @@ import type { QuestionBankUiController, RecentScope } from "./controller";
 
 const documentId = "20260804120000-abcdefg";
 const blockId = "20260804120001-abcdefg";
+const systemDocumentId = "20260804110000-system1";
 
 const topics: TopicNode[] = [
   { id: "root", title: "Root topic", level: 2, childIds: ["child"], explicit: true },
@@ -75,6 +77,7 @@ function makePreview(questions: Question[] = [objectiveQuestion, subjectiveQuest
     actions: questions.map((question) => ({ kind: "add" as const, question, blockId })),
     staleQuestionIds: [],
     blockers: [],
+    results: [],
   };
 }
 
@@ -94,6 +97,10 @@ function initializationPreview(): QuestionBankInitializationPreview {
 
 function binding(): QuestionBankBinding {
   return { schemaVersion: 1 } as QuestionBankBinding;
+}
+
+function rebindingPreview(): QuestionBankRebindingPreview {
+  return { token: "rebind-token", systemDocumentId, binding: binding() };
 }
 
 function attempt(input: Parameters<QuestionBankUiController["submitAttempt"]>[0]): AttemptEvent {
@@ -118,9 +125,10 @@ function mockController(options: {
   initialized?: boolean;
   preview?: QuestionIndexPreview;
   dueCards?: ReadonlyMap<string, RiffCard>;
+  recent?: RecentScope;
 } = {}) {
   let currentBinding = options.initialized === false ? undefined : binding();
-  let recent: RecentScope | undefined;
+  let recent = options.recent;
   const preview = options.preview ?? makePreview();
   const submitAttempt = vi.fn(async (
     input: Parameters<QuestionBankUiController["submitAttempt"]>[0],
@@ -149,6 +157,11 @@ function mockController(options: {
     getBinding: () => currentBinding,
     previewInitialization: vi.fn(async () => initializationPreview()),
     confirmInitialization: vi.fn(async () => {
+      currentBinding = binding();
+      return currentBinding;
+    }),
+    previewRebinding: vi.fn(async () => rebindingPreview()),
+    confirmRebinding: vi.fn(async () => {
       currentBinding = binding();
       return currentBinding;
     }),
@@ -243,6 +256,23 @@ describe("question bank browser flow", () => {
     expect(controller.confirmSync).toHaveBeenCalledWith(documentId, "preview-token");
   });
 
+  it("reconnects an existing Damophus system document after preview", async () => {
+    const { controller } = mockController({ initialized: false });
+    render(controller);
+    const input = document.querySelector<HTMLInputElement>("#system-document-id");
+    if (!input) throw new Error("Missing system document input");
+    input.value = systemDocumentId;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Preview reconnection").click();
+    await flush();
+    expect(document.body.textContent).toContain("Question index and attempt log are ready to reconnect");
+    button("Reconnect").click();
+    await flush();
+    expect(controller.confirmRebinding).toHaveBeenCalledWith(systemDocumentId, "rebind-token");
+    expect(document.querySelector(".workspace")).not.toBeNull();
+  });
+
   it("applies scope and filters and creates a random practice queue", async () => {
     const { controller, saveRecentScope } = mockController();
     render(controller, { random: () => 0 });
@@ -313,6 +343,37 @@ describe("question bank browser flow", () => {
       subjectiveScore: 82,
       masteryRating: "easy",
     });
+  });
+
+  it("shows shared group material with each child question", async () => {
+    const child = {
+      ...subjectiveQuestion,
+      metadata: { ...subjectiveQuestion.metadata, parentId: "group-1" },
+    };
+    const preview = makePreview([child]);
+    preview.scan.report.document.groups = [{
+      id: "group-1",
+      materialMarkdown: "**Shared case facts**",
+      questionIds: [child.id],
+    }];
+    const { controller } = mockController({ preview });
+    render(controller);
+    await scan();
+    button("Start practice").click();
+    await flush();
+    expect(document.body.textContent).toContain("Shared material");
+    expect(document.body.textContent).toContain("Shared case facts");
+  });
+
+  it("clears a saved heading scope when its block no longer exists", async () => {
+    const { controller, saveRecentScope } = mockController({
+      recent: { documentId, topicId: "deleted-topic" },
+    });
+    render(controller);
+    await scan();
+    const scope = document.querySelector<HTMLSelectElement>("select");
+    expect(scope?.value).toBe("");
+    expect(saveRecentScope).toHaveBeenCalledWith({ documentId });
   });
 
   it("submits mapped Riff cards when practicing the due filter", async () => {

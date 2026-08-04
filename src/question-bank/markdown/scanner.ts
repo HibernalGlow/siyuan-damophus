@@ -52,6 +52,7 @@ interface ParsedOption {
 
 const markdownParser = unified().use(remarkParse).use(remarkGfm);
 const markdownWriter = unified().use(remarkParse).use(remarkGfm).use(remarkStringify);
+const siyuanNodeId = /^\d{14}-[a-z0-9]{7}$/u;
 const questionTypes: readonly QuestionType[] = [
   "single",
   "multiple",
@@ -88,13 +89,18 @@ function extractIalLines(markdown: string): { markdown: string; tokens: IalToken
       continue;
     }
 
+    const standaloneIal = content.match(/^\s*(\{:[^}\r\n]*\})\s*$/u);
     const blockIal = !fence
-      ? content.match(/^(?:\s{0,3}(?:(?:[-+*]|\d+[.)]|>)\s+))?(\{:[^}\r\n]*\})/u)
+      ? standaloneIal
+        ?? content.match(/^(?:\s{0,3}(?:(?:[-+*]|\d+[.)]|>)\s+))?(\{:[^}\r\n]*\})/u)
       : undefined;
     if (blockIal) {
       const ialSource = blockIal[1];
       const parsed = parseIal(ialSource);
-      if (parsed) {
+      const standaloneIndent = standaloneIal ? content.indexOf(ialSource) : 0;
+      const isSiyuanNestedIal = standaloneIndent < 4
+        || siyuanNodeId.test(parsed?.attributes.id ?? "");
+      if (parsed && isSiyuanNestedIal) {
         const ialOffset = content.indexOf(ialSource);
         tokens.push({
           offset: offset + ialOffset,
@@ -268,6 +274,11 @@ function visibleAnswer(solution: string, type: QuestionType): ObjectiveAnswer | 
   return undefined;
 }
 
+function isLikelySolutionStart(block: MarkdownBlock): boolean {
+  const text = toString(block.node).trim();
+  return /^(?:综合考向|答案(?:与解析)?|参考答案|正确答案|解析|参考解析|评分要点)\s*(?:[:：]|为|是|$)/iu.test(text);
+}
+
 function answersEqual(left: ObjectiveAnswer, right: ObjectiveAnswer): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind === "boolean" && right.kind === "boolean") return left.value === right.value;
@@ -408,15 +419,27 @@ function buildQuestion(
     });
     return undefined;
   }
-  const solutionIndex = solutionIndexes[0] ?? bodyBlocks.length;
-  if (solutionIndexes.length === 0 && type !== "group") {
-    report.issues.push({
-      code: "missing-solution-boundary",
-      message: "Question has no explicit custom-qb-section='solution' boundary",
-      questionId: id,
-      line: candidate.heading.position?.start.line,
-    });
+  let solutionIndex = solutionIndexes[0];
+  if (solutionIndex === undefined && type !== "group") {
+    solutionIndex = bodyBlocks.findIndex(isLikelySolutionStart);
+    if (solutionIndex >= 0) {
+      report.inferences.push({
+        code: "inferred-solution-boundary",
+        message: "Inferred the solution boundary from a visible answer or explanation label",
+        questionId: id,
+        line: bodyBlocks[solutionIndex].line,
+      });
+    } else {
+      report.issues.push({
+        code: "missing-solution-boundary",
+        message: "Question has no explicit or safely inferred solution boundary",
+        questionId: id,
+        line: candidate.heading.position?.start.line,
+      });
+      return undefined;
+    }
   }
+  solutionIndex ??= bodyBlocks.length;
   const stemNodes = bodyBlocks.slice(0, solutionIndex).map((block) => block.node);
   const solutionNodes = bodyBlocks.slice(solutionIndex).map((block) => block.node);
   const options = collectOptions(stemNodes, type);

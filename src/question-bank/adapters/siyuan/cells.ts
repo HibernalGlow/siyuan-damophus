@@ -5,6 +5,7 @@ export interface AttributeViewCellInput {
   text?: { content: string };
   number?: { content?: number; isNotEmpty: boolean };
   date?: { content?: number; isNotEmpty: boolean; isNotTime?: boolean };
+  relation?: { blockIDs: string[] };
 }
 
 export function textCell(content: string | undefined): AttributeViewCellInput {
@@ -24,6 +25,13 @@ export function dateCell(content: number | undefined): AttributeViewCellInput {
     date: content === undefined
       ? { isNotEmpty: false }
       : { content, isNotEmpty: true, isNotTime: false },
+  };
+}
+
+export function relationCell(blockId: string | undefined): AttributeViewCellInput {
+  return {
+    type: "relation",
+    relation: { blockIDs: blockId ? [blockId] : [] },
   };
 }
 

@@ -6,15 +6,18 @@ import {
   addQuickRiffCards,
   appendAttemptEvent,
   confirmQuestionBankInitialization,
+  confirmQuestionBankRebinding,
   getDueRiffCards,
   mapDueRiffCardsToQuestions,
   previewQuestionBankInitialization,
+  previewQuestionBankRebinding,
   QuestionBankBindingSchema,
   rebuildAttemptStatistics,
   siyuanKernelClient,
   submitRiffRating,
   type QuestionBankBinding,
   type QuestionBankInitializationPreview,
+  type QuestionBankRebindingPreview,
   type RiffCard,
   type SiyuanKernelClient,
 } from "@/question-bank/adapters/siyuan";
@@ -40,6 +43,8 @@ export interface QuestionBankUiController {
   getBinding(): QuestionBankBinding | undefined;
   previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview>;
   confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding>;
+  previewRebinding(systemDocumentId: string): Promise<QuestionBankRebindingPreview>;
+  confirmRebinding(systemDocumentId: string, token: string): Promise<QuestionBankBinding>;
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
   loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>>;
@@ -98,6 +103,13 @@ export class QuestionBankController implements QuestionBankUiController {
     if (!notebookId || !nodeIdPattern.test(notebookId)) {
       throw new Error("Cannot resolve the notebook for the selected document");
     }
+    const existing = await this.client.request<string[]>("/api/filetree/getIDsByHPath", {
+      notebook: notebookId,
+      path: "/Damophus",
+    });
+    if (existing.length > 0) {
+      throw new Error(`A Damophus system document already exists (${existing[0]}); reconnect it instead of creating another one`);
+    }
     return previewQuestionBankInitialization({
       notebookId,
       path: "/Damophus",
@@ -107,6 +119,17 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding> {
     const binding = await confirmQuestionBankInitialization(this.client, preview, preview.token);
+    this.options.setSetting(bindingSetting, binding);
+    return binding;
+  }
+
+  async previewRebinding(systemDocumentId: string): Promise<QuestionBankRebindingPreview> {
+    if (!nodeIdPattern.test(systemDocumentId)) throw new Error("Invalid SiYuan system document ID");
+    return previewQuestionBankRebinding(this.client, systemDocumentId);
+  }
+
+  async confirmRebinding(systemDocumentId: string, token: string): Promise<QuestionBankBinding> {
+    const binding = await confirmQuestionBankRebinding(this.client, systemDocumentId, token);
     this.options.setSetting(bindingSetting, binding);
     return binding;
   }

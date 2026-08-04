@@ -22,6 +22,13 @@ export interface QuestionIndexPreview {
   actions: QuestionIndexAction[];
   staleQuestionIds: string[];
   blockers: ScanMessage[];
+  results: QuestionIndexWriteResult[];
+}
+
+export interface QuestionIndexWriteResult {
+  questionId: string;
+  status: "synced" | "failed";
+  message?: string;
 }
 
 interface ExistingQuestionRow {
@@ -106,7 +113,7 @@ export async function previewQuestionIndexSync(
       });
       continue;
     }
-    if (sameBlock && sameBlock.questionId !== question.id) {
+    if (sameBlock?.questionId && sameBlock.questionId !== question.id) {
       blockers.push({
         code: "block-id-reused",
         message: `Block '${blockId}' is already indexed as question '${sameBlock.questionId}'`,
@@ -114,7 +121,7 @@ export async function previewQuestionIndexSync(
       });
       continue;
     }
-    actions.push({ kind: sameQuestion ? "update" : "add", question, blockId });
+    actions.push({ kind: sameQuestion || sameBlock ? "update" : "add", question, blockId });
   }
 
   const scannedIds = new Set(scan.report.document.questions.map((question) => question.id));
@@ -129,6 +136,7 @@ export async function previewQuestionIndexSync(
     actions,
     staleQuestionIds,
     blockers,
+    results: [],
   };
 }
 
@@ -176,23 +184,34 @@ export async function confirmQuestionIndexSync(
   if (preview.blockers.length > 0) {
     throw new Error(`Question index sync is blocked: ${preview.blockers.map((item) => item.message).join("; ")}`);
   }
-  const additions = preview.actions.filter((action) => action.kind === "add");
-  if (additions.length > 0) {
-    await client.request("/api/av/addAttributeViewBlocks", {
-      avID: binding.questionIndex.avId,
-      blockID: binding.questionIndex.blockId,
-      viewID: "",
-      groupID: "",
-      previousID: "",
-      srcs: additions.map((action) => ({
-        id: action.blockId,
-        isDetached: false,
-        content: action.question.title,
-      })),
-      ignoreDefaultFill: true,
-    });
-  }
   const scannedAt = Date.now();
-  for (const action of preview.actions) await writeQuestionRow(client, binding, action, scannedAt);
-  return preview;
+  const results: QuestionIndexWriteResult[] = [];
+  for (const action of preview.actions) {
+    try {
+      if (action.kind === "add") {
+        await client.request("/api/av/addAttributeViewBlocks", {
+          avID: binding.questionIndex.avId,
+          blockID: binding.questionIndex.blockId,
+          viewID: "",
+          groupID: "",
+          previousID: "",
+          srcs: [{
+            id: action.blockId,
+            isDetached: false,
+            content: action.question.title,
+          }],
+          ignoreDefaultFill: true,
+        });
+      }
+      await writeQuestionRow(client, binding, action, scannedAt);
+      results.push({ questionId: action.question.id, status: "synced" });
+    } catch (error) {
+      results.push({
+        questionId: action.question.id,
+        status: "failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return { ...preview, results };
 }
