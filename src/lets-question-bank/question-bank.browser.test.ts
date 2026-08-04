@@ -7,6 +7,7 @@ import type {
   QuestionBankBinding,
   QuestionBankInitializationPreview,
 } from "@/question-bank/adapters/siyuan";
+import { QUICK_RIFF_DECK_ID, type RiffCard } from "@/question-bank/adapters/siyuan/riff";
 import QuestionBank from "./question-bank.svelte";
 import type { QuestionBankUiController, RecentScope } from "./controller";
 
@@ -41,6 +42,17 @@ const subjectiveQuestion: Question = {
   options: [],
   solutionMarkdown: "Reference answer.",
   metadata: { topicId: "root", topicPath: ["Root topic"] },
+};
+
+const dueCard: RiffCard = {
+  deckID: QUICK_RIFF_DECK_ID,
+  cardID: "card-1",
+  blockID: blockId,
+  lapses: 0,
+  reps: 1,
+  state: 2,
+  lastReview: 1785825600000,
+  nextDues: { "1": "1 minute", "2": "6 minutes", "3": "1 day", "4": "4 days" },
 };
 
 function makePreview(questions: Question[] = [objectiveQuestion, subjectiveQuestion]): QuestionIndexPreview {
@@ -102,11 +114,21 @@ function attempt(input: Parameters<QuestionBankUiController["submitAttempt"]>[0]
   };
 }
 
-function mockController(options: { initialized?: boolean; preview?: QuestionIndexPreview } = {}) {
+function mockController(options: {
+  initialized?: boolean;
+  preview?: QuestionIndexPreview;
+  dueCards?: ReadonlyMap<string, RiffCard>;
+} = {}) {
   let currentBinding = options.initialized === false ? undefined : binding();
   let recent: RecentScope | undefined;
   const preview = options.preview ?? makePreview();
-  const submitAttempt = vi.fn(async (input: Parameters<QuestionBankUiController["submitAttempt"]>[0]) => attempt(input));
+  const submitAttempt = vi.fn(async (
+    input: Parameters<QuestionBankUiController["submitAttempt"]>[0],
+    _dueCard?: RiffCard,
+  ) => ({
+    event: attempt(input),
+    warnings: [],
+  }));
   const saveRecentScope = vi.fn((scope: RecentScope) => { recent = scope; });
   const controller: QuestionBankUiController = {
     getBinding: () => currentBinding,
@@ -127,7 +149,7 @@ function mockController(options: { initialized?: boolean; preview?: QuestionInde
         consecutiveReviewCount: 2,
       }],
     ])),
-    loadDueQuestionIds: vi.fn(async () => new Set([objectiveQuestion.id])),
+    loadDueCards: vi.fn(async () => options.dueCards ?? new Map()),
     submitAttempt,
     getRecentScope: () => recent,
     saveRecentScope,
@@ -273,6 +295,25 @@ describe("question bank browser flow", () => {
       subjectiveScore: 82,
       masteryRating: "easy",
     });
+  });
+
+  it("submits mapped Riff cards when practicing the due filter", async () => {
+    const { controller, submitAttempt } = mockController({
+      preview: makePreview([objectiveQuestion]),
+      dueCards: new Map([[objectiveQuestion.id, dueCard]]),
+    });
+    render(controller);
+    await scan();
+    button("due").click();
+    button("Start practice").click();
+    await flush();
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    button("good").click();
+    await flush();
+    expect(submitAttempt.mock.calls[0][1]).toEqual(dueCard);
   });
 
   it("keeps mobile practice controls inside the viewport without overlap", async () => {

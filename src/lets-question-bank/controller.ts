@@ -1,21 +1,30 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
 import type { AttemptAggregate, AttemptEvent } from "@/question-bank/core/types";
+import { getLogger } from "@/libs/logger";
 import {
+  addQuickRiffCards,
   appendAttemptEvent,
   confirmQuestionBankInitialization,
+  getDueRiffCards,
+  mapDueRiffCardsToQuestions,
   previewQuestionBankInitialization,
   QuestionBankBindingSchema,
   rebuildAttemptStatistics,
   siyuanKernelClient,
+  submitRiffRating,
   type QuestionBankBinding,
   type QuestionBankInitializationPreview,
+  type RiffCard,
   type SiyuanKernelClient,
 } from "@/question-bank/adapters/siyuan";
 import {
   confirmQuestionIndexSync,
   previewQuestionIndexSync,
+  shouldAutoCreateQuickCard,
   type QuestionIndexPreview,
 } from "@/question-bank/application";
+
+const log = getLogger("lets-question-bank");
 
 export interface RecentScope {
   documentId: string;
@@ -29,10 +38,18 @@ export interface QuestionBankUiController {
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
   loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>>;
-  loadDueQuestionIds(): Promise<ReadonlySet<string>>;
-  submitAttempt(input: Omit<NewAttemptInput, "attemptId">): Promise<AttemptEvent>;
+  loadDueCards(blockIdsByQuestionId: ReadonlyMap<string, string>): Promise<ReadonlyMap<string, RiffCard>>;
+  submitAttempt(
+    input: Omit<NewAttemptInput, "attemptId">,
+    dueCard?: RiffCard,
+  ): Promise<AttemptSubmissionResult>;
   getRecentScope(): RecentScope | undefined;
   saveRecentScope(scope: RecentScope): void;
+}
+
+export interface AttemptSubmissionResult {
+  event: AttemptEvent;
+  warnings: string[];
 }
 
 export interface QuestionBankControllerOptions {
@@ -97,15 +114,43 @@ export class QuestionBankController implements QuestionBankUiController {
     return (await rebuildAttemptStatistics(this.client, this.requireBinding())).aggregates;
   }
 
-  async loadDueQuestionIds(): Promise<ReadonlySet<string>> {
-    return new Set();
+  async loadDueCards(
+    blockIdsByQuestionId: ReadonlyMap<string, string>,
+  ): Promise<ReadonlyMap<string, RiffCard>> {
+    const due = await getDueRiffCards(this.client);
+    return mapDueRiffCardsToQuestions(due.cards, blockIdsByQuestionId);
   }
 
-  async submitAttempt(input: Omit<NewAttemptInput, "attemptId">): Promise<AttemptEvent> {
+  async submitAttempt(
+    input: Omit<NewAttemptInput, "attemptId">,
+    dueCard?: RiffCard,
+  ): Promise<AttemptSubmissionResult> {
     const event = createAttemptEvent({ ...input, attemptId: this.uuid() });
     const result = await appendAttemptEvent(this.client, this.requireBinding(), event, this.nodeId);
     if (result.status !== "created") throw new Error(`Attempt '${event.attempt_id}' already exists`);
-    return event;
+    const warnings: string[] = [];
+    if (dueCard) {
+      try {
+        await submitRiffRating(this.client, dueCard, event.mastery_rating);
+      } catch (error) {
+        const message = `Attempt saved, but Riff rating failed: ${error instanceof Error ? error.message : String(error)}`;
+        warnings.push(message);
+        log.warn(message);
+      }
+    } else if (input.questionRelation && this.autoAddQuickCardsEnabled()) {
+      try {
+        const aggregate = (await rebuildAttemptStatistics(this.client, this.requireBinding()))
+          .aggregates.get(event.question_id);
+        if (shouldAutoCreateQuickCard(aggregate, this.autoCardThreshold())) {
+          await addQuickRiffCards(this.client, [input.questionRelation]);
+        }
+      } catch (error) {
+        const message = `Attempt saved, but automatic quick-card creation failed: ${error instanceof Error ? error.message : String(error)}`;
+        warnings.push(message);
+        log.warn(message);
+      }
+    }
+    return { event, warnings };
   }
 
   getRecentScope(): RecentScope | undefined {
@@ -124,5 +169,14 @@ export class QuestionBankController implements QuestionBankUiController {
     const binding = this.getBinding();
     if (!binding) throw new Error("Damophus is not initialized");
     return binding;
+  }
+
+  private autoAddQuickCardsEnabled(): boolean {
+    return this.options.getSetting("autoAddQuickCards") !== false;
+  }
+
+  private autoCardThreshold(): number {
+    const value = Number(this.options.getSetting("autoCardThreshold"));
+    return Number.isInteger(value) && value > 0 ? value : 2;
   }
 }

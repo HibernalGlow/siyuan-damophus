@@ -15,6 +15,20 @@ const pluginMetadata: PluginMetadata = {
       key: "reviewThreshold",
       value: 2,
     },
+    {
+      type: "checkbox",
+      title: "lets-question-bank.autoAddQuickCards",
+      description: "lets-question-bank.autoAddQuickCardsDescription",
+      key: "autoAddQuickCards",
+      value: true,
+    },
+    {
+      type: "number",
+      title: "lets-question-bank.autoCardThreshold",
+      description: "lets-question-bank.autoCardThresholdDescription",
+      key: "autoCardThreshold",
+      value: 2,
+    },
   ],
 };
 

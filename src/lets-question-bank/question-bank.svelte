@@ -13,6 +13,7 @@
   import { createPracticeQueue, suggestedMasteryRating, type PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { QuestionBankInitializationPreview } from "@/question-bank/adapters/siyuan";
+  import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController } from "./controller";
 
@@ -30,7 +31,7 @@
   let initializationPreview: QuestionBankInitializationPreview | undefined;
   let preview: QuestionIndexPreview | undefined;
   let aggregates: ReadonlyMap<string, AttemptAggregate> = new Map();
-  let dueQuestionIds: ReadonlySet<string> = new Set();
+  let dueCards: ReadonlyMap<string, RiffCard> = new Map();
   let topicId = recent?.documentId === documentId ? recent.topicId ?? "" : "";
   let order: PracticeOrder = "sequential";
   let filter: PracticeFilter = "all";
@@ -90,9 +91,9 @@
   function scanDocument(): void {
     void run(async () => {
       preview = await controller.previewSync(documentId);
-      [aggregates, dueQuestionIds] = await Promise.all([
+      [aggregates, dueCards] = await Promise.all([
         controller.loadAggregates(),
-        controller.loadDueQuestionIds(),
+        controller.loadDueCards(preview.scan.blockIdsByQuestionId),
       ]);
       syncComplete = false;
       const saved = controller.getRecentScope();
@@ -117,7 +118,7 @@
       filter,
       order,
       aggregates,
-      dueQuestionIds,
+      dueQuestionIds: new Set(dueCards.keys()),
       reviewThreshold,
       random,
     });
@@ -192,7 +193,8 @@
       masteryRating: rating,
       subjectiveScore,
       durationMs: Date.now() - questionStartedAt,
-    }).then(() => {
+    }, filter === "due" ? dueCards.get(currentQuestion.id) : undefined).then((result) => {
+      if (result.warnings.length > 0) error = result.warnings.join("; ");
       questionIndex += 1;
       if (questionIndex >= queue.length) {
         complete = true;
