@@ -1,0 +1,59 @@
+export type AttributeViewKeyType =
+  | "block"
+  | "text"
+  | "number"
+  | "date"
+  | "select"
+  | "mSelect"
+  | "url"
+  | "email"
+  | "phone"
+  | "mAsset"
+  | "template"
+  | "created"
+  | "updated"
+  | "checkbox"
+  | "relation"
+  | "rollup"
+  | "lineNumber";
+
+export interface AttributeViewKey {
+  id: string;
+  name: string;
+  type: AttributeViewKeyType;
+}
+
+export interface AttributeViewValue {
+  id?: string;
+  keyID: string;
+  blockID: string;
+  type: AttributeViewKeyType;
+  isDetached?: boolean;
+  block?: { id?: string; content?: string };
+  text?: { content?: string };
+  number?: { content?: number; isNotEmpty?: boolean };
+  date?: { content?: number; isNotEmpty?: boolean };
+  checkbox?: { checked?: boolean };
+}
+
+export interface AttributeViewKeyValues {
+  key: AttributeViewKey;
+  values: AttributeViewValue[];
+}
+
+export interface RawAttributeView {
+  id: string;
+  name?: string;
+  viewID?: string;
+  keyValues: AttributeViewKeyValues[];
+}
+
+export interface AttributeViewResponse {
+  av: RawAttributeView;
+}
+
+export interface SiyuanKernelClient {
+  request<T>(endpoint: string, payload: unknown): Promise<T>;
+}
+
+export type NodeIdGenerator = () => string;

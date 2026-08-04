@@ -88,17 +88,26 @@ function extractIalLines(markdown: string): { markdown: string; tokens: IalToken
       continue;
     }
 
-    const trimmed = content.trim();
-    if (!fence && trimmed.startsWith("{:")) {
-      const parsed = parseIal(trimmed);
+    const blockIal = !fence
+      ? content.match(/^(?:\s{0,3}(?:(?:[-+*]|\d+[.)]|>)\s+))?(\{:[^}\r\n]*\})/u)
+      : undefined;
+    if (blockIal) {
+      const ialSource = blockIal[1];
+      const parsed = parseIal(ialSource);
       if (parsed) {
+        const ialOffset = content.indexOf(ialSource);
         tokens.push({
-          offset: offset + content.indexOf("{:"),
+          offset: offset + ialOffset,
           line: lineIndex + 1,
           attributes: parsed.attributes,
           errors: parsed.errors,
         });
-        output.push(" ".repeat(content.length) + ending);
+        const prefix = content.slice(0, ialOffset);
+        const suffix = content.slice(ialOffset + ialSource.length);
+        output.push(
+          (suffix.trim() ? prefix + suffix + " ".repeat(ialSource.length) : " ".repeat(content.length))
+          + ending,
+        );
         offset += line.length;
         continue;
       }
@@ -158,7 +167,12 @@ function makeBlocks(
         line: token.line,
       });
     }
-    const target = [...blocks]
+    const containing = blocks.find((block) => {
+      const start = block.node.position?.start.offset;
+      const end = block.node.position?.end.offset;
+      return start !== undefined && end !== undefined && start <= token.offset && token.offset <= end;
+    });
+    const target = containing ?? [...blocks]
       .reverse()
       .find((block) => (block.node.position?.end.offset ?? Number.POSITIVE_INFINITY) <= token.offset);
     if (!target) {
@@ -474,7 +488,7 @@ export function scanQuestionMarkdown(markdown: string): QuestionScanReport {
   };
   const extracted = extractIalLines(markdown);
   const root = markdownParser.parse(extracted.markdown) as Root;
-  const blocks = makeBlocks(markdown, root, extracted.tokens, report.issues);
+  const blocks = makeBlocks(extracted.markdown, root, extracted.tokens, report.issues);
   const topics: TopicState[] = [];
   const topicIds = new Set<string>();
   const questionCandidates: QuestionCandidate[] = [];

@@ -1,0 +1,328 @@
+import { z } from "zod";
+import type { AttributeViewKeyType, NodeIdGenerator, RawAttributeView, SiyuanKernelClient } from "./types";
+
+export const questionFields = [
+  "block_id",
+  "question_id",
+  "question_type",
+  "year",
+  "subject",
+  "category",
+  "collection",
+  "source",
+  "topic_id",
+  "parent_id",
+  "last_scanned_at",
+] as const;
+
+export const attemptFields = [
+  "entry",
+  "schema_version",
+  "attempt_id",
+  "question_id",
+  "session_id",
+  "answered_at",
+  "question_type",
+  "option_order",
+  "selected_option_ids",
+  "objective_correct",
+  "mastery_rating",
+  "subjective_score",
+  "duration_ms",
+] as const;
+
+export type QuestionField = typeof questionFields[number];
+export type AttemptField = typeof attemptFields[number];
+
+export interface AttributeViewBinding<Field extends string> {
+  avId: string;
+  blockId: string;
+  keys: Record<Field, string>;
+}
+
+export interface QuestionBankBinding {
+  schemaVersion: 1;
+  notebookId: string;
+  systemDocumentId: string;
+  questionIndex: AttributeViewBinding<QuestionField>;
+  attemptLog: AttributeViewBinding<AttemptField>;
+}
+
+const nodeId = z.string().regex(/^\d{14}-[a-z0-9]{7}$/u);
+const questionKeySchema = z.object(Object.fromEntries(
+  questionFields.map((field) => [field, nodeId]),
+) as Record<QuestionField, typeof nodeId>);
+const attemptKeySchema = z.object(Object.fromEntries(
+  attemptFields.map((field) => [field, nodeId]),
+) as Record<AttemptField, typeof nodeId>);
+
+export const QuestionBankBindingSchema = z.object({
+  schemaVersion: z.literal(1),
+  notebookId: nodeId,
+  systemDocumentId: nodeId,
+  questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: questionKeySchema }),
+  attemptLog: z.object({ avId: nodeId, blockId: nodeId, keys: attemptKeySchema }),
+});
+
+interface ColumnDefinition<Field extends string> {
+  field: Field;
+  name: string;
+  type: AttributeViewKeyType;
+}
+
+interface PlannedColumn<Field extends string> extends ColumnDefinition<Field> {
+  keyId: string;
+}
+
+const questionColumns: readonly ColumnDefinition<Exclude<QuestionField, "block_id">>[] = [
+  { field: "question_id", name: "Question ID", type: "text" },
+  { field: "question_type", name: "Question Type", type: "text" },
+  { field: "year", name: "Year", type: "text" },
+  { field: "subject", name: "Subject", type: "text" },
+  { field: "category", name: "Category", type: "text" },
+  { field: "collection", name: "Collection", type: "text" },
+  { field: "source", name: "Source", type: "text" },
+  { field: "topic_id", name: "Topic ID", type: "text" },
+  { field: "parent_id", name: "Parent ID", type: "text" },
+  { field: "last_scanned_at", name: "Last Scanned", type: "date" },
+];
+
+const attemptColumns: readonly ColumnDefinition<Exclude<AttemptField, "entry">>[] = [
+  { field: "schema_version", name: "Schema Version", type: "number" },
+  { field: "attempt_id", name: "Attempt ID", type: "text" },
+  { field: "question_id", name: "Question ID", type: "text" },
+  { field: "session_id", name: "Session ID", type: "text" },
+  { field: "answered_at", name: "Answered At", type: "date" },
+  { field: "question_type", name: "Question Type", type: "text" },
+  { field: "option_order", name: "Option Order", type: "text" },
+  { field: "selected_option_ids", name: "Selected Options", type: "text" },
+  { field: "objective_correct", name: "Objective Correct", type: "text" },
+  { field: "mastery_rating", name: "Mastery Rating", type: "text" },
+  { field: "subjective_score", name: "Subjective Score", type: "number" },
+  { field: "duration_ms", name: "Duration (ms)", type: "number" },
+];
+
+export interface InitializeQuestionBankInput {
+  notebookId: string;
+  path: string;
+  idGenerator: NodeIdGenerator;
+}
+
+export interface QuestionBankInitializationPreview {
+  token: string;
+  notebookId: string;
+  path: string;
+  questionBlockId: string;
+  questionAvId: string;
+  attemptBlockId: string;
+  attemptAvId: string;
+  questionColumns: PlannedColumn<Exclude<QuestionField, "block_id">>[];
+  attemptColumns: PlannedColumn<Exclude<AttemptField, "entry">>[];
+}
+
+function databaseMarkdown(blockId: string, avId: string): string {
+  return `<div data-type="NodeAttributeView" data-av-id="${avId}" data-av-type="table"></div>\n{: id="${blockId}"}`;
+}
+
+function primaryKeyId(av: RawAttributeView): string {
+  const key = av.keyValues.find((value) => value.key.type === "block")?.key.id;
+  if (!key) throw new Error(`Attribute view ${av.id} has no block primary key`);
+  return key;
+}
+
+async function getAttributeView(client: SiyuanKernelClient, avId: string): Promise<RawAttributeView> {
+  const response = await client.request<{ av: RawAttributeView }>("/api/av/getAttributeView", { id: avId });
+  return response.av;
+}
+
+async function initializeAttributeView<Field extends string>(
+  client: SiyuanKernelClient,
+  avId: string,
+  blockId: string,
+  primaryField: Field,
+  columns: readonly PlannedColumn<Field>[],
+): Promise<Record<Field, string>> {
+  await client.request("/api/av/renderAttributeView", {
+    id: avId,
+    blockID: blockId,
+    viewID: "",
+    page: 1,
+    pageSize: 1,
+    query: "",
+    groupPaging: {},
+    createIfNotExist: true,
+  });
+  const av = await getAttributeView(client, avId);
+  const keys = { [primaryField]: primaryKeyId(av) } as Record<Field, string>;
+  let previousKeyID = keys[primaryField];
+  for (const column of columns) {
+    await client.request("/api/av/addAttributeViewKey", {
+      avID: avId,
+      keyID: column.keyId,
+      keyName: column.name,
+      keyType: column.type,
+      keyIcon: "",
+      previousKeyID,
+    });
+    keys[column.field as Field] = column.keyId;
+    previousKeyID = column.keyId;
+  }
+  return keys;
+}
+
+function initializationToken(preview: Omit<QuestionBankInitializationPreview, "token">): string {
+  const source = JSON.stringify(preview);
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function previewQuestionBankInitialization(
+  input: InitializeQuestionBankInput,
+): QuestionBankInitializationPreview {
+  const questionBlockId = input.idGenerator();
+  const questionAvId = input.idGenerator();
+  const attemptBlockId = input.idGenerator();
+  const attemptAvId = input.idGenerator();
+  const preview = {
+    notebookId: input.notebookId,
+    path: input.path,
+    questionBlockId,
+    questionAvId,
+    attemptBlockId,
+    attemptAvId,
+    questionColumns: questionColumns.map((column) => ({ ...column, keyId: input.idGenerator() })),
+    attemptColumns: attemptColumns.map((column) => ({ ...column, keyId: input.idGenerator() })),
+  };
+  return { ...preview, token: initializationToken(preview) };
+}
+
+export async function confirmQuestionBankInitialization(
+  client: SiyuanKernelClient,
+  preview: QuestionBankInitializationPreview,
+  expectedToken: string,
+): Promise<QuestionBankBinding> {
+  const { token: _token, ...plan } = preview;
+  if (expectedToken !== preview.token || initializationToken(plan) !== preview.token) {
+    throw new Error("Question bank initialization preview is stale or modified");
+  }
+  const markdown = [
+    "# Damophus",
+    "",
+    "## Question Index",
+    databaseMarkdown(preview.questionBlockId, preview.questionAvId),
+    "",
+    "## Attempt Log",
+    databaseMarkdown(preview.attemptBlockId, preview.attemptAvId),
+  ].join("\n");
+  const systemDocumentId = await client.request<string>("/api/filetree/createDocWithMd", {
+    notebook: preview.notebookId,
+    path: preview.path,
+    markdown,
+  });
+  const questionKeys = await initializeAttributeView(
+    client,
+    preview.questionAvId,
+    preview.questionBlockId,
+    "block_id" as QuestionField,
+    preview.questionColumns,
+  );
+  const attemptKeys = await initializeAttributeView(
+    client,
+    preview.attemptAvId,
+    preview.attemptBlockId,
+    "entry" as AttemptField,
+    preview.attemptColumns,
+  );
+  const binding: QuestionBankBinding = {
+    schemaVersion: 1,
+    notebookId: preview.notebookId,
+    systemDocumentId,
+    questionIndex: {
+      avId: preview.questionAvId,
+      blockId: preview.questionBlockId,
+      keys: questionKeys,
+    },
+    attemptLog: { avId: preview.attemptAvId, blockId: preview.attemptBlockId, keys: attemptKeys },
+  };
+  const verification = await verifyQuestionBankBinding(client, binding);
+  if (!verification.ok) {
+    throw new Error(`Question bank initialization verification failed: ${verification.errors.join("; ")}`);
+  }
+  return binding;
+}
+
+export interface BindingVerification {
+  ok: boolean;
+  errors: string[];
+}
+
+function verifyKeys<Field extends string>(
+  av: RawAttributeView,
+  expected: Record<Field, string>,
+  columns: readonly ColumnDefinition<Field>[],
+  primaryField: Field,
+  errors: string[],
+): void {
+  const byId = new Map(av.keyValues.map((value) => [value.key.id, value.key]));
+  const primary = byId.get(expected[primaryField]);
+  if (!primary || primary.type !== "block") errors.push(`Missing primary key '${primaryField}' in AV ${av.id}`);
+  for (const column of columns) {
+    const key = byId.get(expected[column.field as Field]);
+    if (!key) errors.push(`Missing managed key '${String(column.field)}' in AV ${av.id}`);
+    else if (key.type !== column.type) {
+      errors.push(`Managed key '${String(column.field)}' has type '${key.type}', expected '${column.type}'`);
+    }
+  }
+}
+
+export async function verifyQuestionBankBinding(
+  client: SiyuanKernelClient,
+  bindingInput: QuestionBankBinding,
+): Promise<BindingVerification> {
+  const parsed = QuestionBankBindingSchema.safeParse(bindingInput);
+  if (!parsed.success) {
+    return { ok: false, errors: parsed.error.issues.map((issue) => issue.message) };
+  }
+  const binding = parsed.data as QuestionBankBinding;
+  const errors: string[] = [];
+  try {
+    const document = await client.request<{ kramdown: string }>("/api/block/getBlockKramdown", {
+      id: binding.systemDocumentId,
+    });
+    for (const database of [binding.questionIndex, binding.attemptLog]) {
+      if (!document.kramdown.includes(database.blockId) || !document.kramdown.includes(database.avId)) {
+        errors.push(`System document no longer contains AV block ${database.blockId}`);
+      }
+    }
+    const [questionAv, attemptAv] = await Promise.all([
+      getAttributeView(client, binding.questionIndex.avId),
+      getAttributeView(client, binding.attemptLog.avId),
+    ]);
+    verifyKeys(questionAv, binding.questionIndex.keys, questionColumns, "block_id", errors);
+    verifyKeys(attemptAv, binding.attemptLog.keys, attemptColumns, "entry", errors);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+export async function requireQuestionBankBinding(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<void> {
+  const verification = await verifyQuestionBankBinding(client, binding);
+  if (!verification.ok) {
+    throw new Error(`Question bank binding is invalid: ${verification.errors.join("; ")}`);
+  }
+}
+
+export async function readAttributeView(
+  client: SiyuanKernelClient,
+  avId: string,
+): Promise<RawAttributeView> {
+  return getAttributeView(client, avId);
+}

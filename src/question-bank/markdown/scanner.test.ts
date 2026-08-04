@@ -39,6 +39,18 @@ describe("question Markdown scanner", () => {
     expect(question.metadata.collection).toBe("gold");
   });
 
+  it("parses SiYuan getBlockKramdown inline list IAL", () => {
+    const report = scanQuestionMarkdown(fixture("siyuan-kramdown"));
+    const question = report.document.questions[0];
+
+    expect(report.conflicts).toEqual([]);
+    expect(report.issues).toEqual([]);
+    expect(question.id).toBe("civil-kramdown-108");
+    expect(question.options.map((option) => option.id)).toEqual(["A", "B", "C", "D"]);
+    expect(question.solutionMarkdown).toContain("解析内容");
+    expect(question.solutionMarkdown).not.toContain("custom-qb-section");
+  });
+
   it("supports true/false and subjective questions", () => {
     const trueFalse = scanQuestionMarkdown(fixture("true-false"));
     const subjective = scanQuestionMarkdown(fixture("subjective"));

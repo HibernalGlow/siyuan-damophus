@@ -484,3 +484,11 @@ export async function listDocsByPath(notebook: NotebookId, path: string) {
     let payload = { notebook: notebook, path: path };
     return request(url, payload);
 }
+
+export async function requestStrict<T>(url: string, data: unknown): Promise<T> {
+    const response: IWebSocketData = await fetchSyncPost(url, data);
+    if (response.code !== 0) {
+        throw new Error(response.msg || `SiYuan request failed: ${url}`);
+    }
+    return response.data as T;
+}
