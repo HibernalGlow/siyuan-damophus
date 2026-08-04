@@ -14,7 +14,7 @@ class DockyPlugin extends SubPluginBase {
   override onunload() {
     this.unloadDocky();
     document
-      .querySelectorAll('*[data-type^="siyuan-hqweay-go_docky_"]')
+      .querySelectorAll('*[data-type^="siyuan-damophus_docky_"]')
       .forEach((el) => {
         el.remove();
       });
@@ -107,7 +107,7 @@ class DockyPlugin extends SubPluginBase {
   private addToDock(dock: any) {
     // log.info("addToDock", dock);
     // document
-    //   .querySelector(`[data-type="siyuan-hqweay-go_docky_${dock.id}"]`)
+    //   .querySelector(`[data-type="siyuan-damophus_docky_${dock.id}"]`)
     //   ?.remove();
     plugin.addDock({
       type: "_docky_" + dock.id,

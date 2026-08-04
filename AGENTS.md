@@ -68,7 +68,7 @@ When creating a `.changeset/*.md` file:
 - Example format:
   ```md
   ---
-  "siyuan-hqweay-go": minor
+  "siyuan-damophus": minor
   ---
 
   - 行内元素转换：现在支持……，并可在命令面板或快捷键设置中全文批量处理。

@@ -1,16 +1,17 @@
 {
-  "name": "siyuan-hqweay-go",
+  "name": "siyuan-damophus",
   "version": "0.25.3",
   "type": "module",
-  "description": "恐龙工具箱",
-  "repository": "",
-  "homepage": "",
-  "author": "养恐龙",
+  "description": "Damophus 思源题库与工具插件",
+  "repository": "https://github.com/HibernalGlow/siyuan-damophus",
+  "homepage": "https://github.com/HibernalGlow/siyuan-damophus",
+  "author": "HibernalGlow",
   "license": "WTFPL",
   "scripts": {
     "make-link": "node  --no-warnings ./scripts/make_dev_link.js",
     "dev": "vite build --watch",
     "build": "vite build",
+    "test:smoke": "node scripts/smoke-test.mjs",
     "release": "bash ./update-version.sh"
   },
   "devDependencies": {

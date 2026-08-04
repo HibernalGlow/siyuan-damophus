@@ -1,7 +1,7 @@
 {
-  "name": "siyuan-hqweay-go",
-  "author": "养恐龙",
-  "url": "https://github.com/hqweay/siyuan-hqweay-go",
+  "name": "siyuan-damophus",
+  "author": "HibernalGlow",
+  "url": "https://github.com/HibernalGlow/siyuan-damophus",
   "version": "0.25.3",
   "minAppVersion": "3.7.0",
   "disabledInPublish": false,
@@ -12,8 +12,8 @@
     "all"
   ],
   "displayName": {
-    "default": "恐龙工具箱",
-    "zh-CN": "恐龙工具箱"
+    "default": "Damophus",
+    "zh-CN": "Damophus"
   },
   "description": {
     "default": "这使你充满了决心。",

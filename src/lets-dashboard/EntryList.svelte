@@ -155,7 +155,7 @@ const log = getLogger("lets-dashboard");
         clickable={true}
         onClick={() => {
           copyToClipboard(
-            `[${title}](siyuan://plugins/siyuan-hqweay-go/flow-entry?title=${encodeURIComponent(title)}&sql=${encodeURIComponent(idSQL)})`
+            `[${title}](siyuan://plugins/siyuan-damophus/flow-entry?title=${encodeURIComponent(title)}&sql=${encodeURIComponent(idSQL)})`
           );
           showMessage(plugin.i18n["lets-dashboard.flowLinkCopied"]);
         }}

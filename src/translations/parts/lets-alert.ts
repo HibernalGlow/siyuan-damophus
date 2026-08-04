@@ -7,9 +7,9 @@ export const en = {
 };
 
 export const zhCN: typeof en = {
-  "lets-alert.title": "🦖 恐龙工具箱更新啦！",
+  "lets-alert.title": "Damophus 更新啦！",
   "lets-alert.currentVersion": "当前版本",
   "lets-alert.ok": "好的",
   "lets-alert.dialogTitle": "更新日志",
-  "lets-alert.welcome": "欢迎使用恐龙工具箱！"
+  "lets-alert.welcome": "欢迎使用 Damophus！"
 };

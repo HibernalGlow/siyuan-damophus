@@ -136,7 +136,7 @@ export default class DashBoard extends SubPluginBase {
   override onunload(): void {
     // 查询所有匹配的元素并删除
     document
-      .querySelectorAll('[id^="plugin_siyuan-hqweay-go_"]')
+      .querySelectorAll('[id^="plugin_siyuan-damophus_"]')
       .forEach((element) => {
         element.remove();
       });

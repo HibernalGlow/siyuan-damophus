@@ -170,7 +170,7 @@
         clickable={true}
         onClick={() => {
           copyToClipboard(
-            `[${title}](siyuan://plugins/siyuan-hqweay-go/flow-image?title=${encodeURIComponent(title)}&sql=${encodeURIComponent(imgSQL)})`
+            `[${title}](siyuan://plugins/siyuan-damophus/flow-image?title=${encodeURIComponent(title)}&sql=${encodeURIComponent(imgSQL)})`
           );
           showMessage(plugin.i18n["lets-dashboard.flowLinkCopied"]);
         }}

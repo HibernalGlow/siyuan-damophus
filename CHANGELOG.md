@@ -1,4 +1,4 @@
-# siyuan-hqweay-go
+# siyuan-damophus
 
 ## 0.25.3
 

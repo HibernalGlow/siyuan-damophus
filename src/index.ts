@@ -25,7 +25,7 @@ export default class PluginLetsGo extends Plugin {
     this.pluginRegistry.setMainPlugin(this);
   }
 
-  _name = "siyuan-hqweay-go";
+  _name = "siyuan-damophus";
 
   // Delegate events to enabled plugins through registry
   private delegateEvent(eventName: string, eventData: any) {
@@ -85,7 +85,7 @@ export default class PluginLetsGo extends Plugin {
     if (needAddTopBar) {
       const topBarElement = this.addTopBar({
         icon: this.myIcon,
-        title: "恐龙工具箱",
+        title: "Damophus",
         position: "right",
         callback: () => {
           if (isMobile) {
@@ -133,7 +133,7 @@ export default class PluginLetsGo extends Plugin {
   }
 
   addMenu(rect?: DOMRect) {
-    const menu = new Menu("siyuan-hqweay-go-topbar");
+    const menu = new Menu("siyuan-damophus-topbar");
     const plugins = this.pluginRegistry.getAllPlugins();
     for (const plugin of plugins) {
       if (plugin.enabled && plugin.addMenuItem) {

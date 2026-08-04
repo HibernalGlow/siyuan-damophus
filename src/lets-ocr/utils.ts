@@ -17,7 +17,7 @@ export function macOCRByAppleScript(imagePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     // AppleScript 文件路径
     const scriptPath = path.join(
-      `${window.siyuan.config.system.workspaceDir}/data/plugins/siyuan-hqweay-go`,
+      `${window.siyuan.config.system.workspaceDir}/data/plugins/siyuan-damophus`,
       "visionOCR.scpt"
     );
 
@@ -42,7 +42,7 @@ export function macOCRByAppleScript(imagePath: string): Promise<string> {
 
 export function macOCRBySwift(imagePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const cmd = `${window.siyuan.config.system.workspaceDir}/data/plugins/siyuan-hqweay-go/swiftOCR/release/swiftOCR "${imagePath}"`;
+    const cmd = `${window.siyuan.config.system.workspaceDir}/data/plugins/siyuan-damophus/swiftOCR/release/swiftOCR "${imagePath}"`;
     const { exec } = require("child_process");
     exec(cmd, { encoding: "buffer" }, (err, stdout) => {
       if (err) reject(err);
