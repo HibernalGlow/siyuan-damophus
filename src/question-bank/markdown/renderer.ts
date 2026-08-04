@@ -12,6 +12,8 @@ const solutionRenderer = unified()
   .use(rehypeSanitize)
   .use(rehypeStringify);
 
-export function renderSolutionHtml(markdown: string): string {
+export function renderMarkdownHtml(markdown: string): string {
   return String(solutionRenderer.processSync(markdown));
 }
+
+export const renderSolutionHtml = renderMarkdownHtml;

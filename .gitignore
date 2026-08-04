@@ -7,6 +7,8 @@ node_modules
 dev
 dist
 build
+.vitest-attachments/
+src/**/__screenshots__/
 tmp
 temp.txt
 siyuan-*/

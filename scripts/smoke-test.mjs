@@ -21,6 +21,7 @@ const expectedModules = [
   "lets-block-attr",
   "lets-dashboard",
   "lets-href-to-ref",
+  "lets-question-bank",
   "lets-typography-go",
 ];
 
