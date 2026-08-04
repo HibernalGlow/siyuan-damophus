@@ -12,6 +12,7 @@ temp.txt
 siyuan-*/
 sy*
 release-note.md
+ref/
 public/i18n/zh-CN.json
 public/i18n/en.json
 src/translations/en.ts
