@@ -20,6 +20,7 @@
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:core": "vitest run src/question-bank",
     "test:smoke": "node scripts/smoke-test.mjs",
+    "test:package": "node scripts/validate-package.mjs",
     "release": "bash ./update-version.sh"
   },
   "devDependencies": {

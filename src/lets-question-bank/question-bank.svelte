@@ -11,7 +11,11 @@
   } from "@/question-bank/core/types";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import { createPracticeQueue, suggestedMasteryRating, type PracticeOrder } from "@/question-bank/application";
-  import type { QuestionIndexPreview } from "@/question-bank/application";
+  import type {
+    AttemptImportPreview,
+    AttemptImportResult,
+    QuestionIndexPreview,
+  } from "@/question-bank/application";
   import type { QuestionBankInitializationPreview } from "@/question-bank/adapters/siyuan";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
@@ -38,6 +42,10 @@
   let busy = false;
   let error = "";
   let syncComplete = false;
+  let fileInput: HTMLInputElement;
+  let importSource = "";
+  let importPreview: AttemptImportPreview | undefined;
+  let importResult: AttemptImportResult | undefined;
   let queue: Question[] = [];
   let questionIndex = 0;
   let currentQuestion: Question | undefined;
@@ -106,6 +114,39 @@
     void run(async () => {
       preview = await controller.confirmSync(documentId, preview!.token);
       syncComplete = true;
+    });
+  }
+
+  function exportAttempts(): void {
+    void run(async () => {
+      const source = await controller.exportAttempts();
+      const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `damophus-attempts-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    });
+  }
+
+  async function selectImportFile(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    await run(async () => {
+      importSource = await file.text();
+      importResult = undefined;
+      importPreview = await controller.previewImport(importSource);
+    });
+    input.value = "";
+  }
+
+  function confirmImport(): void {
+    if (!importPreview) return;
+    void run(async () => {
+      importResult = await controller.confirmImport(importSource, importPreview!.token);
+      importPreview = undefined;
+      aggregates = await controller.loadAggregates();
     });
   }
 
@@ -263,6 +304,44 @@
           <svg aria-hidden="true"><use href="#iconRefresh"></use></svg>
         </button>
       </div>
+      <div class="recovery-actions">
+        <button class="secondary" disabled={busy} on:click={exportAttempts}>
+          <svg aria-hidden="true"><use href="#iconDownload"></use></svg>
+          {label("exportAttempts", "Export attempts")}
+        </button>
+        <button class="secondary" disabled={busy} on:click={() => fileInput.click()}>
+          <svg aria-hidden="true"><use href="#iconUpload"></use></svg>
+          {label("importAttempts", "Import attempts")}
+        </button>
+        <input class="file-input" bind:this={fileInput} type="file" accept="application/json,.json" on:change={selectImportFile} />
+      </div>
+
+      {#if importPreview}
+        <section class="import-report" aria-label={label("importPreview", "Import preview")}>
+          <span><strong>{importPreview.importable}</strong>{label("importable", "Importable")}</span>
+          <span><strong>{importPreview.duplicateAttemptIds.length}</strong>{label("duplicates", "Duplicates")}</span>
+          <span><strong>{importPreview.orphanQuestionIds.length}</strong>{label("orphans", "Orphans")}</span>
+          <button class="primary" disabled={busy} on:click={confirmImport}>{label("confirmImport", "Confirm import")}</button>
+          {#if importPreview.orphanQuestionIds.length > 0}
+            <code>{importPreview.orphanQuestionIds.join(", ")}</code>
+          {/if}
+          {#if importPreview.existingRowIssues.length > 0}
+            <code>{importPreview.existingRowIssues.map((issue) => issue.message).join("; ")}</code>
+          {/if}
+        </section>
+      {/if}
+
+      {#if importResult}
+        <section class="import-report result">
+          <span><strong>{importResult.imported}</strong>{label("imported", "Imported")}</span>
+          <span><strong>{importResult.duplicateAttemptIds.length}</strong>{label("duplicates", "Duplicates")}</span>
+          <span><strong>{importResult.orphanQuestionIds.length}</strong>{label("orphans", "Orphans")}</span>
+          <span class:danger={importResult.failures.length > 0}><strong>{importResult.failures.length}</strong>{label("failures", "Failures")}</span>
+          {#if importResult.failures.length > 0}
+            <code>{importResult.failures.map((failure) => failure.attemptId).join(", ")}</code>
+          {/if}
+        </section>
+      {/if}
 
       {#if preview}
         <section class="scan-summary" aria-label={label("scanSummary", "Scan summary")}>
@@ -411,6 +490,12 @@
   .notice { margin: 12px 20px 0; padding: 10px 12px; border-left: 3px solid var(--b3-theme-error); display: flex; gap: 8px; font-size: 13px; }
   .notice span { overflow-wrap: anywhere; }
   .scan-summary { margin: 18px -20px 0; padding: 16px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .recovery-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+  .file-input { display: none; }
+  .import-report { margin: 14px -20px 0; padding: 12px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .import-report span { min-width: 76px; display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .import-report strong { color: var(--b3-theme-on-background); font-size: 17px; }
+  .import-report code { flex-basis: 100%; overflow-wrap: anywhere; }
   .summary-grid { flex: 1; display: grid; grid-template-columns: repeat(6, minmax(74px, 1fr)); gap: 1px; background: var(--b3-border-color); }
   .summary-grid span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; flex-direction: column; justify-content: center; font-size: 12px; color: var(--b3-theme-on-surface); }
   .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
@@ -457,6 +542,9 @@
     .document-row { grid-template-columns: 1fr 34px; }
     .document-row label { grid-column: 1 / -1; }
     .scan-summary { margin-inline: -14px; padding-inline: 14px; }
+    .recovery-actions { justify-content: stretch; }
+    .recovery-actions button { flex: 1; }
+    .import-report { margin-inline: -14px; padding-inline: 14px; }
     .summary-grid { grid-template-columns: repeat(3, 1fr); flex-basis: 100%; }
     .practice-settings { grid-template-columns: 1fr; gap: 13px; }
     .practice-settings .start { width: 100%; }

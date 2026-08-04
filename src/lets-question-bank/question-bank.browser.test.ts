@@ -130,6 +130,21 @@ function mockController(options: {
     warnings: [],
   }));
   const saveRecentScope = vi.fn((scope: RecentScope) => { recent = scope; });
+  const previewImport = vi.fn(async () => ({
+    token: "import-token",
+    schemaVersion: 1 as const,
+    pluginVersion: "0.25.3",
+    total: 3,
+    importable: 1,
+    duplicateAttemptIds: ["duplicate-1"],
+    orphanQuestionIds: ["missing-question"],
+    existingRowIssues: [],
+  }));
+  const confirmImport = vi.fn(async () => ({
+    ...(await previewImport()),
+    imported: 1,
+    failures: [],
+  }));
   const controller: QuestionBankUiController = {
     getBinding: () => currentBinding,
     previewInitialization: vi.fn(async () => initializationPreview()),
@@ -150,11 +165,14 @@ function mockController(options: {
       }],
     ])),
     loadDueCards: vi.fn(async () => options.dueCards ?? new Map()),
+    exportAttempts: vi.fn(async () => "{}\n"),
+    previewImport,
+    confirmImport,
     submitAttempt,
     getRecentScope: () => recent,
     saveRecentScope,
   };
-  return { controller, submitAttempt, saveRecentScope };
+  return { controller, submitAttempt, saveRecentScope, previewImport, confirmImport };
 }
 
 let mounted: ReturnType<typeof mount> | undefined;
@@ -314,6 +332,23 @@ describe("question bank browser flow", () => {
     button("good").click();
     await flush();
     expect(submitAttempt.mock.calls[0][1]).toEqual(dueCard);
+  });
+
+  it("previews attempt imports before confirming writes", async () => {
+    const { controller, previewImport, confirmImport } = mockController();
+    render(controller);
+    const input = document.querySelector<HTMLInputElement>(".file-input");
+    if (!input) throw new Error("Missing import input");
+    const file = new File(["{}"], "attempts.json", { type: "application/json" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(previewImport).toHaveBeenCalledWith("{}"));
+    await flush();
+    expect(document.body.textContent).toContain("missing-question");
+    button("Confirm import").click();
+    await flush();
+    expect(confirmImport).toHaveBeenCalledWith("{}", "import-token");
+    expect(document.body.textContent).toContain("Imported");
   });
 
   it("keeps mobile practice controls inside the viewport without overlap", async () => {

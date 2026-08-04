@@ -51,6 +51,15 @@ export const en = {
   "lets-question-bank.progress": "Progress",
   "lets-question-bank.loading": "Working...",
   "lets-question-bank.error": "Operation failed",
+  "lets-question-bank.exportAttempts": "Export attempts",
+  "lets-question-bank.importAttempts": "Import attempts",
+  "lets-question-bank.confirmImport": "Confirm import",
+  "lets-question-bank.importPreview": "Import preview",
+  "lets-question-bank.importable": "Importable",
+  "lets-question-bank.duplicates": "Duplicates",
+  "lets-question-bank.orphans": "Orphans",
+  "lets-question-bank.imported": "Imported",
+  "lets-question-bank.failures": "Failures",
 };
 
 export const zhCN: typeof en = {
@@ -106,4 +115,13 @@ export const zhCN: typeof en = {
   "lets-question-bank.progress": "进度",
   "lets-question-bank.loading": "处理中...",
   "lets-question-bank.error": "操作失败",
+  "lets-question-bank.exportAttempts": "导出作答记录",
+  "lets-question-bank.importAttempts": "导入作答记录",
+  "lets-question-bank.confirmImport": "确认导入",
+  "lets-question-bank.importPreview": "导入预览",
+  "lets-question-bank.importable": "可导入",
+  "lets-question-bank.duplicates": "重复",
+  "lets-question-bank.orphans": "孤立题目",
+  "lets-question-bank.imported": "已导入",
+  "lets-question-bank.failures": "失败",
 };

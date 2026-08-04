@@ -1,4 +1,5 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
+import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/core/recovery";
 import type { AttemptAggregate, AttemptEvent } from "@/question-bank/core/types";
 import { getLogger } from "@/libs/logger";
 import {
@@ -19,8 +20,12 @@ import {
 } from "@/question-bank/adapters/siyuan";
 import {
   confirmQuestionIndexSync,
+  confirmAttemptImport,
   previewQuestionIndexSync,
+  previewAttemptImport,
   shouldAutoCreateQuickCard,
+  type AttemptImportPreview,
+  type AttemptImportResult,
   type QuestionIndexPreview,
 } from "@/question-bank/application";
 
@@ -39,6 +44,9 @@ export interface QuestionBankUiController {
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
   loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>>;
   loadDueCards(blockIdsByQuestionId: ReadonlyMap<string, string>): Promise<ReadonlyMap<string, RiffCard>>;
+  exportAttempts(): Promise<string>;
+  previewImport(source: string): Promise<AttemptImportPreview>;
+  confirmImport(source: string, token: string): Promise<AttemptImportResult>;
   submitAttempt(
     input: Omit<NewAttemptInput, "attemptId">,
     dueCard?: RiffCard,
@@ -58,6 +66,7 @@ export interface QuestionBankControllerOptions {
   client?: SiyuanKernelClient;
   nodeId?: () => string;
   uuid?: () => string;
+  pluginVersion: string;
 }
 
 const bindingSetting = "binding";
@@ -119,6 +128,28 @@ export class QuestionBankController implements QuestionBankUiController {
   ): Promise<ReadonlyMap<string, RiffCard>> {
     const due = await getDueRiffCards(this.client);
     return mapDueRiffCardsToQuestions(due.cards, blockIdsByQuestionId);
+  }
+
+  async exportAttempts(): Promise<string> {
+    const result = await rebuildAttemptStatistics(this.client, this.requireBinding());
+    if (result.issues.length > 0) {
+      throw new Error(`Cannot export while attempt rows are invalid: ${result.issues.map((issue) => issue.message).join("; ")}`);
+    }
+    return serializeAttemptArchive(createAttemptArchive(result.events, this.options.pluginVersion));
+  }
+
+  async previewImport(source: string): Promise<AttemptImportPreview> {
+    return previewAttemptImport(this.client, this.requireBinding(), source);
+  }
+
+  async confirmImport(source: string, token: string): Promise<AttemptImportResult> {
+    return confirmAttemptImport(
+      this.client,
+      this.requireBinding(),
+      source,
+      token,
+      this.nodeId,
+    );
   }
 
   async submitAttempt(

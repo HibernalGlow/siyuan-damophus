@@ -2,6 +2,7 @@ import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
 import { Dialog, getAllEditor, openTab, type Menu } from "siyuan";
 import { mount, unmount } from "svelte";
+import pluginManifest from "../../plugin.json";
 import QuestionBank from "./question-bank.svelte";
 import { QuestionBankController } from "./controller";
 
@@ -84,6 +85,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     const controller = new QuestionBankController({
       getSetting: (key) => this.getSetting(key),
       setSetting: (key, value) => this.setSetting(key, value),
+      pluginVersion: pluginManifest.version,
     });
     return mount(QuestionBank, {
       target,
