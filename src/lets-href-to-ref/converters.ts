@@ -1,7 +1,4 @@
-import { IOperation } from "siyuan";
-import { getLogger } from "@/libs/logger";
-
-const log = getLogger("lets-href-to-ref");
+import type { IOperation } from "siyuan";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

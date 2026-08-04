@@ -3,10 +3,6 @@
   import { showMessage } from "siyuan";
   import { onDestroy } from "svelte";
   import SettingPanel from "./libs/setting-panel.svelte";
-  // let groups: string[] = ["Default", "自动获取链接标题"];
-  import FetchCodeSnippets from "./lets-fetch-code-snippets";
-  import VoiceNotesPlugin from "./lets-voicenotes-sync";
-  import { selectIconDialog } from "./myscripts/utils";
   import { PluginRegistry } from "./plugin-registry";
   import { plugin } from "./utils";
   import { enableLogging, getLogger } from "./libs/logger";
@@ -144,14 +140,6 @@
         SettingItems = initData();
         showMessage(plugin.i18n["settings.mergeSuccess"] || "合并配置为最新配置");
       }
-    } else if ("VoiceNotes 同步" === detail.group) {
-      if ("fullSyncVoiceNotes" === detail.key) {
-        await new VoiceNotesPlugin().exec(true);
-      }
-    } else if ("侧边栏展示文档或块" === detail.group) {
-      if ("selectIcon" === detail.key) {
-        selectIconDialog();
-      }
     }
   };
 
@@ -174,22 +162,6 @@
         enableLogging(detail.value);
       } else if (detail.key === "lastVersion") {
         settings.set("lastVersion", detail.value);
-      }
-    } else if (detail.group === "lets-fetch-code-snippets.displayName" || detail.group === "fetch-code-snippets") {
-      settings.setBySpace("codeSnippets", detail.key, detail.value);
-
-      if (detail.value) {
-        (
-          PluginRegistry.getInstance().getPlugin(
-            "fetch-code-snippets",
-          ) as FetchCodeSnippets
-        ).insertSingleCSSByID(detail.key);
-      } else {
-        (
-          PluginRegistry.getInstance().getPlugin(
-            "fetch-code-snippets",
-          ) as FetchCodeSnippets
-        ).onunloadCSSByID(detail.key);
       }
     } else {
       const opItem = SettingItems["开关"].filter((ele) => {
@@ -245,6 +217,7 @@
 
   <!-- Mobile Selector Bar -->
   <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="mobile-selector-bar" on:click={() => (showBottomSheet = true)}>
     <span class="current-category">{getGroupLabel(focusGroup)}</span>
     <span class="arrow-icon">▼</span>
@@ -281,7 +254,9 @@
 <!-- Mobile Bottom Sheet Drawer -->
 {#if showBottomSheet}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="bottom-sheet-backdrop" on:click={() => (showBottomSheet = false)}>
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="bottom-sheet-container" on:click|stopPropagation>
       <div class="bottom-sheet-header">
         <h3>{plugin.i18n["settings.selectCategory"] || "settings.selectCategory"}</h3>

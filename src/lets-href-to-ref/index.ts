@@ -1,6 +1,5 @@
 import { settings } from "@/settings";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
-import { getLogger } from "@/libs/logger";
 import { registerCommands } from "./commands";
 import {
   buildBlockGroups,
@@ -13,8 +12,6 @@ import {
   cleanStarRef,
   ALL_INLINE_SELECTORS,
 } from "./converters";
-
-const log = getLogger("lets-href-to-ref");
 
 // ─── Scope definitions for page-level (editortitleicon) sub-menu ──────────────
 

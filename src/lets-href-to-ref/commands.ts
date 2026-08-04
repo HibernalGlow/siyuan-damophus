@@ -10,7 +10,7 @@ import {
   ALL_INLINE_SELECTORS,
 } from "./converters";
 import type { TransformGroup } from "./converters";
-import { IOperation } from "siyuan";
+import type { IOperation } from "siyuan";
 import { getLogger } from "@/libs/logger";
 
 const log = getLogger("lets-href-to-ref");

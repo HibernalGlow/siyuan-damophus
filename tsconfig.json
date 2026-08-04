@@ -50,6 +50,13 @@
         "src/**/*.tsx",
         "src/**/*.svelte"
     ],
+    "exclude": [
+        "dist",
+        "ref",
+        "public/i18n",
+        "src/translations/en.ts",
+        "src/translations/zh-CN.ts"
+    ],
     "references": [
         {
             "path": "./tsconfig.node.json"

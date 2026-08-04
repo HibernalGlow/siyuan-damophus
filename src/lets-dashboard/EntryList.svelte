@@ -6,7 +6,7 @@ const log = getLogger("lets-dashboard");
   import { flip } from "svelte/animate";
   import EntryItem from "./EntryItem.svelte";
   import StatCard from "./StatCard.svelte";
-  import { copyToClipboard } from "@/lets-epub-reader/annotation-service";
+  import { copyToClipboard } from "@/libs/clipboard";
   import { showMessage } from "siyuan";
   import { plugin } from "@/utils";
   export let idSQL = null; // a query that returns rows with `id` and optionally `created`
@@ -27,7 +27,7 @@ const log = getLogger("lets-dashboard");
   let isExpanded = false;
   let showTitle = true;
 
-  function handleCollapsed(index, currentWrapper) {
+  function handleCollapsed(_index, currentWrapper) {
     if (
       currentWrapper &&
       currentWrapper.parentElement &&

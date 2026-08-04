@@ -59,7 +59,7 @@
         placeholder={tPlaceholder}
         bind:value={settingValue}
         on:change={changed}
-      />
+      ></textarea>
     {:else if type === "list"}
       <!-- List Input -->
       <SettingListItem value={settingValue} {columns} on:value={(e) => { settingValue = e.detail; changed(); }} />
@@ -74,7 +74,7 @@
         {@html tDescription}
       </div>
     </div>
-    <span class="fn__space" />
+    <span class="fn__space"></span>
     <!-- <slot /> -->
     {#if type === "checkbox"}
       <!-- Checkbox -->

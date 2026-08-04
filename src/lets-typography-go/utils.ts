@@ -1,7 +1,3 @@
-import { fetchSyncPost } from "siyuan";
-import { getLogger } from "@/libs/logger";
-const log = getLogger("lets-typography-go");
-
 interface IgnoreBlock {
   start: number;
   end: number;
@@ -450,7 +446,7 @@ class FormatUtil {
       //新增与更新一起处理了，先不单独处理内连样式里的 width，可能会影响插件吧；暂时没发现啥问题。
       //@todo 可以给图片加一个 formated 属性，这样如果 format 后，用户手动调整了图片样式，可以控制再 format 时
       //不去覆盖
-      content = content.replace(formatImageV12, (match, p1, p2, p3) => {
+      content = content.replace(formatImageV12, (_match, p1) => {
         // return `${p1}{: parent-style=\"width: ${imageCenter}%;min-width: calc(100% - 0.1em);\"}`;
         return `${p1}{: style=\"width: calc(${imageCenter}% - 8px);\" parent-style=\"min-width: calc(100% - 0.1em);\"}`;
       });
@@ -470,7 +466,6 @@ class FormatUtil {
 > {: fsd }
   {: updated="20240331182021" id="20240331182021-ux1ltc4"}
      */
-    const filterPattern = /^(\*\s*)?(-\s*)?(>\s*)?(\s*)?\{:.*\}$/;
     // const formatPattern1 = /(?!\{:.*?\})/g;
     // const formatPattern = /(.*?)(\{:.*?\})(.*?)/g;
     const formatPattern = /\{:.*?\}/g;

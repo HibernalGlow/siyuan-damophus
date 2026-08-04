@@ -1,15 +1,11 @@
-import { showMessage, confirm, fetchSyncPost, IOperation, Menu } from "siyuan";
+import { showMessage, confirm, fetchSyncPost, Menu } from "siyuan";
+import type { IOperation } from "siyuan";
 
 import { formatUtil } from "./utils";
 
-import { plugin } from "@/utils";
 import { settings } from "@/settings";
-
-import type { SubPlugin } from "@/types/plugin";
 import { addProtyleSlash } from "@/myscripts/syUtils";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
-import { getLogger } from "@/libs/logger";
-const log = getLogger("lets-typography-go");
 
 // availableBlocks = ["p", "h1", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9"];
 const availableBlocks = ["NodeParagraph", "NodeHeading"];

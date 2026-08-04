@@ -2,7 +2,7 @@
   import { sql } from "@/api";
   import { onMount } from "svelte";
   import StatCard from "./StatCard.svelte";
-  import { copyToClipboard } from "@/lets-epub-reader/annotation-service";
+  import { copyToClipboard } from "@/libs/clipboard";
   import { showMessage } from "siyuan";
   import { plugin } from "@/utils";
 
@@ -227,12 +227,6 @@
     border-radius: 12px;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .images-section h3 {
-    margin: 0 0 20px 0;
-    color: #ffd700;
-    font-size: 1.3rem;
   }
 
   .images-header {

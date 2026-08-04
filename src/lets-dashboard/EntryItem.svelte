@@ -1,7 +1,7 @@
 <script>
 import { getLogger } from "@/libs/logger";
 const log = getLogger("lets-dashboard");
-  import { copyToClipboard } from "@/lets-epub-reader/annotation-service";
+  import { copyToClipboard } from "@/libs/clipboard";
   import { openByUrl } from "@/myscripts/syUtils";
   import { plugin } from "@/utils";
   import { Protyle, showMessage } from "siyuan";
@@ -143,7 +143,7 @@ const log = getLogger("lets-dashboard");
     class:expanded={isExpanded}
     class:fixed-height={fixedHeight}
     class:not-show-title={!showTitle}
-  />
+  ></div>
 </div>
 
 <style lang="scss">
@@ -154,17 +154,6 @@ const log = getLogger("lets-dashboard");
   .entry-item-wrapper {
     position: relative;
     height: 100%;
-  }
-
-  .custom-sql-container
-    .results-section
-    .entries-column
-    .entry-list
-    .entry-item-wrapper
-    .sticky {
-    position: sticky;
-    top: 40px;
-    z-index: 2;
   }
 
   .entry-item-header {
@@ -191,10 +180,6 @@ const log = getLogger("lets-dashboard");
     overflow: hidden;
   }
 
-  .entry-item-header:hover {
-    // background: rgba(255, 255, 255, 0.1);
-  }
-
   .toggle-btn {
     background: none;
     border: none;
@@ -212,10 +197,6 @@ const log = getLogger("lets-dashboard");
   .arrow {
     font-size: 0.7rem;
     transition: transform 0.2s;
-  }
-
-  .arrow.expanded {
-    transform: rotate(90deg);
   }
 
   .entry-id {

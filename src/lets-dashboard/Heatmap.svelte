@@ -6,7 +6,6 @@ const log = getLogger("lets-dashboard");
   import { plugin } from "@/utils";
   export let blocks = null; // optional array of blocks {created}
   export let sqlQuery = null;
-  export let daysRange = 99999; // show more by default for weekly columns
   export let selectedDays = []; // Array of YYYYMMDD to highlight
 
   const dispatch = createEventDispatcher();

@@ -112,6 +112,26 @@ type doOperation = {
 };
 
 interface Window {
+  JSAndroid?: {
+    openExternal(uri: string): void;
+  };
+  JSHarmony?: {
+    openExternal(uri: string): void;
+  };
+  webkit?: {
+    messageHandlers?: {
+      openLink?: {
+        postMessage(uri: string): void;
+      };
+    };
+  };
+  diaryTools?: {
+    openMobileFileById(...args: any[]): unknown;
+    openBlockByID(id: string): unknown;
+    isMobile: boolean;
+    plugin: any;
+    updateCustomCards(cards: any[]): void;
+  };
   siyuan: {
     [x: string]: any;
     isPublish: any;

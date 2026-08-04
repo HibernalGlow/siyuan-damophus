@@ -6,7 +6,8 @@
  * API 文档见 [API_zh_CN.md](https://github.com/siyuan-note/siyuan/blob/master/API_zh_CN.md)
  */
 
-import { fetchSyncPost, IWebSocketData } from "siyuan";
+import { fetchSyncPost } from "siyuan";
+import type { IWebSocketData } from "siyuan";
 
 
 export async function request(url: string, data: any) {

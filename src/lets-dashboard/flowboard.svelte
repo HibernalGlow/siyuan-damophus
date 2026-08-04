@@ -1,10 +1,13 @@
 <script>
+  import { getLogger } from "@/libs/logger";
   import EntryList from "./EntryList.svelte";
   import ImageGallery from "./ImageGallery.svelte";
   import { settings } from "@/settings";
   import { plugin } from "@/utils";
 
   import pluginMetadata from "./plugin";
+
+  const log = getLogger("lets-dashboard-flowboard");
 
   let inputSQL = "";
   let inputExecuteSQL = "";
@@ -457,30 +460,6 @@
 
   .results-section {
     margin-top: 30px;
-  }
-
-  .results-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.6);
-    border: 1px solid #ddd;
-    border-radius: 8px;
-  }
-
-  .results-count {
-    color: #ffd700;
-    font-weight: 600;
-  }
-
-  .results-type {
-    color: #333;
-    font-size: 14px;
-    padding: 4px 8px;
-    background: rgba(16, 185, 129, 0.2);
-    border-radius: 4px;
   }
 
   .empty-state {

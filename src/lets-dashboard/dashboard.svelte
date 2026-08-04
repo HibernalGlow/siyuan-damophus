@@ -319,7 +319,6 @@ order by attributes.value desc`,
   const MAX_BLOCKS = 2000;
   let mainBlocks = [];
   let blockIdsStr = "";
-  $: imgSQL = (currentConfig?.imgSQL) || generateFastImgSQL(blockIdsStr);
   // 仅支持通过链接打开传入
   let showConfigTabs = true;
   $: showMedia =
@@ -488,10 +487,6 @@ order by attributes.value desc`,
     });
     return Array.from(keys);
   }
-  // 生成 imgSQL 的默认函数 (向后兼容 fromFlow 等模式)
-  const generateImgSQL = (mainSQL) =>
-    `select mainSQL.* , assets.PATH as asset_path from (${mainSQL.replace(`'d'`, `'p'`)}) as mainSQL left join assets on mainSQL.id= assets.block_id where (assets.PATH LIKE '%.png' OR assets.PATH LIKE '%.jpg' OR assets.PATH LIKE '%.jpeg' OR assets.PATH LIKE '%.gif' OR assets.PATH LIKE '%.bmp' OR assets.PATH LIKE '%.webp')`;
-
   // 基于已知 ID 列表生成极速图片查询
   const generateFastImgSQL = (idsStr) => {
     if (!idsStr) return `select * from assets where 1=0`;
@@ -637,7 +632,7 @@ order by attributes.value desc`,
   }
 
   // ------------------- 解析单个属性 -------------------
-  async function resolveProp(key, value, card): Promise<any> {
+  async function resolveProp(key, value): Promise<any> {
     // ✅ 或者明確列出不需要處理的屬性
     const skipProps = ["onClick", "onHover", "onFocus", "onBlur"];
     if (skipProps.includes(key)) {
@@ -664,11 +659,11 @@ order by attributes.value desc`,
     // 遍历卡片的所有键（type、label、number、percentage、hover、footer…）
     for (const [key, value] of Object.entries(card)) {
       if (typeof value === "string" && /^\s*select\s+/i.test(value)) {
-        const result = await resolveProp(key, value, card);
+        const result = await resolveProp(key, value);
         resolved[key] = result[0]?.content;
         resolved[`${key}Blocks`] = result;
       } else {
-        resolved[key] = await resolveProp(key, value, card);
+        resolved[key] = await resolveProp(key, value);
       }
     }
 
@@ -806,7 +801,6 @@ order by attributes.value desc`,
     {#if showHeatmap}
       <Heatmap
         blocks={mainBlocks}
-        daysRange={9999}
         {selectedDays}
         on:dayclick={handleDayClick}
       />
@@ -912,7 +906,7 @@ order by attributes.value desc`,
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 20px;
       margin-bottom: 30px;
-      .stat-card {
+      :global(.stat-card) {
         min-width: 150px;
         min-height: 150px;
         max-width: 300px;

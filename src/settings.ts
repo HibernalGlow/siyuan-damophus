@@ -1,6 +1,5 @@
 import { fetchSyncPost } from "siyuan";
 import { deepMerge, plugin } from "./utils";
-import { scale } from "svelte/transition";
 import { PluginRegistry } from "./plugin-registry";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("settings");

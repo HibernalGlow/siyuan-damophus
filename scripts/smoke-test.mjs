@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 
 const expected = {
   id: "siyuan-damophus",
@@ -9,12 +9,20 @@ const expected = {
 
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
 
-const [packageJson, pluginJson, entrySource, registrySource] = await Promise.all([
+const [packageJson, pluginJson, entrySource, registrySource, sourceEntries] = await Promise.all([
   readJson("package.json"),
   readJson("plugin.json"),
   readFile("src/index.ts", "utf8"),
   readFile("src/plugin-registry.ts", "utf8"),
+  readdir("src", { withFileTypes: true }),
 ]);
+
+const expectedModules = [
+  "lets-block-attr",
+  "lets-dashboard",
+  "lets-href-to-ref",
+  "lets-typography-go",
+];
 
 assert.equal(packageJson.name, expected.id);
 assert.equal(packageJson.repository, expected.repository);
@@ -28,5 +36,12 @@ assert.match(
   registrySource,
   /import\.meta\.glob\([\s\S]*\.\/lets-\*\/index\.ts[\s\S]*\.\/lets-\*\/plugin\.ts/,
 );
+assert.deepEqual(
+  sourceEntries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("lets-"))
+    .map((entry) => entry.name)
+    .sort(),
+  expectedModules,
+);
 
-console.log("Damophus identity and plugin registry smoke checks passed.");
+console.log("Damophus identity, retained modules, and plugin registry smoke checks passed.");

@@ -323,7 +323,7 @@ export default class PluginLetsGo extends Plugin {
       title: "配置",
       content: `<div id="hqweay-setting-pannel" style="height: 600px;"></div>`,
       width: "800px",
-      destroyCallback: (options) => {
+      destroyCallback: () => {
         //log.info("destroyCallback", options);
         pannel.$destroy();
       },
