@@ -157,10 +157,17 @@
             </div>
           {:else}
             {#each filteredAnnotations as annotation}
-              <button
+              <div
                 class="annotation-item"
                 on:click={() => handleAnnotationClick(annotation)}
-                type="button"
+                on:keydown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleAnnotationClick(annotation);
+                  }
+                }}
+                role="button"
+                tabindex="0"
               >
                 <div class="annotation-header">
                   <span
@@ -183,7 +190,7 @@
                 {#if annotation.note}
                   <div class="annotation-note">📝 {annotation.note}</div>
                 {/if}
-              </button>
+              </div>
             {/each}
           {/if}
         </div>

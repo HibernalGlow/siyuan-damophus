@@ -1,6 +1,6 @@
 import "./index.scss";
 
-import { SubPlugin } from "@/types/plugin";
+import type { SubPlugin } from "@/types/plugin";
 import { plugin } from "@/utils";
 import { EnvConfig } from "./config/EnvConfig";
 import { CUSTOM_ICON_MAP } from "./models/icon-constant";

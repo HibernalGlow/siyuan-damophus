@@ -1,9 +1,9 @@
 .idea
 .vscode
 .DS_Store
-pnpm-lock.yaml
 package.zip
 node_modules
+*.tsbuildinfo
 dev
 dist
 build

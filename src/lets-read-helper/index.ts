@@ -1,5 +1,5 @@
 import { settings } from "@/settings";
-import { SubPlugin } from "@/types/plugin";
+import type { SubPlugin } from "@/types/plugin";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 
 export default class ReadHelper extends SubPluginBase {

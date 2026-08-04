@@ -15,7 +15,7 @@ import {
     generateGetParenListItemtDefBlockArraySql,
     generateGetParentDefBlockArraySql,
 } from "./backlink-sql";
-import {
+import type {
     IBacklinkBlockNode,
     IBacklinkBlockQueryParams,
 } from "@/lets-syplugin-backlink-panel/models/backlink-model";

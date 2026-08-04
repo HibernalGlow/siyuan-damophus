@@ -1,4 +1,4 @@
-import { IBacklinkBlockQueryParams } from "@/lets-syplugin-backlink-panel/models/backlink-model";
+import type { IBacklinkBlockQueryParams } from "@/lets-syplugin-backlink-panel/models/backlink-model";
 import { isArrayEmpty, isArrayNotEmpty } from "@/lets-syplugin-backlink-panel/utils/array-util";
 import { isStrBlank } from "@/lets-syplugin-backlink-panel/utils/string-util";
 

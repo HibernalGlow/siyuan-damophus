@@ -1,5 +1,5 @@
 import { openByUrl } from "@/myscripts/syUtils";
-import { SubPlugin } from "@/types/plugin";
+import type { SubPlugin } from "@/types/plugin";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("lets-dockPlus");
 

@@ -1,5 +1,5 @@
 import { settings } from "./settings";
-import { PluginMetadata, SubPlugin } from "./types/plugin";
+import type { PluginMetadata, SubPlugin } from "./types/plugin";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("plugin-registry");
 

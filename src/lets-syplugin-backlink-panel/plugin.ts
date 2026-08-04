@@ -1,4 +1,4 @@
-import { PluginMetadata } from "@/types/plugin";
+import type { PluginMetadata } from "@/types/plugin";
 
 const pluginMetadata: PluginMetadata = {
   name: "lets-backlink-panel",

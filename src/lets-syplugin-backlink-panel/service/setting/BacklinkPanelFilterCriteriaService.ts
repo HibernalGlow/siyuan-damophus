@@ -1,5 +1,5 @@
 import { CacheManager } from "@/lets-syplugin-backlink-panel/config/CacheManager";
-import { IPanelRednerFilterQueryParams, BacklinkPanelFilterCriteria } from "@/lets-syplugin-backlink-panel/models/backlink-model";
+import type { IPanelRednerFilterQueryParams, BacklinkPanelFilterCriteria } from "@/lets-syplugin-backlink-panel/models/backlink-model";
 
 import { getBlockAttrs, setBlockAttrs } from "@/lets-syplugin-backlink-panel/utils/api";
 import Instance from "@/lets-syplugin-backlink-panel/utils/Instance";

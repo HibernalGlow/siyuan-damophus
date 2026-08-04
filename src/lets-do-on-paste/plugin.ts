@@ -1,5 +1,5 @@
 import { settings } from "@/settings";
-import { PluginMetadata } from "@/types/plugin";
+import type { PluginMetadata } from "@/types/plugin";
 
 export const pluginMetadata: PluginMetadata = {
   name: "doOnPaste",

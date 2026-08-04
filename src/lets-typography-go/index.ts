@@ -5,8 +5,7 @@ import { formatUtil } from "./utils";
 import { plugin } from "@/utils";
 import { settings } from "@/settings";
 
-import AddIconThenClick from "@/myscripts/addIconThenClick";
-import { SubPlugin } from "@/types/plugin";
+import type { SubPlugin } from "@/types/plugin";
 import { addProtyleSlash } from "@/myscripts/syUtils";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { getLogger } from "@/libs/logger";

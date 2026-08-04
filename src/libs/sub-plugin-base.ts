@@ -1,4 +1,4 @@
-import { SubPlugin, TranslationKey } from "../types/plugin";
+import type { SubPlugin, TranslationKey } from "../types/plugin";
 
 /**
  * 子插件基类

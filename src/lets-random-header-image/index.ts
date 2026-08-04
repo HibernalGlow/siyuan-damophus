@@ -1,6 +1,6 @@
 import { settings } from "@/settings";
 import { showMessage } from "siyuan";
-import { SubPlugin } from "@/types/plugin";
+import type { SubPlugin } from "@/types/plugin";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("lets-random-header-image");

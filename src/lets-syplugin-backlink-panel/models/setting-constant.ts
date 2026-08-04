@@ -4,7 +4,8 @@ import {
   RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT,
   RELATED_DOCMUMENT_SORT_METHOD_ELEMENT,
 } from "./backlink-constant";
-import { ItemProperty, IOption, TabProperty } from "./setting-model";
+import { ItemProperty, TabProperty } from "./setting-model";
+import type { IOption } from "./setting-model";
 
 export function getSettingTabArray(): TabProperty[] {
   let tabProperties: TabProperty[] = [];

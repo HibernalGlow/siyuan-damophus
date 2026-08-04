@@ -3,7 +3,7 @@
  * extracted from backlink-data.ts to separate concerns.
  */
 
-import {
+import type {
     IBacklinkBlockNode,
     IBacklinkFilterPanelData,
     IPanelRenderBacklinkQueryParams,

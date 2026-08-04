@@ -3,7 +3,7 @@ import { getLogger } from "@/libs/logger";
 const log = getLogger("lets-syplugin-backlink-panel");
   import { CacheManager } from "@/lets-syplugin-backlink-panel/config/CacheManager";
   import { EnvConfig } from "@/lets-syplugin-backlink-panel/config/EnvConfig";
-  import {
+  import type {
     BACKLINK_BLOCK_SORT_METHOD_ELEMENT,
     CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT,
     CUR_DOC_DEF_BLOCK_TYPE_ELEMENT,
@@ -11,7 +11,7 @@ const log = getLogger("lets-syplugin-backlink-panel");
     RELATED_DEF_BLOCK_TYPE_ELEMENT,
     RELATED_DOCMUMENT_SORT_METHOD_ELEMENT,
   } from "@/lets-syplugin-backlink-panel/models/backlink-constant";
-  import {
+  import type {
     BacklinkPanelFilterCriteria,
     IBacklinkFilterPanelData,
     IBacklinkFilterPanelDataQueryParams,

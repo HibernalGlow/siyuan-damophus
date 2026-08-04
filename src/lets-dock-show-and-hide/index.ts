@@ -1,4 +1,3 @@
-import AddIconThenClick from "@/myscripts/addIconThenClick";
 import { settings } from "@/settings";
 import { isMobile } from "@/utils";
 import { SubPluginBase } from "@/libs/sub-plugin-base";

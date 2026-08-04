@@ -6,10 +6,10 @@ import {
   refToLink,
   linkToRef,
   inlineToText,
-  TransformGroup,
   getActiveDocId,
   ALL_INLINE_SELECTORS,
 } from "./converters";
+import type { TransformGroup } from "./converters";
 import { IOperation } from "siyuan";
 import { getLogger } from "@/libs/logger";
 

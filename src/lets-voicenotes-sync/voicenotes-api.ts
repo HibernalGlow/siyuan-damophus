@@ -1,5 +1,5 @@
 import { showMessage } from "siyuan";
-import { User, VoiceNoteRecordings, VoiceNoteSignedUrl } from "./types";
+import type { User, VoiceNoteRecordings, VoiceNoteSignedUrl } from "./types";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("lets-voicenotes-sync");
 

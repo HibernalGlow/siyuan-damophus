@@ -1,5 +1,5 @@
 import { settings } from "@/settings";
-import { SubPlugin } from "@/types/plugin";
+import type { SubPlugin } from "@/types/plugin";
 import { isMobile } from "@/utils";
 import { Dialog } from "siyuan";
 import changelogText from "../../CHANGELOG.md?raw";

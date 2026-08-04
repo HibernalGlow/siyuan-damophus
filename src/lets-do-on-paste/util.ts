@@ -1,5 +1,4 @@
 import { forwardProxy } from "../api";
-import getElectronPageTitle from "./electron-scraper";
 import { DEFAULT_SETTINGS } from "./linkSettings";
 import { fetchGet, IWebSocketData } from "siyuan";
 import { getLogger } from "@/libs/logger";

@@ -11,7 +11,7 @@ import { sql } from "@/lets-syplugin-backlink-panel/utils/api";
 import {
     generateGetDefBlockArraySql,
 } from "./backlink-sql";
-import {
+import type {
     IBacklinkBlockNode,
     IBacklinkBlockQueryParams,
     IBacklinkFilterPanelData,
@@ -91,7 +91,6 @@ import {
 } from "./backlink-parser";
 
 import {
-    IBacklinkCacheData,
     getBatchBacklinkDoc,
     getBacklinkBlockArray,
     getHeadlineChildBlockArray,
@@ -100,6 +99,7 @@ import {
     getBlockInfoMap,
     getBacklinkEmbedBlockInfo,
 } from "./backlink-loader";
+import type { IBacklinkCacheData } from "./backlink-loader";
 
 
 // ─── Main Entry Points ──────────────────────────────────────────────────────

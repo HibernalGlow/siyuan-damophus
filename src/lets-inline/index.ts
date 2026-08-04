@@ -1,5 +1,4 @@
 import { createDocWithMd, sql } from "@/api";
-import AddIconThenClick from "@/myscripts/addIconThenClick";
 import { settings } from "@/settings";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { showMessage } from "siyuan";

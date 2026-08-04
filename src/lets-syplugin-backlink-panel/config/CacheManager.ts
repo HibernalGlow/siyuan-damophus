@@ -1,4 +1,4 @@
-import { BacklinkPanelFilterCriteria, IBacklinkFilterPanelData } from "@/lets-syplugin-backlink-panel/models/backlink-model";
+import type { BacklinkPanelFilterCriteria, IBacklinkFilterPanelData } from "@/lets-syplugin-backlink-panel/models/backlink-model";
 import { CacheUtil, generateKey } from "@/lets-syplugin-backlink-panel/utils/cache-util";
 import Instance from "@/lets-syplugin-backlink-panel/utils/Instance";
 

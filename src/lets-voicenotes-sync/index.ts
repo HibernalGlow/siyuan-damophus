@@ -1,5 +1,4 @@
 import { setBlockAttrs, sql } from "@/api";
-import AddIconThenClick from "@/myscripts/addIconThenClick";
 import { settings } from "@/settings";
 import { formatUtil } from "@/lets-typography-go/utils";
 import * as jinja from "jinja-js";
@@ -7,7 +6,7 @@ import { fetchSyncPost, showMessage } from "siyuan";
 import { convertHtmlToMarkdown, formatDate, getFilenameFromUrl } from "./utils";
 import VoiceNotesApi from "./voicenotes-api";
 import { cleanSpacesBetweenChineseCharacters } from "@/myscripts/utils";
-import { SubPlugin } from "@/types/plugin";
+import type { SubPlugin } from "@/types/plugin";
 import { SubPluginBase } from "../libs/sub-plugin-base";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("lets-voicenotes-sync");
