@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Damophus">
+  <title>Damophus</title>
+  <desc>Damocles' hanging sword above Sisyphus and the boulder — Damophus</desc>
+
+  <!-- app plate -->
+  <rect x="6" y="6" width="116" height="116" rx="30" fill="currentColor" opacity=".07"/>
+
+  <!-- ===== Damocles: hair-thread + hanging sword ===== -->
+  <g fill="currentColor" stroke="none">
+    <!-- anchor -->
+    <circle cx="52" cy="18" r="3.2"/>
+    <!-- thread -->
+    <rect x="51.1" y="20" width="1.8" height="12" rx=".9"/>
+    <!-- pommel -->
+    <circle cx="52" cy="36" r="4.6"/>
+    <!-- grip -->
+    <rect x="49.2" y="39.5" width="5.6" height="11" rx="2.4"/>
+    <!-- crossguard -->
+    <rect x="38" y="50" width="28" height="5.5" rx="2.75"/>
+    <!-- blade -->
+    <path d="M48.2 55.5h7.6l1.6 28.5c.2 3.4-1.6 6.6-4.7 8.1l-1.3.6c-.7.35-1.5.35-2.2 0l-1.3-.6c-3.1-1.5-4.9-4.7-4.7-8.1l1.6-28.5z"/>
+  </g>
+  <!-- fuller -->
+  <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".28" d="M52 60v28"/>
+
+  <!-- ===== Sisyphus: hill + figure + boulder ===== -->
+  <!-- hill -->
+  <path fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"
+        d="M16 112c18-3 34-20 48-38 10-12 22-22 36-26"/>
+
+  <!-- boulder -->
+  <circle cx="98" cy="86" r="14" fill="currentColor"/>
+  <!-- boulder shade (cutout arc via darker plate contrast in PNG export) -->
+  <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".22"
+        d="M91 80c4 1.2 8 5 9.2 10"/>
+
+  <!-- eternal return -->
+  <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+        stroke-dasharray="2.8 4.8" opacity=".42"
+        d="M104 64c8 6 12 15 10.5 26"/>
+
+  <!-- figure pushing uphill -->
+  <g fill="none" stroke="currentColor" stroke-width="3.3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- head -->
+    <circle cx="72" cy="78" r="3.8" fill="currentColor" stroke="none"/>
+    <!-- torso leaning into push -->
+    <path d="M73.5 82.5c2.8 3.2 5.2 6.8 6 10.5"/>
+    <!-- pushing arms -->
+    <path d="M76 88c5.5 1.2 11 3.2 15.5 6"/>
+    <!-- rear leg -->
+    <path d="M79.5 93c-4 3.5-6.5 7-7 10.5"/>
+    <!-- front leg -->
+    <path d="M79.5 93c3.8 2.2 7 4.8 8.5 7.5"/>
+  </g>
+
+  <style>
+    svg { color: #152033; }
+    @media (prefers-color-scheme: dark) {
+      svg { color: #e8eef7; }
+    }
+  </style>
+</svg>
