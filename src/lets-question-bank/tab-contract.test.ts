@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { questionBankCustomTabId, questionBankTabType } from "./tab-contract";
+import {
+  questionBankCustomTabId,
+  questionBankTabTarget,
+  questionBankTabType,
+} from "./tab-contract";
 
 describe("question bank custom tab contract", () => {
   it("prefixes the registered tab type directly with the plugin name", () => {
@@ -7,8 +11,10 @@ describe("question bank custom tab contract", () => {
     expect(questionBankCustomTabId("siyuan-damophus")).toBe("siyuan-damophusquestion-bank");
   });
 
-  it("keeps question-bank tabs distinct for different launch blocks", () => {
-    expect(questionBankCustomTabId("siyuan-damophus", "20260804120000-abcdefg"))
-      .toBe("siyuan-damophusquestion-bank-20260804120000-abcdefg");
+  it("keeps the registered tab id fixed and passes the launch block as data", () => {
+    expect(questionBankTabTarget("siyuan-damophus", "20260804120000-abcdefg")).toEqual({
+      id: "siyuan-damophusquestion-bank",
+      data: { documentId: "20260804120000-abcdefg" },
+    });
   });
 });

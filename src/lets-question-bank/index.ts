@@ -13,7 +13,7 @@ import pluginManifest from "../../plugin.json";
 import QuestionBank from "./question-bank.svelte";
 import { QuestionBankController } from "./controller";
 import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
-import { questionBankCustomTabId, questionBankTabType } from "./tab-contract";
+import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 
 export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
@@ -122,8 +122,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       custom: {
         icon: "iconDatabase",
         title: this.t("lets-question-bank.displayName"),
-        data: { documentId: blockId },
-        id: questionBankCustomTabId(plugin.name, blockId),
+        ...questionBankTabTarget(plugin.name, blockId),
       },
     });
   }
