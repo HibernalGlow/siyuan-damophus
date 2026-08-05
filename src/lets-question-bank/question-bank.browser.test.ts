@@ -353,6 +353,43 @@ describe("question bank browser flow", () => {
     expect(openQuestionSource).toHaveBeenCalledWith(blockId);
   });
 
+  it("uses the SiYuan renderer for question and answer content and toggles source styles", async () => {
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    const renderQuestionMarkdown = vi.fn((markdown: string, inheritStyles: boolean) => (
+      `<span data-native-render="true" data-source-styles="${inheritStyles}">${markdown}</span>`
+    ));
+    const onInheritSourceStylesChange = vi.fn();
+    render(controller, { renderQuestionMarkdown, onInheritSourceStylesChange });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.stemMarkdown, true);
+    expect(document.querySelector('[data-native-render="true"][data-source-styles="true"]')).not.toBeNull();
+
+    const sourceStyleToggle = document.querySelector<HTMLInputElement>(".source-style-toggle input");
+    if (!sourceStyleToggle) throw new Error("Missing source style toggle");
+    sourceStyleToggle.checked = false;
+    sourceStyleToggle.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    expect(onInheritSourceStylesChange).toHaveBeenCalledWith(false);
+    expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.stemMarkdown, false);
+
+    const alpha = [...document.querySelectorAll<HTMLButtonElement>("button.option")]
+      .find((item) => item.querySelector(".option-label")?.textContent === "A");
+    if (!alpha) throw new Error("Missing source option A");
+    alpha.click();
+    await flush();
+    const gamma = [...document.querySelectorAll<HTMLButtonElement>("button.option")]
+      .find((item) => item.querySelector(".option-label")?.textContent === "C");
+    if (!gamma) throw new Error("Missing source option C");
+    gamma.click();
+    button("Reveal answer").click();
+    await flush();
+    expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.solutionMarkdown, false);
+    expect(document.querySelector(".solution [data-native-render='true']")?.textContent).toContain("Answer");
+  });
+
   it("records subjective self-rating independently from objective correctness", async () => {
     const { controller, submitAttempt } = mockController({ preview: makePreview([subjectiveQuestion]) });
     render(controller);

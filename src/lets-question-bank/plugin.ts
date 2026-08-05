@@ -29,6 +29,13 @@ const pluginMetadata: PluginMetadata = {
       key: "autoCardThreshold",
       value: 2,
     },
+    {
+      type: "checkbox",
+      title: "lets-question-bank.inheritSourceStyles",
+      description: "lets-question-bank.inheritSourceStylesDescription",
+      key: "inheritSourceStyles",
+      value: true,
+    },
   ],
 };
 

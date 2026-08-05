@@ -33,6 +33,9 @@
   export let random: () => number = Math.random;
   export let uuid: () => string = () => crypto.randomUUID();
   export let openQuestionSource: ((blockId: string) => void) | undefined = undefined;
+  export let inheritSourceStyles = true;
+  export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
+  export let onInheritSourceStylesChange: ((value: boolean) => void) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const recent = controller.getRecentScope();
@@ -384,6 +387,15 @@
       ? label("trueAnswer", "True")
       : label("falseAnswer", "False");
   }
+
+  function renderedQuestionContent(markdown: string, sourceStyles: boolean): string {
+    return renderQuestionMarkdown?.(markdown, sourceStyles) ?? renderMarkdownHtml(markdown);
+  }
+
+  function toggleSourceStyles(event: Event): void {
+    inheritSourceStyles = (event.currentTarget as HTMLInputElement).checked;
+    onInheritSourceStylesChange?.(inheritSourceStyles);
+  }
 </script>
 
 <main class="question-bank" data-testid="question-bank">
@@ -392,7 +404,18 @@
       <h1>Damophus</h1>
       <span>{label("displayName", "Question Bank")}</span>
     </div>
-    {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
+    <div class="header-actions">
+      <label class="source-style-toggle">
+        <input
+          class="b3-switch"
+          type="checkbox"
+          checked={inheritSourceStyles}
+          on:change={toggleSourceStyles}
+        />
+        <span>{inheritSourceStyles ? label("inheritSourceStyles", "Use source styles") : label("plainDisplay", "Plain display")}</span>
+      </label>
+      {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
+    </div>
   </header>
 
   {#if error}
@@ -643,10 +666,10 @@
         {#if currentGroup}
           <div class="group-material">
             <strong>{label("sharedMaterial", "Shared material")}</strong>
-            <div class="markdown">{@html renderMarkdownHtml(currentGroup.materialMarkdown)}</div>
+            <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderedQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
           </div>
         {/if}
-        <div class="markdown stem">{@html renderMarkdownHtml(currentQuestion.stemMarkdown)}</div>
+        <div class="markdown native-content protyle-wysiwyg stem" contenteditable="false">{@html renderedQuestionContent(currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
         {#if displayedOptions.length > 0}
           <div class="options">
             {#each displayedOptions as option (option.originalId)}
@@ -658,7 +681,7 @@
                 on:click={() => toggleOption(option.originalId)}
               >
                 <span class="option-label">{option.displayLabel}</span>
-                <span class="markdown">{@html renderMarkdownHtml(optionMarkdown(option))}</span>
+                <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderedQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
               </button>
             {/each}
           </div>
@@ -679,7 +702,7 @@
               {objectiveCorrect ? label("correct", "Correct") : label("incorrect", "Incorrect")}
             </strong>
           {/if}
-          <div class="markdown solution">{@html renderMarkdownHtml(currentQuestion.solutionMarkdown)}</div>
+          <div class="markdown native-content protyle-wysiwyg solution" contenteditable="false">{@html renderedQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
           {#if currentQuestion.type === "subjective"}
             <label class="score">
               <span>{label("subjectiveScore", "Self score")}</span>
@@ -708,12 +731,15 @@
 <style>
   :global(*) { box-sizing: border-box; }
   :global(button), :global(input), :global(select) { font: inherit; letter-spacing: 0; }
-  .question-bank { min-height: 100%; color: var(--b3-theme-on-background); background: var(--b3-theme-background); container-type: inline-size; }
+  .question-bank { min-height: 100%; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
   .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .app-header > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
   h1 { margin: 0; font-size: 20px; line-height: 1.2; }
   h2 { margin: 0; font-size: 18px; line-height: 1.45; }
   .app-header span, .status { color: var(--b3-theme-on-surface); font-size: 13px; }
+  .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  .source-style-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .source-style-toggle .b3-switch { flex: none; }
   section { padding: 18px 20px; }
   button { min-height: 34px; border: 1px solid var(--b3-border-color); border-radius: 6px; padding: 6px 12px; color: var(--b3-theme-on-background); background: var(--b3-theme-surface); cursor: pointer; }
   button:hover:not(:disabled) { background: var(--b3-list-hover); }
@@ -779,6 +805,11 @@
   .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
   .source-button { flex: none; }
   .markdown { min-width: 0; overflow-wrap: anywhere; }
+  .native-content.protyle-wysiwyg { display: block; min-height: 0; padding: 0; overflow: visible; }
+  .native-content.protyle-wysiwyg :global([data-node-id]) { max-width: 100%; }
+  .native-content.protyle-wysiwyg :global(.protyle-attr),
+  .native-content.protyle-wysiwyg :global(.protyle-action),
+  .native-content.protyle-wysiwyg :global(.protyle-icons) { display: none !important; }
   .markdown :global(p:first-child) { margin-top: 0; }
   .markdown :global(p:last-child) { margin-bottom: 0; }
   .stem { margin-top: 14px; line-height: 1.75; }
@@ -788,6 +819,8 @@
   .option { width: 100%; min-height: 48px; padding: 9px 12px; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: start; gap: 8px; text-align: left; background: transparent; }
   .option.selected { border-color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }
   .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
+  .option-content { align-self: center; width: 100%; }
+  .option-content :global([data-node-id]) { margin: 0; padding: 0; min-height: 0; }
   .answer { max-width: 920px; margin: 16px auto 0; padding: 18px 22px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
   .score { margin-top: 16px; display: flex; align-items: center; gap: 10px; }
@@ -805,6 +838,8 @@
 
   @container (max-width: 760px) {
     .app-header { padding-inline: 14px; }
+    .app-header { align-items: flex-start; }
+    .header-actions { flex-direction: column; align-items: flex-end; gap: 6px; }
     section { padding: 14px; }
     .document-row { grid-template-columns: 1fr 34px; }
     .document-row label { grid-column: 1 / -1; }

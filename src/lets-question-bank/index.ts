@@ -10,6 +10,7 @@ import { questionBankCustomTabId, questionBankTabType } from "./tab-contract";
 export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
+  private fallbackLute?: ReturnType<typeof window.Lute.New>;
 
   override onload(): void {
     if (this.registered) return;
@@ -98,6 +99,40 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
   }
 
+  private questionRenderer(markdown: string, inheritSourceStyles: boolean): string | undefined {
+    const lute = getAllEditor().find((editor) => editor.protyle.lute)?.protyle.lute
+      ?? this.getFallbackLute();
+    if (!lute) return undefined;
+
+    const template = document.createElement("template");
+    template.innerHTML = lute.Md2BlockDOM(markdown);
+    template.content.querySelectorAll(".protyle-attr, .protyle-action, .protyle-icons").forEach((element) => element.remove());
+    template.content.querySelectorAll<HTMLElement>("[contenteditable]").forEach((element) => {
+      element.contentEditable = "false";
+    });
+    if (!inheritSourceStyles) {
+      template.content.querySelectorAll<HTMLElement>("[style]").forEach((element) => {
+        element.removeAttribute("style");
+      });
+    }
+    return template.innerHTML;
+  }
+
+  private getFallbackLute(): ReturnType<typeof window.Lute.New> | undefined {
+    if (this.fallbackLute) return this.fallbackLute;
+    if (!window.Lute?.New) return undefined;
+    const lute = window.Lute.New();
+    lute.SetKramdownIAL(true);
+    lute.SetTextMark(true);
+    lute.SetHTMLTag2TextMark(true);
+    lute.SetProtyleWYSIWYG(true);
+    lute.SetBlockRef(true);
+    lute.SetSuperBlock(true);
+    lute.SetSanitize(true);
+    this.fallbackLute = lute;
+    return lute;
+  }
+
   private mountQuestionBank(
     target: HTMLElement,
     documentId?: string,
@@ -115,6 +150,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
         initialDocumentId: documentId,
         translations: plugin.i18n,
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
+        inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
+        renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
+          this.questionRenderer(markdown, inheritSourceStyles)
+        ),
+        onInheritSourceStylesChange: (value: boolean) => this.setSetting("inheritSourceStyles", value),
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
           this.openQuestionSource(blockId);
