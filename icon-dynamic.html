@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Damophus Icon - Dynamic</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .icon-container {
+      width: 400px;
+      height: 400px;
+      position: relative;
+      background: linear-gradient(145deg, #ffffff, #f0f0f0);
+      border-radius: 80px;
+      box-shadow:
+        20px 20px 60px #bebebe,
+        -20px -20px 60px #ffffff,
+        inset 0 0 40px rgba(255,255,255,0.5);
+      overflow: hidden;
+    }
+
+    /* 背景装饰 */
+    .icon-container::before {
+      content: '';
+      position: absolute;
+      width: 300%;
+      height: 300%;
+      background: conic-gradient(
+        from 0deg at 50% 50%,
+        transparent 0deg,
+        rgba(102, 126, 234, 0.03) 60deg,
+        transparent 120deg,
+        rgba(118, 75, 162, 0.03) 180deg,
+        transparent 240deg,
+        rgba(102, 126, 234, 0.03) 300deg,
+        transparent 360deg
+      );
+      animation: rotate 20s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes rotate {
+      to { transform: rotate(360deg); }
+    }
+
+    /* 剑 - 上部悬挂威胁 */
+    .sword {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+
+    .thread {
+      width: 2px;
+      height: 30px;
+      background: linear-gradient(180deg, #d4af37 0%, #c9a961 100%);
+      margin: 0 auto 8px;
+      position: relative;
+      opacity: 0.7;
+      animation: threadTension 3s ease-in-out infinite;
+    }
+
+    @keyframes threadTension {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.95); }
+    }
+
+    .blade {
+      width: 0;
+      height: 0;
+      border-left: 25px solid transparent;
+      border-right: 25px solid transparent;
+      border-top: 100px solid #e74c3c;
+      position: relative;
+      filter: drop-shadow(0 8px 16px rgba(231, 76, 60, 0.4));
+    }
+
+    .blade::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      left: -25px;
+      width: 0;
+      height: 0;
+      border-left: 25px solid transparent;
+      border-right: 25px solid transparent;
+      border-top: 100px solid #c0392b;
+      opacity: 0.3;
+    }
+
+    .blade::after {
+      content: '';
+      position: absolute;
+      top: -95px;
+      left: -2px;
+      width: 4px;
+      height: 90px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, transparent 100%);
+      border-radius: 2px;
+    }
+
+    .hilt {
+      width: 60px;
+      height: 12px;
+      background: linear-gradient(90deg, #8b7355 0%, #6d5a43 50%, #8b7355 100%);
+      margin: -8px auto 0;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    /* 圆环轨道 - 西西弗斯的永恒循环 */
+    .orbit {
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 280px;
+      height: 280px;
+    }
+
+    .orbit-path {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border: 6px solid transparent;
+      border-radius: 50%;
+      background:
+        linear-gradient(white, white) padding-box,
+        linear-gradient(135deg, #3498db 0%, #2ecc71 50%, #f39c12 100%) border-box;
+      animation: orbitGlow 4s ease-in-out infinite;
+    }
+
+    @keyframes orbitGlow {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.6; }
+    }
+
+    /* 滚动的石头 */
+    .stone {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      background:
+        radial-gradient(circle at 30% 30%, #95a5a6 0%, #7f8c8d 50%, #5d6d7e 100%);
+      border-radius: 50%;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      box-shadow:
+        0 8px 24px rgba(0,0,0,0.3),
+        inset -8px -8px 16px rgba(0,0,0,0.2),
+        inset 8px 8px 16px rgba(255,255,255,0.3);
+      animation: rollStone 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      z-index: 5;
+    }
+
+    .stone::before {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: radial-gradient(circle, rgba(255,255,255,0.4), transparent);
+      border-radius: 50%;
+      top: 12px;
+      left: 15px;
+    }
+
+    @keyframes rollStone {
+      0% {
+        transform: translateX(-50%) rotate(0deg) translateY(0);
+        top: 30px;
+      }
+      25% {
+        transform: translateX(-50%) rotate(90deg) translateY(-20px);
+        top: 80px;
+      }
+      50% {
+        transform: translateX(-50%) rotate(180deg) translateY(0);
+        top: 130px;
+      }
+      75% {
+        transform: translateX(-50%) rotate(270deg) translateY(-20px);
+        top: 80px;
+      }
+      100% {
+        transform: translateX(-50%) rotate(360deg) translateY(0);
+        top: 30px;
+      }
+    }
+
+    /* 人物剪影 - 抽象化 */
+    .figure {
+      position: absolute;
+      width: 40px;
+      height: 60px;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateX(-80px);
+      z-index: 6;
+      animation: pushStone 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    .figure-head {
+      width: 20px;
+      height: 20px;
+      background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+      border-radius: 50%;
+      margin: 0 auto 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .figure-body {
+      width: 16px;
+      height: 35px;
+      background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+      margin: 0 auto;
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .figure-body::before,
+    .figure-body::after {
+      content: '';
+      position: absolute;
+      width: 4px;
+      height: 20px;
+      background: #2c3e50;
+      border-radius: 2px;
+    }
+
+    .figure-body::before {
+      top: 5px;
+      right: -8px;
+      transform: rotate(-45deg);
+    }
+
+    .figure-body::after {
+      bottom: 0;
+      left: -6px;
+      transform: rotate(20deg);
+    }
+
+    @keyframes pushStone {
+      0% {
+        transform: translateX(-50%) translateX(-80px) translateY(0) rotate(0deg);
+      }
+      25% {
+        transform: translateX(-50%) translateX(-40px) translateY(-20px) rotate(-10deg);
+      }
+      50% {
+        transform: translateX(-50%) translateX(0) translateY(-40px) rotate(-20deg);
+      }
+      75% {
+        transform: translateX(-50%) translateX(-40px) translateY(-20px) rotate(-10deg);
+      }
+      100% {
+        transform: translateX(-50%) translateX(-80px) translateY(0) rotate(0deg);
+      }
+    }
+
+    /* 能量粒子效果 */
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: #3498db;
+      border-radius: 50%;
+      opacity: 0;
+      animation: particleFloat 3s ease-in-out infinite;
+    }
+
+    .particle:nth-child(1) {
+      left: 20%;
+      bottom: 100px;
+      animation-delay: 0s;
+    }
+
+    .particle:nth-child(2) {
+      left: 80%;
+      bottom: 150px;
+      animation-delay: 1s;
+      background: #2ecc71;
+    }
+
+    .particle:nth-child(3) {
+      left: 50%;
+      bottom: 80px;
+      animation-delay: 2s;
+      background: #f39c12;
+    }
+
+    @keyframes particleFloat {
+      0%, 100% {
+        opacity: 0;
+        transform: translateY(0) scale(0);
+      }
+      50% {
+        opacity: 0.6;
+        transform: translateY(-100px) scale(1);
+      }
+    }
+
+    /* 标题 */
+    .title {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon-container">
+    <!-- 剑 -->
+    <div class="sword">
+      <div class="thread"></div>
+      <div class="hilt"></div>
+      <div class="blade"></div>
+    </div>
+
+    <!-- 轨道 -->
+    <div class="orbit">
+      <div class="orbit-path"></div>
+
+      <!-- 石头 -->
+      <div class="stone"></div>
+
+      <!-- 人物 -->
+      <div class="figure">
+        <div class="figure-head"></div>
+        <div class="figure-body"></div>
+      </div>
+    </div>
+
+    <!-- 粒子 -->
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+
+    <div class="title">DAMOPHUS</div>
+  </div>
+</body>
+</html>
