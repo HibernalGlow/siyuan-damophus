@@ -260,6 +260,20 @@ export async function getChildBlocks(id: BlockId): Promise<IResGetChildBlock[]> 
     return request(url, data);
 }
 
+export interface BlockBreadcrumbItem {
+    id: string;
+    name: string;
+    type: string;
+    subType: string;
+    hasChildren?: boolean;
+}
+
+export async function getBlockBreadcrumb(id: BlockId, notebook?: NotebookId): Promise<BlockBreadcrumbItem[]> {
+    const data: Record<string, unknown> = { id, excludeTypes: [] };
+    if (notebook) data.notebook = notebook;
+    return requestStrict<BlockBreadcrumbItem[]>('/api/block/getBlockBreadcrumb', data);
+}
+
 export async function transferBlockRef(fromID: BlockId, toID: BlockId, refIDs: BlockId[]) {
     let data = {
         fromID: fromID,

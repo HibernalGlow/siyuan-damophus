@@ -27,6 +27,7 @@ const [
 
 const expectedModules = [
   "lets-block-attr",
+  "lets-mobile-breadcrumb",
   "lets-question-bank",
 ];
 
