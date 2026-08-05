@@ -32,10 +32,12 @@ function idGenerator(start = 0): NodeIdGenerator {
 class MockKernelClient implements SiyuanKernelClient {
   readonly requests: RequestRecord[] = [];
   readonly documents = new Map<string, string>();
+  readonly blockRoots = new Map<string, string>();
   readonly blockAttrs = new Map<string, Record<string, string>>();
   readonly attributeViews = new Map<string, RawAttributeView>();
   private primaryIndex = 0;
   failNextCellWrite = false;
+  failNextKeyWrite = false;
 
   async request<T>(endpoint: string, payload: any): Promise<T> {
     this.requests.push({ endpoint, payload });
@@ -44,10 +46,23 @@ class MockKernelClient implements SiyuanKernelClient {
       this.documents.set(documentId, payload.markdown);
       return documentId as T;
     }
+    if (endpoint === "/api/filetree/getIDsByHPath") return [] as T;
+    if (endpoint === "/api/filetree/removeDocByID") {
+      this.documents.delete(payload.id);
+      return null as T;
+    }
     if (endpoint === "/api/block/getBlockKramdown") {
       const kramdown = this.documents.get(payload.id);
       if (kramdown === undefined) throw new Error(`Block not found: ${payload.id}`);
       return { id: payload.id, kramdown } as T;
+    }
+    if (endpoint === "/api/query/sql") {
+      const ids = [...String(payload.stmt).matchAll(/'(\d{14}-[a-z0-9]{7})'/gu)]
+        .map((match) => match[1]);
+      return ids.flatMap((id) => {
+        const root = this.blockRoots.get(id);
+        return root ? [{ id, root_id: root }] : [];
+      }) as T;
     }
     if (endpoint === "/api/attr/setBlockAttrs") {
       this.blockAttrs.set(payload.id, {
@@ -76,6 +91,10 @@ class MockKernelClient implements SiyuanKernelClient {
       return { av } as T;
     }
     if (endpoint === "/api/av/addAttributeViewKey") {
+      if (this.failNextKeyWrite) {
+        this.failNextKeyWrite = false;
+        throw new Error("key write failed");
+      }
       const av = this.requireAv(payload.avID);
       av.keyValues.push({
         key: { id: payload.keyID, name: payload.keyName, type: payload.keyType },
@@ -184,7 +203,12 @@ describe("SiYuan question bank adapter", () => {
     const { client, binding } = await initialized();
     const verification = await verifyQuestionBankBinding(client, binding);
 
-    expect(verification).toEqual({ ok: true, errors: [] });
+    expect(verification).toEqual({
+      ok: true,
+      errors: [],
+      fatalErrors: [],
+      missingManagedKeys: [],
+    });
     expect(Object.keys(binding.questionIndex.keys)).toHaveLength(11);
     expect(Object.keys(binding.attemptLog.keys)).toHaveLength(14);
     expect(client.requests.filter((request) => request.endpoint === "/api/av/renderAttributeView")).toHaveLength(2);
@@ -202,6 +226,21 @@ describe("SiYuan question bank adapter", () => {
     expect(preview.systemDocumentId).toBe(binding.systemDocumentId);
   });
 
+  it("previews and repairs missing managed columns while reconnecting", async () => {
+    const { client, binding } = await initialized();
+    const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
+    attemptAv.keyValues = attemptAv.keyValues.filter(
+      (value) => value.key.id !== binding.attemptLog.keys.duration_ms,
+    );
+
+    const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
+    const rebound = await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
+
+    expect(preview.bindingRepairs).toEqual([expect.objectContaining({ field: "duration_ms" })]);
+    expect(rebound).toEqual(binding);
+    expect((await verifyQuestionBankBinding(client, rebound)).ok).toBe(true);
+  });
+
   it("does not initialize when the preview token was modified", async () => {
     const client = new MockKernelClient();
     const preview = previewQuestionBankInitialization({
@@ -217,6 +256,23 @@ describe("SiYuan question bank adapter", () => {
     expect(client.requests).toEqual([]);
   });
 
+  it("removes a newly created system document when initialization fails", async () => {
+    const client = new MockKernelClient();
+    const preview = previewQuestionBankInitialization({
+      notebookId: "20260804120000-notebok",
+      path: "/Damophus",
+      idGenerator: idGenerator(),
+    });
+    client.failNextKeyWrite = true;
+
+    await expect(confirmQuestionBankInitialization(client, preview, preview.token))
+      .rejects.toThrow("key write failed");
+
+    expect(client.documents.has("20260804130000-system1")).toBe(false);
+    expect(client.requests.some((request) => request.endpoint === "/api/filetree/removeDocByID"))
+      .toBe(true);
+  });
+
   it("scans real SiYuan kramdown and binds stable IDs to title block IDs", async () => {
     const { client } = await initialized();
     const documentId = "20260804120000-sourced";
@@ -226,6 +282,74 @@ describe("SiYuan question bank adapter", () => {
 
     expect(scan.report.document.questions[0].id).toBe("civil-kramdown-108");
     expect(scan.blockIdsByQuestionId.get("civil-kramdown-108")).toBe("20260804000200-quest01");
+    expect(scan.topicBlockIdsByTopicId.get("civil-security-flow-clause"))
+      .toBe("20260804000100-topic01");
+  });
+
+  it("ignores question-like IAL inside fenced code when binding SiYuan blocks", async () => {
+    const { client } = await initialized();
+    const documentId = "20260804120000-codeial";
+    client.documents.set(documentId, `${fixture("siyuan-kramdown")}
+
+\`\`\`markdown
+##### Fake question
+{: id="20260804129999-fake001" custom-qb-id="civil-kramdown-108"}
+\`\`\``);
+
+    const scan = await scanSiyuanDocument(client, documentId);
+
+    expect(scan.sourceIssues).toEqual([]);
+    expect(scan.blockIdsByQuestionId.get("civil-kramdown-108")).toBe("20260804000200-quest01");
+  });
+
+  it("previews and confirms inferred IAL without rewriting question content", async () => {
+    const { client, binding } = await initialized();
+    const documentId = "20260804120000-infer01";
+    client.documents.set(documentId, `## Legacy topic
+{: id="20260804120100-topic01"}
+
+##### 1. （单）
+{: id="20260804120200-quest01" custom-qb-id="legacy-inferred-1"}
+
+- Stem
+  - [ ] A. Correct
+  - [ ] B. Incorrect
+
+答案与解析：说明
+{: id="20260804120300-solut01"}
+
+正确答案为 A。
+{: id="20260804120400-answer1"}`);
+
+    const preview = await previewQuestionIndexSync(client, binding, documentId);
+
+    expect(preview.blockers).toEqual([]);
+    expect(preview.ialWriteActions.map((action) => action.reason)).toEqual([
+      "inferred-question-type",
+      "inferred-solution-boundary",
+      "inferred-machine-answer",
+    ]);
+    expect(preview.actions[0].question.metadata.topicId).toBeUndefined();
+    expect(preview.actions[0].question.metadata.scopeTopicId).toBe(
+      preview.scan.report.document.topics[0].id,
+    );
+    expect(client.blockAttrs.get("20260804120200-quest01")).toBeUndefined();
+
+    await confirmQuestionIndexSync(client, binding, documentId, preview.token);
+
+    expect(client.documents.get(documentId)).toContain("##### 1. （单）");
+    expect(client.blockAttrs.get("20260804120200-quest01")).toMatchObject({
+      "custom-qb-type": "single",
+      "custom-qb-answer": "A",
+    });
+    expect(client.blockAttrs.get("20260804120300-solut01")).toMatchObject({
+      "custom-qb-section": "solution",
+    });
+    const topicValues = client.attributeViews.get(binding.questionIndex.avId)!.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.topic_id,
+    )?.values;
+    expect(topicValues?.find((value) => value.blockID === "20260804120200-quest01")?.text?.content)
+      .toBe("");
   });
 
   it("previews before writing, preserves user columns, and uses itemID for managed cells", async () => {
@@ -276,6 +400,26 @@ describe("SiYuan question bank adapter", () => {
     }]);
   });
 
+  it("reports stale rows only for the document being scanned", async () => {
+    const { client, binding } = await initialized();
+    const firstDocumentId = "20260804120000-source1";
+    const otherDocumentId = "20260804120000-source2";
+    client.documents.set(firstDocumentId, fixture("siyuan-kramdown"));
+    const firstPreview = await previewQuestionIndexSync(client, binding, firstDocumentId);
+    await confirmQuestionIndexSync(client, binding, firstDocumentId, firstPreview.token);
+    client.blockRoots.set("20260804000200-quest01", firstDocumentId);
+    const emptyDocument = `## Empty
+{: id="20260804120000-empty01"}`;
+    client.documents.set(firstDocumentId, emptyDocument);
+    client.documents.set(otherDocumentId, emptyDocument);
+
+    const otherPreview = await previewQuestionIndexSync(client, binding, otherDocumentId);
+    const currentPreview = await previewQuestionIndexSync(client, binding, firstDocumentId);
+
+    expect(otherPreview.staleQuestionIds).toEqual([]);
+    expect(currentPreview.staleQuestionIds).toEqual(["civil-kramdown-108"]);
+  });
+
   it("stops writes when a managed key binding is missing", async () => {
     const { client, binding } = await initialized();
     const av = client.attributeViews.get(binding.attemptLog.avId)!;
@@ -294,6 +438,31 @@ describe("SiYuan question bank adapter", () => {
       "Question bank binding is invalid",
     );
     expect(client.requests.filter((request) => request.endpoint === "/api/av/addAttributeViewBlocks")).toHaveLength(0);
+  });
+
+  it("previews and repairs missing managed columns before index writes", async () => {
+    const { client, binding } = await initialized();
+    const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
+    attemptAv.keyValues = attemptAv.keyValues.filter(
+      (value) => value.key.id !== binding.attemptLog.keys.duration_ms,
+    );
+    const documentId = "20260804120000-sourced";
+    client.documents.set(documentId, fixture("siyuan-kramdown"));
+
+    const preview = await previewQuestionIndexSync(client, binding, documentId);
+
+    expect(preview.bindingRepairs).toEqual([expect.objectContaining({
+      database: "attemptLog",
+      field: "duration_ms",
+      keyId: binding.attemptLog.keys.duration_ms,
+    })]);
+
+    await confirmQuestionIndexSync(client, binding, documentId, preview.token);
+
+    expect(attemptAv.keyValues.some(
+      (value) => value.key.id === binding.attemptLog.keys.duration_ms,
+    )).toBe(true);
+    expect((await verifyQuestionBankBinding(client, binding)).ok).toBe(true);
   });
 
   it("appends immutable detached attempts, reads them back, and deduplicates by attempt ID", async () => {

@@ -27,6 +27,7 @@ export const QuestionMetadataSchema = z.object({
   collection: z.string().optional(),
   source: z.string().optional(),
   topicId: z.string().optional(),
+  scopeTopicId: z.string().optional(),
   topicPath: z.array(z.string()),
   parentId: z.string().optional(),
 });
@@ -79,6 +80,12 @@ export const QuestionSchema = z
     if (question.type === "true-false" && question.answer?.kind !== "boolean") {
       context.addIssue({ code: "custom", message: "True/false questions require a boolean answer" });
     }
+    if (question.type === "true-false" && question.options.length > 0) {
+      const ids = new Set(question.options.map((option) => option.id));
+      if (ids.size !== 2 || !ids.has("true") || !ids.has("false")) {
+        context.addIssue({ code: "custom", message: "True/false options must be true and false" });
+      }
+    }
     if (question.type === "subjective" || question.type === "group") {
       if (question.answer) {
         context.addIssue({ code: "custom", message: "Subjective and group questions cannot have machine answers" });
@@ -98,7 +105,7 @@ export const AttemptEventSchema = z.object({
   selected_option_ids: z.array(z.string()),
   objective_correct: z.boolean().nullable(),
   mastery_rating: MasteryRatingSchema,
-  subjective_score: z.number().finite().optional(),
+  subjective_score: z.number().finite().min(0).max(100).optional(),
   duration_ms: z.number().int().nonnegative().optional(),
 }).superRefine((attempt, context) => {
   if (attempt.question_type === "group") {
@@ -106,6 +113,9 @@ export const AttemptEventSchema = z.object({
   }
   if (attempt.question_type === "subjective" && attempt.objective_correct !== null) {
     context.addIssue({ code: "custom", message: "Subjective attempts cannot have an objective result" });
+  }
+  if (attempt.question_type !== "subjective" && attempt.subjective_score !== undefined) {
+    context.addIssue({ code: "custom", message: "Only subjective attempts can have a subjective score" });
   }
   if (["single", "multiple", "true-false"].includes(attempt.question_type)
     && attempt.objective_correct === null) {

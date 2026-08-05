@@ -53,8 +53,29 @@ describe("SiYuan Riff adapter", () => {
     expect(result.cards).toEqual([card]);
     expect(client.requests[0]).toEqual({
       endpoint: "/api/riff/getRiffDueCards",
-      payload: { deckID: "", reviewedCards: [] },
+      payload: { deckID: QUICK_RIFF_DECK_ID, reviewedCards: [] },
     });
+  });
+
+  it("does not query due cards from unrelated decks", async () => {
+    const unrelatedCard = { ...card, deckID: "custom-deck", cardID: "other-card" };
+    const client = new class extends MockClient {
+      override async request<T>(endpoint: string, payload: unknown): Promise<T> {
+        this.requests.push({ endpoint, payload });
+        const deckID = (payload as { deckID: string }).deckID;
+        return {
+          cards: deckID === QUICK_RIFF_DECK_ID ? [card] : [card, unrelatedCard],
+          unreviewedCount: deckID === QUICK_RIFF_DECK_ID ? 1 : 2,
+          unreviewedNewCardCount: 0,
+          unreviewedOldCardCount: deckID === QUICK_RIFF_DECK_ID ? 1 : 2,
+        } as T;
+      }
+    }();
+
+    const result = await getDueRiffCards(client);
+
+    expect(result.cards).toEqual([card]);
+    expect(client.requests[0]?.payload).toMatchObject({ deckID: QUICK_RIFF_DECK_ID });
   });
 
   it("submits the official numeric rating with reviewed card IDs", async () => {

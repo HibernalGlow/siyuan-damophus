@@ -22,7 +22,10 @@ export interface QuestionMetadata {
   category?: string;
   collection?: string;
   source?: string;
+  /** Stable topic identity from explicit portable IAL. */
   topicId?: string;
+  /** Scan-local heading scope used when no stable topic identity exists. */
+  scopeTopicId?: string;
   topicPath: string[];
   parentId?: string;
 }
@@ -48,6 +51,7 @@ export interface TopicNode {
   id: string;
   title: string;
   level: number;
+  sourceLine?: number;
   parentId?: string;
   childIds: string[];
   explicit: boolean;

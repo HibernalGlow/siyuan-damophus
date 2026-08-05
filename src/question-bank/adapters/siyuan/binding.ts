@@ -250,6 +250,13 @@ export async function confirmQuestionBankInitialization(
   if (expectedToken !== preview.token || initializationToken(plan) !== preview.token) {
     throw new Error("Question bank initialization preview is stale or modified");
   }
+  const existing = await client.request<string[]>("/api/filetree/getIDsByHPath", {
+    notebook: preview.notebookId,
+    path: preview.path,
+  });
+  if (existing.length > 0) {
+    throw new Error(`A Damophus system document already exists (${existing[0]}); reconnect it instead`);
+  }
   const markdown = [
     "# Damophus",
     "",
@@ -264,48 +271,69 @@ export async function confirmQuestionBankInitialization(
     path: preview.path,
     markdown,
   });
-  const questionKeys = await initializeAttributeView(
-    client,
-    preview.questionAvId,
-    preview.questionBlockId,
-    "block_id" as QuestionField,
-    preview.questionColumns,
-  );
-  const attemptKeys = await initializeAttributeView(
-    client,
-    preview.attemptAvId,
-    preview.attemptBlockId,
-    "entry" as AttemptField,
-    preview.attemptColumns,
-  );
-  const binding: QuestionBankBinding = {
-    schemaVersion: 1,
-    notebookId: preview.notebookId,
-    systemDocumentId,
-    questionIndex: {
-      avId: preview.questionAvId,
-      blockId: preview.questionBlockId,
-      keys: questionKeys,
-    },
-    attemptLog: { avId: preview.attemptAvId, blockId: preview.attemptBlockId, keys: attemptKeys },
-  };
-  await configureQuestionRelation(client, binding);
-  const verification = await verifyQuestionBankBinding(client, binding);
-  if (!verification.ok) {
-    throw new Error(`Question bank initialization verification failed: ${verification.errors.join("; ")}`);
+  const createdDocument = await client.request<{ kramdown: string }>("/api/block/getBlockKramdown", {
+    id: systemDocumentId,
+  });
+  if (!createdDocument.kramdown.includes(preview.questionBlockId)
+    || !createdDocument.kramdown.includes(preview.questionAvId)
+    || !createdDocument.kramdown.includes(preview.attemptBlockId)
+    || !createdDocument.kramdown.includes(preview.attemptAvId)) {
+    throw new Error("The /Damophus path was occupied during initialization; reconnect the existing document");
   }
-  await persistQuestionBankBinding(client, binding);
-  return binding;
+  try {
+    const questionKeys = await initializeAttributeView(
+      client,
+      preview.questionAvId,
+      preview.questionBlockId,
+      "block_id" as QuestionField,
+      preview.questionColumns,
+    );
+    const attemptKeys = await initializeAttributeView(
+      client,
+      preview.attemptAvId,
+      preview.attemptBlockId,
+      "entry" as AttemptField,
+      preview.attemptColumns,
+    );
+    const binding: QuestionBankBinding = {
+      schemaVersion: 1,
+      notebookId: preview.notebookId,
+      systemDocumentId,
+      questionIndex: {
+        avId: preview.questionAvId,
+        blockId: preview.questionBlockId,
+        keys: questionKeys,
+      },
+      attemptLog: { avId: preview.attemptAvId, blockId: preview.attemptBlockId, keys: attemptKeys },
+    };
+    await configureQuestionRelation(client, binding);
+    const verification = await verifyQuestionBankBinding(client, binding);
+    if (!verification.ok) {
+      throw new Error(`Question bank initialization verification failed: ${verification.errors.join("; ")}`);
+    }
+    await persistQuestionBankBinding(client, binding);
+    return binding;
+  } catch (error) {
+    try {
+      await client.request("/api/filetree/removeDocByID", { id: systemDocumentId });
+    } catch (cleanupError) {
+      throw new Error(
+        `Question bank initialization failed and cleanup also failed: ${error instanceof Error ? error.message : String(error)}; ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+      );
+    }
+    throw error;
+  }
 }
 
 export interface QuestionBankRebindingPreview {
   token: string;
   systemDocumentId: string;
   binding: QuestionBankBinding;
+  bindingRepairs: ManagedKeyRepair[];
 }
 
-function rebindingToken(binding: QuestionBankBinding): string {
-  return hashToken(binding);
+function rebindingToken(binding: QuestionBankBinding, bindingRepairs: readonly ManagedKeyRepair[]): string {
+  return hashToken({ binding, bindingRepairs });
 }
 
 export async function previewQuestionBankRebinding(
@@ -334,10 +362,15 @@ export async function previewQuestionBankRebinding(
     throw new Error("The binding manifest belongs to a different system document");
   }
   const verification = await verifyQuestionBankBinding(client, binding);
-  if (!verification.ok) {
-    throw new Error(`Question bank binding is invalid: ${verification.errors.join("; ")}`);
+  if (verification.fatalErrors.length > 0) {
+    throw new Error(`Question bank binding is invalid: ${verification.fatalErrors.join("; ")}`);
   }
-  return { token: rebindingToken(binding), systemDocumentId, binding };
+  return {
+    token: rebindingToken(binding, verification.missingManagedKeys),
+    systemDocumentId,
+    binding,
+    bindingRepairs: verification.missingManagedKeys,
+  };
 }
 
 export async function confirmQuestionBankRebinding(
@@ -349,12 +382,23 @@ export async function confirmQuestionBankRebinding(
   if (preview.token !== expectedToken) {
     throw new Error("Question bank rebinding preview is stale; preview it again");
   }
+  await repairQuestionBankBinding(client, preview.binding, preview.bindingRepairs);
   return preview.binding;
 }
 
 export interface BindingVerification {
   ok: boolean;
   errors: string[];
+  fatalErrors: string[];
+  missingManagedKeys: ManagedKeyRepair[];
+}
+
+export interface ManagedKeyRepair {
+  database: "questionIndex" | "attemptLog";
+  field: QuestionField | AttemptField;
+  keyId: string;
+  name: string;
+  type: AttributeViewKeyType;
 }
 
 function verifyKeys<Field extends string>(
@@ -362,16 +406,26 @@ function verifyKeys<Field extends string>(
   expected: Record<Field, string>,
   columns: readonly ColumnDefinition<Field>[],
   primaryField: Field,
-  errors: string[],
+  database: ManagedKeyRepair["database"],
+  fatalErrors: string[],
+  missingManagedKeys: ManagedKeyRepair[],
 ): void {
   const byId = new Map(av.keyValues.map((value) => [value.key.id, value.key]));
   const primary = byId.get(expected[primaryField]);
-  if (!primary || primary.type !== "block") errors.push(`Missing primary key '${primaryField}' in AV ${av.id}`);
+  if (!primary || primary.type !== "block") fatalErrors.push(`Missing primary key '${primaryField}' in AV ${av.id}`);
   for (const column of columns) {
     const key = byId.get(expected[column.field as Field]);
-    if (!key) errors.push(`Missing managed key '${String(column.field)}' in AV ${av.id}`);
+    if (!key) {
+      missingManagedKeys.push({
+        database,
+        field: column.field as QuestionField | AttemptField,
+        keyId: expected[column.field as Field],
+        name: column.name,
+        type: column.type,
+      });
+    }
     else if (key.type !== column.type) {
-      errors.push(`Managed key '${String(column.field)}' has type '${key.type}', expected '${column.type}'`);
+      fatalErrors.push(`Managed key '${String(column.field)}' has type '${key.type}', expected '${column.type}'`);
     }
   }
 }
@@ -382,35 +436,117 @@ export async function verifyQuestionBankBinding(
 ): Promise<BindingVerification> {
   const parsed = QuestionBankBindingSchema.safeParse(bindingInput);
   if (!parsed.success) {
-    return { ok: false, errors: parsed.error.issues.map((issue) => issue.message) };
+    const fatalErrors = parsed.error.issues.map((issue) => issue.message);
+    return { ok: false, errors: fatalErrors, fatalErrors, missingManagedKeys: [] };
   }
   const binding = parsed.data as QuestionBankBinding;
-  const errors: string[] = [];
+  const fatalErrors: string[] = [];
+  const missingManagedKeys: ManagedKeyRepair[] = [];
   try {
     const document = await client.request<{ kramdown: string }>("/api/block/getBlockKramdown", {
       id: binding.systemDocumentId,
     });
     for (const database of [binding.questionIndex, binding.attemptLog]) {
       if (!document.kramdown.includes(database.blockId) || !document.kramdown.includes(database.avId)) {
-        errors.push(`System document no longer contains AV block ${database.blockId}`);
+        fatalErrors.push(`System document no longer contains AV block ${database.blockId}`);
       }
     }
     const [questionAv, attemptAv] = await Promise.all([
       getAttributeView(client, binding.questionIndex.avId),
       getAttributeView(client, binding.attemptLog.avId),
     ]);
-    verifyKeys(questionAv, binding.questionIndex.keys, questionColumns, "block_id", errors);
-    verifyKeys(attemptAv, binding.attemptLog.keys, attemptColumns, "entry", errors);
+    verifyKeys(
+      questionAv,
+      binding.questionIndex.keys,
+      questionColumns,
+      "block_id",
+      "questionIndex",
+      fatalErrors,
+      missingManagedKeys,
+    );
+    verifyKeys(
+      attemptAv,
+      binding.attemptLog.keys,
+      attemptColumns,
+      "entry",
+      "attemptLog",
+      fatalErrors,
+      missingManagedKeys,
+    );
     const relationKey = attemptAv.keyValues.find(
       (value) => value.key.id === binding.attemptLog.keys.question_relation,
     )?.key;
-    if (relationKey?.relation?.avID !== binding.questionIndex.avId || relationKey.relation.isTwoWay) {
-      errors.push("Managed key 'question_relation' does not target the question index as a one-way relation");
+    if (relationKey
+      && (relationKey.relation?.avID !== binding.questionIndex.avId || relationKey.relation.isTwoWay)) {
+      fatalErrors.push("Managed key 'question_relation' does not target the question index as a one-way relation");
     }
   } catch (error) {
-    errors.push(error instanceof Error ? error.message : String(error));
+    fatalErrors.push(error instanceof Error ? error.message : String(error));
   }
-  return { ok: errors.length === 0, errors };
+  const repairErrors = missingManagedKeys.map(
+    (repair) => `Missing managed key '${String(repair.field)}' in ${repair.database}`,
+  );
+  const errors = [...fatalErrors, ...repairErrors];
+  return {
+    ok: errors.length === 0,
+    errors,
+    fatalErrors,
+    missingManagedKeys,
+  };
+}
+
+function repairIdentity(repair: ManagedKeyRepair): string {
+  return `${repair.database}:${String(repair.field)}:${repair.keyId}`;
+}
+
+async function addMissingManagedKeys(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  database: ManagedKeyRepair["database"],
+  repairs: readonly ManagedKeyRepair[],
+): Promise<void> {
+  const databaseRepairs = repairs.filter((item) => item.database === database);
+  if (databaseRepairs.length === 0) return;
+  const target = binding[database];
+  const av = await getAttributeView(client, target.avId);
+  let previousKeyID = av.keyValues.at(-1)?.key.id;
+  if (!previousKeyID) throw new Error(`Attribute view ${target.avId} has no keys`);
+  for (const repair of databaseRepairs) {
+    await client.request("/api/av/addAttributeViewKey", {
+      avID: target.avId,
+      keyID: repair.keyId,
+      keyName: repair.name,
+      keyType: repair.type,
+      keyIcon: "",
+      previousKeyID,
+    });
+    previousKeyID = repair.keyId;
+  }
+}
+
+export async function repairQuestionBankBinding(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  expectedRepairs: readonly ManagedKeyRepair[],
+): Promise<void> {
+  const verification = await verifyQuestionBankBinding(client, binding);
+  if (verification.fatalErrors.length > 0) {
+    throw new Error(`Question bank binding is invalid: ${verification.fatalErrors.join("; ")}`);
+  }
+  const actual = verification.missingManagedKeys.map(repairIdentity).sort();
+  const expected = expectedRepairs.map(repairIdentity).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error("Question bank binding repair preview is stale; scan again before confirming");
+  }
+  await addMissingManagedKeys(client, binding, "questionIndex", verification.missingManagedKeys);
+  await addMissingManagedKeys(client, binding, "attemptLog", verification.missingManagedKeys);
+  if (verification.missingManagedKeys.some((repair) => repair.field === "question_relation")) {
+    await configureQuestionRelation(client, binding);
+  }
+  const repaired = await verifyQuestionBankBinding(client, binding);
+  if (!repaired.ok) {
+    throw new Error(`Question bank binding repair failed: ${repaired.errors.join("; ")}`);
+  }
 }
 
 export async function requireQuestionBankBinding(

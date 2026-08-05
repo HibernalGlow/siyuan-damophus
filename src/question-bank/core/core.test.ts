@@ -45,6 +45,28 @@ describe("portable question core", () => {
     ]);
   });
 
+  it("provides answer controls for true-false questions without source options", () => {
+    const value: Question = {
+      id: "tf1",
+      type: "true-false",
+      title: "Judgment",
+      stemMarkdown: "Statement",
+      options: [],
+      answer: { kind: "boolean", value: false },
+      solutionMarkdown: "False",
+      metadata: { topicPath: [] },
+    };
+
+    const shuffled = shuffleQuestionOptions(value, () => 0.99);
+
+    expect(shuffled.optionOrder).toEqual(["true", "false"]);
+    expect(restoreQuestionOptions(value, shuffled).map((option) => option.originalId)).toEqual([
+      "true",
+      "false",
+    ]);
+    expect(gradeQuestion(value, ["false"])).toBe(true);
+  });
+
   it("filters recursive topic scopes and derived review states", () => {
     const topics: TopicNode[] = [
       { id: "root", title: "Root", level: 2, childIds: ["child"], explicit: true },
@@ -52,6 +74,10 @@ describe("portable question core", () => {
       { id: "other", title: "Other", level: 2, childIds: [], explicit: true },
     ];
     const questions = [question("q1"), question("q2", "other")];
+    questions[0].metadata = {
+      topicPath: ["Root", "Child"],
+      scopeTopicId: "child",
+    };
     const aggregates = new Map([
       ["q1", {
         questionId: "q1",
@@ -108,5 +134,27 @@ describe("portable question core", () => {
     const invalid = question("q1");
     invalid.answer = { kind: "options", optionIds: ["A"] };
     expect(QuestionSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it("restricts subjective scores to subjective attempts and the 0-100 range", () => {
+    const base = {
+      attemptId: "score-1",
+      questionId: "q1",
+      sessionId: "s1",
+      answeredAt: "2026-08-04T10:00:00.000Z",
+      questionType: "subjective" as const,
+      objectiveCorrect: null,
+      masteryRating: "good" as const,
+    };
+
+    expect(() => createAttemptEvent({ ...base, subjectiveScore: -1 })).toThrow();
+    expect(() => createAttemptEvent({ ...base, subjectiveScore: 101 })).toThrow();
+    expect(() => createAttemptEvent({
+      ...base,
+      questionType: "single",
+      objectiveCorrect: true,
+      subjectiveScore: 80,
+    })).toThrow();
+    expect(createAttemptEvent({ ...base, subjectiveScore: 80 }).subjective_score).toBe(80);
   });
 });

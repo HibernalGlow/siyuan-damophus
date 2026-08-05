@@ -11,11 +11,21 @@ function labelForIndex(index: number): string {
   return label;
 }
 
+function sourceOptions(question: Question): Question["options"] {
+  if (question.type === "true-false" && question.options.length === 0) {
+    return [
+      { id: "true", markdown: "" },
+      { id: "false", markdown: "" },
+    ];
+  }
+  return question.options;
+}
+
 export function shuffleQuestionOptions(
   question: Question,
   random: () => number = Math.random,
 ): ShuffledQuestion {
-  const options = question.options.map((option) => ({ ...option }));
+  const options = sourceOptions(question).map((option) => ({ ...option }));
   for (let index = options.length - 1; index > 0; index -= 1) {
     const target = Math.min(index, Math.max(0, Math.floor(random() * (index + 1))));
     [options[index], options[target]] = [options[target], options[index]];
@@ -36,7 +46,7 @@ export function restoreQuestionOptions(
   shuffled: ShuffledQuestion,
 ): ShuffledOption[] {
   const displayed = new Map(shuffled.options.map((option) => [option.originalId, option]));
-  return question.options.map((option, index) => ({
+  return sourceOptions(question).map((option, index) => ({
     originalId: option.id,
     displayLabel: labelForIndex(index),
     markdown: displayed.get(option.id)?.markdown ?? option.markdown,

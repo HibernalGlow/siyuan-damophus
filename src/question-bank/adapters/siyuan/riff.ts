@@ -50,7 +50,7 @@ export async function getDueRiffCards(
   reviewedCards: readonly RiffCard[] = [],
 ): Promise<RiffDueCards> {
   const response = await client.request<unknown>("/api/riff/getRiffDueCards", {
-    deckID: "",
+    deckID: QUICK_RIFF_DECK_ID,
     reviewedCards: reviewedCards.map((card) => ({ cardID: card.cardID })),
   });
   return dueResponseSchema.parse(response);

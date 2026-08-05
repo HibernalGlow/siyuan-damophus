@@ -27,18 +27,27 @@ Initialization refuses to create another `/Damophus` document in the same notebo
 
 Synchronization indexes question title blocks. It does not rewrite stems, options, answers, or explanations. The accepted Markdown and IAL format is defined in [Question Bank Contract](question-bank-contract.md).
 
+Expand **Scan details** to inspect every inference, source issue, conflict, planned IAL update, and managed database-column repair. Confirmation writes only safely inferred `custom-qb-type`, `custom-qb-answer`, and `custom-qb-section` attributes before updating the question index. Invalid explicit metadata is never replaced by an inference, and a stale preview must be scanned again.
+
+If a managed database column was deleted, Damophus previews its restoration using the immutable key ID recorded in the binding. Unknown user columns and their relative order are preserved. Wrong column types, missing primary keys, and relation columns targeting the wrong database remain blockers rather than being changed automatically.
+
 ## Practice
 
 - Choose the entire document or a detected topic heading.
 - Choose sequential or random order.
 - Filter by all questions, wrong answers, consecutive review ratings, or Riff due cards.
 - Reveal an answer before rating mastery.
+- Use the source icon beside the question title to open its title block in SiYuan's native editor. Edit there normally, then return to Damophus and scan the document again to refresh the question bank.
 - Use **Undo and retry** before rating to discard an accidental answer without creating an attempt.
 - Rate the final attempt as Again, Hard, Good, or Easy.
+
+The recent scope is stored as the document ID plus the SiYuan heading block ID. Renaming a heading or using repeated heading text does not lose the selection; deleting or moving that heading outside the document clears it safely.
 
 For a question group, the shared material is displayed above each independently answered child question.
 
 Objective correctness and mastery rating are independent. Subjective questions use an optional 0-100 self score and always leave objective correctness empty.
+
+Damophus does not maintain a second copy of the editor. SiYuan handles text editing, undo, block operations, and synchronization on both desktop and mobile.
 
 ## Riff
 
@@ -51,5 +60,7 @@ Damophus renders the question; SiYuan owns scheduling. Damophus does not create 
 Choose **Export attempts** to download a versioned JSON archive. Export stops if the attempt database contains invalid rows, preventing a silently incomplete backup.
 
 Choose **Import attempts** and select an archive. Damophus shows importable events, duplicate attempt IDs, and orphan question IDs before any write. Confirmation appends new immutable events, skips duplicates, and reports per-event failures. Orphan events are retained so they can reconnect if the matching question source is restored later.
+
+Imported navigation relations are rebuilt from the current question index. Relations from another workspace are never reused; orphan events keep their stable question ID without a stale relation.
 
 Routine device synchronization and workspace backup remain SiYuan responsibilities.

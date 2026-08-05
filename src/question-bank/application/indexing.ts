@@ -1,11 +1,18 @@
 import type { Question, ScanMessage } from "../core/types";
 import {
   readAttributeView,
-  requireQuestionBankBinding,
+  repairQuestionBankBinding,
+  verifyQuestionBankBinding,
+  type ManagedKeyRepair,
   type QuestionBankBinding,
 } from "../adapters/siyuan/binding";
 import { dateCell, setAttributeViewCell, textCell } from "../adapters/siyuan/cells";
-import { getQuestionBlockId, scanSiyuanDocument, type SiyuanDocumentScan } from "../adapters/siyuan/document";
+import {
+  getQuestionBlockId,
+  scanSiyuanDocument,
+  type SiyuanDocumentScan,
+  type SiyuanIalWriteAction,
+} from "../adapters/siyuan/document";
 import type { AttributeViewValue, SiyuanKernelClient } from "../adapters/siyuan/types";
 
 export interface QuestionIndexAction {
@@ -22,6 +29,8 @@ export interface QuestionIndexPreview {
   actions: QuestionIndexAction[];
   staleQuestionIds: string[];
   blockers: ScanMessage[];
+  bindingRepairs: ManagedKeyRepair[];
+  ialWriteActions: SiyuanIalWriteAction[];
   results: QuestionIndexWriteResult[];
 }
 
@@ -36,6 +45,8 @@ interface ExistingQuestionRow {
   blockId?: string;
   questionId?: string;
 }
+
+const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
 
 function valueByItem(values: readonly AttributeViewValue[]): Map<string, AttributeViewValue> {
   return new Map(values.map((value) => [value.blockID, value]));
@@ -67,7 +78,13 @@ function hashPreview(value: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function previewToken(documentId: string, actions: readonly QuestionIndexAction[], stale: readonly string[]): string {
+function previewToken(
+  documentId: string,
+  actions: readonly QuestionIndexAction[],
+  stale: readonly string[],
+  bindingRepairs: readonly ManagedKeyRepair[],
+  ialWriteActions: readonly SiyuanIalWriteAction[],
+): string {
   return hashPreview(JSON.stringify({
     documentId,
     actions: actions.map((action) => ({
@@ -76,7 +93,28 @@ function previewToken(documentId: string, actions: readonly QuestionIndexAction[
       question: action.question,
     })),
     stale,
+    bindingRepairs,
+    ialWriteActions,
   }));
+}
+
+async function questionRowsInDocument(
+  client: SiyuanKernelClient,
+  rows: readonly ExistingQuestionRow[],
+  documentId: string,
+): Promise<ExistingQuestionRow[]> {
+  const blockIds = [...new Set(rows.map((row) => row.blockId).filter(
+    (blockId): blockId is string => Boolean(blockId) && nodeIdPattern.test(blockId!),
+  ))];
+  if (blockIds.length === 0) return [];
+  const quoted = blockIds.map((blockId) => `'${blockId}'`).join(",");
+  const blocks = await client.request<Array<{ id?: string; root_id?: string }>>("/api/query/sql", {
+    stmt: `SELECT id, root_id FROM blocks WHERE id IN (${quoted})`,
+  });
+  const currentBlockIds = new Set(
+    blocks.filter((block) => block.root_id === documentId).map((block) => block.id),
+  );
+  return rows.filter((row) => row.blockId && currentBlockIds.has(row.blockId));
 }
 
 export async function previewQuestionIndexSync(
@@ -84,10 +122,14 @@ export async function previewQuestionIndexSync(
   binding: QuestionBankBinding,
   documentId: string,
 ): Promise<QuestionIndexPreview> {
-  await requireQuestionBankBinding(client, binding);
+  const bindingVerification = await verifyQuestionBankBinding(client, binding);
+  if (bindingVerification.fatalErrors.length > 0) {
+    throw new Error(`Question bank binding is invalid: ${bindingVerification.fatalErrors.join("; ")}`);
+  }
   const scan = await scanSiyuanDocument(client, documentId);
   const av = await readAttributeView(client, binding.questionIndex.avId);
   const rows = existingQuestionRows(av, binding);
+  const documentRows = await questionRowsInDocument(client, rows, documentId);
   const byQuestionId = new Map(rows.filter((row) => row.questionId).map((row) => [row.questionId!, row]));
   const byBlockId = new Map(rows.filter((row) => row.blockId).map((row) => [row.blockId!, row]));
   const blockers = [...scan.report.conflicts, ...scan.sourceIssues];
@@ -125,19 +167,45 @@ export async function previewQuestionIndexSync(
   }
 
   const scannedIds = new Set(scan.report.document.questions.map((question) => question.id));
-  const staleQuestionIds = rows
+  const staleQuestionIds = documentRows
     .map((row) => row.questionId)
     .filter((questionId): questionId is string => Boolean(questionId) && !scannedIds.has(questionId!));
+  const actionableQuestionIds = new Set(actions.map((action) => action.question.id));
+  const ialWriteActions = scan.ialWriteActions.filter(
+    (action) => actionableQuestionIds.has(action.questionId),
+  );
+  const bindingRepairs = bindingVerification.missingManagedKeys;
   return {
-    token: previewToken(documentId, actions, staleQuestionIds),
+    token: previewToken(documentId, actions, staleQuestionIds, bindingRepairs, ialWriteActions),
     generatedAt: new Date().toISOString(),
     documentId,
     scan,
     actions,
     staleQuestionIds,
     blockers,
+    bindingRepairs,
+    ialWriteActions,
     results: [],
   };
+}
+
+async function writeInferredIal(
+  client: SiyuanKernelClient,
+  actions: readonly SiyuanIalWriteAction[],
+): Promise<void> {
+  const byBlockId = new Map<string, Record<string, string>>();
+  for (const action of actions) {
+    if (Object.keys(action.attributes).some((key) => !key.startsWith("custom-qb-"))) {
+      throw new Error(`Refusing to write non-question-bank attributes to block '${action.blockId}'`);
+    }
+    byBlockId.set(action.blockId, {
+      ...(byBlockId.get(action.blockId) ?? {}),
+      ...action.attributes,
+    });
+  }
+  for (const [id, attrs] of byBlockId) {
+    await client.request("/api/attr/setBlockAttrs", { id, attrs });
+  }
 }
 
 async function writeQuestionRow(
@@ -184,10 +252,15 @@ export async function confirmQuestionIndexSync(
   if (preview.blockers.length > 0) {
     throw new Error(`Question index sync is blocked: ${preview.blockers.map((item) => item.message).join("; ")}`);
   }
+  await repairQuestionBankBinding(client, binding, preview.bindingRepairs);
   const scannedAt = Date.now();
   const results: QuestionIndexWriteResult[] = [];
   for (const action of preview.actions) {
     try {
+      await writeInferredIal(
+        client,
+        preview.ialWriteActions.filter((update) => update.questionId === action.question.id),
+      );
       if (action.kind === "add") {
         await client.request("/api/av/addAttributeViewBlocks", {
           avID: binding.questionIndex.avId,
@@ -213,5 +286,5 @@ export async function confirmQuestionIndexSync(
       });
     }
   }
-  return { ...preview, results };
+  return { ...preview, bindingRepairs: [], ialWriteActions: [], results };
 }

@@ -1,6 +1,6 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
-import { Dialog, getAllEditor, openTab, type Menu } from "siyuan";
+import { Dialog, getAllEditor, openMobileFileById, openTab, type Menu } from "siyuan";
 import { mount, unmount } from "svelte";
 import pluginManifest from "../../plugin.json";
 import QuestionBank from "./question-bank.svelte";
@@ -69,7 +69,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       });
       const target = dialog.element.querySelector<HTMLElement>(".damophus-question-bank-dialog");
       if (!target) return;
-      app = this.mountQuestionBank(target, documentId);
+      app = this.mountQuestionBank(target, documentId, () => dialog.destroy());
       return;
     }
     void openTab({
@@ -83,7 +83,26 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
   }
 
-  private mountQuestionBank(target: HTMLElement, documentId?: string): ReturnType<typeof mount> {
+  private openQuestionSource(blockId: string): void {
+    if (isMobile) {
+      openMobileFileById(plugin.app, blockId);
+      return;
+    }
+    void openTab({
+      app: plugin.app,
+      doc: {
+        id: blockId,
+        zoomIn: true,
+        action: ["cb-get-focus", "cb-get-scroll"],
+      },
+    });
+  }
+
+  private mountQuestionBank(
+    target: HTMLElement,
+    documentId?: string,
+    beforeOpenQuestionSource?: () => void,
+  ): ReturnType<typeof mount> {
     const controller = new QuestionBankController({
       getSetting: (key) => this.getSetting(key),
       setSetting: (key, value) => this.setSetting(key, value),
@@ -96,6 +115,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
         initialDocumentId: documentId,
         translations: plugin.i18n,
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
+        openQuestionSource: (blockId: string) => {
+          beforeOpenQuestionSource?.();
+          this.openQuestionSource(blockId);
+        },
       },
     });
   }

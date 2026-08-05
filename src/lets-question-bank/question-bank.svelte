@@ -6,6 +6,7 @@
     MasteryRating,
     Question,
     QuestionGroup,
+    ScanMessage,
     ShuffledOption,
     ShuffledQuestion,
     TopicNode,
@@ -31,6 +32,7 @@
   export let reviewThreshold = 2;
   export let random: () => number = Math.random;
   export let uuid: () => string = () => crypto.randomUUID();
+  export let openQuestionSource: ((blockId: string) => void) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const recent = controller.getRecentScope();
@@ -42,7 +44,7 @@
   let preview: QuestionIndexPreview | undefined;
   let aggregates: ReadonlyMap<string, AttemptAggregate> = new Map();
   let dueCards: ReadonlyMap<string, RiffCard> = new Map();
-  let topicId = recent?.documentId === documentId ? recent.topicId ?? "" : "";
+  let topicId = "";
   let order: PracticeOrder = "sequential";
   let filter: PracticeFilter = "all";
   let busy = false;
@@ -65,6 +67,7 @@
   let sessionId = "";
   let questionStartedAt = 0;
   let complete = false;
+  let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
 
   $: questions = preview?.scan.report.document.questions ?? [];
   $: groups = preview?.scan.report.document.groups ?? [];
@@ -72,6 +75,15 @@
   $: currentGroup = currentQuestion?.metadata.parentId
     ? groups.find((group: QuestionGroup) => group.id === currentQuestion?.metadata.parentId)
     : undefined;
+  $: currentQuestionBlockId = currentQuestion
+    ? preview?.scan.blockIdsByQuestionId.get(currentQuestion.id)
+    : undefined;
+  $: scanMessageGroups = preview ? [
+    { key: "inferences", messages: preview.scan.report.inferences },
+    { key: "issues", messages: preview.scan.report.issues },
+    { key: "conflicts", messages: preview.scan.report.conflicts },
+    { key: "sourceProblems", messages: preview.scan.sourceIssues },
+  ] : [];
   $: suggestedRating = revealed
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
@@ -90,6 +102,20 @@
 
   function validDocument(): boolean {
     return /^\d{14}-[a-z0-9]{7}$/u.test(documentId);
+  }
+
+  function invalidateDocumentTarget(): void {
+    initializationPreview = undefined;
+    preview = undefined;
+    syncComplete = false;
+    topicId = "";
+    queue = [];
+    currentQuestion = undefined;
+    complete = false;
+  }
+
+  function invalidateSystemDocumentTarget(): void {
+    rebindingPreview = undefined;
   }
 
   function previewInitialization(): void {
@@ -123,18 +149,26 @@
   function scanDocument(): void {
     void run(async () => {
       preview = await controller.previewSync(documentId);
-      [aggregates, dueCards] = await Promise.all([
-        controller.loadAggregates(),
-        controller.loadDueCards(preview.scan.blockIdsByQuestionId),
-      ]);
+      if (preview.bindingRepairs.length === 0) {
+        [aggregates, dueCards] = await Promise.all([
+          controller.loadAggregates(),
+          controller.loadDueCards(preview.scan.blockIdsByQuestionId),
+        ]);
+      } else {
+        aggregates = new Map();
+        dueCards = new Map();
+      }
       syncComplete = false;
       const saved = controller.getRecentScope();
-      const savedTopicId = saved?.documentId === documentId ? saved.topicId : undefined;
+      const savedHeadingBlockId = saved?.documentId === documentId ? saved.headingBlockId : undefined;
+      const savedTopicId = savedHeadingBlockId
+        ? [...preview.scan.topicBlockIdsByTopicId].find(([, blockId]) => blockId === savedHeadingBlockId)?.[0]
+        : saved?.documentId === documentId ? saved.topicId : undefined;
       const topicExists = savedTopicId
         ? preview.scan.report.document.topics.some((topic) => topic.id === savedTopicId)
         : false;
       topicId = topicExists ? savedTopicId! : "";
-      if (savedTopicId && !topicExists) controller.saveRecentScope({ documentId });
+      if ((savedHeadingBlockId || savedTopicId) && !topicExists) controller.saveRecentScope({ documentId });
     });
   }
 
@@ -146,6 +180,11 @@
       syncComplete = failures.length === 0;
       if (failures.length > 0) {
         error = failures.map((failure) => `${failure.questionId}: ${failure.message ?? "failed"}`).join("; ");
+      } else {
+        [aggregates, dueCards] = await Promise.all([
+          controller.loadAggregates(),
+          controller.loadDueCards(preview.scan.blockIdsByQuestionId),
+        ]);
       }
     });
   }
@@ -196,7 +235,10 @@
       reviewThreshold,
       random,
     });
-    controller.saveRecentScope({ documentId, topicId: topicId || undefined });
+    controller.saveRecentScope({
+      documentId,
+      headingBlockId: topicId ? preview.scan.topicBlockIdsByTopicId.get(topicId) : undefined,
+    });
     questionIndex = 0;
     sessionId = uuid();
     complete = queue.length === 0;
@@ -294,6 +336,20 @@
     const depth = Math.max(0, topic.level - 1);
     return `${"  ".repeat(depth)}${topic.title}`;
   }
+
+  function messageContext(message: ScanMessage): string {
+    return [
+      message.questionId ? `${label("question", "Question")}: ${message.questionId}` : "",
+      message.line ? `${label("line", "Line")}: ${message.line}` : "",
+    ].filter(Boolean).join(" / ");
+  }
+
+  function optionMarkdown(option: ShuffledOption): string {
+    if (currentQuestion?.type !== "true-false" || option.markdown) return option.markdown;
+    return option.originalId === "true"
+      ? label("trueAnswer", "True")
+      : label("falseAnswer", "False");
+  }
 </script>
 
 <main class="question-bank" data-testid="question-bank">
@@ -313,7 +369,7 @@
     <section class="setup" aria-label={label("initialize", "Initialize")}>
       <label for="document-id">{label("documentId", "Document ID")}</label>
       <div class="document-row">
-        <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" />
+        <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" on:input={invalidateDocumentTarget} />
         <button class="primary" disabled={!validDocument() || busy} on:click={previewInitialization}>
           {label("previewInitialization", "Preview initialization")}
         </button>
@@ -330,7 +386,7 @@
       <div class="rebind-setup">
         <label for="system-document-id">{label("systemDocumentId", "Existing Damophus system document ID")}</label>
         <div class="document-row">
-          <input id="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" />
+          <input id="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" on:input={invalidateSystemDocumentTarget} />
           <button class="secondary" disabled={!/^\d{14}-[a-z0-9]{7}$/u.test(systemDocumentId) || busy} on:click={previewRebinding}>
             {label("previewRebinding", "Preview reconnection")}
           </button>
@@ -338,6 +394,9 @@
         {#if rebindingPreview}
           <div class="preview-line">
             <span>{label("rebindingReady", "Question index and attempt log are ready to reconnect")}</span>
+            {#if rebindingPreview.bindingRepairs.length > 0}
+              <span>{rebindingPreview.bindingRepairs.length} {label("bindingRepairs", "Database repairs")}</span>
+            {/if}
             <button class="primary" disabled={busy} on:click={confirmRebinding}>
               {label("confirmRebinding", "Reconnect")}
             </button>
@@ -349,7 +408,7 @@
     <section class="workspace">
       <div class="document-row">
         <label for="document-id">{label("documentId", "Document ID")}</label>
-        <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" />
+        <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" on:input={invalidateDocumentTarget} />
         <button class="icon-button" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} on:click={scanDocument}>
           <svg aria-hidden="true"><use href="#iconRefresh"></use></svg>
         </button>
@@ -408,6 +467,55 @@
             {label("confirmSync", "Confirm index sync")}
           </button>
           {#if syncComplete}<span class="success">{label("synced", "Question index synchronized")}</span>{/if}
+          <details class="scan-details">
+            <summary>{label("scanDetails", "Scan details")}</summary>
+            {#each scanMessageGroups as group}
+              {#if group.messages.length > 0}
+                <div class="report-group">
+                  <strong>{label(group.key, group.key)}</strong>
+                  <ul>
+                    {#each group.messages as message}
+                      <li>
+                        <code>{message.code}</code>
+                        <span>{message.message}</span>
+                        {#if messageContext(message)}<small>{messageContext(message)}</small>{/if}
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+            {/each}
+            {#if preview.ialWriteActions.length > 0}
+              <div class="report-group">
+                <strong>{label("ialUpdates", "IAL updates")}</strong>
+                <ul>
+                  {#each preview.ialWriteActions as action}
+                    <li>
+                      <code>{action.reason}</code>
+                      <span>{action.questionId}: {JSON.stringify(action.attributes)}</span>
+                      <small>{action.blockId}</small>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+            {#if preview.bindingRepairs.length > 0}
+              <div class="report-group">
+                <strong>{label("bindingRepairs", "Database repairs")}</strong>
+                <ul>
+                  {#each preview.bindingRepairs as repair}
+                    <li><code>{repair.database}</code><span>{String(repair.field)} ({repair.type})</span></li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
+            {#if preview.staleQuestionIds.length > 0}
+              <div class="report-group">
+                <strong>{label("staleQuestions", "Stale questions")}</strong>
+                <code>{preview.staleQuestionIds.join(", ")}</code>
+              </div>
+            {/if}
+          </details>
         </section>
 
         <section class="practice-settings">
@@ -438,7 +546,11 @@
             </div>
           </fieldset>
 
-          <button class="primary start" on:click={startPractice}>
+          <button
+            class="primary start"
+            disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
+            on:click={startPractice}
+          >
             <svg aria-hidden="true"><use href="#iconPlay"></use></svg>
             {label("start", "Start practice")}
           </button>
@@ -452,7 +564,19 @@
         <span>{currentQuestion.metadata.topicPath.join(" / ")}</span>
       </div>
       <article class="question">
-        <h2>{currentQuestion.title}</h2>
+        <div class="question-heading">
+          <h2>{currentQuestion.title}</h2>
+          {#if currentQuestionBlockId && openQuestionSource}
+            <button
+              class="icon-button source-button"
+              title={label("openSource", "Open source in SiYuan")}
+              aria-label={label("openSource", "Open source in SiYuan")}
+              on:click={() => openQuestionSource?.(currentQuestionBlockId as string)}
+            >
+              <svg aria-hidden="true"><use href="#iconFocus"></use></svg>
+            </button>
+          {/if}
+        </div>
         {#if currentGroup}
           <div class="group-material">
             <strong>{label("sharedMaterial", "Shared material")}</strong>
@@ -471,7 +595,7 @@
                 on:click={() => toggleOption(option.originalId)}
               >
                 <span class="option-label">{option.displayLabel}</span>
-                <span class="markdown">{@html renderMarkdownHtml(option.markdown)}</span>
+                <span class="markdown">{@html renderMarkdownHtml(optionMarkdown(option))}</span>
               </button>
             {/each}
           </div>
@@ -558,6 +682,14 @@
   .summary-grid span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; flex-direction: column; justify-content: center; font-size: 12px; color: var(--b3-theme-on-surface); }
   .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
   .summary-grid .danger strong, .error, .incorrect { color: var(--b3-theme-error); }
+  .scan-details { flex-basis: 100%; border-top: 1px solid var(--b3-border-color); padding-top: 10px; }
+  .scan-details summary { cursor: pointer; color: var(--b3-theme-on-surface); font-size: 13px; font-weight: 600; }
+  .report-group { margin-top: 12px; }
+  .report-group > strong { display: block; margin-bottom: 6px; font-size: 13px; }
+  .report-group ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+  .report-group li { min-width: 0; }
+  .report-group li > span { margin-left: 8px; overflow-wrap: anywhere; }
+  .report-group small { display: block; margin-top: 2px; color: var(--b3-theme-on-surface); overflow-wrap: anywhere; }
   .success, .correct { color: var(--b3-theme-success); font-size: 13px; }
   .practice-settings { padding: 20px 0 0; display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1fr) minmax(250px, 1.5fr) auto; gap: 16px; align-items: end; }
   .practice-settings > label { display: grid; gap: 6px; }
@@ -571,6 +703,9 @@
   .practice { padding: 0; }
   .practice-bar { min-height: 42px; padding: 8px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; justify-content: space-between; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .question { max-width: 920px; margin: 0 auto; padding: 24px 22px 8px; }
+  .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
+  .source-button { flex: none; }
   .markdown { min-width: 0; overflow-wrap: anywhere; }
   .markdown :global(p:first-child) { margin-top: 0; }
   .markdown :global(p:last-child) { margin-bottom: 0; }

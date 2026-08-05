@@ -36,6 +36,8 @@ const log = getLogger("lets-question-bank");
 
 export interface RecentScope {
   documentId: string;
+  headingBlockId?: string;
+  /** Read-only compatibility for pre-release settings. */
   topicId?: string;
 }
 
@@ -212,11 +214,20 @@ export class QuestionBankController implements QuestionBankUiController {
     if (!value || typeof value !== "object") return undefined;
     const scope = value as Partial<RecentScope>;
     if (!scope.documentId || !nodeIdPattern.test(scope.documentId)) return undefined;
-    return { documentId: scope.documentId, topicId: scope.topicId };
+    return {
+      documentId: scope.documentId,
+      headingBlockId: scope.headingBlockId && nodeIdPattern.test(scope.headingBlockId)
+        ? scope.headingBlockId
+        : undefined,
+      topicId: typeof scope.topicId === "string" ? scope.topicId : undefined,
+    };
   }
 
   saveRecentScope(scope: RecentScope): void {
-    this.options.setSetting(recentScopeSetting, scope);
+    this.options.setSetting(recentScopeSetting, {
+      documentId: scope.documentId,
+      headingBlockId: scope.headingBlockId,
+    });
   }
 
   private requireBinding(): QuestionBankBinding {

@@ -47,7 +47,7 @@ function hash(value: string): string {
 export function createAttemptImportPlan(
   archive: AttemptArchive,
   existingAttemptIds: ReadonlySet<string>,
-  indexedQuestionIds: ReadonlySet<string>,
+  indexedQuestionBlockIds: ReadonlyMap<string, string>,
   existingRowIssues: ScanMessage[] = [],
 ): PreparedImport {
   const seen = new Set(existingAttemptIds);
@@ -55,17 +55,22 @@ export function createAttemptImportPlan(
   const events: AttemptEvent[] = [];
   const orphanQuestionIds = new Set<string>();
   for (const event of archive.attempts) {
-    if (!indexedQuestionIds.has(event.question_id)) orphanQuestionIds.add(event.question_id);
+    const currentBlockId = indexedQuestionBlockIds.get(event.question_id);
+    if (!currentBlockId) orphanQuestionIds.add(event.question_id);
     if (seen.has(event.attempt_id)) {
       duplicateAttemptIds.add(event.attempt_id);
       continue;
     }
     seen.add(event.attempt_id);
-    events.push(event);
+    const normalized = { ...event };
+    if (currentBlockId) normalized.question_relation = currentBlockId;
+    else delete normalized.question_relation;
+    events.push(normalized);
   }
   const token = hash(JSON.stringify({
     archive,
     existingAttemptIds: [...existingAttemptIds].sort(),
+    indexedQuestionBlockIds: [...indexedQuestionBlockIds].sort(([left], [right]) => left.localeCompare(right)),
     duplicateAttemptIds: [...duplicateAttemptIds],
     orphanQuestionIds: [...orphanQuestionIds].sort(),
   }));
@@ -84,15 +89,26 @@ export function createAttemptImportPlan(
   };
 }
 
-async function readIndexedQuestionIds(
+async function readIndexedQuestionBlockIds(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
-): Promise<Set<string>> {
+): Promise<Map<string, string>> {
   await requireQuestionBankBinding(client, binding);
   const av = await readAttributeView(client, binding.questionIndex.avId);
-  const keyId = binding.questionIndex.keys.question_id;
-  const values = av.keyValues.find((item) => item.key.id === keyId)?.values ?? [];
-  return new Set(values.map((value) => value.text?.content).filter((value): value is string => Boolean(value)));
+  const questionValues = av.keyValues.find(
+    (item) => item.key.id === binding.questionIndex.keys.question_id,
+  )?.values ?? [];
+  const primaryValues = av.keyValues.find(
+    (item) => item.key.id === binding.questionIndex.keys.block_id,
+  )?.values ?? [];
+  const blockIdByItemId = new Map(primaryValues.map((value) => [value.blockID, value.block?.id]));
+  const result = new Map<string, string>();
+  for (const value of questionValues) {
+    const questionId = value.text?.content;
+    const blockId = blockIdByItemId.get(value.blockID);
+    if (questionId && blockId) result.set(questionId, blockId);
+  }
+  return result;
 }
 
 async function prepareAttemptImport(
@@ -101,14 +117,14 @@ async function prepareAttemptImport(
   source: string,
 ): Promise<PreparedImport> {
   const archive = parseAttemptArchive(source);
-  const [existing, questionIds] = await Promise.all([
+  const [existing, questionBlockIds] = await Promise.all([
     readAttemptEvents(client, binding),
-    readIndexedQuestionIds(client, binding),
+    readIndexedQuestionBlockIds(client, binding),
   ]);
   return createAttemptImportPlan(
     archive,
     new Set(existing.events.map((event) => event.attempt_id)),
-    questionIds,
+    questionBlockIds,
     existing.issues,
   );
 }

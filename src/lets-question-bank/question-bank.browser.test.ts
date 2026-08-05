@@ -70,13 +70,21 @@ function makePreview(questions: Question[] = [objectiveQuestion, subjectiveQuest
         inferences: [],
         conflicts: [],
         issues: [],
+        ialUpdates: [],
       },
       blockIdsByQuestionId: new Map(questions.map((question) => [question.id, blockId])),
+      topicBlockIdsByTopicId: new Map([
+        ["root", "20260804120002-abcdefg"],
+        ["child", "20260804120003-abcdefg"],
+      ]),
+      ialWriteActions: [],
       sourceIssues: [],
     },
     actions: questions.map((question) => ({ kind: "add" as const, question, blockId })),
     staleQuestionIds: [],
     blockers: [],
+    bindingRepairs: [],
+    ialWriteActions: [],
     results: [],
   };
 }
@@ -100,7 +108,7 @@ function binding(): QuestionBankBinding {
 }
 
 function rebindingPreview(): QuestionBankRebindingPreview {
-  return { token: "rebind-token", systemDocumentId, binding: binding() };
+  return { token: "rebind-token", systemDocumentId, binding: binding(), bindingRepairs: [] };
 }
 
 function attempt(input: Parameters<QuestionBankUiController["submitAttempt"]>[0]): AttemptEvent {
@@ -239,6 +247,12 @@ async function scan(): Promise<void> {
   await flush();
 }
 
+async function scanAndSync(): Promise<void> {
+  await scan();
+  button("Confirm index sync").click();
+  await flush();
+}
+
 describe("question bank browser flow", () => {
   it("previews initialization, scans, and confirms index synchronization", async () => {
     const { controller } = mockController({ initialized: false });
@@ -276,7 +290,7 @@ describe("question bank browser flow", () => {
   it("applies scope and filters and creates a random practice queue", async () => {
     const { controller, saveRecentScope } = mockController();
     render(controller, { random: () => 0 });
-    await scan();
+    await scanAndSync();
     const scope = document.querySelector<HTMLSelectElement>("select");
     if (!scope) throw new Error("Missing scope select");
     scope.value = "root";
@@ -286,14 +300,17 @@ describe("question bank browser flow", () => {
     button("Start practice").click();
     await flush();
     expect(document.body.textContent).toContain("Subjective question");
-    expect(saveRecentScope).toHaveBeenCalledWith({ documentId, topicId: "root" });
+    expect(saveRecentScope).toHaveBeenCalledWith({
+      documentId,
+      headingBlockId: "20260804120002-abcdefg",
+    });
   });
 
   it("restores source option order, undoes without writing, and submits once", async () => {
     const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });
     const values = [0, 0];
     render(controller, { random: () => values.shift() ?? 0 });
-    await scan();
+    await scanAndSync();
     button("Start practice").click();
     await flush();
     const before = [...document.querySelectorAll("button.option")].map((item) => item.textContent?.trim());
@@ -322,10 +339,24 @@ describe("question bank browser flow", () => {
     });
   });
 
+  it("opens the current question title block in the SiYuan source editor", async () => {
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    const openQuestionSource = vi.fn();
+    render(controller, { openQuestionSource });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    button("Open source in SiYuan").click();
+
+    expect(openQuestionSource).toHaveBeenCalledOnce();
+    expect(openQuestionSource).toHaveBeenCalledWith(blockId);
+  });
+
   it("records subjective self-rating independently from objective correctness", async () => {
     const { controller, submitAttempt } = mockController({ preview: makePreview([subjectiveQuestion]) });
     render(controller);
-    await scan();
+    await scanAndSync();
     button("Start practice").click();
     await flush();
     button("Reveal answer").click();
@@ -345,6 +376,36 @@ describe("question bank browser flow", () => {
     });
   });
 
+  it("renders answer controls for true-false questions without explicit source options", async () => {
+    const trueFalseQuestion: Question = {
+      id: "q-true-false",
+      type: "true-false",
+      title: "True or false",
+      stemMarkdown: "The statement is false.",
+      options: [],
+      answer: { kind: "boolean", value: false },
+      solutionMarkdown: "False.",
+      metadata: { topicId: "root", topicPath: ["Root topic"] },
+    };
+    const { controller, submitAttempt } = mockController({ preview: makePreview([trueFalseQuestion]) });
+    render(controller, { random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    option("False").click();
+    button("Reveal answer").click();
+    await flush();
+    expect(document.body.textContent).toContain("Correct");
+    button("good").click();
+    await flush();
+    expect(submitAttempt.mock.calls[0][0]).toMatchObject({
+      questionId: trueFalseQuestion.id,
+      selectedOptionIds: ["false"],
+      objectiveCorrect: true,
+    });
+  });
+
   it("shows shared group material with each child question", async () => {
     const child = {
       ...subjectiveQuestion,
@@ -358,7 +419,7 @@ describe("question bank browser flow", () => {
     }];
     const { controller } = mockController({ preview });
     render(controller);
-    await scan();
+    await scanAndSync();
     button("Start practice").click();
     await flush();
     expect(document.body.textContent).toContain("Shared material");
@@ -367,7 +428,7 @@ describe("question bank browser flow", () => {
 
   it("clears a saved heading scope when its block no longer exists", async () => {
     const { controller, saveRecentScope } = mockController({
-      recent: { documentId, topicId: "deleted-topic" },
+      recent: { documentId, headingBlockId: "20260804120004-deleted" },
     });
     render(controller);
     await scan();
@@ -376,13 +437,70 @@ describe("question bank browser flow", () => {
     expect(saveRecentScope).toHaveBeenCalledWith({ documentId });
   });
 
+  it("restores a saved scope by immutable heading block ID", async () => {
+    const { controller } = mockController({
+      recent: { documentId, headingBlockId: "20260804120003-abcdefg" },
+    });
+    render(controller);
+    await scan();
+
+    expect(document.querySelector<HTMLSelectElement>("select")?.value).toBe("child");
+  });
+
+  it("shows concrete scan findings and planned writes", async () => {
+    const preview = makePreview([objectiveQuestion]);
+    preview.scan.report.inferences = [{
+      code: "inferred-question-type",
+      message: "Inferred single choice",
+      questionId: objectiveQuestion.id,
+      line: 12,
+    }];
+    preview.ialWriteActions = [{
+      blockId,
+      questionId: objectiveQuestion.id,
+      line: 12,
+      attributes: { "custom-qb-type": "multiple" },
+      reason: "inferred-question-type",
+    }];
+    preview.bindingRepairs = [{
+      database: "attemptLog",
+      field: "duration_ms",
+      keyId: "20260804120005-abcdefg",
+      name: "Duration (ms)",
+      type: "number",
+    }];
+    const { controller } = mockController({ preview });
+    render(controller);
+    await scan();
+
+    expect(document.body.textContent).toContain("Inferred single choice");
+    expect(document.body.textContent).toContain("custom-qb-type");
+    expect(document.body.textContent).toContain("duration_ms");
+  });
+
+  it("discards a scan preview when the target document ID changes", async () => {
+    const { controller } = mockController();
+    render(controller);
+    await scan();
+    expect(document.querySelector(".scan-summary")).not.toBeNull();
+    const input = document.querySelector<HTMLInputElement>("#document-id");
+    if (!input) throw new Error("Missing document input");
+
+    input.value = "20260804120009-changed";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    expect(document.querySelector(".scan-summary")).toBeNull();
+    expect(document.body.textContent).not.toContain("Start practice");
+  });
+
   it("submits mapped Riff cards when practicing the due filter", async () => {
     const { controller, submitAttempt } = mockController({
       preview: makePreview([objectiveQuestion]),
       dueCards: new Map([[objectiveQuestion.id, dueCard]]),
     });
     render(controller);
-    await scan();
+    await scanAndSync();
     button("due").click();
     button("Start practice").click();
     await flush();
@@ -416,7 +534,7 @@ describe("question bank browser flow", () => {
     await page.viewport(390, 844);
     const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
     render(controller);
-    await scan();
+    await scanAndSync();
     button("Start practice").click();
     await flush();
     option("Alpha").click();

@@ -25,7 +25,7 @@ describe("attempt import planning", () => {
     const plan = createAttemptImportPlan(
       archive,
       new Set(["existing"]),
-      new Set(["question-1"]),
+      new Map([["question-1", "20260804120000-quest01"]]),
     );
     expect(plan.preview).toMatchObject({
       total: 3,
@@ -34,5 +34,25 @@ describe("attempt import planning", () => {
       orphanQuestionIds: ["missing-question"],
     });
     expect(plan.events.map((item) => item.attempt_id)).toEqual(["new"]);
+  });
+
+  it("rebuilds current question relations and clears stale relations for orphans", () => {
+    const known = { ...event("known", "question-1"), question_relation: "20250101000000-oldold1" };
+    const orphan = { ...event("orphan", "missing-question"), question_relation: "20250101000001-oldold2" };
+    const archive = createAttemptArchive(
+      [known, orphan],
+      "0.25.3",
+      "2026-08-04T12:30:00.000Z",
+    );
+
+    const plan = createAttemptImportPlan(
+      archive,
+      new Set(),
+      new Map([["question-1", "20260804120000-current"]]),
+    );
+
+    expect(plan.events[0].question_relation).toBe("20260804120000-current");
+    expect(plan.events[1].question_relation).toBeUndefined();
+    expect(plan.preview.orphanQuestionIds).toEqual(["missing-question"]);
   });
 });

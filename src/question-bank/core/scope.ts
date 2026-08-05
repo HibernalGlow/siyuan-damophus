@@ -36,7 +36,8 @@ export function filterQuestions(input: QuestionFilterInput): Question[] {
     : undefined;
   return input.questions.filter((question) => {
     if (question.type === "group") return false;
-    if (topicIds && (!question.metadata.topicId || !topicIds.has(question.metadata.topicId))) return false;
+    const questionScopeId = question.metadata.scopeTopicId ?? question.metadata.topicId;
+    if (topicIds && (!questionScopeId || !topicIds.has(questionScopeId))) return false;
     const aggregate = input.aggregates?.get(question.id);
     if (filter === "wrong") return (aggregate?.objectiveIncorrect ?? 0) > 0;
     if (filter === "review") {

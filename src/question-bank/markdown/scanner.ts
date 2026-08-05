@@ -50,9 +50,22 @@ interface ParsedOption {
   markdown: string;
 }
 
+export interface MarkdownIalUpdate {
+  blockId?: string;
+  line?: number;
+  questionId: string;
+  attributes: IalAttributes;
+  reason: "inferred-question-type" | "inferred-machine-answer" | "inferred-solution-boundary";
+}
+
+export interface MarkdownQuestionScanReport extends QuestionScanReport {
+  ialUpdates: MarkdownIalUpdate[];
+}
+
 const markdownParser = unified().use(remarkParse).use(remarkGfm);
 const markdownWriter = unified().use(remarkParse).use(remarkGfm).use(remarkStringify);
 const siyuanNodeId = /^\d{14}-[a-z0-9]{7}$/u;
+const stableTopicIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const questionTypes: readonly QuestionType[] = [
   "single",
   "multiple",
@@ -80,10 +93,19 @@ function extractIalLines(markdown: string): { markdown: string; tokens: IalToken
     const content = line.replace(/\r?\n$/u, "");
     const ending = line.slice(content.length);
     const fenceMatch = content.match(/^\s{0,3}(`{3,}|~{3,})/u);
+    if (fence) {
+      if (fenceMatch
+        && fenceMatch[1][0] === fence.marker
+        && fenceMatch[1].length >= fence.length
+        && content.slice(fenceMatch[0].length).trim() === "") {
+        fence = undefined;
+      }
+      output.push(line);
+      offset += line.length;
+      continue;
+    }
     if (fenceMatch) {
-      const marker = fenceMatch[1][0];
-      if (!fence) fence = { marker, length: fenceMatch[1].length };
-      else if (fence.marker === marker && fenceMatch[1].length >= fence.length) fence = undefined;
+      fence = { marker: fenceMatch[1][0], length: fenceMatch[1].length };
       output.push(line);
       offset += line.length;
       continue;
@@ -166,6 +188,7 @@ function makeBlocks(
       line: node.position?.start.line,
   }));
   for (const token of ialTokens) {
+    if (token.attributes.type === "doc") continue;
     if (token.errors.length > 0) {
       issues.push({
         code: "invalid-ial",
@@ -221,8 +244,8 @@ function stableHash(value: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function inferredTopicId(path: readonly string[]): string {
-  return `inferred-${stableHash(path.join("\u001f"))}`;
+function inferredTopicId(path: readonly string[], sourceLine: number | undefined): string {
+  return `inferred-${stableHash(`${path.join("\u001f")}\u001f${sourceLine ?? "unknown"}`)}`;
 }
 
 function inferQuestionType(title: string, body: string): QuestionType | undefined {
@@ -235,19 +258,27 @@ function inferQuestionType(title: string, body: string): QuestionType | undefine
   return undefined;
 }
 
-function parseChoiceIds(value: string): string[] | undefined {
+function parseChoiceIds(value: string, validOptionIds: readonly string[] = []): string[] | undefined {
   const compact = value.trim().toUpperCase();
   if (!compact) return undefined;
+  const valid = new Set(validOptionIds.map((id) => id.toUpperCase()));
   const ids = /[,，、\s]/u.test(compact)
     ? compact.split(/[,，、\s]+/u)
+    : valid.has(compact)
+      ? [compact]
     : /^[A-Z]+$/u.test(compact)
       ? [...compact]
       : [compact];
+  if (ids.some((id) => !/^[A-Z0-9]+$/u.test(id))) return undefined;
   const normalized = normalizeOptionIds(ids);
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function parseAnswer(value: string | undefined, type: QuestionType): ObjectiveAnswer | undefined {
+function parseAnswer(
+  value: string | undefined,
+  type: QuestionType,
+  validOptionIds: readonly string[] = [],
+): ObjectiveAnswer | undefined {
   if (!value) return undefined;
   if (type === "true-false") {
     const normalized = value.trim().toLowerCase();
@@ -256,7 +287,7 @@ function parseAnswer(value: string | undefined, type: QuestionType): ObjectiveAn
     return undefined;
   }
   if (type === "single" || type === "multiple") {
-    const optionIds = parseChoiceIds(value);
+    const optionIds = parseChoiceIds(value, validOptionIds);
     return optionIds ? { kind: "options", optionIds } : undefined;
   }
   return undefined;
@@ -272,6 +303,26 @@ function visibleAnswer(solution: string, type: QuestionType): ObjectiveAnswer | 
     return parseAnswer(match?.[1], type);
   }
   return undefined;
+}
+
+function serializeAnswer(answer: ObjectiveAnswer): string {
+  return answer.kind === "boolean" ? String(answer.value) : normalizeOptionIds(answer.optionIds).join(",");
+}
+
+function addIalUpdate(
+  report: Pick<MarkdownQuestionScanReport, "ialUpdates">,
+  block: MarkdownBlock,
+  questionId: string,
+  attributes: IalAttributes,
+  reason: MarkdownIalUpdate["reason"],
+): void {
+  report.ialUpdates.push({
+    blockId: block.attributes.id,
+    line: block.line,
+    questionId,
+    attributes,
+    reason,
+  });
 }
 
 function isLikelySolutionStart(block: MarkdownBlock): boolean {
@@ -294,9 +345,7 @@ function firstParagraph(item: ListItem): Paragraph | undefined {
   return item.children.find((child): child is Paragraph => child.type === "paragraph");
 }
 
-function parseOptionItem(item: ListItem, type: QuestionType): ParsedOption | undefined {
-  const paragraph = firstParagraph(item);
-  if (!paragraph) return undefined;
+function parseOptionParagraph(paragraph: Paragraph, type: QuestionType): ParsedOption | undefined {
   const visible = toString(paragraph).trim();
   const labelled = visible.match(/^([A-Za-z0-9]+)[.、:：)]\s*(.+)$/su);
   if (labelled) {
@@ -314,10 +363,25 @@ function parseOptionItem(item: ListItem, type: QuestionType): ParsedOption | und
   return undefined;
 }
 
+function parseOptionItem(item: ListItem, type: QuestionType): ParsedOption | undefined {
+  const paragraph = firstParagraph(item);
+  return paragraph ? parseOptionParagraph(paragraph, type) : undefined;
+}
+
 function optionList(list: List, type: QuestionType): ParsedOption[] | undefined {
   const parsed = list.children.map((item) => parseOptionItem(item, type));
   if (parsed.length < 2 || parsed.some((option) => option === undefined)) return undefined;
   return parsed as ParsedOption[];
+}
+
+function explicitOption(block: MarkdownBlock): ParsedOption | undefined {
+  const id = block.attributes["custom-qb-option"]?.trim().toUpperCase();
+  if (!id || !/^[A-Z0-9]+$/u.test(id)) return undefined;
+  if (block.node.type === "list") {
+    const paragraph = block.node.children[0] && firstParagraph(block.node.children[0]);
+    if (paragraph) return { id, markdown: stringifyNodes([paragraph]) };
+  }
+  return { id, markdown: stringifyNodes([block.node]) };
 }
 
 function childNodes(node: unknown): RootContent[] {
@@ -365,9 +429,11 @@ function metadataForQuestion(topics: readonly TopicState[], attributes: IalAttri
   );
   const own = inheritedMetadata(attributes);
   const closestTopic = topics.at(-1);
+  const closestStableTopic = [...topics].reverse().find((topic) => topic.node.explicit);
   return {
     ...mergeDefined(inherited, own),
-    topicId: closestTopic?.node.id,
+    topicId: closestStableTopic?.node.id,
+    scopeTopicId: closestTopic?.node.id,
     topicPath: topics.map((topic) => topic.node.title),
     parentId: attributes["custom-qb-parent-id"],
   };
@@ -377,16 +443,23 @@ function buildQuestion(
   candidate: QuestionCandidate,
   blocks: readonly MarkdownBlock[],
   endIndex: number,
-  report: Pick<QuestionScanReport, "inferences" | "conflicts" | "issues">,
+  report: Pick<MarkdownQuestionScanReport, "inferences" | "conflicts" | "issues" | "ialUpdates">,
 ): Question | undefined {
   const id = candidate.attributes["custom-qb-id"];
   const title = toString(candidate.heading).trim();
   const bodyBlocks = blocks.slice(candidate.blockIndex + 1, endIndex);
   const bodyText = bodyBlocks.map((block) => block.raw).join("\n\n");
   const explicitType = candidate.attributes["custom-qb-type"];
-  let type = questionTypes.includes(explicitType as QuestionType)
-    ? explicitType as QuestionType
-    : undefined;
+  if (explicitType !== undefined && !questionTypes.includes(explicitType as QuestionType)) {
+    report.issues.push({
+      code: "invalid-question-type",
+      message: `Invalid custom-qb-type '${explicitType}'`,
+      questionId: id,
+      line: candidate.heading.position?.start.line,
+    });
+    return undefined;
+  }
+  let type = explicitType as QuestionType | undefined;
   if (!type) {
     type = inferQuestionType(title, bodyText);
     if (type) {
@@ -396,6 +469,13 @@ function buildQuestion(
         questionId: id,
         line: candidate.heading.position?.start.line,
       });
+      addIalUpdate(
+        report,
+        blocks[candidate.blockIndex],
+        id,
+        { "custom-qb-type": type },
+        "inferred-question-type",
+      );
     } else {
       report.issues.push({
         code: "missing-question-type",
@@ -429,6 +509,13 @@ function buildQuestion(
         questionId: id,
         line: bodyBlocks[solutionIndex].line,
       });
+      addIalUpdate(
+        report,
+        bodyBlocks[solutionIndex],
+        id,
+        { "custom-qb-section": "solution" },
+        "inferred-solution-boundary",
+      );
     } else {
       report.issues.push({
         code: "missing-solution-boundary",
@@ -440,16 +527,51 @@ function buildQuestion(
     }
   }
   solutionIndex ??= bodyBlocks.length;
-  const stemNodes = bodyBlocks.slice(0, solutionIndex).map((block) => block.node);
+  const stemBlocks = bodyBlocks.slice(0, solutionIndex);
   const solutionNodes = bodyBlocks.slice(solutionIndex).map((block) => block.node);
-  const options = collectOptions(stemNodes, type);
-  const cleanedStemNodes = stemNodes
-    .map((node) => stripOptionLists(node, type))
+  const explicitOptionResults = stemBlocks.map((block) => ({ block, option: explicitOption(block) }));
+  const invalidExplicitOption = explicitOptionResults.find(
+    ({ block, option }) => block.attributes["custom-qb-option"] !== undefined && !option,
+  );
+  if (invalidExplicitOption) {
+    report.issues.push({
+      code: "invalid-option-id",
+      message: "custom-qb-option must use a non-empty ASCII alphanumeric ID",
+      questionId: id,
+      line: invalidExplicitOption.block.line,
+    });
+    return undefined;
+  }
+  const paragraphOptions = new Map<MarkdownBlock, ParsedOption>();
+  let paragraphRun: Array<[MarkdownBlock, ParsedOption]> = [];
+  const commitParagraphRun = (): void => {
+    if (paragraphRun.length >= 2) {
+      for (const [block, option] of paragraphRun) paragraphOptions.set(block, option);
+    }
+    paragraphRun = [];
+  };
+  for (const block of stemBlocks) {
+    const option = !block.attributes["custom-qb-option"] && block.node.type === "paragraph"
+      ? parseOptionParagraph(block.node, type)
+      : undefined;
+    if (option) paragraphRun.push([block, option]);
+    else commitParagraphRun();
+  }
+  commitParagraphRun();
+  const options: ParsedOption[] = [];
+  for (const result of explicitOptionResults) {
+    if (result.option) options.push(result.option);
+    else if (paragraphOptions.has(result.block)) options.push(paragraphOptions.get(result.block)!);
+    else options.push(...collectOptions([result.block.node], type));
+  }
+  const cleanedStemNodes = stemBlocks
+    .filter((block) => !block.attributes["custom-qb-option"] && !paragraphOptions.has(block))
+    .map((block) => stripOptionLists(block.node, type))
     .filter((node): node is RootContent => node !== null);
   const solutionMarkdown = stringifyNodes(solutionNodes);
 
   const explicitAnswerValue = candidate.attributes["custom-qb-answer"];
-  const explicitAnswer = parseAnswer(explicitAnswerValue, type);
+  const explicitAnswer = parseAnswer(explicitAnswerValue, type, options.map((option) => option.id));
   if (explicitAnswerValue && !explicitAnswer) {
     report.issues.push({
       code: "invalid-machine-answer",
@@ -457,6 +579,7 @@ function buildQuestion(
       questionId: id,
       line: candidate.heading.position?.start.line,
     });
+    return undefined;
   }
   const inferredAnswer = visibleAnswer(solutionMarkdown, type);
   if (explicitAnswer && inferredAnswer && !answersEqual(explicitAnswer, inferredAnswer)) {
@@ -476,6 +599,13 @@ function buildQuestion(
       questionId: id,
       line: candidate.heading.position?.start.line,
     });
+    addIalUpdate(
+      report,
+      blocks[candidate.blockIndex],
+      id,
+      { "custom-qb-answer": serializeAnswer(inferredAnswer) },
+      "inferred-machine-answer",
+    );
   }
 
   const parsed = QuestionSchema.safeParse({
@@ -502,12 +632,13 @@ function buildQuestion(
   return parsed.data as Question;
 }
 
-export function scanQuestionMarkdown(markdown: string): QuestionScanReport {
-  const report: QuestionScanReport = {
+export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanReport {
+  const report: MarkdownQuestionScanReport = {
     document: { questions: [], groups: [], topics: [] },
     inferences: [],
     conflicts: [],
     issues: [],
+    ialUpdates: [],
   };
   const extracted = extractIalLines(markdown);
   const root = markdownParser.parse(extracted.markdown) as Root;
@@ -550,7 +681,15 @@ export function scanQuestionMarkdown(markdown: string): QuestionScanReport {
     const explicit = block.attributes["custom-qb-role"] === "topic";
     const path = [...topics.map((topic) => topic.node.title), title];
     const explicitId = block.attributes["custom-qb-topic-id"];
-    const id = explicitId || inferredTopicId(path);
+    if (explicitId && !stableTopicIdPattern.test(explicitId)) {
+      report.conflicts.push({
+        code: "invalid-topic-id",
+        message: `Topic ID must use lowercase ASCII kebab-case: ${explicitId}`,
+        line: block.line,
+      });
+      continue;
+    }
+    const id = explicitId || inferredTopicId(path, block.line);
     if (explicit && !explicitId) {
       report.issues.push({
         code: "missing-topic-id",
@@ -572,6 +711,7 @@ export function scanQuestionMarkdown(markdown: string): QuestionScanReport {
       id,
       title,
       level: block.node.depth,
+      sourceLine: block.line,
       parentId: parent?.node.id,
       childIds: [],
       explicit: Boolean(explicitId),
