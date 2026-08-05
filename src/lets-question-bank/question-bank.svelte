@@ -20,7 +20,6 @@
   } from "@/question-bank/core/shuffle";
   import type {
     AttemptAggregate,
-    AttemptEvent,
     MasteryRating,
     Question,
     QuestionGroup,
@@ -33,9 +32,14 @@
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
     createPracticeQueue,
+    PracticeSessionLifecycleError,
     PracticeSessionRuntime,
+    replacePracticeSession,
+    resumePracticeSession,
+    startPracticeSession,
     suggestedMasteryRating,
     type PracticeOrder,
+    type PracticeSessionActivation,
     type PracticeSessionActorSnapshot,
     type PracticeSessionSaveStatus,
   } from "@/question-bank/application";
@@ -43,7 +47,6 @@
     createPracticeSessionSnapshot,
     practiceQuestionElapsedMs,
     practiceSessionElapsedMs,
-    reconcilePracticeSession,
     type PracticeSessionRecoveryIssue,
     type PracticeSessionSnapshot,
   } from "@/question-bank/core";
@@ -236,7 +239,13 @@
     try {
       await operation();
     } catch (reason) {
-      error = reason instanceof Error ? reason.message : String(reason);
+      if (reason instanceof PracticeSessionLifecycleError && reason.code === "session-in-use") {
+        error = label("sessionInUse", "This practice session is open in another window");
+      } else if (reason instanceof PracticeSessionLifecycleError && reason.code === "session-has-no-questions") {
+        error = label("sessionHasNoQuestions", "None of this session's questions still exist");
+      } else {
+        error = reason instanceof Error ? reason.message : String(reason);
+      }
     } finally {
       busy = false;
     }
@@ -416,11 +425,8 @@
     displayedOptions = revealed ? restoreQuestionOptions(currentQuestion, shuffled) : shuffled.options;
   }
 
-  async function activateRuntime(
-    snapshot: PracticeSessionSnapshot,
-    attempts: ReadonlyMap<string, AttemptEvent>,
-    persistedRevision: number,
-  ): Promise<void> {
+  async function activateRuntime(activation: PracticeSessionActivation): Promise<void> {
+    const { snapshot, attempts, persistedRevision } = activation;
     unsubscribePracticeState?.();
     unsubscribeSaveStatus?.();
     if (practiceRuntime) await practiceRuntime.dispose();
@@ -446,7 +452,7 @@
       practiceSaveError = reason?.message ?? "";
     });
     recoverableSession = undefined;
-    recoveryIssues = [];
+    recoveryIssues = activation.recoveryIssues;
     pendingReplacement = false;
     endConfirmation = false;
     answerCardOpen = false;
@@ -485,58 +491,45 @@
 
   async function beginNewPractice(nextQueue = practiceQueue()): Promise<void> {
     if (!preview || nextQueue.length === 0) return;
-    if (!await controller.acquirePracticeSession(documentId)) {
-      throw new Error(label("sessionInUse", "This practice session is open in another window"));
-    }
-    await beginNewPracticeWithLease(nextQueue);
+    await startPracticeSession({
+      host: controller,
+      sourceKey: documentId,
+      createSnapshot: () => createNewPracticeSnapshot(nextQueue),
+      activate: activateRuntime,
+    });
   }
 
-  async function beginNewPracticeWithLease(nextQueue = practiceQueue()): Promise<void> {
-    if (!preview || nextQueue.length === 0) return;
-    let activated = false;
-    try {
-      controller.saveRecentScope({
-        documentId,
-        headingBlockId: topicId ? preview.scan.topicBlockIdsByTopicId.get(topicId) : undefined,
-      });
-      const snapshot = createPracticeSessionSnapshot({
-        sessionId: uuid(),
-        sourceKey: documentId,
-        sourceLabel: sourceIdentity?.content,
-        scopeId: topicId || undefined,
-        filter,
-        order,
-        queue: nextQueue.map((question) => ({
-          question,
-          optionOrder: shuffleQuestionOptions(question, random).optionOrder,
-        })),
-        now: new Date(now()),
-      });
-      await activateRuntime(snapshot, new Map(), -1);
-      activated = true;
-    } finally {
-      if (!activated) await controller.releasePracticeSession(documentId);
-    }
+  function createNewPracticeSnapshot(nextQueue = practiceQueue()): PracticeSessionSnapshot {
+    if (!preview || nextQueue.length === 0) throw new Error("A practice session requires at least one question");
+    controller.saveRecentScope({
+      documentId,
+      headingBlockId: topicId ? preview.scan.topicBlockIdsByTopicId.get(topicId) : undefined,
+    });
+    return createPracticeSessionSnapshot({
+      sessionId: uuid(),
+      sourceKey: documentId,
+      sourceLabel: sourceIdentity?.content,
+      scopeId: topicId || undefined,
+      filter,
+      order,
+      queue: nextQueue.map((question) => ({
+        question,
+        optionOrder: shuffleQuestionOptions(question, random).optionOrder,
+      })),
+      now: new Date(now()),
+    });
   }
 
   function resumePractice(snapshot = recoverableSession): void {
     if (!snapshot || !preview) return;
     void run(async () => {
-      if (!await controller.acquirePracticeSession(snapshot.source_key)) {
-        throw new Error(label("sessionInUse", "This practice session is open in another window"));
-      }
-      try {
-        const attempts = await controller.loadSessionAttempts(snapshot.session_id);
-        const recovery = reconcilePracticeSession(snapshot, questions, attempts, new Date(now()));
-        if (!recovery.snapshot) {
-          throw new Error(label("sessionHasNoQuestions", "None of this session's questions still exist"));
-        }
-        recoveryIssues = recovery.issues;
-        await activateRuntime(recovery.snapshot, recovery.attemptsByQuestionId, snapshot.revision);
-      } catch (reason) {
-        await controller.releasePracticeSession(snapshot.source_key);
-        throw reason;
-      }
+      await resumePracticeSession({
+        host: controller,
+        snapshot,
+        questions,
+        now: new Date(now()),
+        activate: activateRuntime,
+      });
     });
   }
 
@@ -547,20 +540,13 @@
       return;
     }
     void run(async () => {
-      if (!await controller.acquirePracticeSession(previous.source_key)) {
-        throw new Error(label("sessionInUse", "This practice session is open in another window"));
-      }
-      let started = false;
-      try {
-        await controller.removePracticeSession(previous.source_key, previous.session_id);
-        recoverableSession = undefined;
-        pendingReplacement = false;
-        await beginNewPracticeWithLease();
-        started = true;
-        await refreshStoredSessions();
-      } finally {
-        if (!started) await controller.releasePracticeSession(previous.source_key);
-      }
+      await replacePracticeSession({
+        host: controller,
+        previous,
+        createSnapshot: createNewPracticeSnapshot,
+        activate: activateRuntime,
+      });
+      await refreshStoredSessions();
     });
   }
 

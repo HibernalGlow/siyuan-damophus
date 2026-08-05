@@ -528,6 +528,29 @@ describe("question bank browser flow", () => {
     expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("shows source reconciliation issues after resuming", async () => {
+    const { controller, practiceSessions } = mockController({ preview: makePreview([objectiveQuestion]) });
+    practiceSessions.set(documentId, createPracticeSessionSnapshot({
+      sessionId: "unfinished-session",
+      sourceKey: documentId,
+      filter: "all",
+      order: "sequential",
+      queue: [
+        { question: objectiveQuestion, optionOrder: ["A", "B", "C"] },
+        { question: subjectiveQuestion, optionOrder: [] },
+      ],
+      now: new Date("2026-08-06T00:00:00.000Z"),
+    }));
+    render(controller);
+    await scanAndSync();
+
+    button("Continue").click();
+    await flush();
+
+    expect(document.body.textContent).toContain("Source changes were reconciled");
+    expect(document.body.textContent).toContain("q-subjective: missing-question");
+  });
+
   it("keeps an unfinished session when another window owns its lease", async () => {
     const { controller, practiceSessions } = mockController({ preview: makePreview([objectiveQuestion]) });
     const unfinished = createPracticeSessionSnapshot({
