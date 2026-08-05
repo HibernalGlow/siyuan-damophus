@@ -182,6 +182,14 @@ export default class QuestionBankPlugin extends SubPluginBase {
     documentId?: string,
     beforeOpenQuestionSource?: () => void,
   ): ReturnType<typeof mount> {
+    target.classList.add(
+      "damophus-question-bank-host",
+      "flex",
+      "h-full",
+      "min-h-0",
+      "flex-col",
+      "overflow-hidden",
+    );
     const controller = new QuestionBankController({
       getSetting: (key) => this.getSetting(key),
       setSetting: (key, value) => this.setSetting(key, value),

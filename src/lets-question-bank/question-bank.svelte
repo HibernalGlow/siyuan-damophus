@@ -1,6 +1,14 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { Button } from "@/components/ui/button";
+  import * as Alert from "@/components/ui/alert";
+  import { Button, buttonVariants } from "@/components/ui/button";
+  import * as Collapsible from "@/components/ui/collapsible";
+  import { Input } from "@/components/ui/input";
+  import { Label as FormLabel } from "@/components/ui/label";
+  import * as ScrollArea from "@/components/ui/scroll-area";
+  import * as Select from "@/components/ui/select";
+  import { Switch } from "@/components/ui/switch";
+  import * as ToggleGroup from "@/components/ui/toggle-group";
   import { gradeQuestion } from "@/question-bank/core/answer";
   import { restoreQuestionOptions, shuffleQuestionOptions } from "@/question-bank/core/shuffle";
   import type {
@@ -56,7 +64,7 @@
   let busy = false;
   let error = "";
   let syncComplete = false;
-  let fileInput: HTMLInputElement;
+  let fileInput: HTMLInputElement | null = null;
   let importSource = "";
   let importPreview: AttemptImportPreview | undefined;
   let importResult: AttemptImportResult | undefined;
@@ -79,7 +87,10 @@
   let completedQuestionIndices: number[] = [];
   let questionElapsedByIndex: Record<number, number> = {};
   let complete = false;
+  let scanDetailsOpen = false;
   let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
+
+  const entireDocumentScope = "__damophus_entire_document__";
 
   $: questions = preview?.scan.report.document.questions ?? [];
   $: groups = preview?.scan.report.document.groups ?? [];
@@ -479,9 +490,9 @@
     return renderQuestionMarkdown?.(markdown, sourceStyles) ?? renderMarkdownHtml(markdown);
   }
 
-  function toggleSourceStyles(event: Event): void {
-    inheritSourceStyles = (event.currentTarget as HTMLInputElement).checked;
-    onInheritSourceStylesChange?.(inheritSourceStyles);
+  function toggleSourceStyles(checked: boolean): void {
+    inheritSourceStyles = checked;
+    onInheritSourceStylesChange?.(checked);
   }
 </script>
 
@@ -492,48 +503,51 @@
       <span>{label("displayName", "Question Bank")}</span>
     </div>
     <div class="header-actions">
-      <label class="source-style-toggle">
-        <input
-          class="b3-switch"
-          type="checkbox"
+      <FormLabel class="cursor-pointer gap-2" for="source-style-toggle">
+        <Switch
+          id="source-style-toggle"
           checked={inheritSourceStyles}
-          on:change={toggleSourceStyles}
+          onCheckedChange={toggleSourceStyles}
+          aria-label={label("inheritSourceStyles", "Use source styles")}
         />
         <span>{inheritSourceStyles ? label("inheritSourceStyles", "Use source styles") : label("plainDisplay", "Plain display")}</span>
-      </label>
+      </FormLabel>
       {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
     </div>
   </header>
 
   {#if error}
-    <div class="notice error" role="alert"><strong>{label("error", "Operation failed")}</strong><span>{error}</span></div>
+    <Alert.Root variant="destructive" class="mx-5 mt-3 w-auto shrink-0">
+      <Alert.Title>{label("error", "Operation failed")}</Alert.Title>
+      <Alert.Description>{error}</Alert.Description>
+    </Alert.Root>
   {/if}
 
   {#if !binding}
     <section class="setup min-h-0 flex-1 overflow-y-auto" aria-label={label("initialize", "Initialize")}>
-      <label for="document-id">{label("documentId", "Document ID")}</label>
+      <FormLabel class="mb-2" for="document-id">{label("documentId", "Document ID")}</FormLabel>
       <div class="document-row">
-        <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" on:input={invalidateDocumentTarget} />
-        <button class="primary" disabled={!validDocument() || busy} on:click={previewInitialization}>
+        <Input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" oninput={invalidateDocumentTarget} />
+        <Button disabled={!validDocument() || busy} onclick={previewInitialization}>
           {label("previewInitialization", "Preview initialization")}
-        </button>
+        </Button>
       </div>
       {#if initializationPreview}
         <div class="preview-line">
           <span>{label("initializationReady", "System document and databases are ready to create")}</span>
           <code>{initializationPreview.path}</code>
-          <button class="primary" disabled={busy} on:click={confirmInitialization}>
+          <Button disabled={busy} onclick={confirmInitialization}>
             {label("confirmInitialization", "Create system document")}
-          </button>
+          </Button>
         </div>
       {/if}
       <div class="rebind-setup">
-        <label for="system-document-id">{label("systemDocumentId", "Existing Damophus system document ID")}</label>
+        <FormLabel class="mb-2" for="system-document-id">{label("systemDocumentId", "Existing Damophus system document ID")}</FormLabel>
         <div class="document-row">
-          <input id="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" on:input={invalidateSystemDocumentTarget} />
-          <button class="secondary" disabled={!/^\d{14}-[a-z0-9]{7}$/u.test(systemDocumentId) || busy} on:click={previewRebinding}>
+          <Input id="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" oninput={invalidateSystemDocumentTarget} />
+          <Button variant="outline" disabled={!/^\d{14}-[a-z0-9]{7}$/u.test(systemDocumentId) || busy} onclick={previewRebinding}>
             {label("previewRebinding", "Preview reconnection")}
-          </button>
+          </Button>
         </div>
         {#if rebindingPreview}
           <div class="preview-line">
@@ -541,9 +555,9 @@
             {#if rebindingPreview.bindingRepairs.length > 0}
               <span>{rebindingPreview.bindingRepairs.length} {label("bindingRepairs", "Database repairs")}</span>
             {/if}
-            <button class="primary" disabled={busy} on:click={confirmRebinding}>
+            <Button disabled={busy} onclick={confirmRebinding}>
               {label("confirmRebinding", "Reconnect")}
-            </button>
+            </Button>
           </div>
         {/if}
       </div>
@@ -551,22 +565,22 @@
   {:else if queue.length === 0 && !complete}
     <section class="workspace min-h-0 flex-1 overflow-y-auto">
       <div class="document-row">
-        <label for="document-id">{label("documentId", "Document ID")}</label>
-        <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" on:input={invalidateDocumentTarget} />
-        <button class="icon-button" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} on:click={scanDocument}>
+        <FormLabel class="max-[760px]:col-span-full" for="document-id">{label("documentId", "Document ID")}</FormLabel>
+        <Input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" oninput={invalidateDocumentTarget} />
+        <Button variant="outline" size="icon" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} onclick={scanDocument}>
           <svg aria-hidden="true"><use href="#iconRefresh"></use></svg>
-        </button>
+        </Button>
       </div>
       <div class="recovery-actions">
-        <button class="secondary" disabled={busy} on:click={exportAttempts}>
-          <svg aria-hidden="true"><use href="#iconDownload"></use></svg>
+        <Button class="max-[760px]:flex-1" variant="outline" disabled={busy} onclick={exportAttempts}>
+          <svg data-icon="inline-start" aria-hidden="true"><use href="#iconDownload"></use></svg>
           {label("exportAttempts", "Export attempts")}
-        </button>
-        <button class="secondary" disabled={busy} on:click={() => fileInput.click()}>
-          <svg aria-hidden="true"><use href="#iconUpload"></use></svg>
+        </Button>
+        <Button class="max-[760px]:flex-1" variant="outline" disabled={busy} onclick={() => fileInput?.click()}>
+          <svg data-icon="inline-start" aria-hidden="true"><use href="#iconUpload"></use></svg>
           {label("importAttempts", "Import attempts")}
-        </button>
-        <input class="file-input" bind:this={fileInput} type="file" accept="application/json,.json" on:change={selectImportFile} />
+        </Button>
+        <Input data-import-file class="hidden" bind:ref={fileInput} type="file" accept="application/json,.json" onchange={selectImportFile} />
       </div>
 
       {#if importPreview}
@@ -574,7 +588,7 @@
           <span><strong>{importPreview.importable}</strong>{label("importable", "Importable")}</span>
           <span><strong>{importPreview.duplicateAttemptIds.length}</strong>{label("duplicates", "Duplicates")}</span>
           <span><strong>{importPreview.orphanQuestionIds.length}</strong>{label("orphans", "Orphans")}</span>
-          <button class="primary" disabled={busy} on:click={confirmImport}>{label("confirmImport", "Confirm import")}</button>
+          <Button disabled={busy} onclick={confirmImport}>{label("confirmImport", "Confirm import")}</Button>
           {#if importPreview.orphanQuestionIds.length > 0}
             <code>{importPreview.orphanQuestionIds.join(", ")}</code>
           {/if}
@@ -606,20 +620,24 @@
             <span><strong>{preview.scan.report.issues.length}</strong>{label("issues", "Issues")}</span>
             <span class:danger={preview.blockers.length > 0}><strong>{preview.blockers.length}</strong>{label("blockers", "Blockers")}</span>
           </div>
-          <button class="secondary" disabled={busy || preview.blockers.length > 0} on:click={confirmSync}>
-            <svg aria-hidden="true"><use href="#iconCheck"></use></svg>
+          <Button variant="outline" disabled={busy || preview.blockers.length > 0} onclick={confirmSync}>
+            <svg data-icon="inline-start" aria-hidden="true"><use href="#iconCheck"></use></svg>
             {label("confirmSync", "Confirm index sync")}
-          </button>
+          </Button>
           {#if syncComplete}<span class="success">{label("synced", "Question index synchronized")}</span>{/if}
-          <details class="scan-details">
-            <summary>{label("scanDetails", "Scan details")}</summary>
+          <Collapsible.Root bind:open={scanDetailsOpen} class="basis-full border-t border-border pt-2.5 select-text">
+            <Collapsible.Trigger class={buttonVariants({ variant: "ghost", size: "sm" })}>
+              <svg data-icon="inline-start" aria-hidden="true"><use href={scanDetailsOpen ? "#iconUp" : "#iconDown"}></use></svg>
+              {label("scanDetails", "Scan details")}
+            </Collapsible.Trigger>
+            <Collapsible.Content>
             <div class="scan-detail-actions">
               <span>{label("inferenceNotice", "Inferences describe detected structure and are not errors.")}</span>
               {#if scanMessageGroups.some((group) => group.messages.length > 0)}
-                <button class="secondary compact" type="button" on:click={() => void copyText(scanLogText())}>
-                  <svg aria-hidden="true"><use href="#iconCopy"></use></svg>
+                <Button variant="outline" size="sm" type="button" onclick={() => void copyText(scanLogText())}>
+                  <svg data-icon="inline-start" aria-hidden="true"><use href="#iconCopy"></use></svg>
                   {label("copyScanLog", "Copy scan log")}
-                </button>
+                </Button>
               {/if}
             </div>
             {#each scanMessageGroups as group}
@@ -634,23 +652,28 @@
                             <code>{message.code}</code>
                             <span>{message.message}</span>
                           </div>
-                          <button
-                            class="icon-button"
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             type="button"
                             aria-label={label("copyFinding", "Copy finding")}
                             title={label("copyFinding", "Copy finding")}
-                            on:click={() => void copyText(messageClipboardText(message))}
+                            onclick={() => void copyText(messageClipboardText(message))}
                           >
                             <svg aria-hidden="true"><use href="#iconCopy"></use></svg>
-                          </button>
+                          </Button>
                         </div>
                         {#if message.title}<strong class="message-title">{label("heading", "Heading")}: {message.title}</strong>{/if}
                         {#if messageContext(message)}<small>{messageContext(message)}</small>{/if}
                         {#if message.sourceMarkdown}
-                          <details class="message-source">
-                            <summary>{label("sourceMarkdown", "Original Markdown")}</summary>
-                            <pre><code>{message.sourceMarkdown}</code></pre>
-                          </details>
+                            <Collapsible.Root class="message-source mt-1.5">
+                            <Collapsible.Trigger class={buttonVariants({ variant: "ghost", size: "xs" })}>
+                              {label("sourceMarkdown", "Original Markdown")}
+                            </Collapsible.Trigger>
+                            <Collapsible.Content>
+                            <pre class="mt-1.5 mb-0 max-h-45 overflow-auto rounded-md border border-border bg-background p-2 whitespace-pre-wrap break-words"><code class="text-xs select-text">{message.sourceMarkdown}</code></pre>
+                            </Collapsible.Content>
+                          </Collapsible.Root>
                         {/if}
                       </li>
                     {/each}
@@ -691,45 +714,69 @@
                 <code>{preview.staleQuestionIds.join(", ")}</code>
               </div>
             {/if}
-          </details>
+            </Collapsible.Content>
+          </Collapsible.Root>
         </section>
 
         <section class="practice-settings">
-          <label>
-            <span>{label("scope", "Scope")}</span>
-            <select bind:value={topicId}>
-              <option value="">{label("entireDocument", "Entire document")}</option>
-              {#each topics as topic (topic.id)}
-                <option value={topic.id}>{topicLabel(topic)}</option>
-              {/each}
-            </select>
-          </label>
+          <div class="grid gap-2">
+            <FormLabel>{label("scope", "Scope")}</FormLabel>
+            <Select.Root
+              type="single"
+              value={topicId || entireDocumentScope}
+              onValueChange={(value) => topicId = value === entireDocumentScope ? "" : value}
+            >
+              <Select.Trigger class="w-full">
+                {topicId ? topicLabel(topics.find((topic) => topic.id === topicId) ?? topics[0]) : label("entireDocument", "Entire document")}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Group>
+                  <Select.Item value={entireDocumentScope} label={label("entireDocument", "Entire document")} />
+                  {#each topics as topic (topic.id)}
+                    <Select.Item value={topic.id} label={topicLabel(topic)} />
+                  {/each}
+                </Select.Group>
+              </Select.Content>
+            </Select.Root>
+          </div>
 
           <fieldset>
             <legend>{label("order", "Order")}</legend>
-            <div class="segmented">
-              <button class:active={order === "sequential"} aria-pressed={order === "sequential"} on:click={() => order = "sequential"}>{label("sequential", "Sequential")}</button>
-              <button class:active={order === "random"} aria-pressed={order === "random"} on:click={() => order = "random"}>{label("random", "Random")}</button>
-            </div>
+            <ToggleGroup.Root
+              type="single"
+              variant="outline"
+              class="grid w-full grid-cols-2"
+              value={order}
+              onValueChange={(value) => { if (value) order = value as PracticeOrder; }}
+            >
+              <ToggleGroup.Item value="sequential">{label("sequential", "Sequential")}</ToggleGroup.Item>
+              <ToggleGroup.Item value="random">{label("random", "Random")}</ToggleGroup.Item>
+            </ToggleGroup.Root>
           </fieldset>
 
           <fieldset>
             <legend>{label("filter", "Filter")}</legend>
-            <div class="segmented filters">
+            <ToggleGroup.Root
+              type="single"
+              variant="outline"
+              class="grid w-full grid-cols-4 max-[520px]:grid-cols-2"
+              value={filter}
+              onValueChange={(value) => { if (value) filter = value as PracticeFilter; }}
+            >
               {#each ["all", "wrong", "review", "due"] as value}
-                <button class:active={filter === value} aria-pressed={filter === value} on:click={() => filter = value as PracticeFilter}>{label(value, value)}</button>
+                <ToggleGroup.Item value={value}>{label(value, value)}</ToggleGroup.Item>
               {/each}
-            </div>
+            </ToggleGroup.Root>
           </fieldset>
 
-          <button
-            class="primary start"
+          <Button
+            class="start max-[760px]:w-full"
             disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
-            on:click={startPractice}
+            onclick={startPractice}
           >
-            <svg aria-hidden="true"><use href="#iconPlay"></use></svg>
+            <svg data-icon="inline-start" aria-hidden="true"><use href="#iconPlay"></use></svg>
             {label("start", "Start practice")}
-          </button>
+          </Button>
         </section>
       {/if}
     </section>
@@ -746,15 +793,17 @@
           {/if}
         </div>
         <span class="practice-topic">{currentQuestion.metadata.topicPath.join(" / ")}</span>
-        <button
-          class="icon-button answer-card-button"
+        <Button
+          variant="ghost"
+          size="icon"
+          class="answer-card-button"
           title={label("answerCard", "Answer card")}
           aria-label={label("answerCard", "Answer card")}
           aria-expanded={answerCardOpen}
-          on:click={() => answerCardOpen = !answerCardOpen}
+          onclick={() => answerCardOpen = !answerCardOpen}
         >
           <svg aria-hidden="true"><use href="#iconGrid"></use></svg>
-        </button>
+        </Button>
       </div>
       {#if answerCardOpen}
         <button
@@ -766,42 +815,45 @@
           <header>
             <strong>{label("answerCard", "Answer card")}</strong>
             <span>{completedQuestionIndices.length} / {queue.length}</span>
-            <button
-              class="icon-button"
+            <Button
+              variant="ghost"
+              size="icon"
               title={label("closeAnswerCard", "Close answer card")}
               aria-label={label("closeAnswerCard", "Close answer card")}
-              on:click={() => answerCardOpen = false}
+              onclick={() => answerCardOpen = false}
             >
               <svg aria-hidden="true"><use href="#iconClose"></use></svg>
-            </button>
+            </Button>
           </header>
           <div class="answer-card-grid">
             {#each queue as question, index (question.id)}
-              <button
-                class:current={index === questionIndex}
-                class:answered={completedQuestionIndices.includes(index)}
+              <Button
+                variant={index === questionIndex ? "default" : completedQuestionIndices.includes(index) ? "secondary" : "outline"}
+                class="h-auto min-h-9 w-full min-w-0 aspect-square p-1 tabular-nums disabled:opacity-100"
                 disabled={completedQuestionIndices.includes(index)}
                 aria-current={index === questionIndex ? "step" : undefined}
                 aria-label={`${label("question", "Question")} ${index + 1}`}
-                on:click={() => goToQuestion(index)}
-              >{index + 1}</button>
+                onclick={() => goToQuestion(index)}
+              >{index + 1}</Button>
             {/each}
           </div>
         </aside>
       {/if}
-      <div class="practice-content min-h-0 overflow-y-auto overscroll-contain">
+      <ScrollArea.Root class="practice-content h-full min-h-0 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
         <article class="question">
         <div class="question-heading">
           <h2>{currentQuestion.title}</h2>
           {#if currentQuestionBlockId && openQuestionSource}
-            <button
-              class="icon-button source-button"
+            <Button
+              variant="ghost"
+              size="icon"
+              class="shrink-0"
               title={label("openSource", "Open source in SiYuan")}
               aria-label={label("openSource", "Open source in SiYuan")}
-              on:click={() => openQuestionSource?.(currentQuestionBlockId as string)}
+              onclick={() => openQuestionSource?.(currentQuestionBlockId as string)}
             >
               <svg aria-hidden="true"><use href="#iconFocus"></use></svg>
-            </button>
+            </Button>
           {/if}
         </div>
         {#if currentGroup}
@@ -814,16 +866,16 @@
         {#if displayedOptions.length > 0}
           <div class="options">
             {#each displayedOptions as option (option.originalId)}
-              <button
-                class="option"
-                class:selected={selectedOptionIds.includes(option.originalId)}
+              <Button
+                variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
+                class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
                 disabled={revealed}
                 aria-pressed={selectedOptionIds.includes(option.originalId)}
-                on:click={() => toggleOption(option.originalId)}
+                onclick={() => toggleOption(option.originalId)}
               >
                 <span class="option-label">{option.displayLabel}</span>
                 <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderedQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
-              </button>
+              </Button>
             {/each}
           </div>
         {/if}
@@ -838,14 +890,14 @@
             {/if}
             <div class="markdown native-content protyle-wysiwyg solution" contenteditable="false">{@html renderedQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
             {#if currentQuestion.type === "subjective"}
-              <label class="score">
+              <FormLabel class="mt-4 flex items-center gap-2.5">
                 <span>{label("subjectiveScore", "Self score")}</span>
-                <input type="number" min="0" max="100" step="1" bind:value={subjectiveScore} />
-              </label>
+                <Input class="w-24" type="number" min="0" max="100" step="1" bind:value={subjectiveScore} />
+              </FormLabel>
             {/if}
           </section>
         {/if}
-      </div>
+      </ScrollArea.Root>
 
       {#if !revealed}
         <div class="action-bar">
@@ -871,7 +923,7 @@
   {:else if complete}
     <section class="completion min-h-0 flex-1 overflow-y-auto">
       <h2>{queue.length === 0 ? label("noQuestions", "No questions match this scope and filter") : label("complete", "Practice complete")}</h2>
-      <button class="secondary" on:click={resetPractice}>{label("restart", "Back to scope")}</button>
+      <Button variant="outline" onclick={resetPractice}>{label("restart", "Back to scope")}</Button>
     </section>
   {/if}
 </main>
@@ -886,31 +938,14 @@
   h2 { margin: 0; font-size: 18px; line-height: 1.45; }
   .app-header span, .status { color: var(--b3-theme-on-surface); font-size: 13px; }
   .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-  .source-style-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
-  .source-style-toggle .b3-switch { flex: none; }
   section { padding: 18px 20px; }
-  button { min-height: 34px; border: 1px solid var(--b3-border-color); border-radius: 6px; padding: 6px 12px; color: var(--b3-theme-on-background); background: var(--b3-theme-surface); cursor: pointer; }
-  button:hover:not(:disabled) { background: var(--b3-list-hover); }
-  button:disabled { cursor: default; opacity: .5; }
-  button svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
-  .primary, .secondary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 600; }
-  .primary { color: var(--b3-theme-on-primary); background: var(--b3-theme-primary); border-color: var(--b3-theme-primary); }
-  .secondary { background: var(--b3-theme-surface); }
-  .icon-button { width: 34px; min-width: 34px; padding: 7px; display: inline-grid; place-items: center; }
-  input, select { min-height: 34px; min-width: 0; border: 1px solid var(--b3-border-color); border-radius: 4px; padding: 6px 9px; color: var(--b3-theme-on-background); background: var(--b3-theme-background); }
-  label { color: var(--b3-theme-on-surface); font-size: 13px; }
   .document-row { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto; align-items: center; gap: 10px; }
   .setup { max-width: 760px; }
-  .setup > label { display: block; margin-bottom: 7px; }
   .setup .document-row { grid-template-columns: minmax(220px, 1fr) auto; }
   .rebind-setup { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--b3-border-color); }
-  .rebind-setup > label { display: block; margin-bottom: 7px; }
   .preview-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-  .notice { margin: 12px 20px 0; padding: 10px 12px; border-left: 3px solid var(--b3-theme-error); display: flex; gap: 8px; font-size: 13px; }
-  .notice span { overflow-wrap: anywhere; }
   .scan-summary { margin: 18px -20px 0; padding: 16px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .recovery-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
-  .file-input { display: none; }
   .import-report { margin: 14px -20px 0; padding: 12px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
   .import-report span { min-width: 76px; display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
   .import-report strong { color: var(--b3-theme-on-background); font-size: 17px; }
@@ -918,11 +953,8 @@
   .summary-grid { flex: 1; display: grid; grid-template-columns: repeat(6, minmax(74px, 1fr)); gap: 1px; background: var(--b3-border-color); }
   .summary-grid span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; flex-direction: column; justify-content: center; font-size: 12px; color: var(--b3-theme-on-surface); }
   .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
-  .summary-grid .danger strong, .error, .incorrect { color: var(--b3-theme-error); }
-  .scan-details { flex-basis: 100%; border-top: 1px solid var(--b3-border-color); padding-top: 10px; user-select: text; }
-  .scan-details summary { cursor: pointer; color: var(--b3-theme-on-surface); font-size: 13px; font-weight: 600; }
+  .summary-grid .danger strong, .incorrect { color: var(--b3-theme-error); }
   .scan-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--b3-theme-on-surface); font-size: 12px; }
-  .scan-detail-actions .compact { min-height: 30px; padding: 4px 9px; white-space: nowrap; user-select: none; }
   .report-group { margin-top: 12px; }
   .report-group > strong { display: block; margin-bottom: 6px; font-size: 13px; }
   .report-group ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
@@ -930,22 +962,12 @@
   .report-message-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
   .report-message-heading > div { min-width: 0; }
   .report-message-heading span { margin-left: 8px; overflow-wrap: anywhere; }
-  .report-message-heading .icon-button { flex: 0 0 28px; width: 28px; height: 28px; min-height: 28px; padding: 5px; user-select: none; }
   .message-title { display: block; margin-top: 5px; overflow-wrap: anywhere; }
   .report-group small { display: block; margin-top: 2px; color: var(--b3-theme-on-surface); overflow-wrap: anywhere; }
-  .message-source { margin-top: 6px; }
-  .message-source pre { max-height: 180px; margin: 6px 0 0; padding: 8px; overflow: auto; border: 1px solid var(--b3-border-color); border-radius: 4px; background: var(--b3-theme-background); white-space: pre-wrap; overflow-wrap: anywhere; }
-  .message-source pre code { font-size: 12px; user-select: text; }
   .success, .correct { color: var(--b3-theme-success); font-size: 13px; }
   .practice-settings { padding: 20px 0 0; display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1fr) minmax(250px, 1.5fr) auto; gap: 16px; align-items: end; }
-  .practice-settings > label { display: grid; gap: 6px; }
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend { margin-bottom: 6px; color: var(--b3-theme-on-surface); font-size: 13px; }
-  .segmented { min-height: 34px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
-  .segmented button { border-radius: 0; margin-left: -1px; white-space: nowrap; }
-  .segmented button:first-child { margin-left: 0; border-radius: 4px 0 0 4px; }
-  .segmented button:last-child { border-radius: 0 4px 4px 0; }
-  .segmented button.active { position: relative; color: var(--b3-theme-primary); border-color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }
   .practice { position: relative; min-height: 0; padding: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
   .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: auto minmax(0, 1fr) 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
@@ -957,13 +979,9 @@
   .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }
   .answer-card-panel header span { color: var(--b3-theme-on-surface); font-size: 12px; }
   .answer-card-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 8px; }
-  .answer-card-grid button { aspect-ratio: 1; min-width: 0; min-height: 38px; padding: 4px; font-variant-numeric: tabular-nums; }
-  .answer-card-grid button.current { color: var(--b3-theme-on-primary); border-color: var(--b3-theme-primary); background: var(--b3-theme-primary); }
-  .answer-card-grid button.answered { color: var(--b3-theme-success); border-color: var(--b3-theme-success); background: var(--b3-theme-surface); opacity: 1; }
   .question { max-width: 920px; margin: 0 auto; padding: 24px 22px 8px; }
   .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
-  .source-button { flex: none; }
   .markdown { min-width: 0; overflow-wrap: anywhere; }
   .native-content.protyle-wysiwyg { display: block; min-height: 0; padding: 0; overflow: visible; }
   .native-content.protyle-wysiwyg :global([data-node-id]) { max-width: 100%; }
@@ -976,15 +994,11 @@
   .group-material { margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
   .group-material > strong { display: block; margin-bottom: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .options { margin-top: 18px; display: grid; gap: 8px; }
-  .option { width: 100%; min-height: 48px; padding: 9px 12px; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: start; gap: 8px; text-align: left; background: transparent; }
-  .option.selected { border-color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }
   .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
   .option-content { align-self: center; width: 100%; }
   .option-content :global([data-node-id]) { margin: 0; padding: 0; min-height: 0; }
   .answer { max-width: 920px; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
-  .score { margin-top: 16px; display: flex; align-items: center; gap: 10px; }
-  .score input { width: 92px; }
   .action-bar, .rating-bar { min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
   .action-bar:has(.question-timer) { justify-content: space-between; }
   .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -997,16 +1011,11 @@
     .header-actions { flex-direction: column; align-items: flex-end; gap: 6px; }
     section { padding: 14px; }
     .document-row { grid-template-columns: 1fr 34px; }
-    .document-row label { grid-column: 1 / -1; }
     .scan-summary { margin-inline: -14px; padding-inline: 14px; }
     .recovery-actions { justify-content: stretch; }
-    .recovery-actions button { flex: 1; }
     .import-report { margin-inline: -14px; padding-inline: 14px; }
     .summary-grid { grid-template-columns: repeat(3, 1fr); flex-basis: 100%; }
     .practice-settings { grid-template-columns: 1fr; gap: 13px; }
-    .practice-settings .start { width: 100%; }
-    .filters { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); }
-    .filters button, .filters button:first-child, .filters button:last-child { margin: -1px 0 0 -1px; border-radius: 0; }
     .practice-bar { padding-inline: 10px 8px; grid-template-columns: auto minmax(0, 1fr) 34px; gap: 8px; }
     .practice-status { gap: 8px; }
     .practice-topic { text-align: left; }

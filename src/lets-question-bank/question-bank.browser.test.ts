@@ -246,6 +246,12 @@ function option(name: string): HTMLButtonElement {
   return result;
 }
 
+async function selectScope(name: string): Promise<void> {
+  await page.getByRole("button", { name: "Entire document", exact: true }).click();
+  await page.getByRole("option", { name, exact: true }).click();
+  await flush();
+}
+
 async function scan(): Promise<void> {
   button("Scan document").click();
   await flush();
@@ -295,10 +301,9 @@ describe("question bank browser flow", () => {
     const { controller, saveRecentScope } = mockController();
     render(controller, { random: () => 0 });
     await scanAndSync();
-    const scope = document.querySelector<HTMLSelectElement>("select");
-    if (!scope) throw new Error("Missing scope select");
-    scope.value = "root";
-    scope.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(document.querySelector('[data-slot="select-trigger"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-slot="toggle-group"]')).toHaveLength(2);
+    await selectScope("Root topic");
     button("Random").click();
     button("all").click();
     button("Start practice").click();
@@ -443,7 +448,7 @@ describe("question bank browser flow", () => {
     const host = document.body.firstElementChild as HTMLElement;
     const root = document.querySelector<HTMLElement>(".question-bank")!;
     const header = document.querySelector<HTMLElement>(".app-header")!;
-    const content = document.querySelector<HTMLElement>(".practice-content")!;
+    const content = document.querySelector<HTMLElement>('.practice-content [data-slot="scroll-area-viewport"]')!;
     const actions = document.querySelector<HTMLElement>(".action-bar")!;
     const hostRect = host.getBoundingClientRect();
     const rootRect = root.getBoundingClientRect();
@@ -457,6 +462,43 @@ describe("question bank browser flow", () => {
     content.scrollTop = 240;
     content.dispatchEvent(new Event("scroll"));
     expect(content.scrollTop).toBeGreaterThan(0);
+    expect(header.getBoundingClientRect()).toEqual(headerRect);
+    expect(actions.getBoundingClientRect()).toEqual(actionRect);
+  });
+
+  it("keeps the desktop reveal action visible while a long question scrolls internally", async () => {
+    await page.viewport(1280, 840);
+    const longQuestion: Question = {
+      ...objectiveQuestion,
+      stemMarkdown: Array.from(
+        { length: 32 },
+        (_, index) => `Desktop paragraph ${index + 1} with enough text to require internal scrolling.`,
+      ).join("\n\n"),
+    };
+    const { controller } = mockController({ preview: makePreview([longQuestion]) });
+    render(controller);
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    const host = document.body.firstElementChild as HTMLElement;
+    const root = document.querySelector<HTMLElement>(".question-bank")!;
+    const header = document.querySelector<HTMLElement>(".app-header")!;
+    const viewport = document.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
+    const actions = document.querySelector<HTMLElement>(".action-bar")!;
+    const hostRect = host.getBoundingClientRect();
+    const rootRect = root.getBoundingClientRect();
+    const headerRect = header.getBoundingClientRect();
+    const actionRect = actions.getBoundingClientRect();
+
+    expect(document.querySelector('[data-slot="scroll-area"]')).not.toBeNull();
+    expect(Math.abs(rootRect.bottom - hostRect.bottom)).toBeLessThanOrEqual(1);
+    expect(actionRect.bottom).toBeLessThanOrEqual(hostRect.bottom);
+    expect(actionRect.top).toBeGreaterThan(headerRect.bottom);
+    expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
+    viewport.scrollTop = 320;
+    viewport.dispatchEvent(new Event("scroll"));
+    expect(viewport.scrollTop).toBeGreaterThan(0);
     expect(header.getBoundingClientRect()).toEqual(headerRect);
     expect(actions.getBoundingClientRect()).toEqual(actionRect);
   });
@@ -489,10 +531,10 @@ describe("question bank browser flow", () => {
     expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.stemMarkdown, true);
     expect(document.querySelector('[data-native-render="true"][data-source-styles="true"]')).not.toBeNull();
 
-    const sourceStyleToggle = document.querySelector<HTMLInputElement>(".source-style-toggle input");
+    const sourceStyleToggle = document.querySelector<HTMLButtonElement>('[data-slot="switch"]');
     if (!sourceStyleToggle) throw new Error("Missing source style toggle");
-    sourceStyleToggle.checked = false;
-    sourceStyleToggle.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(sourceStyleToggle.getAttribute("data-state")).toBe("checked");
+    sourceStyleToggle.click();
     await flush();
     expect(onInheritSourceStylesChange).toHaveBeenCalledWith(false);
     expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.stemMarkdown, false);
@@ -591,8 +633,7 @@ describe("question bank browser flow", () => {
     });
     render(controller);
     await scan();
-    const scope = document.querySelector<HTMLSelectElement>("select");
-    expect(scope?.value).toBe("");
+    expect(document.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("Entire document");
     expect(saveRecentScope).toHaveBeenCalledWith({ documentId });
   });
 
@@ -603,7 +644,7 @@ describe("question bank browser flow", () => {
     render(controller);
     await scan();
 
-    expect(document.querySelector<HTMLSelectElement>("select")?.value).toBe("child");
+    expect(document.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("Child topic");
   });
 
   it("shows concrete scan findings and planned writes", async () => {
@@ -701,10 +742,12 @@ describe("question bank browser flow", () => {
   it("previews attempt imports before confirming writes", async () => {
     const { controller, previewImport, confirmImport } = mockController();
     render(controller);
-    const input = document.querySelector<HTMLInputElement>(".file-input");
+    const input = document.querySelector<HTMLInputElement>("[data-import-file]");
     if (!input) throw new Error("Missing import input");
     const file = new File(["{}"], "attempts.json", { type: "application/json" });
-    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    input.files = transfer.files;
     input.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => expect(previewImport).toHaveBeenCalledWith("{}"));
     await flush();
