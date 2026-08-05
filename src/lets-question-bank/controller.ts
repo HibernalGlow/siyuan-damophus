@@ -33,6 +33,12 @@ import {
   type QuestionIndexPreview,
 } from "@/question-bank/application";
 import { loadSourceBlockIdentity, type SourceBlockIdentity } from "./source-identity";
+import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "@/question-bank/core";
+import type {
+  PracticeSessionLeaseCoordinator,
+  PracticeSessionRepository,
+  StoredPracticeSession,
+} from "./session-host";
 
 export type { SourceBlockIdentity } from "./source-identity";
 
@@ -52,6 +58,14 @@ export interface QuestionBankUiController {
   previewRebinding(systemDocumentId: string): Promise<QuestionBankRebindingPreview>;
   confirmRebinding(systemDocumentId: string, token: string): Promise<QuestionBankBinding>;
   loadSourceIdentity(blockId: string): Promise<SourceBlockIdentity>;
+  listPracticeSessions(): Promise<StoredPracticeSession[]>;
+  loadPracticeSession(sourceKey: string): Promise<PracticeSessionSnapshotParseResult | undefined>;
+  savePracticeSession(snapshot: PracticeSessionSnapshot, expectedRevision?: number): Promise<void>;
+  removePracticeSession(sourceKey: string, sessionId?: string): Promise<void>;
+  exportPracticeSessionDiagnostic(sourceKey: string): Promise<string>;
+  acquirePracticeSession(sourceKey: string): Promise<boolean>;
+  releasePracticeSession(sourceKey: string): Promise<void>;
+  loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]>;
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
   loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>>;
@@ -79,6 +93,8 @@ export interface QuestionBankControllerOptions {
   nodeId?: () => string;
   uuid?: () => string;
   pluginVersion: string;
+  sessionRepository?: PracticeSessionRepository;
+  sessionLeases?: PracticeSessionLeaseCoordinator;
 }
 
 const bindingSetting = "binding";
@@ -147,6 +163,40 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async loadSourceIdentity(blockId: string): Promise<SourceBlockIdentity> {
     return loadSourceBlockIdentity(this.client, blockId);
+  }
+
+  async listPracticeSessions(): Promise<StoredPracticeSession[]> {
+    return this.options.sessionRepository?.list() ?? [];
+  }
+
+  async loadPracticeSession(sourceKey: string): Promise<PracticeSessionSnapshotParseResult | undefined> {
+    return this.options.sessionRepository?.load(sourceKey);
+  }
+
+  async savePracticeSession(snapshot: PracticeSessionSnapshot, expectedRevision?: number): Promise<void> {
+    if (!this.options.sessionRepository) return;
+    await this.options.sessionRepository.save(snapshot, expectedRevision);
+  }
+
+  async removePracticeSession(sourceKey: string, sessionId?: string): Promise<void> {
+    await this.options.sessionRepository?.remove(sourceKey, sessionId);
+  }
+
+  async exportPracticeSessionDiagnostic(sourceKey: string): Promise<string> {
+    return this.options.sessionRepository?.diagnostic(sourceKey) ?? "{}";
+  }
+
+  async acquirePracticeSession(sourceKey: string): Promise<boolean> {
+    return this.options.sessionLeases?.acquire(sourceKey) ?? true;
+  }
+
+  async releasePracticeSession(sourceKey: string): Promise<void> {
+    await this.options.sessionLeases?.release(sourceKey);
+  }
+
+  async loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]> {
+    const result = await rebuildAttemptStatistics(this.client, this.requireBinding());
+    return result.events.filter((event) => event.session_id === sessionId);
   }
 
   async previewSync(documentId: string): Promise<QuestionIndexPreview> {

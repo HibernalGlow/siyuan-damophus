@@ -3,6 +3,7 @@ import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import "@/styles/damophus.css";
 import type { AttemptAggregate, AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
+import type { PracticeSessionSnapshot } from "@/question-bank/core";
 import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
   QuestionBankBinding,
@@ -148,6 +149,8 @@ function mockController(options: {
 } = {}) {
   let currentBinding = options.initialized === false ? undefined : binding();
   let recent = options.recent;
+  const practiceSessions = new Map<string, PracticeSessionSnapshot>();
+  const sessionAttempts: AttemptEvent[] = [];
   const preview = options.preview ?? makePreview();
   const submitAttempt = vi.fn(async (
     input: Parameters<QuestionBankUiController["submitAttempt"]>[0],
@@ -191,6 +194,24 @@ function mockController(options: {
       content: "2021 Civil Procedure Gold Questions",
       hpath: "/Legal Exam/Civil Procedure/2021 Gold Questions",
     })),
+    listPracticeSessions: vi.fn(async () => [...practiceSessions.entries()].map(([sourceKey, snapshot]) => ({
+      sourceKey,
+      result: { status: "ok" as const, snapshot },
+    }))),
+    loadPracticeSession: vi.fn(async (sourceKey: string) => {
+      const snapshot = practiceSessions.get(sourceKey);
+      return snapshot ? { status: "ok" as const, snapshot } : undefined;
+    }),
+    savePracticeSession: vi.fn(async (snapshot: PracticeSessionSnapshot) => {
+      practiceSessions.set(snapshot.source_key, structuredClone(snapshot));
+    }),
+    removePracticeSession: vi.fn(async (sourceKey: string) => {
+      practiceSessions.delete(sourceKey);
+    }),
+    exportPracticeSessionDiagnostic: vi.fn(async (sourceKey: string) => JSON.stringify(practiceSessions.get(sourceKey))),
+    acquirePracticeSession: vi.fn(async () => true),
+    releasePracticeSession: vi.fn(async () => undefined),
+    loadSessionAttempts: vi.fn(async (sessionId: string) => sessionAttempts.filter((event) => event.session_id === sessionId)),
     previewSync: vi.fn(async () => preview),
     confirmSync: vi.fn(async () => preview),
     loadAggregates: vi.fn(async () => options.aggregates ?? new Map([
@@ -209,11 +230,15 @@ function mockController(options: {
     exportAttempts: vi.fn(async () => "{}\n"),
     previewImport,
     confirmImport,
-    submitAttempt,
+    submitAttempt: vi.fn(async (...args: Parameters<QuestionBankUiController["submitAttempt"]>) => {
+      const result = await submitAttempt(...args);
+      sessionAttempts.push(result.event);
+      return result;
+    }),
     getRecentScope: () => recent,
     saveRecentScope,
   };
-  return { controller, submitAttempt, saveRecentScope, previewImport, confirmImport };
+  return { controller, submitAttempt, saveRecentScope, previewImport, confirmImport, practiceSessions, sessionAttempts };
 }
 
 let mounted: ReturnType<typeof mount> | undefined;
@@ -466,6 +491,85 @@ describe("question bank browser flow", () => {
       masteryRating: "good",
     });
     expect(submitAttempt.mock.calls[0][0].durationMs).toEqual(expect.any(Number));
+  });
+
+  it("pauses to the scope screen and resumes every question draft", async () => {
+    const { controller, practiceSessions } = mockController({ preview: makePreview([objectiveQuestion, subjectiveQuestion]) });
+    render(controller, { random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    option("Alpha").click();
+    button("Next question").click();
+    await flush();
+    button("Previous question").click();
+    await flush();
+    expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
+
+    button("Pause and return").click();
+    await vi.waitFor(() => expect(practiceSessions.size).toBe(1));
+    await flush();
+    expect(document.body.textContent).toContain("Unfinished sessions");
+    button("Continue").click();
+    await flush();
+
+    expect(document.body.textContent).toContain("Objective question");
+    expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("ends a partial session without deleting submitted attempt events", async () => {
+    const { controller, practiceSessions, sessionAttempts } = mockController({
+      preview: makePreview([objectiveQuestion, subjectiveQuestion]),
+    });
+    render(controller, { random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    button("good").click();
+    await flush();
+
+    button("End practice").click();
+    await flush();
+    expect(document.body.textContent).toContain("End this practice?");
+    const confirmation = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((item) => item.textContent?.trim() === "End practice");
+    if (!confirmation) throw new Error("Missing end-practice confirmation");
+    confirmation.click();
+    await vi.waitFor(() => expect(practiceSessions.size).toBe(0));
+    await flush();
+
+    expect(sessionAttempts).toHaveLength(1);
+    expect(sessionAttempts[0].question_id).toBe(objectiveQuestion.id);
+    expect(document.querySelector(".workspace")).not.toBeNull();
+  });
+
+  it("removes the completed snapshot and opens submitted questions in read-only review", async () => {
+    const { controller, practiceSessions } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    button("good").click();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Practice complete"));
+    await vi.waitFor(() => expect(practiceSessions.size).toBe(0));
+
+    button("1. Objective question").click();
+    await flush();
+    expect(option("Alpha").disabled).toBe(true);
+    expect(button("Return to summary")).toBeDefined();
+    expect(document.querySelector(".attempt-metadata")?.textContent).toContain("good");
+    button("Return to summary").click();
+    await flush();
+    expect(document.body.textContent).toContain("Practice complete");
   });
 
   it("shows the indefinite type and allows selecting more than one option", async () => {

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
+  import { ArrowLeft, ChevronLeft, ChevronRight, Pause, X } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Badge } from "@/components/ui/badge";
   import { Button, buttonVariants } from "@/components/ui/button";
@@ -12,9 +13,14 @@
   import { Switch } from "@/components/ui/switch";
   import * as ToggleGroup from "@/components/ui/toggle-group";
   import { gradeQuestion } from "@/question-bank/core/answer";
-  import { restoreQuestionOptions, shuffleQuestionOptions } from "@/question-bank/core/shuffle";
+  import {
+    questionOptionsFromOrder,
+    restoreQuestionOptions,
+    shuffleQuestionOptions,
+  } from "@/question-bank/core/shuffle";
   import type {
     AttemptAggregate,
+    AttemptEvent,
     MasteryRating,
     Question,
     QuestionGroup,
@@ -25,7 +31,22 @@
     TopicNode,
   } from "@/question-bank/core/types";
   import type { PracticeFilter } from "@/question-bank/core/scope";
-  import { createPracticeQueue, suggestedMasteryRating, type PracticeOrder } from "@/question-bank/application";
+  import {
+    createPracticeQueue,
+    PracticeSessionRuntime,
+    suggestedMasteryRating,
+    type PracticeOrder,
+    type PracticeSessionActorSnapshot,
+    type PracticeSessionSaveStatus,
+  } from "@/question-bank/application";
+  import {
+    createPracticeSessionSnapshot,
+    practiceQuestionElapsedMs,
+    practiceSessionElapsedMs,
+    reconcilePracticeSession,
+    type PracticeSessionRecoveryIssue,
+    type PracticeSessionSnapshot,
+  } from "@/question-bank/core";
   import type {
     AttemptImportPreview,
     AttemptImportResult,
@@ -38,6 +59,7 @@
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
+  import type { StoredPracticeSession } from "./session-host";
 
   export let controller: QuestionBankUiController;
   export let initialDocumentId: string | undefined = undefined;
@@ -50,6 +72,7 @@
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
   export let onInheritSourceStylesChange: ((value: boolean) => void) | undefined = undefined;
   export let timingEnabled = true;
+  export let now: () => number = Date.now;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const recent = controller.getRecentScope();
@@ -83,14 +106,24 @@
   let subjectiveScore: number | undefined;
   let submitting = false;
   let sessionId = "";
-  let sessionStartedAt = 0;
-  let questionStartedAt = 0;
   let timerNow = Date.now();
   let timer: ReturnType<typeof setInterval> | undefined;
   let answerCardOpen = false;
   let completedQuestionIndices: number[] = [];
-  let questionElapsedByIndex: Record<number, number> = {};
   let complete = false;
+  let practiceRuntime: PracticeSessionRuntime | undefined;
+  let practiceState: PracticeSessionActorSnapshot | undefined;
+  let practiceSaveStatus: PracticeSessionSaveStatus = "saved";
+  let practiceSaveError = "";
+  let storedSessions: StoredPracticeSession[] = [];
+  let recoverableSession: PracticeSessionSnapshot | undefined;
+  let recoveryIssues: PracticeSessionRecoveryIssue[] = [];
+  let pendingReplacement = false;
+  let endConfirmation = false;
+  let rootElement: HTMLElement;
+  let unsubscribePracticeState: (() => void) | undefined;
+  let unsubscribeSaveStatus: (() => void) | undefined;
+  let completionHandledSessionId = "";
   let scanDetailsOpen = false;
   let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
 
@@ -130,14 +163,48 @@
   $: suggestedRating = revealed
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
-  $: sessionElapsedMs = timingEnabled && sessionStartedAt
-    ? Math.max(0, timerNow - sessionStartedAt)
+  $: sessionElapsedMs = timingEnabled && practiceState
+    ? practiceSessionElapsedMs(practiceState.context, timerNow)
     : 0;
-  $: questionElapsedMs = timingEnabled && questionStartedAt
-    ? (questionElapsedByIndex[questionIndex] ?? 0) + Math.max(0, timerNow - questionStartedAt)
+  $: questionElapsedMs = timingEnabled && practiceState
+    ? practiceQuestionElapsedMs(practiceState.context, timerNow)
     : 0;
+  $: currentAttempt = currentQuestion
+    ? practiceState?.context.attemptsByQuestionId[currentQuestion.id]
+    : undefined;
+  $: readOnlyQuestion = Boolean(currentAttempt);
+  $: sessionAttempts = practiceState
+    ? Object.values(practiceState.context.attemptsByQuestionId)
+    : [];
+  $: completionCorrect = sessionAttempts.filter((attempt) => attempt.objective_correct === true).length;
+  $: completionDurationMs = sessionAttempts.reduce((total, attempt) => total + (attempt.duration_ms ?? 0), 0);
+  $: touchedDrafts = practiceState
+    ? Object.values(practiceState.context.session.drafts).filter((draft) => (
+        !practiceState?.context.session.completed_question_ids.includes(draft.question_id)
+        && (draft.selected_option_ids.length > 0 || draft.revealed || draft.subjective_score !== undefined || draft.elapsed_ms > 0)
+      )).length
+    : 0;
+  $: reviewing = Boolean(practiceState?.matches("reviewing"));
 
-  onDestroy(clearTimer);
+  onMount(() => {
+    const host = rootElement.closest<HTMLElement>(".damophus-question-bank-host");
+    const command = (event: Event) => {
+      const detail = (event as CustomEvent<"previous" | "next" | "pause">).detail;
+      if (detail === "previous") previousQuestion();
+      else if (detail === "next") nextQuestion();
+      else if (detail === "pause") void pausePractice();
+    };
+    host?.addEventListener("damophus-practice-command", command);
+    void refreshStoredSessions();
+    return () => host?.removeEventListener("damophus-practice-command", command);
+  });
+
+  onDestroy(() => {
+    clearTimer();
+    unsubscribePracticeState?.();
+    unsubscribeSaveStatus?.();
+    if (practiceRuntime) void practiceRuntime.dispose();
+  });
 
   function clearTimer(): void {
     if (timer) clearInterval(timer);
@@ -146,10 +213,10 @@
 
   function startTimer(): void {
     clearTimer();
-    timerNow = Date.now();
+    timerNow = now();
     if (!timingEnabled) return;
     timer = setInterval(() => {
-      timerNow = Date.now();
+      timerNow = now();
     }, 1000);
   }
 
@@ -161,18 +228,6 @@
     return hours > 0
       ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
       : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  function currentQuestionDuration(now = Date.now()): number | undefined {
-    if (!timingEnabled || !questionStartedAt) return undefined;
-    return (questionElapsedByIndex[questionIndex] ?? 0) + Math.max(0, now - questionStartedAt);
-  }
-
-  function pauseQuestionTimer(): void {
-    const elapsed = currentQuestionDuration();
-    if (elapsed === undefined) return;
-    questionElapsedByIndex = { ...questionElapsedByIndex, [questionIndex]: elapsed };
-    questionStartedAt = 0;
   }
 
   async function run(operation: () => Promise<void>): Promise<void> {
@@ -203,7 +258,7 @@
     complete = false;
     answerCardOpen = false;
     completedQuestionIndices = [];
-    questionElapsedByIndex = {};
+    recoverableSession = undefined;
   }
 
   function invalidateSystemDocumentTarget(): void {
@@ -240,10 +295,14 @@
 
   function scanDocument(): void {
     void run(async () => {
-      [preview, sourceIdentity] = await Promise.all([
+      const [nextPreview, nextSourceIdentity, stored] = await Promise.all([
         controller.previewSync(documentId),
         controller.loadSourceIdentity(documentId),
+        controller.loadPracticeSession(documentId),
       ]);
+      preview = nextPreview;
+      sourceIdentity = nextSourceIdentity;
+      recoverableSession = stored?.status === "ok" ? stored.snapshot : undefined;
       if (preview.bindingRepairs.length === 0) {
         [aggregates, dueCards] = await Promise.all([
           controller.loadAggregates(),
@@ -264,6 +323,7 @@
         : false;
       topicId = topicExists ? savedTopicId! : "";
       if ((savedHeadingBlockId || savedTopicId) && !topicExists) controller.saveRecentScope({ documentId });
+      await refreshStoredSessions();
     });
   }
 
@@ -317,9 +377,84 @@
     });
   }
 
-  function startPractice(): void {
-    if (!preview) return;
-    queue = createPracticeQueue({
+  async function refreshStoredSessions(): Promise<void> {
+    storedSessions = await controller.listPracticeSessions();
+    const current = storedSessions.find((stored) => stored.sourceKey === documentId);
+    recoverableSession = current?.result.status === "ok" ? current.result.snapshot : undefined;
+  }
+
+  function syncPracticeView(snapshot: PracticeSessionActorSnapshot): void {
+    practiceState = snapshot;
+    const session = snapshot.context.session;
+    sessionId = session.session_id;
+    queue = session.queue_question_ids
+      .map((questionId) => questions.find((question) => question.id === questionId))
+      .filter((question): question is Question => Boolean(question));
+    completedQuestionIndices = session.completed_question_ids
+      .map((questionId) => session.queue_question_ids.indexOf(questionId))
+      .filter((index) => index >= 0);
+    questionIndex = Math.max(0, session.queue_question_ids.indexOf(session.current_question_id));
+    complete = snapshot.matches("completed");
+    submitting = snapshot.matches("submitting");
+    timerNow = now();
+    const host = rootElement?.closest<HTMLElement>(".damophus-question-bank-host, .damophus-question-bank-dialog");
+    if (host) host.dataset.practiceActive = String(snapshot.matches("active") || snapshot.matches("reviewing"));
+    currentQuestion = complete ? undefined : queue[questionIndex];
+    if (!currentQuestion) {
+      shuffled = undefined;
+      displayedOptions = [];
+      return;
+    }
+
+    const draft = session.drafts[currentQuestion.id];
+    const attempt = snapshot.context.attemptsByQuestionId[currentQuestion.id];
+    shuffled = questionOptionsFromOrder(currentQuestion, attempt?.option_order ?? draft?.option_order ?? []);
+    selectedOptionIds = [...(attempt?.selected_option_ids ?? draft?.selected_option_ids ?? [])];
+    revealed = Boolean(attempt) || Boolean(draft?.revealed);
+    objectiveCorrect = attempt?.objective_correct ?? draft?.objective_correct ?? null;
+    subjectiveScore = attempt?.subjective_score ?? draft?.subjective_score;
+    displayedOptions = revealed ? restoreQuestionOptions(currentQuestion, shuffled) : shuffled.options;
+  }
+
+  async function activateRuntime(
+    snapshot: PracticeSessionSnapshot,
+    attempts: ReadonlyMap<string, AttemptEvent>,
+    persistedRevision: number,
+  ): Promise<void> {
+    unsubscribePracticeState?.();
+    unsubscribeSaveStatus?.();
+    if (practiceRuntime) await practiceRuntime.dispose();
+    completionHandledSessionId = "";
+    const runtime = new PracticeSessionRuntime({
+      host: controller,
+      input: { snapshot, attempts, now: now() },
+      persistedRevision,
+    });
+    practiceRuntime = runtime;
+    unsubscribePracticeState = runtime.subscribeState((state) => {
+      syncPracticeView(state);
+      if (state.matches("completed") && completionHandledSessionId !== state.context.session.session_id) {
+        completionHandledSessionId = state.context.session.session_id;
+        clearTimer();
+        void runtime.complete()
+          .then(refreshStoredSessions)
+          .catch((reason) => { error = reason instanceof Error ? reason.message : String(reason); });
+      }
+    });
+    unsubscribeSaveStatus = runtime.subscribeSaveStatus((status, reason) => {
+      practiceSaveStatus = status;
+      practiceSaveError = reason?.message ?? "";
+    });
+    recoverableSession = undefined;
+    recoveryIssues = [];
+    pendingReplacement = false;
+    endConfirmation = false;
+    answerCardOpen = false;
+    if (!runtime.actor.getSnapshot().matches("completed")) startTimer();
+  }
+
+  function practiceQueue(): Question[] {
+    return createPracticeQueue({
       questions,
       topics,
       rootTopicId: topicId || undefined,
@@ -330,133 +465,273 @@
       reviewThreshold,
       random,
     });
+  }
+
+  function startPractice(): void {
+    if (!preview) return;
+    const nextQueue = practiceQueue();
+    if (nextQueue.length === 0) {
+      queue = [];
+      complete = true;
+      clearTimer();
+      return;
+    }
+    if (recoverableSession) {
+      pendingReplacement = true;
+      return;
+    }
+    void run(() => beginNewPractice(nextQueue));
+  }
+
+  async function beginNewPractice(nextQueue = practiceQueue()): Promise<void> {
+    if (!preview || nextQueue.length === 0) return;
+    if (!await controller.acquirePracticeSession(documentId)) {
+      throw new Error(label("sessionInUse", "This practice session is open in another window"));
+    }
     controller.saveRecentScope({
       documentId,
       headingBlockId: topicId ? preview.scan.topicBlockIdsByTopicId.get(topicId) : undefined,
     });
-    questionIndex = 0;
-    sessionId = uuid();
-    sessionStartedAt = Date.now();
-    completedQuestionIndices = [];
-    questionElapsedByIndex = {};
-    answerCardOpen = false;
-    complete = queue.length === 0;
-    if (complete) clearTimer();
-    else startTimer();
-    selectQuestion(0);
+    const snapshot = createPracticeSessionSnapshot({
+      sessionId: uuid(),
+      sourceKey: documentId,
+      sourceLabel: sourceIdentity?.content,
+      scopeId: topicId || undefined,
+      filter,
+      order,
+      queue: nextQueue.map((question) => ({
+        question,
+        optionOrder: shuffleQuestionOptions(question, random).optionOrder,
+      })),
+      now: new Date(now()),
+    });
+    await activateRuntime(snapshot, new Map(), -1);
   }
 
-  function selectQuestion(index = questionIndex): void {
-    questionIndex = index;
-    currentQuestion = queue[questionIndex];
-    selectedOptionIds = [];
-    revealed = false;
-    objectiveCorrect = null;
-    subjectiveScore = undefined;
-    questionStartedAt = Date.now();
-    timerNow = questionStartedAt;
-    if (!currentQuestion) {
-      shuffled = undefined;
-      displayedOptions = [];
+  function resumePractice(snapshot = recoverableSession): void {
+    if (!snapshot || !preview) return;
+    void run(async () => {
+      if (!await controller.acquirePracticeSession(snapshot.source_key)) {
+        throw new Error(label("sessionInUse", "This practice session is open in another window"));
+      }
+      try {
+        const attempts = await controller.loadSessionAttempts(snapshot.session_id);
+        const recovery = reconcilePracticeSession(snapshot, questions, attempts, new Date(now()));
+        if (!recovery.snapshot) {
+          throw new Error(label("sessionHasNoQuestions", "None of this session's questions still exist"));
+        }
+        recoveryIssues = recovery.issues;
+        await activateRuntime(recovery.snapshot, recovery.attemptsByQuestionId, snapshot.revision);
+      } catch (reason) {
+        await controller.releasePracticeSession(snapshot.source_key);
+        throw reason;
+      }
+    });
+  }
+
+  function confirmRestartPractice(): void {
+    const previous = recoverableSession;
+    if (!previous) {
+      pendingReplacement = false;
       return;
     }
-    shuffled = shuffleQuestionOptions(currentQuestion, random);
-    displayedOptions = shuffled.options;
+    void run(async () => {
+      await controller.removePracticeSession(previous.source_key, previous.session_id);
+      recoverableSession = undefined;
+      pendingReplacement = false;
+      await beginNewPractice();
+      await refreshStoredSessions();
+    });
   }
 
   function goToQuestion(index: number): void {
-    if (completedQuestionIndices.includes(index) || index === questionIndex) {
+    const questionId = practiceState?.context.session.queue_question_ids[index];
+    if (!practiceRuntime || !questionId || (index === questionIndex && !practiceState?.matches("completed"))) {
       answerCardOpen = false;
       return;
     }
-    pauseQuestionTimer();
-    selectQuestion(index);
+    practiceRuntime.actor.send({
+      type: practiceState?.matches("completed") ? "REVIEW" : "NAVIGATE",
+      questionId,
+      now: now(),
+    });
     answerCardOpen = false;
   }
 
+  function previousQuestion(): void {
+    if (questionIndex > 0) goToQuestion(questionIndex - 1);
+  }
+
+  function nextQuestion(): void {
+    if (questionIndex < queue.length - 1) goToQuestion(questionIndex + 1);
+  }
+
   function toggleOption(optionId: string): void {
-    if (!currentQuestion || revealed) return;
-    if (currentQuestion.type === "multiple" || currentQuestion.type === "indefinite") {
-      selectedOptionIds = selectedOptionIds.includes(optionId)
+    if (!currentQuestion || revealed || readOnlyQuestion || !practiceRuntime) return;
+    const nextSelection = currentQuestion.type === "multiple" || currentQuestion.type === "indefinite"
+      ? selectedOptionIds.includes(optionId)
         ? selectedOptionIds.filter((id) => id !== optionId)
-        : [...selectedOptionIds, optionId];
-    } else {
-      selectedOptionIds = [optionId];
-    }
+        : [...selectedOptionIds, optionId]
+      : [optionId];
+    practiceRuntime.actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: currentQuestion.id,
+      patch: { selected_option_ids: nextSelection },
+      now: now(),
+    });
   }
 
   function revealAnswer(): void {
-    if (!currentQuestion || !shuffled) return;
+    if (!currentQuestion || !shuffled || !practiceRuntime || readOnlyQuestion) return;
     if (currentQuestion.type !== "subjective" && selectedOptionIds.length === 0) {
       error = label("selectAnswer", "Select an answer before revealing");
       return;
     }
     error = "";
-    objectiveCorrect = gradeQuestion(currentQuestion, selectedOptionIds);
-    displayedOptions = restoreQuestionOptions(currentQuestion, shuffled);
-    revealed = true;
+    practiceRuntime.actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: currentQuestion.id,
+      patch: {
+        revealed: true,
+        objective_correct: gradeQuestion(currentQuestion, selectedOptionIds),
+      },
+      now: now(),
+    });
   }
 
   function retry(): void {
-    if (!currentQuestion || !shuffled) return;
-    selectedOptionIds = [];
-    displayedOptions = shuffled.options;
-    objectiveCorrect = null;
-    subjectiveScore = undefined;
-    revealed = false;
+    if (!currentQuestion || !practiceRuntime || readOnlyQuestion) return;
+    practiceRuntime.actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: currentQuestion.id,
+      patch: {
+        selected_option_ids: [],
+        revealed: false,
+        objective_correct: null,
+        subjective_score: undefined,
+      },
+      now: now(),
+    });
     error = "";
   }
 
+  function changeSubjectiveScore(event: Event): void {
+    if (!currentQuestion || !practiceRuntime || readOnlyQuestion) return;
+    const value = (event.currentTarget as HTMLInputElement).valueAsNumber;
+    practiceRuntime.actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: currentQuestion.id,
+      patch: { subjective_score: Number.isFinite(value) ? value : undefined },
+      now: now(),
+    });
+  }
+
   function submitRating(rating: MasteryRating): void {
-    if (!currentQuestion || !shuffled || !revealed || submitting) return;
+    if (!currentQuestion || !shuffled || !revealed || submitting || !practiceRuntime || readOnlyQuestion) return;
     submitting = true;
     error = "";
-    const durationMs = currentQuestionDuration();
+    const question = currentQuestion;
+    const runtime = practiceRuntime;
+    runtime.actor.send({ type: "BEGIN_SUBMIT", questionId: question.id, now: now() });
+    const draft = runtime.actor.getSnapshot().context.session.drafts[question.id];
+    const durationMs = timingEnabled ? draft.elapsed_ms : undefined;
     void controller.submitAttempt({
-      questionId: currentQuestion.id,
-      questionRelation: preview?.scan.blockIdsByQuestionId.get(currentQuestion.id),
+      questionId: question.id,
+      questionRelation: preview?.scan.blockIdsByQuestionId.get(question.id),
       sessionId,
-      questionType: currentQuestion.type,
+      questionType: question.type,
       optionOrder: shuffled.optionOrder,
-      selectedOptionIds,
-      objectiveCorrect,
+      selectedOptionIds: draft.selected_option_ids,
+      objectiveCorrect: draft.objective_correct,
       masteryRating: rating,
-      subjectiveScore,
+      subjectiveScore: draft.subjective_score,
       durationMs,
-    }, filter === "due" ? dueCards.get(currentQuestion.id) : undefined).then((result) => {
+    }, filter === "due" ? dueCards.get(question.id) : undefined).then((result) => {
       if (result.warnings.length > 0) error = result.warnings.join("; ");
-      completedQuestionIndices = [...new Set([...completedQuestionIndices, questionIndex])];
-      if (completedQuestionIndices.length >= queue.length) {
-        complete = true;
-        currentQuestion = undefined;
-        answerCardOpen = false;
-        clearTimer();
-      } else {
-        const next = queue.findIndex((_, index) => (
-          index > questionIndex && !completedQuestionIndices.includes(index)
-        ));
-        const fallback = queue.findIndex((_, index) => !completedQuestionIndices.includes(index));
-        selectQuestion(next >= 0 ? next : fallback);
-      }
+      runtime.actor.send({ type: "SUBMIT_SUCCEEDED", attempt: result.event, now: now() });
     }).catch((reason) => {
-      error = reason instanceof Error ? reason.message : String(reason);
+      const message = reason instanceof Error ? reason.message : String(reason);
+      error = message;
+      runtime.actor.send({ type: "SUBMIT_FAILED", message, now: now() });
     }).finally(() => {
       submitting = false;
     });
   }
 
-  function resetPractice(): void {
+  function pausePractice(): void {
+    if (!practiceRuntime || !practiceState?.matches("active")) return;
+    void run(async () => {
+      const runtime = practiceRuntime!;
+      await runtime.pause(now());
+      await leavePracticeRuntime(runtime);
+      await refreshStoredSessions();
+    });
+  }
+
+  function requestEndPractice(): void {
+    endConfirmation = true;
+  }
+
+  function confirmEndPractice(): void {
+    if (!practiceRuntime) return;
+    void run(async () => {
+      const runtime = practiceRuntime!;
+      await runtime.end(now());
+      await leavePracticeRuntime(runtime);
+      await refreshStoredSessions();
+    });
+  }
+
+  async function leavePracticeRuntime(runtime = practiceRuntime): Promise<void> {
     clearTimer();
+    unsubscribePracticeState?.();
+    unsubscribePracticeState = undefined;
+    unsubscribeSaveStatus?.();
+    unsubscribeSaveStatus = undefined;
+    if (runtime) await runtime.dispose();
+    if (practiceRuntime === runtime) practiceRuntime = undefined;
+    practiceState = undefined;
     queue = [];
     currentQuestion = undefined;
     complete = false;
-    error = "";
     answerCardOpen = false;
     completedQuestionIndices = [];
-    questionElapsedByIndex = {};
-    sessionStartedAt = 0;
+    endConfirmation = false;
+  }
+
+  function retryPracticeSave(): void {
+    if (!practiceRuntime) return;
+    void run(() => practiceRuntime!.retrySave());
+  }
+
+  function openStoredSession(stored: StoredPracticeSession): void {
+    documentId = stored.sourceKey;
+    invalidateDocumentTarget();
+    scanDocument();
+  }
+
+  function exportSessionDiagnostic(sourceKey: string): void {
     void run(async () => {
+      const source = await controller.exportPracticeSessionDiagnostic(sourceKey);
+      const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `damophus-session-${sourceKey}.json`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    });
+  }
+
+  function exitReview(): void {
+    practiceRuntime?.actor.send({ type: "EXIT_REVIEW", now: now() });
+  }
+
+  function resetPractice(): void {
+    void run(async () => {
+      await leavePracticeRuntime();
+      error = "";
       aggregates = await controller.loadAggregates();
+      await refreshStoredSessions();
     });
   }
 
@@ -553,7 +828,7 @@
   }
 </script>
 
-<main class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden" data-testid="question-bank">
+<main bind:this={rootElement} class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden" data-testid="question-bank">
   <header class="app-header">
     <div>
       <h1>Damophus</h1>
@@ -639,6 +914,41 @@
         </Button>
         <Input data-import-file class="hidden" bind:ref={fileInput} type="file" accept="application/json,.json" onchange={selectImportFile} />
       </div>
+
+      {#if storedSessions.length > 0}
+        <section class="unfinished-sessions" aria-label={label("unfinishedSessions", "Unfinished sessions")}>
+          <div class="section-heading">
+            <strong>{label("unfinishedSessions", "Unfinished sessions")}</strong>
+            <Badge variant="secondary">{storedSessions.length}</Badge>
+          </div>
+          <div class="unfinished-list">
+            {#each storedSessions as stored (stored.sourceKey)}
+              <div class="unfinished-row">
+                {#if stored.result.status === "ok"}
+                  <div>
+                    <strong>{stored.result.snapshot.source_label ?? stored.sourceKey}</strong>
+                    <span>{stored.result.snapshot.completed_question_ids.length} / {stored.result.snapshot.queue_question_ids.length}</span>
+                    <small>{new Date(stored.result.snapshot.updated_at).toLocaleString()}</small>
+                  </div>
+                  <Button variant="outline" size="sm" onclick={() => openStoredSession(stored)}>
+                    {label("openSession", "Open")}
+                  </Button>
+                {:else}
+                  <div>
+                    <strong>{stored.sourceKey}</strong>
+                    <span>{stored.result.status === "unsupported"
+                      ? `${label("unsupportedSession", "Unsupported session version")} ${stored.result.schemaVersion}`
+                      : label("invalidSession", "Invalid saved session")}</span>
+                  </div>
+                  <Button variant="outline" size="sm" onclick={() => exportSessionDiagnostic(stored.sourceKey)}>
+                    {label("exportDiagnostic", "Export diagnostic")}
+                  </Button>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </section>
+      {/if}
 
       {#if importPreview}
         <section class="import-report" aria-label={label("importPreview", "Import preview")}>
@@ -822,6 +1132,30 @@
         </section>
 
         <section class="practice-settings">
+          {#if recoverableSession}
+            <div class="session-recovery">
+              <div>
+                <strong>{label("unfinishedFound", "Unfinished practice found")}</strong>
+                <span>{recoverableSession.completed_question_ids.length} / {recoverableSession.queue_question_ids.length}</span>
+              </div>
+              <div class="session-recovery-actions">
+                <Button onclick={() => resumePractice()}>{label("continue", "Continue")}</Button>
+                <Button variant="outline" onclick={() => pendingReplacement = true}>{label("newSettings", "Use current settings")}</Button>
+              </div>
+            </div>
+          {/if}
+
+          {#if pendingReplacement && recoverableSession}
+            <Alert.Root variant="destructive" class="col-span-full w-auto">
+              <Alert.Title>{label("replaceSession", "Replace unfinished practice?")}</Alert.Title>
+              <Alert.Description>{label("replaceSessionDescription", "Draft progress will be removed. Submitted attempts are preserved.")}</Alert.Description>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Button variant="destructive" size="sm" onclick={confirmRestartPractice}>{label("confirmRestart", "Replace and start")}</Button>
+                <Button variant="outline" size="sm" onclick={() => pendingReplacement = false}>{label("cancel", "Cancel")}</Button>
+              </div>
+            </Alert.Root>
+          {/if}
+
           <div class="grid gap-2">
             <FormLabel>{label("scope", "Scope")}</FormLabel>
             <Select.Root
@@ -887,7 +1221,7 @@
     <section class="practice min-h-0 flex-1 overflow-hidden" aria-live="polite">
       <div class="practice-bar">
         <div class="practice-status">
-          <span>{label("progress", "Progress")} {completedQuestionIndices.length + 1} / {queue.length}</span>
+          <span>{label("progress", "Progress")} {questionIndex + 1} / {queue.length} · {completedQuestionIndices.length} {label("submitted", "submitted")}</span>
           {#if timingEnabled}
             <span class="timer" title={label("sessionElapsed", "Session elapsed time")}>
               <svg aria-hidden="true"><use href="#iconClock"></use></svg>
@@ -896,6 +1230,26 @@
           {/if}
         </div>
         <span class="practice-topic">{currentQuestion.metadata.topicPath.join(" / ")}</span>
+        <div class="practice-controls">
+          <Button variant="ghost" size="icon" disabled={questionIndex === 0 || submitting} title={label("previous", "Previous question")} aria-label={label("previous", "Previous question")} onclick={previousQuestion}>
+            <ChevronLeft size={17} aria-hidden="true" />
+          </Button>
+          <Button variant="ghost" size="icon" disabled={questionIndex >= queue.length - 1 || submitting} title={label("next", "Next question")} aria-label={label("next", "Next question")} onclick={nextQuestion}>
+            <ChevronRight size={17} aria-hidden="true" />
+          </Button>
+          {#if reviewing}
+            <Button variant="ghost" size="icon" title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
+              <ArrowLeft size={17} aria-hidden="true" />
+            </Button>
+          {:else}
+            <Button variant="ghost" size="icon" disabled={submitting} title={label("pause", "Pause and return")} aria-label={label("pause", "Pause and return")} onclick={pausePractice}>
+              <Pause size={17} aria-hidden="true" />
+            </Button>
+          {/if}
+          <Button variant="ghost" size="icon" disabled={submitting} title={label("end", "End practice")} aria-label={label("end", "End practice")} onclick={requestEndPractice}>
+            <X size={17} aria-hidden="true" />
+          </Button>
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -908,6 +1262,31 @@
           <svg aria-hidden="true"><use href="#iconGrid"></use></svg>
         </Button>
       </div>
+      {#if endConfirmation}
+        <Alert.Root variant="destructive" class="mx-5 mt-3 w-auto shrink-0">
+          <Alert.Title>{label("confirmEnd", "End this practice?")}</Alert.Title>
+          <Alert.Description>{label("confirmEndDescription", "Draft progress will be removed. Submitted attempts are preserved.")}</Alert.Description>
+          <div class="mt-3 flex gap-2">
+            <Button variant="destructive" size="sm" onclick={confirmEndPractice}>{label("endNow", "End practice")}</Button>
+            <Button variant="outline" size="sm" onclick={() => endConfirmation = false}>{label("cancel", "Cancel")}</Button>
+          </div>
+        </Alert.Root>
+      {/if}
+      {#if practiceSaveStatus === "error"}
+        <Alert.Root variant="destructive" class="mx-5 mt-3 w-auto shrink-0">
+          <Alert.Title>{label("saveFailed", "Progress was not saved")}</Alert.Title>
+          <Alert.Description>{practiceSaveError}</Alert.Description>
+          <Button class="mt-3" variant="outline" size="sm" onclick={retryPracticeSave}>{label("retrySave", "Retry save")}</Button>
+        </Alert.Root>
+      {:else if practiceSaveStatus === "saving"}
+        <span class="save-status">{label("saving", "Saving...")}</span>
+      {/if}
+      {#if recoveryIssues.length > 0}
+        <Alert.Root class="mx-5 mt-3 w-auto shrink-0">
+          <Alert.Title>{label("recoveryChanges", "Source changes were reconciled")}</Alert.Title>
+          <Alert.Description>{recoveryIssues.map((issue) => `${issue.questionId}: ${label(issue.code, issue.code)}`).join("; ")}</Alert.Description>
+        </Alert.Root>
+      {/if}
       {#if answerCardOpen}
         <button
           class="answer-card-scrim"
@@ -933,7 +1312,6 @@
               <Button
                 variant={index === questionIndex ? "default" : completedQuestionIndices.includes(index) ? "secondary" : "outline"}
                 class="h-auto min-h-9 w-full min-w-0 aspect-square p-1 tabular-nums disabled:opacity-100"
-                disabled={completedQuestionIndices.includes(index)}
                 aria-current={index === questionIndex ? "step" : undefined}
                 aria-label={`${label("question", "Question")} ${index + 1}`}
                 onclick={() => goToQuestion(index)}
@@ -942,7 +1320,7 @@
           </div>
         </aside>
       {/if}
-      <ScrollArea.Root class="practice-content h-full min-h-0 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
+      <ScrollArea.Root class="practice-content min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
         <article class="question">
         <div class="question-heading">
           <div class="question-title">
@@ -977,7 +1355,7 @@
               <Button
                 variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
                 class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
-                disabled={revealed}
+                disabled={revealed || readOnlyQuestion}
                 aria-pressed={selectedOptionIds.includes(option.originalId)}
                 onclick={() => toggleOption(option.originalId)}
               >
@@ -1000,14 +1378,26 @@
             {#if currentQuestion.type === "subjective"}
               <FormLabel class="mt-4 flex items-center gap-2.5">
                 <span>{label("subjectiveScore", "Self score")}</span>
-                <Input class="w-24" type="number" min="0" max="100" step="1" bind:value={subjectiveScore} />
+                <Input class="w-24" type="number" min="0" max="100" step="1" value={subjectiveScore ?? ""} disabled={readOnlyQuestion} oninput={changeSubjectiveScore} />
               </FormLabel>
+            {/if}
+            {#if currentAttempt}
+              <div class="attempt-metadata">
+                <Badge variant="outline">{label(currentAttempt.mastery_rating, currentAttempt.mastery_rating)}</Badge>
+                <span>{new Date(currentAttempt.answered_at).toLocaleString()}</span>
+                {#if currentAttempt.duration_ms !== undefined}<span>{formatDuration(currentAttempt.duration_ms)}</span>{/if}
+              </div>
             {/if}
           </section>
         {/if}
       </ScrollArea.Root>
 
-      {#if !revealed}
+      {#if readOnlyQuestion}
+        <div class="action-bar review-navigation">
+          <Button variant="outline" disabled={questionIndex === 0} onclick={previousQuestion}>{label("previous", "Previous question")}</Button>
+          <Button variant="outline" disabled={questionIndex >= queue.length - 1} onclick={nextQuestion}>{label("next", "Next question")}</Button>
+        </div>
+      {:else if !revealed}
         <div class="action-bar">
           {#if timingEnabled}
             <span class="question-timer">{formatDuration(questionElapsedMs)}</span>
@@ -1031,6 +1421,19 @@
   {:else if complete}
     <section class="completion min-h-0 flex-1 overflow-y-auto">
       <h2>{queue.length === 0 ? label("noQuestions", "No questions match this scope and filter") : label("complete", "Practice complete")}</h2>
+      {#if queue.length > 0}
+        <div class="completion-summary">
+          <span><strong>{sessionAttempts.length}</strong>{label("submitted", "Submitted")}</span>
+          <span><strong>{completionCorrect}</strong>{label("correct", "Correct")}</span>
+          <span><strong>{formatDuration(completionDurationMs)}</strong>{label("answerTime", "Answer time")}</span>
+          <span><strong>{touchedDrafts}</strong>{label("drafts", "Drafts")}</span>
+        </div>
+        <div class="completion-review">
+          {#each queue as question, index (question.id)}
+            <Button variant="outline" onclick={() => goToQuestion(index)}>{index + 1}. {question.title}</Button>
+          {/each}
+        </div>
+      {/if}
       <Button variant="outline" onclick={resetPractice}>{label("restart", "Back to scope")}</Button>
     </section>
   {/if}
@@ -1066,6 +1469,14 @@
   .progress-stats span:first-child { padding-left: 0; border-left: 0; }
   .progress-stats strong { color: var(--b3-theme-on-background); font-size: 15px; font-variant-numeric: tabular-nums; }
   .recovery-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+  .unfinished-sessions { margin: 14px -20px 0; padding: 14px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
+  .section-heading { display: flex; align-items: center; gap: 8px; }
+  .unfinished-list { margin-top: 10px; display: grid; gap: 1px; background: var(--b3-border-color); }
+  .unfinished-row { min-width: 0; padding: 10px 12px; background: var(--b3-theme-surface); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .unfinished-row > div { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; }
+  .unfinished-row strong { overflow-wrap: anywhere; }
+  .unfinished-row span, .unfinished-row small { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .unfinished-row small { grid-column: 1 / -1; }
   .import-report { margin: 14px -20px 0; padding: 12px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
   .import-report span { min-width: 76px; display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
   .import-report strong { color: var(--b3-theme-on-background); font-size: 17px; }
@@ -1086,14 +1497,20 @@
   .report-group small { display: block; margin-top: 2px; color: var(--b3-theme-on-surface); overflow-wrap: anywhere; }
   .correct { color: var(--b3-theme-success); font-size: 13px; }
   .practice-settings { padding: 20px 0 0; display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1fr) minmax(250px, 1.5fr) auto; gap: 16px; align-items: end; }
+  .session-recovery { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .session-recovery > div:first-child { display: flex; align-items: baseline; gap: 10px; }
+  .session-recovery span { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .session-recovery-actions { display: flex; gap: 8px; }
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend { margin-bottom: 6px; color: var(--b3-theme-on-surface); font-size: 13px; }
-  .practice { position: relative; min-height: 0; padding: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
-  .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: auto minmax(0, 1fr) 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
+  .practice { position: relative; min-height: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: auto minmax(0, 1fr) auto 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
   .timer { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
   .timer svg { width: 14px; height: 14px; fill: currentColor; }
   .practice-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+  .practice-controls { display: flex; align-items: center; }
+  .save-status { padding: 4px 20px; color: var(--b3-theme-on-surface); font-size: 11px; text-align: right; }
   .answer-card-scrim { position: absolute; z-index: 3; inset: 44px 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
   .answer-card-panel { position: absolute; z-index: 4; top: 52px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 122px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
   .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }
@@ -1120,11 +1537,18 @@
   .option-content :global([data-node-id]) { margin: 0; padding: 0; min-height: 0; }
   .answer { max-width: 920px; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
+  .attempt-metadata { margin-top: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .action-bar, .rating-bar { min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
   .action-bar:has(.question-timer) { justify-content: space-between; }
   .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
   .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
   .completion { min-height: 240px; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; }
+  .completion-summary { width: min(680px, 100%); display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); border: 1px solid var(--b3-border-color); }
+  .completion-summary span { padding: 10px; border-left: 1px solid var(--b3-border-color); display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .completion-summary span:first-child { border-left: 0; }
+  .completion-summary strong { color: var(--b3-theme-on-background); font-size: 17px; }
+  .completion-review { width: min(680px, 100%); display: grid; gap: 6px; }
+  .completion-review :global(button) { min-width: 0; justify-content: flex-start; overflow-wrap: anywhere; white-space: normal; text-align: left; }
 
   @container (max-width: 760px) {
     .app-header { padding-inline: 14px; }
@@ -1138,12 +1562,21 @@
     .import-report { margin-inline: -14px; padding-inline: 14px; }
     .summary-grid { grid-template-columns: repeat(3, 1fr); flex-basis: 100%; }
     .practice-settings { grid-template-columns: 1fr; gap: 13px; }
-    .practice-bar { padding-inline: 10px 8px; grid-template-columns: auto minmax(0, 1fr) 34px; gap: 8px; }
+    .unfinished-sessions { margin-inline: -14px; padding-inline: 14px; }
+    .unfinished-row { align-items: flex-start; }
+    .unfinished-row > div { grid-template-columns: 1fr; }
+    .unfinished-row small { grid-column: auto; }
+    .session-recovery { align-items: stretch; flex-direction: column; }
+    .session-recovery-actions > :global(*) { flex: 1; }
+    .practice-bar { padding-inline: 10px 8px; grid-template-columns: minmax(0, 1fr) auto 34px; gap: 5px; }
     .practice-status { gap: 8px; }
-    .practice-topic { text-align: left; }
+    .practice-topic { display: none; }
     .answer-card-panel { top: 44px; right: 0; bottom: 58px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
     .answer-card-grid { grid-template-columns: repeat(5, minmax(36px, 1fr)); }
     .question, .answer { padding-inline: 14px; }
     .rating-bar { grid-template-columns: 34px repeat(4, minmax(0, 1fr)); padding: 8px; gap: 5px; }
+    .completion-summary { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
+    .completion-summary span:nth-child(3) { border-left: 0; border-top: 1px solid var(--b3-border-color); }
+    .completion-summary span:nth-child(4) { border-top: 1px solid var(--b3-border-color); }
   }
 </style>

@@ -41,6 +41,27 @@ export function shuffleQuestionOptions(
   };
 }
 
+export function questionOptionsFromOrder(
+  question: Question,
+  optionOrder: readonly string[],
+): ShuffledQuestion {
+  const options = sourceOptions(question);
+  const byId = new Map(options.map((option) => [option.id, option]));
+  const normalizedOrder = [
+    ...optionOrder.filter((optionId) => byId.has(optionId)),
+    ...options.map((option) => option.id).filter((optionId) => !optionOrder.includes(optionId)),
+  ];
+  return {
+    questionId: question.id,
+    optionOrder: normalizedOrder,
+    options: normalizedOrder.map((optionId, index) => ({
+      originalId: optionId,
+      displayLabel: labelForIndex(index),
+      markdown: byId.get(optionId)?.markdown ?? "",
+    })),
+  };
+}
+
 export function restoreQuestionOptions(
   question: Question,
   shuffled: ShuffledQuestion,

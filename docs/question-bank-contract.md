@@ -125,3 +125,15 @@ Attempt Log 的受管列类型固定如下：schema version、主观评分、作
 ## Export Contract
 
 JSON 导出包含 schema version、导出时间、插件版本和作答事件数组。导入必须按 `attempt_id` 去重，未知字段保留或忽略但不得破坏已知字段；不匹配的 `question_id` 进入待处理报告，不静默丢弃。
+
+## Practice Session Snapshots
+
+未完成练习使用独立的可变快照，不写入 Markdown/IAL，也不混入不可变作答事件。快照至少记录：schema version、revision、session ID、宿主 source key、范围、筛选、顺序、固定题目队列、当前题目、已提交题目 ID、累计有效用时，以及每题的原始选项顺序、可用选项、选择、揭晓状态、客观结果、主观评分和累计有效用时。
+
+- 快照只使用稳定题目 ID 和原始选项 ID，不复制题干、答案或解析。
+- 宿主 source key 只负责找回题源，不替代稳定题目 ID；思源可使用启动块 ID，网站可以使用自己的可持久定位。
+- 恢复时，以 Attempt Log 中同一 session ID 的事件重新确定已提交题目，快照不得冒充已提交事实。
+- 已提交题目的回看使用 AttemptEvent 中的展示顺序、选择、结果、评级和用时，禁止修改原事件。
+- 每次有意义操作增加 revision 并自动保存；宿主适配器必须拒绝不匹配的 expected revision。
+- 暂停和关闭活动界面前必须刷盘；完成或明确终止后删除快照，保留作答事件。
+- 不支持或损坏的 schema 不得静默覆盖，必须允许导出原始诊断数据。

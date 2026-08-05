@@ -23,6 +23,8 @@ src/lets-question-bank/ Svelte 5 plugin UI and lifecycle integration
 
 - 定义 `Question`、`QuestionGroup`、`TopicNode`、`AttemptEvent` 和聚合统计。
 - 负责答案判定、选项打乱映射、范围筛选和连续待复习次数计算。
+- 使用 XState 管理可移植练习会话的状态转换、逐题草稿、暂停计时和只读回看。
+- 使用 Zod 校验独立领域快照；不得序列化 XState 的内部 actor snapshot。
 - 不 import `siyuan`、Svelte、DOM API 或属性视图类型。
 - 所有输入输出都可序列化，供未来网站直接复用。
 
@@ -45,6 +47,8 @@ src/lets-question-bank/ Svelte 5 plugin UI and lifecycle integration
 - `scanDocument`: 读取文档并生成题目、推断和冲突报告。
 - `syncQuestionIndex`: 确认后写 IAL 和题目属性视图。
 - `startPracticeSession`: 从范围根节点和筛选条件创建题目队列。
+- `resumePracticeSession`: 按稳定题目 ID 对照当前题源和不可变作答事件恢复队列。
+- `pausePracticeSession` / `endPracticeSession`: 分别刷盘保留草稿，或删除草稿快照但保留作答事件。
 - `revealAnswer`: 计算临时客观结果并恢复原始选项顺序，不写作答事件。
 - `submitAttempt`: 用户给出掌握评级后追加不可变作答事件并更新派生视图。
 - `reviewDueQuestions`: 读取 Riff 到期状态并用 Damophus UI 复习。
@@ -57,7 +61,8 @@ src/lets-question-bank/ Svelte 5 plugin UI and lifecycle integration
 - 作答事实：作答记录属性视图。
 - 派生统计：从作答事件计算，可缓存但不是事实来源。
 - 调度状态：思源 Riff。
-- 短期会话状态：Damophus UI 内存，必要时保存最小恢复快照。
+- 未完成会话状态：可移植、版本化的领域快照；思源插件通过 `loadData` / `saveData` 保存，未来网站使用自己的存储适配器。
+- 同源会话写入权：`broadcast-channel` 领导权租约加 snapshot revision 乐观锁；不得用最后写入者胜出覆盖新进度。
 - 多设备同步与备份：思源本身。
 
 ## UI Boundary
@@ -74,6 +79,9 @@ src/lets-question-bank/ Svelte 5 plugin UI and lifecycle integration
 - pnpm
 - Vitest，核心逻辑使用 Node 环境
 - Vitest Browser Mode，验证 Svelte 交互和响应式布局
+- XState 5，练习会话状态机
+- Zod 4，会话快照版本和运行时校验
+- broadcast-channel，多窗口单写者协调
 
 基础设施迁移必须先作为独立提交完成，再删减模块和实现题库，以便区分工具链回归与产品改动。
 

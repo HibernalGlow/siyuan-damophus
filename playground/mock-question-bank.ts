@@ -10,6 +10,7 @@ import type {
   RiffCard,
 } from "@/question-bank/adapters/siyuan";
 import type { NewAttemptInput } from "@/question-bank/core/attempts";
+import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "@/question-bank/core";
 import type { AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
 import type {
   AttemptSubmissionResult,
@@ -17,6 +18,7 @@ import type {
   RecentScope,
   SourceBlockIdentity,
 } from "@/lets-question-bank/controller";
+import type { StoredPracticeSession } from "@/lets-question-bank/session-host";
 
 const documentId = "20260805120000-damodev";
 const systemDocumentId = "20260805110000-system1";
@@ -178,6 +180,8 @@ export class DevQuestionBankController implements QuestionBankUiController {
   private recentScope: RecentScope | undefined;
   private readonly preview = createPreview();
   private synchronized = false;
+  private practiceSession: PracticeSessionSnapshot | undefined;
+  private readonly attempts: AttemptEvent[] = [];
 
   getBinding(): QuestionBankBinding {
     return binding;
@@ -217,6 +221,43 @@ export class DevQuestionBankController implements QuestionBankUiController {
       content: "2021 Civil Procedure Gold Questions",
       hpath: "/Legal Exam/Civil Procedure/2021 Gold Questions",
     };
+  }
+
+  async listPracticeSessions(): Promise<StoredPracticeSession[]> {
+    return this.practiceSession ? [{
+      sourceKey: this.practiceSession.source_key,
+      result: { status: "ok", snapshot: structuredClone(this.practiceSession) },
+    }] : [];
+  }
+
+  async loadPracticeSession(sourceKey: string): Promise<PracticeSessionSnapshotParseResult | undefined> {
+    return this.practiceSession?.source_key === sourceKey
+      ? { status: "ok", snapshot: structuredClone(this.practiceSession) }
+      : undefined;
+  }
+
+  async savePracticeSession(snapshot: PracticeSessionSnapshot): Promise<void> {
+    this.practiceSession = structuredClone(snapshot);
+  }
+
+  async removePracticeSession(sourceKey: string, sessionId?: string): Promise<void> {
+    if (this.practiceSession?.source_key !== sourceKey) return;
+    if (sessionId && this.practiceSession.session_id !== sessionId) return;
+    this.practiceSession = undefined;
+  }
+
+  async exportPracticeSessionDiagnostic(): Promise<string> {
+    return JSON.stringify(this.practiceSession, null, 2);
+  }
+
+  async acquirePracticeSession(): Promise<boolean> {
+    return true;
+  }
+
+  async releasePracticeSession(): Promise<void> {}
+
+  async loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]> {
+    return this.attempts.filter((attempt) => attempt.session_id === sessionId);
   }
 
   async previewSync(): Promise<QuestionIndexPreview> {
@@ -286,7 +327,9 @@ export class DevQuestionBankController implements QuestionBankUiController {
   async submitAttempt(
     input: Omit<NewAttemptInput, "attemptId">,
   ): Promise<AttemptSubmissionResult> {
-    return { event: createAttempt(input), warnings: [] };
+    const event = createAttempt(input);
+    this.attempts.push(event);
+    return { event, warnings: [] };
   }
 
   getRecentScope(): RecentScope | undefined {

@@ -3,5 +3,8 @@ export * from "./attempts";
 export * from "./recovery";
 export * from "./schema";
 export * from "./scope";
+export * from "./session-machine";
+export * from "./session-recovery";
+export * from "./session-schema";
 export * from "./shuffle";
 export * from "./types";

@@ -13,12 +13,20 @@ import pluginManifest from "../../plugin.json";
 import QuestionBank from "./question-bank.svelte";
 import { QuestionBankController } from "./controller";
 import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
+import {
+  BroadcastPracticeSessionLeaseCoordinator,
+  SiyuanPracticeSessionRepository,
+} from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
+
+type PracticeCommand = "previous" | "next" | "pause";
 
 export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
   private listening = false;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
+  private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
+  private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
@@ -59,6 +67,21 @@ export default class QuestionBankPlugin extends SubPluginBase {
         langKey: "lets-question-bank.commandOpen",
         callback: () => this.open(),
       });
+      plugin.addCommand({
+        langKey: "lets-question-bank.commandPrevious",
+        hotkey: "",
+        callback: () => this.dispatchPracticeCommand("previous"),
+      });
+      plugin.addCommand({
+        langKey: "lets-question-bank.commandNext",
+        hotkey: "",
+        callback: () => this.dispatchPracticeCommand("next"),
+      });
+      plugin.addCommand({
+        langKey: "lets-question-bank.commandPause",
+        hotkey: "",
+        callback: () => this.dispatchPracticeCommand("pause"),
+      });
     }
     if (this.listening) return;
     this.listening = true;
@@ -75,13 +98,23 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
   }
 
-  override onunload(): void {
+  override async onunload(): Promise<void> {
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
     this.listening = false;
     for (const app of this.mountedTabs.values()) void unmount(app);
     this.mountedTabs.clear();
+    await this.sessionLeases.releaseAll();
+  }
+
+  private dispatchPracticeCommand(command: PracticeCommand): void {
+    const activeHost = document.querySelector<HTMLElement>(
+      '.layout__wnd--active .damophus-question-bank-host[data-practice-active="true"]',
+    ) ?? document.querySelector<HTMLElement>(
+      '.damophus-question-bank-dialog[data-practice-active="true"]',
+    );
+    activeHost?.dispatchEvent(new CustomEvent("damophus-practice-command", { detail: command }));
   }
 
   private addLaunchMenuItem(menu: IEventBusMap["click-blockicon"]["menu"], blockId?: string): void {
@@ -193,6 +226,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
       getSetting: (key) => this.getSetting(key),
       setSetting: (key, value) => this.setSetting(key, value),
       pluginVersion: pluginManifest.version,
+      sessionRepository: this.sessionRepository,
+      sessionLeases: this.sessionLeases,
     });
     return mount(QuestionBank, {
       target,
