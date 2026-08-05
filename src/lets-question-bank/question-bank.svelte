@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { gradeQuestion } from "@/question-bank/core/answer";
   import { restoreQuestionOptions, shuffleQuestionOptions } from "@/question-bank/core/shuffle";
   import type {
@@ -36,6 +37,7 @@
   export let inheritSourceStyles = true;
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
   export let onInheritSourceStylesChange: ((value: boolean) => void) | undefined = undefined;
+  export let timingEnabled = true;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const recent = controller.getRecentScope();
@@ -68,7 +70,12 @@
   let subjectiveScore: number | undefined;
   let submitting = false;
   let sessionId = "";
+  let sessionStartedAt = 0;
   let questionStartedAt = 0;
+  let timerNow = Date.now();
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let answerCardOpen = false;
+  let completedQuestionIndices: number[] = [];
   let complete = false;
   let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
 
@@ -90,6 +97,38 @@
   $: suggestedRating = revealed
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
+  $: sessionElapsedMs = timingEnabled && sessionStartedAt
+    ? Math.max(0, timerNow - sessionStartedAt)
+    : 0;
+  $: questionElapsedMs = timingEnabled && questionStartedAt
+    ? Math.max(0, timerNow - questionStartedAt)
+    : 0;
+
+  onDestroy(clearTimer);
+
+  function clearTimer(): void {
+    if (timer) clearInterval(timer);
+    timer = undefined;
+  }
+
+  function startTimer(): void {
+    clearTimer();
+    timerNow = Date.now();
+    if (!timingEnabled) return;
+    timer = setInterval(() => {
+      timerNow = Date.now();
+    }, 1000);
+  }
+
+  function formatDuration(milliseconds: number): string {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return hours > 0
+      ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+      : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
 
   async function run(operation: () => Promise<void>): Promise<void> {
     busy = true;
@@ -108,6 +147,7 @@
   }
 
   function invalidateDocumentTarget(): void {
+    clearTimer();
     initializationPreview = undefined;
     preview = undefined;
     syncComplete = false;
@@ -115,6 +155,8 @@
     queue = [];
     currentQuestion = undefined;
     complete = false;
+    answerCardOpen = false;
+    completedQuestionIndices = [];
   }
 
   function invalidateSystemDocumentTarget(): void {
@@ -244,17 +286,24 @@
     });
     questionIndex = 0;
     sessionId = uuid();
+    sessionStartedAt = Date.now();
+    completedQuestionIndices = [];
+    answerCardOpen = false;
     complete = queue.length === 0;
-    selectQuestion();
+    if (complete) clearTimer();
+    else startTimer();
+    selectQuestion(0);
   }
 
-  function selectQuestion(): void {
+  function selectQuestion(index = questionIndex): void {
+    questionIndex = index;
     currentQuestion = queue[questionIndex];
     selectedOptionIds = [];
     revealed = false;
     objectiveCorrect = null;
     subjectiveScore = undefined;
     questionStartedAt = Date.now();
+    timerNow = questionStartedAt;
     if (!currentQuestion) {
       shuffled = undefined;
       displayedOptions = [];
@@ -262,6 +311,15 @@
     }
     shuffled = shuffleQuestionOptions(currentQuestion, random);
     displayedOptions = shuffled.options;
+  }
+
+  function goToQuestion(index: number): void {
+    if (completedQuestionIndices.includes(index) || index === questionIndex) {
+      answerCardOpen = false;
+      return;
+    }
+    selectQuestion(index);
+    answerCardOpen = false;
   }
 
   function toggleOption(optionId: string): void {
@@ -311,15 +369,21 @@
       objectiveCorrect,
       masteryRating: rating,
       subjectiveScore,
-      durationMs: Date.now() - questionStartedAt,
+      durationMs: timingEnabled ? Date.now() - questionStartedAt : undefined,
     }, filter === "due" ? dueCards.get(currentQuestion.id) : undefined).then((result) => {
       if (result.warnings.length > 0) error = result.warnings.join("; ");
-      questionIndex += 1;
-      if (questionIndex >= queue.length) {
+      completedQuestionIndices = [...new Set([...completedQuestionIndices, questionIndex])];
+      if (completedQuestionIndices.length >= queue.length) {
         complete = true;
         currentQuestion = undefined;
+        answerCardOpen = false;
+        clearTimer();
       } else {
-        selectQuestion();
+        const next = queue.findIndex((_, index) => (
+          index > questionIndex && !completedQuestionIndices.includes(index)
+        ));
+        const fallback = queue.findIndex((_, index) => !completedQuestionIndices.includes(index));
+        selectQuestion(next >= 0 ? next : fallback);
       }
     }).catch((reason) => {
       error = reason instanceof Error ? reason.message : String(reason);
@@ -329,10 +393,14 @@
   }
 
   function resetPractice(): void {
+    clearTimer();
     queue = [];
     currentQuestion = undefined;
     complete = false;
     error = "";
+    answerCardOpen = false;
+    completedQuestionIndices = [];
+    sessionStartedAt = 0;
   }
 
   function topicLabel(topic: TopicNode): string {
@@ -649,10 +717,61 @@
   {:else if currentQuestion}
     <section class="practice" aria-live="polite">
       <div class="practice-bar">
-        <span>{label("progress", "Progress")} {questionIndex + 1} / {queue.length}</span>
-        <span>{currentQuestion.metadata.topicPath.join(" / ")}</span>
+        <div class="practice-status">
+          <span>{label("progress", "Progress")} {completedQuestionIndices.length + 1} / {queue.length}</span>
+          {#if timingEnabled}
+            <span class="timer" title={label("sessionElapsed", "Session elapsed time")}>
+              <svg aria-hidden="true"><use href="#iconClock"></use></svg>
+              {formatDuration(sessionElapsedMs)}
+            </span>
+          {/if}
+        </div>
+        <span class="practice-topic">{currentQuestion.metadata.topicPath.join(" / ")}</span>
+        <button
+          class="icon-button answer-card-button"
+          title={label("answerCard", "Answer card")}
+          aria-label={label("answerCard", "Answer card")}
+          aria-expanded={answerCardOpen}
+          on:click={() => answerCardOpen = !answerCardOpen}
+        >
+          <svg aria-hidden="true"><use href="#iconGrid"></use></svg>
+        </button>
       </div>
-      <article class="question">
+      {#if answerCardOpen}
+        <button
+          class="answer-card-scrim"
+          aria-label={label("closeAnswerCard", "Close answer card")}
+          on:click={() => answerCardOpen = false}
+        ></button>
+        <aside class="answer-card-panel" aria-label={label("answerCard", "Answer card")}>
+          <header>
+            <strong>{label("answerCard", "Answer card")}</strong>
+            <span>{completedQuestionIndices.length} / {queue.length}</span>
+            <button
+              class="icon-button"
+              title={label("closeAnswerCard", "Close answer card")}
+              aria-label={label("closeAnswerCard", "Close answer card")}
+              on:click={() => answerCardOpen = false}
+            >
+              <svg aria-hidden="true"><use href="#iconClose"></use></svg>
+            </button>
+          </header>
+          <div class="answer-card-grid">
+            {#each queue as question, index (question.id)}
+              <button
+                class:current={index === questionIndex}
+                class:answered={completedQuestionIndices.includes(index)}
+                disabled={completedQuestionIndices.includes(index)}
+                aria-current={index === questionIndex ? "step" : undefined}
+                aria-label={`${label("question", "Question")} ${index + 1}`}
+                on:click={() => goToQuestion(index)}
+              >{index + 1}</button>
+            {/each}
+          </div>
+        </aside>
+      {/if}
+      <div class="practice-content">
+        <article class="question">
         <div class="question-heading">
           <h2>{currentQuestion.title}</h2>
           {#if currentQuestionBlockId && openQuestionSource}
@@ -689,30 +808,37 @@
             {/each}
           </div>
         {/if}
-      </article>
+        </article>
+
+        {#if revealed}
+          <section class="answer">
+            {#if objectiveCorrect !== null}
+              <strong class:correct={objectiveCorrect} class:incorrect={!objectiveCorrect}>
+                {objectiveCorrect ? label("correct", "Correct") : label("incorrect", "Incorrect")}
+              </strong>
+            {/if}
+            <div class="markdown native-content protyle-wysiwyg solution" contenteditable="false">{@html renderedQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
+            {#if currentQuestion.type === "subjective"}
+              <label class="score">
+                <span>{label("subjectiveScore", "Self score")}</span>
+                <input type="number" min="0" max="100" step="1" bind:value={subjectiveScore} />
+              </label>
+            {/if}
+          </section>
+        {/if}
+      </div>
 
       {#if !revealed}
         <div class="action-bar">
+          {#if timingEnabled}
+            <span class="question-timer">{formatDuration(questionElapsedMs)}</span>
+          {/if}
           <button class="primary" on:click={revealAnswer}>
             <svg aria-hidden="true"><use href="#iconEye"></use></svg>
             {label("reveal", "Reveal answer")}
           </button>
         </div>
       {:else}
-        <section class="answer">
-          {#if objectiveCorrect !== null}
-            <strong class:correct={objectiveCorrect} class:incorrect={!objectiveCorrect}>
-              {objectiveCorrect ? label("correct", "Correct") : label("incorrect", "Incorrect")}
-            </strong>
-          {/if}
-          <div class="markdown native-content protyle-wysiwyg solution" contenteditable="false">{@html renderedQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
-          {#if currentQuestion.type === "subjective"}
-            <label class="score">
-              <span>{label("subjectiveScore", "Self score")}</span>
-              <input type="number" min="0" max="100" step="1" bind:value={subjectiveScore} />
-            </label>
-          {/if}
-        </section>
         <div class="rating-bar">
           <button class="icon-button retry" title={label("retry", "Undo and retry")} aria-label={label("retry", "Undo and retry")} disabled={submitting} on:click={retry}>
             <svg aria-hidden="true"><use href="#iconUndo"></use></svg>
@@ -734,7 +860,7 @@
 <style>
   :global(*) { box-sizing: border-box; }
   :global(button), :global(input), :global(select) { font: inherit; letter-spacing: 0; }
-  .question-bank { min-height: 100%; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
+  .question-bank { height: 100%; min-height: 100%; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
   .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .app-header > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
   h1 { margin: 0; font-size: 20px; line-height: 1.2; }
@@ -801,8 +927,21 @@
   .segmented button:first-child { margin-left: 0; border-radius: 4px 0 0 4px; }
   .segmented button:last-child { border-radius: 0 4px 4px 0; }
   .segmented button.active { position: relative; color: var(--b3-theme-primary); border-color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }
-  .practice { padding: 0; }
-  .practice-bar { min-height: 42px; padding: 8px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; justify-content: space-between; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
+  .practice { position: relative; height: 100%; min-height: 0; padding: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: auto minmax(0, 1fr) 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
+  .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+  .timer { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+  .timer svg { width: 14px; height: 14px; fill: currentColor; }
+  .practice-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+  .practice-content { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+  .answer-card-scrim { position: absolute; z-index: 3; inset: 44px 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
+  .answer-card-panel { position: absolute; z-index: 4; top: 52px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 122px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
+  .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }
+  .answer-card-panel header span { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .answer-card-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 8px; }
+  .answer-card-grid button { aspect-ratio: 1; min-width: 0; min-height: 38px; padding: 4px; font-variant-numeric: tabular-nums; }
+  .answer-card-grid button.current { color: var(--b3-theme-on-primary); border-color: var(--b3-theme-primary); background: var(--b3-theme-primary); }
+  .answer-card-grid button.answered { color: var(--b3-theme-success); border-color: var(--b3-theme-success); background: var(--b3-theme-surface); opacity: 1; }
   .question { max-width: 920px; margin: 0 auto; padding: 24px 22px 8px; }
   .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
@@ -824,11 +963,13 @@
   .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
   .option-content { align-self: center; width: 100%; }
   .option-content :global([data-node-id]) { margin: 0; padding: 0; min-height: 0; }
-  .answer { max-width: 920px; margin: 16px auto 0; padding: 18px 22px; border-top: 1px solid var(--b3-border-color); }
+  .answer { max-width: 920px; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
   .score { margin-top: 16px; display: flex; align-items: center; gap: 10px; }
   .score input { width: 92px; }
-  .action-bar, .rating-bar { position: sticky; bottom: 0; min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+  .action-bar, .rating-bar { min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+  .action-bar:has(.question-timer) { justify-content: space-between; }
+  .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
   .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
   .rating { font-weight: 600; }
   .rating.again { color: var(--b3-theme-error); }
@@ -855,8 +996,11 @@
     .practice-settings .start { width: 100%; }
     .filters { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); }
     .filters button, .filters button:first-child, .filters button:last-child { margin: -1px 0 0 -1px; border-radius: 0; }
-    .practice-bar { padding-inline: 14px; }
-    .practice-bar span:last-child { max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .practice-bar { padding-inline: 10px 8px; grid-template-columns: auto minmax(0, 1fr) 34px; gap: 8px; }
+    .practice-status { gap: 8px; }
+    .practice-topic { text-align: left; }
+    .answer-card-panel { top: 44px; right: 0; bottom: 58px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
+    .answer-card-grid { grid-template-columns: repeat(5, minmax(36px, 1fr)); }
     .question, .answer { padding-inline: 14px; }
     .rating-bar { grid-template-columns: 34px repeat(4, minmax(0, 1fr)); padding: 8px; gap: 5px; }
     .rating { min-width: 0; padding-inline: 4px; }

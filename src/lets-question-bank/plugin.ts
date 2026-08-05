@@ -36,6 +36,13 @@ const pluginMetadata: PluginMetadata = {
       key: "inheritSourceStyles",
       value: true,
     },
+    {
+      type: "checkbox",
+      title: "lets-question-bank.timingEnabled",
+      description: "lets-question-bank.timingEnabledDescription",
+      key: "timingEnabled",
+      value: true,
+    },
   ],
 };
 

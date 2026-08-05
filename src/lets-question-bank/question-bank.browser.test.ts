@@ -337,6 +337,57 @@ describe("question bank browser flow", () => {
       objectiveCorrect: true,
       masteryRating: "good",
     });
+    expect(submitAttempt.mock.calls[0][0].durationMs).toEqual(expect.any(Number));
+  });
+
+  it("does not run or persist timing when the timer setting is disabled", async () => {
+    const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { timingEnabled: false, random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    expect(document.querySelector(".timer")).toBeNull();
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    button("good").click();
+    await flush();
+
+    expect(submitAttempt.mock.calls[0][0]).toHaveProperty("durationMs", undefined);
+  });
+
+  it("opens a mobile answer card, navigates pending questions, and keeps actions docked", async () => {
+    await page.viewport(390, 844);
+    const thirdQuestion: Question = {
+      ...subjectiveQuestion,
+      id: "q-subjective-2",
+      title: "Third question",
+    };
+    const { controller } = mockController({
+      preview: makePreview([objectiveQuestion, subjectiveQuestion, thirdQuestion]),
+    });
+    render(controller);
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    expect(document.querySelector(".timer")?.textContent).toMatch(/^\s*00:0\d\s*$/u);
+    button("Answer card").click();
+    await flush();
+    const panel = document.querySelector<HTMLElement>(".answer-card-panel");
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelectorAll(".answer-card-grid button")).toHaveLength(3);
+    button("Question 2").click();
+    await flush();
+
+    expect(document.body.textContent).toContain("Subjective question");
+    expect(document.querySelector(".answer-card-panel")).toBeNull();
+    const practice = document.querySelector<HTMLElement>(".practice")!.getBoundingClientRect();
+    const actions = document.querySelector<HTMLElement>(".action-bar")!.getBoundingClientRect();
+    expect(Math.abs(practice.bottom - actions.bottom)).toBeLessThanOrEqual(1);
+    expect(actions.top).toBeGreaterThan(practice.top);
   });
 
   it("opens the current question title block in the SiYuan source editor", async () => {

@@ -151,6 +151,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         translations: plugin.i18n,
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
+        timingEnabled: this.getSetting("timingEnabled") !== false,
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),
