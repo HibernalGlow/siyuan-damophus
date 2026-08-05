@@ -202,6 +202,7 @@ afterEach(async () => {
   if (mounted) await unmount(mounted);
   mounted = undefined;
   document.body.innerHTML = "";
+  vi.restoreAllMocks();
   await page.viewport(1024, 768);
 });
 
@@ -356,6 +357,37 @@ describe("question bank browser flow", () => {
     await flush();
 
     expect(submitAttempt.mock.calls[0][0]).toHaveProperty("durationMs", undefined);
+  });
+
+  it("accumulates in-memory question time across answer-card navigation", async () => {
+    let now = 1000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const { controller, submitAttempt } = mockController({
+      preview: makePreview([objectiveQuestion, subjectiveQuestion]),
+    });
+    render(controller, { random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+    now = 4000;
+    button("Answer card").click();
+    await flush();
+    button("Question 2").click();
+    await flush();
+    now = 5000;
+    button("Answer card").click();
+    await flush();
+    button("Question 1").click();
+    await flush();
+    now = 7000;
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    button("good").click();
+    await flush();
+
+    expect(submitAttempt.mock.calls[0][0].durationMs).toBe(5000);
   });
 
   it("opens a mobile answer card, navigates pending questions, and keeps actions docked", async () => {

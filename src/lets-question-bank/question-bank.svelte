@@ -76,6 +76,7 @@
   let timer: ReturnType<typeof setInterval> | undefined;
   let answerCardOpen = false;
   let completedQuestionIndices: number[] = [];
+  let questionElapsedByIndex: Record<number, number> = {};
   let complete = false;
   let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
 
@@ -101,7 +102,7 @@
     ? Math.max(0, timerNow - sessionStartedAt)
     : 0;
   $: questionElapsedMs = timingEnabled && questionStartedAt
-    ? Math.max(0, timerNow - questionStartedAt)
+    ? (questionElapsedByIndex[questionIndex] ?? 0) + Math.max(0, timerNow - questionStartedAt)
     : 0;
 
   onDestroy(clearTimer);
@@ -128,6 +129,18 @@
     return hours > 0
       ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
       : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function currentQuestionDuration(now = Date.now()): number | undefined {
+    if (!timingEnabled || !questionStartedAt) return undefined;
+    return (questionElapsedByIndex[questionIndex] ?? 0) + Math.max(0, now - questionStartedAt);
+  }
+
+  function pauseQuestionTimer(): void {
+    const elapsed = currentQuestionDuration();
+    if (elapsed === undefined) return;
+    questionElapsedByIndex = { ...questionElapsedByIndex, [questionIndex]: elapsed };
+    questionStartedAt = 0;
   }
 
   async function run(operation: () => Promise<void>): Promise<void> {
@@ -157,6 +170,7 @@
     complete = false;
     answerCardOpen = false;
     completedQuestionIndices = [];
+    questionElapsedByIndex = {};
   }
 
   function invalidateSystemDocumentTarget(): void {
@@ -288,6 +302,7 @@
     sessionId = uuid();
     sessionStartedAt = Date.now();
     completedQuestionIndices = [];
+    questionElapsedByIndex = {};
     answerCardOpen = false;
     complete = queue.length === 0;
     if (complete) clearTimer();
@@ -318,6 +333,7 @@
       answerCardOpen = false;
       return;
     }
+    pauseQuestionTimer();
     selectQuestion(index);
     answerCardOpen = false;
   }
@@ -359,6 +375,7 @@
     if (!currentQuestion || !shuffled || !revealed || submitting) return;
     submitting = true;
     error = "";
+    const durationMs = currentQuestionDuration();
     void controller.submitAttempt({
       questionId: currentQuestion.id,
       questionRelation: preview?.scan.blockIdsByQuestionId.get(currentQuestion.id),
@@ -369,7 +386,7 @@
       objectiveCorrect,
       masteryRating: rating,
       subjectiveScore,
-      durationMs: timingEnabled ? Date.now() - questionStartedAt : undefined,
+      durationMs,
     }, filter === "due" ? dueCards.get(currentQuestion.id) : undefined).then((result) => {
       if (result.warnings.length > 0) error = result.warnings.join("; ");
       completedQuestionIndices = [...new Set([...completedQuestionIndices, questionIndex])];
@@ -400,6 +417,7 @@
     error = "";
     answerCardOpen = false;
     completedQuestionIndices = [];
+    questionElapsedByIndex = {};
     sessionStartedAt = 0;
   }
 
