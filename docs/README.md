@@ -5,6 +5,7 @@
 - [Question-bank contract](question-bank-contract.md)
 - [Architecture](architecture.md)
 - [Implementation plan](implementation-plan.md)
+- [UI theming plan](ui-theming-plan.md)
 - [Reference sources](reference-sources.md)
 - [User guide](user-guide.md)
 - [Migration guide](migration.md)
