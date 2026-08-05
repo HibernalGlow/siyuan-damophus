@@ -15,6 +15,7 @@ import type {
   AttemptSubmissionResult,
   QuestionBankUiController,
   RecentScope,
+  SourceBlockIdentity,
 } from "@/lets-question-bank/controller";
 
 const documentId = "20260805120000-damodev";
@@ -206,6 +207,16 @@ export class DevQuestionBankController implements QuestionBankUiController {
 
   async confirmRebinding(): Promise<QuestionBankBinding> {
     return binding;
+  }
+
+  async loadSourceIdentity(): Promise<SourceBlockIdentity> {
+    return {
+      id: documentId,
+      rootId: documentId,
+      type: "d",
+      content: "2021 Civil Procedure Gold Questions",
+      hpath: "/Legal Exam/Civil Procedure/2021 Gold Questions",
+    };
   }
 
   async previewSync(): Promise<QuestionIndexPreview> {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import "@/styles/damophus.css";
-import type { AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
 import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
   QuestionBankBinding,
@@ -11,7 +11,7 @@ import type {
 } from "@/question-bank/adapters/siyuan";
 import { QUICK_RIFF_DECK_ID, type RiffCard } from "@/question-bank/adapters/siyuan/riff";
 import QuestionBank from "./question-bank.svelte";
-import type { QuestionBankUiController, RecentScope } from "./controller";
+import type { QuestionBankUiController, RecentScope, SourceBlockIdentity } from "./controller";
 
 const documentId = "20260804120000-abcdefg";
 const blockId = "20260804120001-abcdefg";
@@ -143,6 +143,8 @@ function mockController(options: {
   preview?: QuestionIndexPreview;
   dueCards?: ReadonlyMap<string, RiffCard>;
   recent?: RecentScope;
+  aggregates?: ReadonlyMap<string, AttemptAggregate>;
+  sourceIdentity?: SourceBlockIdentity;
 } = {}) {
   let currentBinding = options.initialized === false ? undefined : binding();
   let recent = options.recent;
@@ -182,9 +184,16 @@ function mockController(options: {
       currentBinding = binding();
       return currentBinding;
     }),
+    loadSourceIdentity: vi.fn(async () => options.sourceIdentity ?? ({
+      id: documentId,
+      rootId: documentId,
+      type: "d",
+      content: "2021 Civil Procedure Gold Questions",
+      hpath: "/Legal Exam/Civil Procedure/2021 Gold Questions",
+    })),
     previewSync: vi.fn(async () => preview),
     confirmSync: vi.fn(async () => preview),
-    loadAggregates: vi.fn(async () => new Map([
+    loadAggregates: vi.fn(async () => options.aggregates ?? new Map([
       [objectiveQuestion.id, {
         questionId: objectiveQuestion.id,
         attempts: 1,
@@ -300,6 +309,93 @@ describe("question bank browser flow", () => {
     const current = button("Index is up to date");
     expect(current.disabled).toBe(true);
     expect(document.body.textContent).not.toContain("Index changes detected");
+  });
+
+  it("shows the selected source and persisted completion overview", async () => {
+    const { controller } = mockController();
+    render(controller);
+
+    await scan();
+
+    const source = document.querySelector<HTMLElement>('[data-testid="source-identity"]');
+    const overview = document.querySelector<HTMLElement>('[data-testid="completion-overview"]');
+    const progress = document.querySelector<HTMLElement>('[role="progressbar"]');
+    expect(source?.textContent).toContain("Document");
+    expect(source?.textContent).toContain("2021 Civil Procedure Gold Questions");
+    expect(source?.textContent).toContain("/Legal Exam/Civil Procedure/2021 Gold Questions");
+    expect(source?.textContent).toContain(documentId);
+    expect(overview?.textContent).toContain("50%");
+    expect(overview?.textContent).toContain("2Questions");
+    expect(overview?.textContent).toContain("1Attempted");
+    expect(overview?.textContent).toContain("1Untouched");
+    expect(overview?.textContent).toContain("1Needs review");
+    expect(progress?.getAttribute("aria-valuenow")).toBe("50");
+    expect(progress?.getAttribute("aria-valuemax")).toBe("100");
+  });
+
+  it.each([
+    { name: "not started", aggregates: new Map(), status: "Not started", percentage: "0" },
+    {
+      name: "completed",
+      aggregates: new Map([
+        [objectiveQuestion.id, {
+          questionId: objectiveQuestion.id,
+          attempts: 1,
+          objectiveAttempts: 1,
+          objectiveCorrect: 1,
+          objectiveIncorrect: 0,
+          consecutiveReviewCount: 0,
+          consecutiveAgainCount: 0,
+          consecutiveHardCount: 0,
+        }],
+        [subjectiveQuestion.id, {
+          questionId: subjectiveQuestion.id,
+          attempts: 1,
+          objectiveAttempts: 0,
+          objectiveCorrect: 0,
+          objectiveIncorrect: 0,
+          consecutiveReviewCount: 0,
+          consecutiveAgainCount: 0,
+          consecutiveHardCount: 0,
+        }],
+      ]),
+      status: "Completed",
+      percentage: "100",
+    },
+  ])("renders the $name persisted completion state", async ({ aggregates, status, percentage }) => {
+    const { controller } = mockController({ aggregates });
+    render(controller);
+
+    await scan();
+
+    const overview = document.querySelector<HTMLElement>('[data-testid="completion-overview"]');
+    const progress = document.querySelector<HTMLElement>('[role="progressbar"]');
+    expect(overview?.textContent).toContain(status);
+    expect(overview?.textContent).toContain(`${percentage}%`);
+    expect(progress?.getAttribute("aria-valuenow")).toBe(percentage);
+  });
+
+  it("keeps the source and progress overview within a mobile viewport", async () => {
+    await page.viewport(390, 844);
+    const { controller } = mockController({
+      sourceIdentity: {
+        id: documentId,
+        rootId: documentId,
+        type: "d",
+        content: "A deliberately long civil procedure source title that must wrap on mobile",
+        hpath: "/Legal Exam/A deliberately long civil procedure document path",
+      },
+    });
+    render(controller);
+
+    await scan();
+
+    for (const element of document.querySelectorAll<HTMLElement>('[data-testid="source-identity"], [data-testid="completion-overview"]')) {
+      const rect = element.getBoundingClientRect();
+      expect(rect.left).toBeGreaterThanOrEqual(0);
+      expect(rect.right).toBeLessThanOrEqual(390);
+      expect(element.scrollWidth).toBeLessThanOrEqual(element.clientWidth);
+    }
   });
 
   it("reconnects an existing Damophus system document after preview", async () => {

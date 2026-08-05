@@ -6,6 +6,7 @@
   import * as Collapsible from "@/components/ui/collapsible";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
+  import * as Progress from "@/components/ui/progress";
   import * as ScrollArea from "@/components/ui/scroll-area";
   import * as Select from "@/components/ui/select";
   import { Switch } from "@/components/ui/switch";
@@ -36,7 +37,7 @@
   } from "@/question-bank/adapters/siyuan";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
-  import type { QuestionBankUiController } from "./controller";
+  import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
 
   export let controller: QuestionBankUiController;
   export let initialDocumentId: string | undefined = undefined;
@@ -58,6 +59,7 @@
   let systemDocumentId = "";
   let rebindingPreview: QuestionBankRebindingPreview | undefined;
   let preview: QuestionIndexPreview | undefined;
+  let sourceIdentity: SourceBlockIdentity | undefined;
   let aggregates: ReadonlyMap<string, AttemptAggregate> = new Map();
   let dueCards: ReadonlyMap<string, RiffCard> = new Map();
   let topicId = "";
@@ -95,6 +97,17 @@
   const entireDocumentScope = "__damophus_entire_document__";
 
   $: questions = preview?.scan.report.document.questions ?? [];
+  $: progressQuestions = questions.filter((question) => question.type !== "group");
+  $: attemptedQuestions = progressQuestions.filter(
+    (question) => (aggregates.get(question.id)?.attempts ?? 0) > 0,
+  ).length;
+  $: untouchedQuestions = Math.max(0, progressQuestions.length - attemptedQuestions);
+  $: reviewQuestions = progressQuestions.filter(
+    (question) => (aggregates.get(question.id)?.consecutiveReviewCount ?? 0) >= reviewThreshold,
+  ).length;
+  $: completionPercent = progressQuestions.length === 0
+    ? 0
+    : Math.round((attemptedQuestions / progressQuestions.length) * 100);
   $: groups = preview?.scan.report.document.groups ?? [];
   $: topics = preview?.scan.report.document.topics ?? [];
   $: currentGroup = currentQuestion?.metadata.parentId
@@ -182,6 +195,7 @@
     clearTimer();
     initializationPreview = undefined;
     preview = undefined;
+    sourceIdentity = undefined;
     syncComplete = false;
     topicId = "";
     queue = [];
@@ -226,7 +240,10 @@
 
   function scanDocument(): void {
     void run(async () => {
-      preview = await controller.previewSync(documentId);
+      [preview, sourceIdentity] = await Promise.all([
+        controller.previewSync(documentId),
+        controller.loadSourceIdentity(documentId),
+      ]);
       if (preview.bindingRepairs.length === 0) {
         [aggregates, dueCards] = await Promise.all([
           controller.loadAggregates(),
@@ -438,6 +455,9 @@
     completedQuestionIndices = [];
     questionElapsedByIndex = {};
     sessionStartedAt = 0;
+    void run(async () => {
+      aggregates = await controller.loadAggregates();
+    });
   }
 
   function topicLabel(topic: TopicNode): string {
@@ -462,6 +482,24 @@
       group: label("questionTypeGroup", "Question group"),
     };
     return labels[type];
+  }
+
+  function sourceTypeLabel(type: string): string {
+    const labels: Record<string, string> = {
+      d: label("sourceTypeDocument", "Document"),
+      h: label("sourceTypeHeading", "Heading"),
+      p: label("sourceTypeParagraph", "Paragraph"),
+      l: label("sourceTypeList", "List"),
+      i: label("sourceTypeListItem", "List item"),
+      t: label("sourceTypeTable", "Table"),
+    };
+    return labels[type] ?? label("sourceTypeBlock", "Block");
+  }
+
+  function completionStatusLabel(attempted: number, total: number): string {
+    if (attempted === 0) return label("notStarted", "Not started");
+    if (attempted >= total) return label("completed", "Completed");
+    return label("inProgress", "In progress");
   }
 
   function messageClipboardText(message: ScanMessage): string {
@@ -631,8 +669,40 @@
 
       {#if preview}
         <section class="scan-summary" aria-label={label("scanSummary", "Scan summary")}>
+          <div class="source-progress-overview">
+            {#if sourceIdentity}
+              <div class="source-identity" data-testid="source-identity">
+                <div class="source-heading">
+                  <Badge variant="outline">{sourceTypeLabel(sourceIdentity.type)}</Badge>
+                  <strong>{sourceIdentity.content}</strong>
+                </div>
+                {#if sourceIdentity.hpath}<span>{sourceIdentity.hpath}</span>{/if}
+                <code>{sourceIdentity.id}</code>
+              </div>
+            {/if}
+            <div class="completion-overview" data-testid="completion-overview">
+              <div class="completion-heading">
+                <span>{label("completion", "Completion")}</span>
+                <Badge variant={completionPercent === 100 ? "default" : attemptedQuestions > 0 ? "secondary" : "outline"}>
+                  {completionStatusLabel(attemptedQuestions, progressQuestions.length)}
+                </Badge>
+                <strong>{completionPercent}%</strong>
+              </div>
+              <Progress.Root
+                class="h-2"
+                value={completionPercent}
+                max={100}
+                aria-label={label("completionProgress", "Question completion progress")}
+              />
+              <div class="progress-stats">
+                <span><strong>{progressQuestions.length}</strong>{label("questions", "Questions")}</span>
+                <span><strong>{attemptedQuestions}</strong>{label("attempted", "Attempted")}</span>
+                <span><strong>{untouchedQuestions}</strong>{label("untouched", "Untouched")}</span>
+                <span><strong>{reviewQuestions}</strong>{label("needsReview", "Needs review")}</span>
+              </div>
+            </div>
+          </div>
           <div class="summary-grid">
-            <span><strong>{questions.length}</strong>{label("questions", "Questions")}</span>
             <span><strong>{preview.actions.filter((action) => action.kind === "add").length}</strong>{label("additions", "Additions")}</span>
             <span><strong>{preview.actions.filter((action) => action.kind === "update").length}</strong>{label("updates", "Updates")}</span>
             <span><strong>{preview.scan.report.inferences.length}</strong>{label("inferences", "Inferences")}</span>
@@ -983,12 +1053,24 @@
   .rebind-setup { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--b3-border-color); }
   .preview-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
   .scan-summary { margin: 18px -20px 0; padding: 16px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .source-progress-overview { flex-basis: 100%; min-width: 0; display: grid; grid-template-columns: minmax(240px, 1fr) minmax(360px, 1.15fr); gap: 24px; align-items: stretch; }
+  .source-identity, .completion-overview { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+  .source-heading { min-width: 0; display: flex; align-items: center; gap: 8px; }
+  .source-heading strong { min-width: 0; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+  .source-identity > span { color: var(--b3-theme-on-surface); font-size: 12px; overflow-wrap: anywhere; }
+  .source-identity > code { width: fit-content; max-width: 100%; color: var(--b3-theme-on-surface); font-size: 11px; overflow-wrap: anywhere; }
+  .completion-heading { min-width: 0; display: grid; grid-template-columns: auto auto minmax(44px, 1fr); align-items: center; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .completion-heading strong { justify-self: end; color: var(--b3-theme-on-background); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .progress-stats { display: grid; grid-template-columns: repeat(4, minmax(58px, 1fr)); }
+  .progress-stats span { min-width: 0; padding: 2px 9px; border-left: 1px solid var(--b3-border-color); display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 11px; }
+  .progress-stats span:first-child { padding-left: 0; border-left: 0; }
+  .progress-stats strong { color: var(--b3-theme-on-background); font-size: 15px; font-variant-numeric: tabular-nums; }
   .recovery-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
   .import-report { margin: 14px -20px 0; padding: 12px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
   .import-report span { min-width: 76px; display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
   .import-report strong { color: var(--b3-theme-on-background); font-size: 17px; }
   .import-report code { flex-basis: 100%; overflow-wrap: anywhere; }
-  .summary-grid { flex: 1; display: grid; grid-template-columns: repeat(6, minmax(74px, 1fr)); gap: 1px; background: var(--b3-border-color); }
+  .summary-grid { flex: 1; display: grid; grid-template-columns: repeat(5, minmax(74px, 1fr)); gap: 1px; background: var(--b3-border-color); }
   .summary-grid span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; flex-direction: column; justify-content: center; font-size: 12px; color: var(--b3-theme-on-surface); }
   .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
   .summary-grid .danger strong, .incorrect { color: var(--b3-theme-error); }
@@ -1051,6 +1133,7 @@
     section { padding: 14px; }
     .document-row { grid-template-columns: 1fr 34px; }
     .scan-summary { margin-inline: -14px; padding-inline: 14px; }
+    .source-progress-overview { grid-template-columns: 1fr; gap: 18px; }
     .recovery-actions { justify-content: stretch; }
     .import-report { margin-inline: -14px; padding-inline: 14px; }
     .summary-grid { grid-template-columns: repeat(3, 1fr); flex-basis: 100%; }

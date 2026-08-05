@@ -32,6 +32,9 @@ import {
   type AttemptImportResult,
   type QuestionIndexPreview,
 } from "@/question-bank/application";
+import { loadSourceBlockIdentity, type SourceBlockIdentity } from "./source-identity";
+
+export type { SourceBlockIdentity } from "./source-identity";
 
 const log = getLogger("lets-question-bank");
 
@@ -48,6 +51,7 @@ export interface QuestionBankUiController {
   confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding>;
   previewRebinding(systemDocumentId: string): Promise<QuestionBankRebindingPreview>;
   confirmRebinding(systemDocumentId: string, token: string): Promise<QuestionBankBinding>;
+  loadSourceIdentity(blockId: string): Promise<SourceBlockIdentity>;
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
   loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>>;
@@ -139,6 +143,10 @@ export class QuestionBankController implements QuestionBankUiController {
     const binding = await confirmQuestionBankRebinding(this.client, systemDocumentId, token);
     this.options.setSetting(bindingSetting, binding);
     return binding;
+  }
+
+  async loadSourceIdentity(blockId: string): Promise<SourceBlockIdentity> {
+    return loadSourceBlockIdentity(this.client, blockId);
   }
 
   async previewSync(documentId: string): Promise<QuestionIndexPreview> {
