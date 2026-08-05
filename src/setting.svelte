@@ -1,26 +1,41 @@
 <script lang="ts">
-  import { settings } from "@/settings";
+  import { onDestroy, onMount } from "svelte";
+  import { ChevronDown, Info, X } from "lucide-svelte";
   import { showMessage } from "siyuan";
-  import { onDestroy } from "svelte";
+  import { Button } from "@/components/ui/button";
+  import { enableLogging } from "@/libs/logger";
+  import { settings } from "@/settings";
+  import { applyThemeVariables, getHostColorMode, observeHostColorMode } from "@/theme/runtime";
+  import { parseStoredThemes, type DamophusTheme } from "@/theme/schema";
+  import { BUILTIN_THEMES, DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
+  import { mergeCustomThemes, removeCustomTheme } from "@/theme/library";
+  import ThemeSettings from "@/theme/ThemeSettings.svelte";
   import SettingPanel from "./libs/setting-panel.svelte";
-  import BlockAttributePreview from "./lets-block-attr/BlockAttributePreview.svelte";
+  import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
+    DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
     DEFAULT_CUSTOM_PROPERTY_STYLE,
   } from "./lets-block-attr/custom-properties";
   import { PluginRegistry } from "./plugin-registry";
   import { plugin } from "./utils";
-  import { enableLogging, getLogger } from "./libs/logger";
-  const log = getLogger("setting");
 
-  const initData = () => {
-    const pluginRegistry = PluginRegistry.getInstance();
-    const pluginConfigs = pluginRegistry.getPluginConfigs();
+  const THEME_GROUP = "主题";
+  const SWITCH_GROUP = "开关";
+  const GENERAL_GROUP = "设置";
+  const BLOCK_ATTRIBUTE_PLUGIN = "quickAttr";
 
-    // Generate dynamic settings from plugins
-    const dynamicSettings: any = {
-      开关: [],
-      设置: [
+  interface ChangeEvent {
+    group: string;
+    key: string;
+    value: any;
+  }
+
+  function initData() {
+    const pluginConfigs = PluginRegistry.getInstance().getPluginConfigs();
+    const dynamicSettings: Record<string, any[]> = {
+      [SWITCH_GROUP]: [],
+      [GENERAL_GROUP]: [
         {
           type: "checkbox",
           title: "settings.debugLogging",
@@ -52,531 +67,309 @@
       ],
     };
 
-    //log.info("pluginConfigs");
-    //log.info(pluginConfigs);
-
-    // Add plugin flags
     for (const pluginMeta of pluginConfigs) {
-      dynamicSettings.开关.push({
+      dynamicSettings[SWITCH_GROUP].push({
         type: "checkbox",
         title: pluginMeta.displayName || pluginMeta.name,
         description: pluginMeta.description || "",
         key: pluginMeta.name,
-        value:
-          settings.getBySpace(pluginMeta.name, "enabled") ??
-          pluginMeta.enabled ??
-          false,
-        hasSetting: pluginMeta.settings ? true : false,
+        value: settings.getBySpace(pluginMeta.name, "enabled") ?? pluginMeta.enabled ?? false,
+        hasSetting: Boolean(pluginMeta.settings),
       });
-
-      //log.info(pluginMeta.name);
-      //log.info("pluginMeta.settings");
-      //log.info(pluginMeta.settings);
-      // 创建新的设置数组，但不修改原对象
-      const newSettings = pluginMeta.settings?.map((item) => ({
+      const pluginSettings = pluginMeta.settings?.map((item) => ({
         ...item,
         value: settings.getBySpace(pluginMeta.name, item.key) ?? item.value,
       }));
-
-      // 添加到 dynamicSettings
-      if (newSettings?.length) {
-        dynamicSettings[pluginMeta.displayName] = newSettings;
-      }
+      if (pluginSettings?.length) dynamicSettings[pluginMeta.displayName] = pluginSettings;
     }
-
-    //log.info("dynamicSettings");
-    //log.info(dynamicSettings);
     return dynamicSettings;
-  };
+  }
 
-  let SettingItems = initData();
+  let settingItems = initData();
+  let focusGroup = THEME_GROUP;
+  let showBottomSheet = false;
+  let themeRoot: HTMLElement;
+  let mode = getHostColorMode();
+  let customThemes = parseStoredThemes(settings.get("customThemes"));
+  let savedThemeId = typeof settings.get("uiThemeId") === "string"
+    ? settings.get("uiThemeId")
+    : DEFAULT_THEME_ID;
+  let selectedThemeId = savedThemeId;
 
   $: groups = [
-    "开关",
-    "设置",
-    // "移动端助手",
-    ...SettingItems["开关"]
+    THEME_GROUP,
+    SWITCH_GROUP,
+    GENERAL_GROUP,
+    ...settingItems[SWITCH_GROUP]
       .filter((item) => item.value === true && item.hasSetting)
       .map((item) => item.title),
   ];
+  $: selectedTheme = findTheme(selectedThemeId, customThemes);
+  $: focusedPlugin = PluginRegistry.getInstance().getPluginConfigs().find(
+    (item) => item.displayName === focusGroup || item.name === focusGroup,
+  );
+  $: showBlockAttributeSettings = focusedPlugin?.name === BLOCK_ATTRIBUTE_PLUGIN;
+  $: if (groups && !groups.includes(focusGroup)) focusGroup = THEME_GROUP;
+  $: if (themeRoot) applyThemeVariables(themeRoot, selectedTheme, mode);
 
-  let focusGroup = "开关";
-  let showBottomSheet = false;
-
-  function getFocusedPlugin() {
-    return PluginRegistry.getInstance().getPluginConfigs().find(
-      (item) => item.displayName === focusGroup || item.name === focusGroup,
-    );
+  function t(key: string, fallback: string) {
+    return plugin.i18n[key] || fallback;
   }
 
-  function getFocusedSettingValue(key: string, fallback: string): string {
-    const value = SettingItems[focusGroup]?.find((item) => item.key === key)?.value;
+  function getGroupLabel(groupName: string) {
+    const direct = plugin.i18n[`settings.${groupName}`];
+    if (direct) return direct;
+    const found = PluginRegistry.getInstance().getPluginConfigs().find(
+      (item) => item.displayName === groupName || item.name === groupName,
+    );
+    return found ? plugin.i18n[found.displayName] || found.displayName || found.name : groupName;
+  }
+
+  function getFocusedSettingValue(key: string, fallback: string) {
+    const value = settingItems[focusGroup]?.find((item) => item.key === key)?.value;
     return typeof value === "string" ? value : fallback;
   }
 
-  $: showBlockAttributePreview = getFocusedPlugin()?.displayName === "lets-block-attr.displayName";
-  $: previewCustomProperties = getFocusedSettingValue(
-    "customProperties",
-    DEFAULT_CUSTOM_PROPERTIES,
-  );
-  $: previewCustomStyle = getFocusedSettingValue(
-    "customStyle",
-    DEFAULT_CUSTOM_PROPERTY_STYLE,
-  );
-
-  $: {
-    if (groups && !groups.includes(focusGroup)) {
-      focusGroup = "开关";
-    }
-  }
-
-  const getGroupLabel = (groupName: string) => {
-    const mainKey = `settings.${groupName}`;
-    if (plugin.i18n[mainKey]) {
-      return plugin.i18n[mainKey];
-    }
-    
-    const pluginRegistry = PluginRegistry.getInstance();
-    const pluginConfigs = pluginRegistry.getPluginConfigs();
-    const found = pluginConfigs.find(
-      (p) => p.displayName === groupName || p.name === groupName
-    );
-    if (found) {
-      return plugin.i18n[found.displayName] || found.displayName || found.name;
-    }
-    
-    return groupName;
-  };
-
-  /********** Events **********/
-  interface ChangeEvent {
-    group: string;
-    key: string;
-    value: any;
-  }
-
-  const onClick = async ({ detail }: CustomEvent<ChangeEvent>) => {
-    if ("设置" === detail.group) {
-      if ("resetData" === detail.key) {
-        await settings.resetData();
-        SettingItems = initData();
-        showMessage(plugin.i18n["settings.resetSuccess"] || "配置恢复为默认值");
-      } else if ("mergeData" === detail.key) {
-        await settings.mergeData();
-        SettingItems = initData();
-        showMessage(plugin.i18n["settings.mergeSuccess"] || "合并配置为最新配置");
-      }
-    }
-  };
-
-  const onChanged = async ({ detail }: CustomEvent<ChangeEvent>) => {
-    if (detail.group === "开关") {
-      settings.setBySpace(detail.key, "enabled", detail.value);
-
-      if (!detail.value) {
-        //卸载自己就行了
-        PluginRegistry.getInstance().unloadPlugin(detail.key);
-      } else {
-        //动态加载; addDock 有点问题，目前不能实时切换
-        await PluginRegistry.getInstance().beginPlugin(detail.key);
-      }
-      // 无论启用还是禁用，均重新载入设置数据
-      SettingItems = initData();
-    } else if (detail.group === "设置") {
-      if (detail.key === "debugLogging") {
-        settings.set("debugLogging", detail.value);
-        enableLogging(detail.value);
-      } else if (detail.key === "lastVersion") {
-        settings.set("lastVersion", detail.value);
-      }
-    } else {
-      const opItem = SettingItems["开关"].filter((ele) => {
-        return ele.title === detail.group;
-      });
-      log.info("opItem", opItem);
-      log.info("detail", detail);
-
-      settings.setBySpace(opItem[0].key, detail.key, detail.value);
-
-      log.info(settings.getBySpace(opItem[0].key, detail.key));
-      // 子组件的配置修改了，立马刷新
-      await PluginRegistry.getInstance().beginPlugin(opItem[0].key);
-    }
-
-    for (let index = 0; index < SettingItems[focusGroup].length; index++) {
-      if (SettingItems[focusGroup][index].key === detail.key) {
-        SettingItems[focusGroup][index].value = detail.value;
-        break;
-      }
-    }
-    settings.save();
-  };
-
-  const onPreview = ({ detail }: CustomEvent<ChangeEvent>) => {
-    const item = SettingItems[detail.group]?.find((candidate) => candidate.key === detail.key);
+  function updateLocalSetting(group: string, key: string, value: any) {
+    const item = settingItems[group]?.find((candidate) => candidate.key === key);
     if (!item) return;
-    item.value = detail.value;
-    SettingItems = { ...SettingItems };
-  };
+    item.value = value;
+    settingItems = { ...settingItems };
+  }
+
+  function themeLabels() {
+    return {
+      builtin: t("settings.themeBuiltin", "Built-in themes"),
+      custom: t("settings.themeCustom", "Custom themes"),
+      import: t("settings.themeImport", "Import JSON"),
+      export: t("settings.themeExport", "Export custom themes"),
+      apply: t("settings.themeApply", "Apply theme"),
+      applied: t("settings.themeApplied", "Applied"),
+      reset: t("settings.themeReset", "Use default"),
+      remove: t("settings.themeRemove", "Remove theme"),
+      empty: t("settings.themeEmpty", "No custom themes"),
+      importConfirm: t("settings.themeImportConfirm", "Import"),
+      importSummary: t("settings.themeImportSummary", "{count} valid themes ready"),
+      invalidFile: t("settings.themeInvalidFile", "No valid themes found"),
+    };
+  }
+
+  function blockAttributeLabels() {
+    return {
+      preview: t("lets-block-attr.previewTitle", "Marker preview"),
+      previewWidth: t("lets-block-attr.previewWidth", "Preview width"),
+      properties: t("lets-block-attr.properties", "Displayed properties"),
+      availableProperties: t("lets-block-attr.availableProperties", "Available properties"),
+      property: t("lets-block-attr.property", "Property"),
+      enabled: t("lets-block-attr.enabled", "Show"),
+      showLabel: t("lets-block-attr.showLabel", "Label"),
+      label: t("lets-block-attr.label", "Display name"),
+      addProperty: t("lets-block-attr.addProperty", "Add property"),
+      invalidProperty: t("lets-block-attr.invalidProperty", "Enter a safe displayable custom-* property."),
+      blockTypes: t("lets-block-attr.blockTypes", "Block types"),
+      blockTypeDocument: t("lets-block-attr.blockTypeDocument", "Document"),
+      blockTypeHeading: t("lets-block-attr.blockTypeHeading", "Heading"),
+      blockTypeParagraph: t("lets-block-attr.blockTypeParagraph", "Paragraph"),
+      blockTypeList: t("lets-block-attr.blockTypeList", "List"),
+      blockTypeListItem: t("lets-block-attr.blockTypeListItem", "List item"),
+      blockTypeBlockquote: t("lets-block-attr.blockTypeBlockquote", "Blockquote"),
+      blockTypeSuperBlock: t("lets-block-attr.blockTypeSuperBlock", "Super block"),
+      blockTypeTable: t("lets-block-attr.blockTypeTable", "Table"),
+      advanced: t("lets-block-attr.advanced", "Advanced appearance"),
+      customCss: t("lets-block-attr.customStyleTitle", "Marker style"),
+      customCssDescription: t("lets-block-attr.customStyleDescription", "Only safe appearance declarations are applied."),
+    };
+  }
+
+  async function persistThemeLibrary(themes: DamophusTheme[]) {
+    customThemes = themes;
+    settings.set("customThemes", themes);
+    await settings.save();
+  }
+
+  async function applySelectedTheme(id: string) {
+    selectedThemeId = id;
+    savedThemeId = id;
+    settings.set("uiThemeId", id);
+    await settings.save();
+    await PluginRegistry.getInstance().beginPlugin(BLOCK_ATTRIBUTE_PLUGIN);
+  }
+
+  async function removeTheme(name: string) {
+    const removedId = `custom:${name}`;
+    const nextThemes = removeCustomTheme(customThemes, name);
+    if (selectedThemeId === removedId) selectedThemeId = DEFAULT_THEME_ID;
+    if (savedThemeId === removedId) {
+      savedThemeId = DEFAULT_THEME_ID;
+      settings.set("uiThemeId", DEFAULT_THEME_ID);
+    }
+    await persistThemeLibrary(nextThemes);
+    await PluginRegistry.getInstance().beginPlugin(BLOCK_ATTRIBUTE_PLUGIN);
+  }
+
+  async function onClick({ detail }: CustomEvent<ChangeEvent>) {
+    if (detail.group !== GENERAL_GROUP) return;
+    if (detail.key === "resetData") {
+      await settings.resetData();
+      settingItems = initData();
+      customThemes = parseStoredThemes(settings.get("customThemes"));
+      selectedThemeId = savedThemeId = settings.get("uiThemeId") ?? DEFAULT_THEME_ID;
+      showMessage(t("settings.resetSuccess", "Configuration reset"));
+    } else if (detail.key === "mergeData") {
+      await settings.mergeData();
+      settingItems = initData();
+      showMessage(t("settings.mergeSuccess", "Configuration merged"));
+    }
+  }
+
+  async function onChanged({ detail }: CustomEvent<ChangeEvent>) {
+    if (detail.group === SWITCH_GROUP) {
+      settings.setBySpace(detail.key, "enabled", detail.value);
+      if (detail.value) await PluginRegistry.getInstance().beginPlugin(detail.key);
+      else PluginRegistry.getInstance().unloadPlugin(detail.key);
+      settingItems = initData();
+    } else if (detail.group === GENERAL_GROUP) {
+      settings.set(detail.key, detail.value);
+      if (detail.key === "debugLogging") enableLogging(detail.value);
+    } else {
+      const pluginSetting = settingItems[SWITCH_GROUP].find((item) => item.title === detail.group);
+      if (!pluginSetting) return;
+      settings.setBySpace(pluginSetting.key, detail.key, detail.value);
+      await PluginRegistry.getInstance().beginPlugin(pluginSetting.key);
+    }
+    updateLocalSetting(detail.group, detail.key, detail.value);
+    await settings.save();
+  }
+
+  function onPreview({ detail }: CustomEvent<ChangeEvent>) {
+    updateLocalSetting(detail.group, detail.key, detail.value);
+  }
+
+  onMount(() => observeHostColorMode((nextMode) => {
+    mode = nextMode;
+  }));
 
   onDestroy(async () => {
     await settings.save();
-    //log.info("onDestroy");
   });
-
-  const lreload = () => {
-    location.reload();
-  };
 </script>
 
-<div class="fn__flex-1 fn__flex config__panel">
-  <!-- Desktop Sidebar -->
-  <ul class="sidebar-menu">
-    {#each groups as group}
-      <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-      <li
-        class="sidebar-item"
-        class:active={group === focusGroup}
-        on:click={() => {
-          focusGroup = group;
-          settings.save();
-        }}
-        on:keydown={() => {}}
-      >
-        <span class="b3-list-item__text_my">{getGroupLabel(group)}</span>
-      </li>
-    {/each}
-  </ul>
-
-  <!-- Mobile Selector Bar -->
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="mobile-selector-bar" on:click={() => (showBottomSheet = true)}>
-    <span class="current-category">{getGroupLabel(focusGroup)}</span>
-    <span class="arrow-icon">▼</span>
-  </div>
-
-  <!-- Main Content Wrap -->
-  <div class="config__tab-wrap">
-    <!-- Global Persistent Warning Banner -->
-    <div class="global-banner">
-      <div class="banner-left">
-        <span>💡</span>
-        <span>{plugin.i18n["settings.restartWarning"] || "部分功能设置后需重启插件生效."}</span>
-      </div>
-      <button
-        class="b3-button b3-button--outline my-reload-button"
-        on:click={lreload}
-      >
-        {plugin.i18n["settings.reloadNow"] || "现在重载"}
-      </button>
+<div
+  bind:this={themeRoot}
+  class="damophus-theme-root flex h-full min-h-0 overflow-hidden bg-background text-foreground max-[768px]:flex-col"
+>
+  <nav class="w-48 shrink-0 overflow-y-auto border-r border-border bg-muted/30 p-3 max-[768px]:hidden" aria-label={t("settings.selectCategory", "Setting categories")}>
+    <div class="mb-3 border-b border-border px-2 pb-3">
+      <strong class="block text-sm font-semibold">Damophus</strong>
+      <span class="text-xs text-muted-foreground">{t("settings.preferences", "Preferences")}</span>
     </div>
+    <ul class="m-0 flex list-none flex-col gap-1 p-0">
+      {#each groups as group}
+        <li>
+          <button
+            class="flex h-9 w-full items-center rounded-md px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            class:bg-primary={group === focusGroup}
+            class:text-primary-foreground={group === focusGroup}
+            class:font-medium={group === focusGroup}
+            onclick={() => (focusGroup = group)}
+          >
+            <span class="min-w-0 truncate">{getGroupLabel(group)}</span>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  </nav>
 
-    <!-- Active Setting Panel -->
-    <div class="panel-content">
-      <SettingPanel
-        group={focusGroup}
-        settingItems={SettingItems[focusGroup]}
-        on:changed={onChanged}
-        on:click={onClick}
-        on:preview={onPreview}
-      >
-        {#if showBlockAttributePreview}
-          <BlockAttributePreview
-            customProperties={previewCustomProperties}
-            customStyle={previewCustomStyle}
-            title={plugin.i18n["lets-block-attr.previewTitle"] || "Preview"}
-            widthLabel={plugin.i18n["lets-block-attr.previewWidth"] || "Preview width"}
-          />
+  <Button
+    class="m-3 hidden w-auto justify-between max-[768px]:flex"
+    variant="outline"
+    onclick={() => (showBottomSheet = true)}
+  >
+    {getGroupLabel(focusGroup)}
+    <ChevronDown />
+  </Button>
+
+  <main class="min-w-0 flex-1 overflow-y-auto">
+    <div class="mx-auto flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
+      <header class="border-b border-border pb-4">
+        <h2 class="m-0 text-lg font-semibold">{getGroupLabel(focusGroup)}</h2>
+        {#if focusGroup === THEME_GROUP}
+          <p class="mt-1 text-sm text-muted-foreground">{t("settings.themeDescription", "Choose the appearance used by Damophus settings and question markers.")}</p>
         {/if}
-      </SettingPanel>
+      </header>
+
+      {#if focusGroup === THEME_GROUP}
+        <ThemeSettings
+          builtinThemes={BUILTIN_THEMES}
+          {customThemes}
+          selectedId={selectedThemeId}
+          savedId={savedThemeId}
+          {mode}
+          labels={themeLabels()}
+          on:select={(event) => (selectedThemeId = event.detail.id)}
+          on:apply={(event) => void applySelectedTheme(event.detail.id)}
+          on:import={(event) => void persistThemeLibrary(mergeCustomThemes(customThemes, event.detail.themes).themes)}
+          on:remove={(event) => void removeTheme(event.detail.name)}
+          on:reset={() => (selectedThemeId = DEFAULT_THEME_ID)}
+        />
+      {:else if showBlockAttributeSettings}
+        <BlockAttributeSettings
+          customProperties={getFocusedSettingValue("customProperties", DEFAULT_CUSTOM_PROPERTIES)}
+          customPropertyBlockTypes={getFocusedSettingValue("customPropertyBlockTypes", DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES)}
+          customStyle={getFocusedSettingValue("customStyle", DEFAULT_CUSTOM_PROPERTY_STYLE)}
+          theme={selectedTheme}
+          {mode}
+          labels={blockAttributeLabels()}
+          on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
+          on:preview={(event) => onPreview(new CustomEvent("preview", { detail: { group: focusGroup, ...event.detail } }))}
+        />
+      {:else}
+        <SettingPanel
+          group={focusGroup}
+          settingItems={settingItems[focusGroup] ?? []}
+          on:changed={onChanged}
+          on:click={onClick}
+          on:preview={onPreview}
+        />
+      {/if}
+
+      {#if focusGroup !== THEME_GROUP && !showBlockAttributeSettings}
+        <div class="flex items-center justify-between gap-3 border-y border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <span class="flex items-center gap-2"><Info class="size-4" />{t("settings.restartWarning", "Some changes require a plugin restart.")}</span>
+          <Button variant="ghost" size="sm" onclick={() => location.reload()}>{t("settings.reloadNow", "Reload now")}</Button>
+        </div>
+      {/if}
     </div>
-  </div>
+  </main>
 </div>
 
-<!-- Mobile Bottom Sheet Drawer -->
 {#if showBottomSheet}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="bottom-sheet-backdrop" on:click={() => (showBottomSheet = false)}>
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="bottom-sheet-container" on:click|stopPropagation>
-      <div class="bottom-sheet-header">
-        <h3>{plugin.i18n["settings.selectCategory"] || "settings.selectCategory"}</h3>
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <button class="close-btn" on:click={() => (showBottomSheet = false)}
-          >&times;</button
-        >
+  <div class="damophus-theme-root fixed inset-0 z-[9999] flex items-end bg-black/45" role="presentation" onclick={() => (showBottomSheet = false)}>
+    <div
+      class="max-h-[70dvh] w-full overflow-y-auto rounded-t-lg border-t border-border bg-popover p-4 text-popover-foreground shadow-lg"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(event) => event.stopPropagation()}
+      onkeydown={(event) => event.stopPropagation()}
+    >
+      <div class="mb-3 flex items-center justify-between border-b border-border pb-3">
+        <strong class="text-sm">{t("settings.selectCategory", "Select category")}</strong>
+        <Button variant="ghost" size="icon-sm" title={t("settings.close", "Close")} onclick={() => (showBottomSheet = false)}><X /><span class="sr-only">{t("settings.close", "Close")}</span></Button>
       </div>
-      <ul class="bottom-sheet-list">
+      <div class="flex flex-col gap-1">
         {#each groups as group}
-          <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-          <li
-            class:active={group === focusGroup}
-            on:click={() => {
+          <button
+            class="min-h-10 rounded-md px-3 text-left text-sm hover:bg-muted"
+            class:bg-primary={group === focusGroup}
+            class:text-primary-foreground={group === focusGroup}
+            onclick={() => {
               focusGroup = group;
-              settings.save();
               showBottomSheet = false;
             }}
-          >
-            {getGroupLabel(group)}
-          </li>
+          >{getGroupLabel(group)}</button>
         {/each}
-      </ul>
+      </div>
     </div>
   </div>
 {/if}
-
-<style lang="scss">
-  .config__panel {
-    display: flex;
-    height: 100%;
-    overflow: hidden;
-    background-color: var(--b3-theme-background);
-  }
-
-  /* Desktop Sidebar styling */
-  .sidebar-menu {
-    width: 200px;
-    flex-shrink: 0;
-    border-right: 1px solid var(--b3-theme-outline-variant);
-    padding: 16px 12px;
-    margin: 0;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    overflow-y: auto;
-    background-color: var(--b3-theme-surface-variant, inherit);
-  }
-
-  .sidebar-item {
-    list-style: none;
-    padding: 10px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    color: var(--b3-theme-on-surface);
-    display: flex;
-    align-items: center;
-
-    &:hover {
-      background-color: var(--b3-theme-background-hover);
-    }
-
-    &.active {
-      background-color: var(--b3-theme-primary-light, rgba(59, 130, 246, 0.08));
-      color: var(--b3-theme-primary);
-      font-weight: 600;
-    }
-  }
-
-  .b3-list-item__text_my {
-    flex: 1;
-    text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Content Wrapper styling */
-  .config__tab-wrap {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    padding: 24px;
-    box-sizing: border-box;
-  }
-
-  .panel-content {
-    flex: 1;
-  }
-
-  /* Global Banner styling */
-  .global-banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    background-color: var(--b3-theme-warning-light, rgba(245, 158, 11, 0.06));
-    border: 1px solid var(--b3-theme-warning, #eab308);
-    border-radius: 8px;
-    margin-bottom: 20px;
-    font-size: 13px;
-    color: var(--b3-theme-warning-on, #854d0e);
-
-    .banner-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .my-reload-button {
-      flex-shrink: 0;
-      border: 1px solid var(--b3-theme-warning, #eab308) !important;
-      color: var(--b3-theme-warning-on, #854d0e) !important;
-      background: transparent;
-      padding: 4px 12px;
-      font-size: 12px;
-      height: 28px;
-      cursor: pointer;
-      border-radius: 6px;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      &:hover {
-        background-color: var(--b3-theme-warning, #eab308) !important;
-        color: var(--b3-theme-on-warning, #ffffff) !important;
-      }
-    }
-  }
-
-  /* Hide mobile selector on desktop */
-  .mobile-selector-bar {
-    display: none;
-  }
-
-  /* Mobile Responsive styling */
-  @media (max-width: 768px) {
-    .config__panel {
-      flex-direction: column;
-    }
-
-    .sidebar-menu {
-      display: none;
-    }
-
-    .mobile-selector-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      margin: 16px 16px 8px 16px;
-      background-color: var(--b3-theme-surface);
-      border: 1px solid var(--b3-theme-outline-variant);
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-
-      .arrow-icon {
-        font-size: 10px;
-        color: var(--b3-theme-on-surface-light, #9ca3af);
-      }
-    }
-
-    .config__tab-wrap {
-      padding: 8px 16px 16px 16px;
-    }
-
-    .global-banner {
-      margin-bottom: 16px;
-      padding: 10px 14px;
-      flex-direction: row;
-      align-items: center;
-
-      .my-reload-button {
-        padding: 2px 10px;
-        height: 26px;
-      }
-    }
-
-    /* Bottom Sheet Layout */
-    .bottom-sheet-backdrop {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      z-index: 9999;
-      display: flex;
-      align-items: flex-end;
-    }
-
-    .bottom-sheet-container {
-      width: 100%;
-      background-color: var(--b3-theme-surface);
-      border-top-left-radius: 16px;
-      border-top-right-radius: 16px;
-      max-height: 60%;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
-      animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .bottom-sheet-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--b3-theme-outline-variant);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-
-      h3 {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 600;
-        color: var(--b3-theme-on-surface);
-      }
-
-      .close-btn {
-        background: none;
-        border: none;
-        font-size: 24px;
-        cursor: pointer;
-        padding: 0;
-        color: var(--b3-theme-on-surface-light, #9ca3af);
-        line-height: 1;
-      }
-    }
-
-    .bottom-sheet-list {
-      margin: 0;
-      padding: 8px 0 24px 0;
-      overflow-y: auto;
-      list-style: none;
-
-      li {
-        padding: 14px 24px;
-        font-size: 14px;
-        color: var(--b3-theme-on-surface);
-        border-bottom: 1px solid var(--b3-theme-background);
-        cursor: pointer;
-        transition: background-color 0.2s;
-
-        &:last-child {
-          border-bottom: none;
-        }
-
-        &:active {
-          background-color: var(--b3-theme-background-hover);
-        }
-
-        &.active {
-          color: var(--b3-theme-primary);
-          font-weight: 600;
-          background-color: var(
-            --b3-theme-primary-light,
-            rgba(59, 130, 246, 0.08)
-          );
-        }
-      }
-    }
-  }
-
-  @keyframes slide-up {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
-  }
-</style>

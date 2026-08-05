@@ -1,6 +1,9 @@
 import { getLogger } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { settings } from "@/settings";
+import { getHostColorMode, markerThemeVariables, observeHostColorMode } from "@/theme/runtime";
+import { parseStoredThemes } from "@/theme/schema";
+import { DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
 
 import ShowCustomPropertiesUnderTitle from "./ShowCustomPropertiesUnderTitle";
 import {
@@ -14,6 +17,7 @@ const log = getLogger("lets-block-attr");
 
 export default class BlockAttr extends SubPluginBase {
   private readonly display = new ShowCustomPropertiesUnderTitle();
+  private stopColorModeObserver?: () => void;
 
   override onload(): void {
     const customProperties = resolveCustomProperties(
@@ -30,16 +34,27 @@ export default class BlockAttr extends SubPluginBase {
       });
     }
 
-    this.display.onload(
+    const customPropertyBlockTypes = settings.getBySpace(pluginMetadata.name, "customPropertyBlockTypes")
+      ?? DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES;
+    const customStyle = settings.getBySpace(pluginMetadata.name, "customStyle")
+      ?? DEFAULT_CUSTOM_PROPERTY_STYLE;
+    const customThemes = parseStoredThemes(settings.get("customThemes"));
+    const theme = findTheme(settings.get("uiThemeId") ?? DEFAULT_THEME_ID, customThemes);
+    const apply = (mode = getHostColorMode()) => this.display.onload(
       customProperties.value,
-      settings.getBySpace(pluginMetadata.name, "customPropertyBlockTypes")
-        ?? DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
-      settings.getBySpace(pluginMetadata.name, "customStyle")
-        ?? DEFAULT_CUSTOM_PROPERTY_STYLE,
+      customPropertyBlockTypes,
+      customStyle,
+      markerThemeVariables(theme, mode),
     );
+
+    this.stopColorModeObserver?.();
+    apply();
+    this.stopColorModeObserver = observeHostColorMode(apply);
   }
 
   override onunload(): void {
+    this.stopColorModeObserver?.();
+    this.stopColorModeObserver = undefined;
     this.display.onunload();
   }
 }

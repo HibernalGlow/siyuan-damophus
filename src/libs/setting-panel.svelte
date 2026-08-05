@@ -1,65 +1,30 @@
-<!--
- Copyright (c) 2023 by frostime All Rights Reserved.
- Author       : frostime
- Date         : 2023-07-01 19:23:50
- FilePath     : /src/libs/setting-panel.svelte
- LastEditTime : 2023-11-28 21:45:10
- Description  : 
--->
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
-    import SettingItem from "./setting-item.svelte";
+  import { createEventDispatcher } from "svelte";
+  import SettingItem from "./setting-item.svelte";
 
-    export let group: string;
-    export let settingItems: ISettingItem[];
-    export let display: boolean = true;
+  export let group: string;
+  export let settingItems: ISettingItem[];
+  export let display = true;
 
-    const dispatch = createEventDispatcher();
-
-    function onClick( {detail}) {
-        dispatch("click", {group: group, ...detail});
-    }
-    function onChanged( {detail}) {
-        dispatch("changed", {group: group, ...detail});
-    }
-    function onPreview( {detail}) {
-        dispatch("preview", {group: group, ...detail});
-    }
-
-    $: fn__none = display ? "" : "fn__none";
-
+  const dispatch = createEventDispatcher();
 </script>
 
-<div class="config__tab-container {fn__none}" data-name={group}>
-    <slot />
-    <div class="settings-card">
-        {#each settingItems as item (item.key)}
-            <SettingItem
-                type={item.type}
-                title={item.title}
-                description={item.description}
-                settingKey={item.key}
-                settingValue={item.value}
-                placeholder={item?.placeholder}
-                options={item?.options}
-                columns={item?.columns}
-                slider={item?.slider}
-                height={item?.height}
-                on:click={onClick}
-                on:changed={onChanged}
-                on:preview={onPreview}
-            />
-        {/each}
-    </div>
-</div>
-
-<style lang="scss">
-    .settings-card {
-        background-color: var(--b3-theme-surface);
-        border: 1px solid var(--b3-theme-outline-variant);
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        margin-bottom: 16px;
-    }
-</style>
+<section class:hidden={!display} class="border-y border-border" data-name={group}>
+  {#each settingItems as item (item.key)}
+    <SettingItem
+      type={item.type}
+      title={item.title}
+      description={item.description}
+      settingKey={item.key}
+      settingValue={item.value}
+      placeholder={item?.placeholder}
+      options={item?.options}
+      columns={item?.columns}
+      slider={item?.slider}
+      height={item?.height}
+      on:click={(event) => dispatch("click", { group, ...event.detail })}
+      on:changed={(event) => dispatch("changed", { group, ...event.detail })}
+      on:preview={(event) => dispatch("preview", { group, ...event.detail })}
+    />
+  {/each}
+</section>

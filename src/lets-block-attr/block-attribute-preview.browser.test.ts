@@ -29,7 +29,7 @@ describe("block attribute settings preview", () => {
       ".damophus-block-attr-preview__sample",
     );
     const viewport = container.querySelector<HTMLElement>(".preview-viewport");
-    const width = container.querySelector<HTMLInputElement>('input[aria-label="Preview width"]');
+    const width = container.querySelector<HTMLElement>('[role="slider"]');
     if (!sample || !viewport || !width) throw new Error("Missing marker preview");
     await tick();
 
@@ -39,8 +39,10 @@ describe("block attribute settings preview", () => {
     expect(marker.whiteSpace).toBe("normal");
     expect(marker.borderRadius).toBe("10px");
 
-    width.value = "220";
-    width.dispatchEvent(new Event("input", { bubbles: true }));
+    width.focus();
+    width.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+    width.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    width.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     await tick();
     expect(viewport.getAttribute("style")).toContain("220px");
   });

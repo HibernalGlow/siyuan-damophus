@@ -16,6 +16,7 @@ export default defineConfig({
   plugins: [tailwindcss(), svelte()],
   test: {
     include: ["src/**/*.browser.test.ts"],
+    setupFiles: ["./src/test/browser-setup.ts"],
     browser: {
       enabled: true,
       headless: true,

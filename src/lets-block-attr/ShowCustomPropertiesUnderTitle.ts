@@ -7,6 +7,7 @@ import {
   DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
   DEFAULT_CUSTOM_PROPERTY_STYLE,
 } from "./custom-properties";
+import type { ThemeVariables } from "@/theme/schema";
 
 export default class ShowCustomPropertiesUnderTitle extends InsertCSS {
   id = "snippetCSS-hqweay-show-custom-properties-under-title";
@@ -18,12 +19,14 @@ export default class ShowCustomPropertiesUnderTitle extends InsertCSS {
       ?? DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
     customStyle = settings.getBySpace(pluginMetadata.name, "customStyle")
       ?? DEFAULT_CUSTOM_PROPERTY_STYLE,
+    themeVariables: ThemeVariables = {},
   ) {
     this.onunload();
     const css = buildCustomPropertiesCss(
       customProperties,
       customPropertyBlockTypes,
       customStyle,
+      themeVariables,
     );
     if (!css) return;
 

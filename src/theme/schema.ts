@@ -187,6 +187,25 @@ export function importThemesJson(json: string): ThemeImportReport {
   return report;
 }
 
+export function importThemesUtf8(bytes: Uint8Array): ThemeImportReport {
+  if (bytes.byteLength > MAX_THEME_FILE_BYTES) {
+    return {
+      themes: [],
+      errors: [{ message: `Theme file exceeds ${MAX_THEME_FILE_BYTES} bytes` }],
+      skipped: [],
+    };
+  }
+  try {
+    return importThemesJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    return {
+      themes: [],
+      errors: [{ message: "Theme file is not valid UTF-8 JSON" }],
+      skipped: [],
+    };
+  }
+}
+
 export function parseStoredThemes(value: unknown): DamophusTheme[] {
   if (!Array.isArray(value)) return [];
   const report = importThemesJson(JSON.stringify(value));

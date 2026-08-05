@@ -157,6 +157,7 @@ function buildCustomPropertiesCssForTargets(
   customProperties: string,
   targets: readonly PropertyTarget[],
   customStyle: string,
+  themeVariables: ThemeVariables = {},
 ): string {
   const properties = parseCustomProperties(customProperties);
   if (properties.length === 0 || targets.length === 0) return "";
@@ -177,24 +178,32 @@ function buildCustomPropertiesCssForTargets(
   const customDeclarations = safeCustomStyle
     ? `\n  ${safeCustomStyle.replace(/\n/gu, "\n  ")}`
     : "";
+  const markerVariables = [
+    ["--damophus-marker-primary", themeVariables.primary],
+    ["--damophus-marker-border", themeVariables.border],
+    ["--damophus-marker-foreground", themeVariables.foreground],
+    ["--damophus-marker-radius", themeVariables.radius],
+    ["--damophus-marker-shadow", themeVariables.shadow],
+  ].flatMap(([name, value]) => value ? [`  ${name}: ${value};`] : []).join("\n");
 
-  return `${targetSelectors.join(",\n")} {\n${resetDeclarations}\n}\n\n${propertyRules}\n\n${displaySelectors} {
+  return `${targetSelectors.join(",\n")} {\n${resetDeclarations}${markerVariables ? `\n${markerVariables}` : ""}\n}\n\n${propertyRules}\n\n${displaySelectors} {
   content: ${variables.map((variable) => `var(${variable})`).join(' "  \\00b7  " ')};
   display: block;
   box-sizing: border-box;
   width: fit-content;
   max-width: 100%;
-  margin: 4px 0 3px;
-  padding: 3px 8px;
-  border: 1px solid var(--b3-theme-outline-variant, #d7dce3);
-  border-left: 2px solid var(--b3-theme-primary, #3573f0);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--b3-theme-primary, #3573f0) 7%, transparent);
-  color: var(--b3-theme-on-surface, #202124);
+  margin: 3px 0 2px;
+  padding: 1px 0 1px 8px;
+  border: 0;
+  border-left: 2px solid var(--damophus-marker-primary, var(--b3-theme-primary, #3573f0));
+  border-radius: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--damophus-marker-foreground, var(--b3-theme-on-surface, #202124)) 82%, var(--damophus-marker-primary, var(--b3-theme-primary, #3573f0)));
+  box-shadow: none;
   font-family: var(--b3-font-family-code, ui-monospace, monospace);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.45;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.6;
   letter-spacing: 0;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -206,22 +215,26 @@ export function buildCustomPropertiesCss(
   customProperties: string,
   customPropertyBlockTypes: string,
   customStyle = DEFAULT_CUSTOM_PROPERTY_STYLE,
+  themeVariables: ThemeVariables = {},
 ): string {
   const blockTypes = parseCustomPropertyBlockTypes(customPropertyBlockTypes);
   const targets = blockTypes.map((blockType): PropertyTarget => ({
     selector: targetSelector(blockType),
     pseudoElement: blockType === "NodeDocument" ? "::before" : "::after",
   }));
-  return buildCustomPropertiesCssForTargets(customProperties, targets, customStyle);
+  return buildCustomPropertiesCssForTargets(customProperties, targets, customStyle, themeVariables);
 }
 
 export function buildCustomPropertiesPreviewCss(
   customProperties: string,
   customStyle = DEFAULT_CUSTOM_PROPERTY_STYLE,
+  themeVariables: ThemeVariables = {},
 ): string {
   return buildCustomPropertiesCssForTargets(
     customProperties,
     [{ selector: ".damophus-block-attr-preview__sample", pseudoElement: "::after" }],
     customStyle,
+    themeVariables,
   );
 }
+import type { ThemeVariables } from "@/theme/schema";
