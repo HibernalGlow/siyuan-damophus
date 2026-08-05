@@ -6,4 +6,9 @@ describe("question bank custom tab contract", () => {
     expect(questionBankTabType).toBe("question-bank");
     expect(questionBankCustomTabId("siyuan-damophus")).toBe("siyuan-damophusquestion-bank");
   });
+
+  it("keeps question-bank tabs distinct for different launch blocks", () => {
+    expect(questionBankCustomTabId("siyuan-damophus", "20260804120000-abcdefg"))
+      .toBe("siyuan-damophusquestion-bank-20260804120000-abcdefg");
+  });
 });

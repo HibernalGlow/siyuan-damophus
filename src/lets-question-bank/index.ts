@@ -1,39 +1,70 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
-import { Dialog, getAllEditor, openMobileFileById, openTab, type Menu } from "siyuan";
+import {
+  Dialog,
+  getAllEditor,
+  openMobileFileById,
+  openTab,
+  type IEventBusMap,
+  type Menu,
+} from "siyuan";
 import { mount, unmount } from "svelte";
 import pluginManifest from "../../plugin.json";
 import QuestionBank from "./question-bank.svelte";
 import { QuestionBankController } from "./controller";
+import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
 import { questionBankCustomTabId, questionBankTabType } from "./tab-contract";
 
 export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
+  private listening = false;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
+  private readonly handleBlockMenu = (
+    event: CustomEvent<IEventBusMap["click-blockicon"]>,
+  ): void => {
+    this.addLaunchMenuItem(event.detail.menu, launchBlockIdFromElements(event.detail.blockElements));
+  };
+  private readonly handleDocumentTitleMenu = (
+    event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
+  ): void => {
+    this.addLaunchMenuItem(event.detail.menu, validLaunchBlockId(event.detail.data.id));
+  };
+  private readonly handleDocumentTreeMenu = (
+    event: CustomEvent<IEventBusMap["open-menu-doctree"]>,
+  ): void => {
+    if (event.detail.type === "notebook") return;
+    this.addLaunchMenuItem(event.detail.menu, launchBlockIdFromElements(event.detail.elements));
+  };
 
   override onload(): void {
-    if (this.registered) return;
-    this.registered = true;
-    const owner = this;
-    plugin.addTab({
-      type: questionBankTabType,
-      init() {
-        const element = this.element as HTMLElement;
-        const app = owner.mountQuestionBank(element, this.data?.documentId);
-        owner.mountedTabs.set(element, app);
-      },
-      destroy() {
-        const element = this.element as HTMLElement;
-        const app = owner.mountedTabs.get(element);
-        if (app) void unmount(app);
-        owner.mountedTabs.delete(element);
-      },
-    });
-    plugin.addCommand({
-      langKey: "lets-question-bank.commandOpen",
-      callback: () => this.open(),
-    });
+    if (!this.registered) {
+      this.registered = true;
+      const owner = this;
+      plugin.addTab({
+        type: questionBankTabType,
+        init() {
+          const element = this.element as HTMLElement;
+          const app = owner.mountQuestionBank(element, this.data?.documentId);
+          owner.mountedTabs.set(element, app);
+        },
+        destroy() {
+          const element = this.element as HTMLElement;
+          const app = owner.mountedTabs.get(element);
+          if (app) void unmount(app);
+          owner.mountedTabs.delete(element);
+        },
+      });
+      plugin.addCommand({
+        langKey: "lets-question-bank.commandOpen",
+        callback: () => this.open(),
+      });
+    }
+    if (this.listening) return;
+    this.listening = true;
+    plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
+    plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
+    plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
   }
 
   addMenuItem(menu: Menu): void {
@@ -45,8 +76,21 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   override onunload(): void {
+    plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
+    plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
+    plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
+    this.listening = false;
     for (const app of this.mountedTabs.values()) void unmount(app);
     this.mountedTabs.clear();
+  }
+
+  private addLaunchMenuItem(menu: IEventBusMap["click-blockicon"]["menu"], blockId?: string): void {
+    if (!blockId) return;
+    menu.addItem({
+      icon: "iconDatabase",
+      label: this.t("lets-question-bank.openFromBlock"),
+      click: () => this.open(blockId),
+    });
   }
 
   private currentDocumentId(): string | undefined {
@@ -56,8 +100,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     return activeId ?? getAllEditor()[0]?.protyle?.block?.rootID;
   }
 
-  private open(): void {
-    const documentId = this.currentDocumentId();
+  private open(blockId = this.currentDocumentId()): void {
     if (isMobile) {
       let app: ReturnType<typeof mount> | undefined;
       const dialog = new Dialog({
@@ -71,7 +114,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       });
       const target = dialog.element.querySelector<HTMLElement>(".damophus-question-bank-dialog");
       if (!target) return;
-      app = this.mountQuestionBank(target, documentId, () => dialog.destroy());
+      app = this.mountQuestionBank(target, blockId, () => dialog.destroy());
       return;
     }
     void openTab({
@@ -79,8 +122,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
       custom: {
         icon: "iconDatabase",
         title: this.t("lets-question-bank.displayName"),
-        data: { documentId },
-        id: questionBankCustomTabId(plugin.name),
+        data: { documentId: blockId },
+        id: questionBankCustomTabId(plugin.name, blockId),
       },
     });
   }
