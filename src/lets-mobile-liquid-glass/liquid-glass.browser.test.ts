@@ -28,9 +28,16 @@ describe("mobile liquid glass", () => {
     expect(filter.querySelector("feColorMatrix")).toBeNull();
     expect(filter.querySelector("feImage")?.getAttribute("width")).toBe("100%");
     expect(filter.querySelector("feImage")?.getAttribute("height")).toBe("100%");
-    expect(filter.querySelector("feDisplacementMap")?.getAttribute("scale")).toBe("16");
+    expect(filter.querySelector("feDisplacementMap")?.getAttribute("scale")).toBe("28");
+    const map = decodeURIComponent(
+      filter.querySelector("feImage")?.getAttribute("href")?.split(",", 2)[1] ?? "",
+    );
+    expect(map).toContain('id="x-refraction"');
+    expect(map).toContain('id="y-refraction"');
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
       .toContain(`#editor::before`);
+    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
+      .toContain(`#editor::after`);
   });
 
   it("waits for the mobile frontend and removes every injected node", async () => {
