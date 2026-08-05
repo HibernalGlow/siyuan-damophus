@@ -8,6 +8,10 @@ import ShowCustomPropertiesUnderTitle from "./ShowCustomPropertiesUnderTitle";
 import Memo from "./Memo";
 import pluginMetadata from "./plugin";
 import { getLogger } from "@/libs/logger";
+import {
+  DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
+  resolveCustomProperties,
+} from "./custom-properties";
 const log = getLogger("lets-block-attr");
 
 function parseArrayString(str) {
@@ -63,11 +67,25 @@ export default class BlockAttr extends SubPluginBase {
   override onload(): void {
     this.loadSlashOfAttrs();
 
-    settings.getBySpace(pluginMetadata.name, "customProperties") &&
-      this.showCustomPropertiesUnderTitlePlugin.onload();
+    const customProperties = resolveCustomProperties(
+      settings.getBySpace(pluginMetadata.name, "customProperties"),
+    );
+    if (customProperties.migrated) {
+      settings.setBySpace(
+        pluginMetadata.name,
+        "customProperties",
+        customProperties.value,
+      );
+      void settings.save().catch((error) => {
+        log.error("Failed to migrate the custom property display defaults", error);
+      });
+    }
+    this.showCustomPropertiesUnderTitlePlugin.onload(
+      customProperties.value,
+      settings.getBySpace(pluginMetadata.name, "customPropertyBlockTypes")
+        ?? DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
+    );
 
-      log.info('sss');
-      log.info(settings.get(pluginMetadata.name));
     log.info(settings.getBySpace(pluginMetadata.name, "memoIds"));
     settings.getBySpace(pluginMetadata.name, "memoIds") &&
       this.memoPlugin.onload();
