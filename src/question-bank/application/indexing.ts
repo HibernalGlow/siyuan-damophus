@@ -20,6 +20,7 @@ import {
   type SiyuanIalWriteAction,
 } from "../adapters/siyuan/document";
 import type { AttributeViewValue, SiyuanKernelClient } from "../adapters/siyuan/types";
+import { questionRowIdentityMaps } from "../adapters/siyuan/row-identity";
 
 export interface QuestionIndexAction {
   kind: "add" | "update";
@@ -62,16 +63,15 @@ function existingQuestionRows(
   av: Awaited<ReturnType<typeof readAttributeView>>,
   binding: QuestionBankBinding,
 ): ExistingQuestionRow[] {
-  const primaryValues = av.keyValues.find(
-    (keyValues) => keyValues.key.id === binding.questionIndex.keys.block_id,
-  )?.values ?? [];
+  const identities = questionRowIdentityMaps(av, binding.questionIndex.keys.block_id);
   const questionValues = valueByItem(av.keyValues.find(
     (keyValues) => keyValues.key.id === binding.questionIndex.keys.question_id,
   )?.values ?? []);
-  return primaryValues.map((primary) => ({
-    itemId: primary.blockID,
-    blockId: primary.block?.id,
-    questionId: questionValues.get(primary.blockID)?.text?.content,
+  return identities.rows.map((row) => ({
+    itemId: row.itemId,
+    blockId: row.sourceBlockId,
+    questionId: (questionValues.get(row.itemId)
+      ?? (row.sourceBlockId ? questionValues.get(row.sourceBlockId) : undefined))?.text?.content,
   }));
 }
 

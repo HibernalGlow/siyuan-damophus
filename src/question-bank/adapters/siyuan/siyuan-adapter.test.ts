@@ -735,6 +735,18 @@ describe("SiYuan question bank adapter", () => {
     if (created.status !== "created") throw new Error("Expected a created attempt");
     const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
     const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
+    const questionPrimary = questionAv.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.block_id,
+    )!;
+    const sourceBlockByItemId = new Map(questionPrimary.values.flatMap((value) => (
+      value.block?.id ? [[value.blockID, value.block.id] as const] : []
+    )));
+    const legacyQuestionIds = questionAv.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.question_id,
+    )!;
+    for (const value of legacyQuestionIds.values) {
+      value.blockID = sourceBlockByItemId.get(value.blockID) ?? value.blockID;
+    }
     const legacyEmptyCollection = questionAv.keyValues.find(
       (value) => value.key.id === binding.questionIndex.keys.collection,
     )!;
@@ -779,6 +791,7 @@ describe("SiYuan question bank adapter", () => {
       expect.objectContaining({ kind: "changeType", field: "option_order", type: "mSelect" }),
       expect.objectContaining({ kind: "changeType", field: "collection", type: "select" }),
       expect.objectContaining({ kind: "configureRelation", field: "question_relation" }),
+      expect.objectContaining({ kind: "normalizeValues", field: "question_relation" }),
       expect.objectContaining({ kind: "normalizeValues", field: "wrong_value" }),
     ]));
     expect(legacyEmptyCollection.values.every((value) => value.text == null)).toBe(true);

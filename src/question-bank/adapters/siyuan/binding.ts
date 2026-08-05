@@ -17,6 +17,7 @@ import type {
   RawAttributeView,
   SiyuanKernelClient,
 } from "./types";
+import { questionRowIdentityMaps } from "./row-identity";
 
 const legacyQuestionFields = [
   "block_id",
@@ -626,11 +627,13 @@ function relationNeedsBackfill(
   attemptAv: RawAttributeView,
   binding: QuestionBankBinding,
 ): boolean {
+  const identities = questionRowIdentityMaps(questionAv, binding.questionIndex.keys.block_id);
   const questionIds = valuesByItemId(questionAv, binding.questionIndex.keys.question_id);
   const rowByQuestionId = new Map<string, string>();
-  for (const [rowId, value] of questionIds) {
+  for (const [valueBlockId, value] of questionIds) {
     const questionId = valueText(value);
-    if (questionId) rowByQuestionId.set(questionId, rowId);
+    const itemId = identities.itemIdByValueBlockId.get(valueBlockId);
+    if (questionId && itemId) rowByQuestionId.set(questionId, itemId);
   }
   const attemptIds = valuesByItemId(attemptAv, binding.attemptLog.keys.question_id);
   const relations = valuesByItemId(attemptAv, binding.attemptLog.keys.question_relation);
@@ -942,11 +945,13 @@ async function normalizeManagedValues(
 
   if (repairs.some((repair) => repair.database === "attemptLog"
     && repair.field === "question_relation")) {
+    const identities = questionRowIdentityMaps(questionAv, binding.questionIndex.keys.block_id);
     const questionIds = valuesByItemId(questionAv, binding.questionIndex.keys.question_id);
     const rowByQuestionId = new Map<string, string>();
-    for (const [rowId, value] of questionIds) {
+    for (const [valueBlockId, value] of questionIds) {
       const questionId = valueText(value);
-      if (questionId) rowByQuestionId.set(questionId, rowId);
+      const itemId = identities.itemIdByValueBlockId.get(valueBlockId);
+      if (questionId && itemId) rowByQuestionId.set(questionId, itemId);
     }
     const attemptQuestionIds = valuesByItemId(attemptAv, binding.attemptLog.keys.question_id);
     for (const row of attemptPrimary) {

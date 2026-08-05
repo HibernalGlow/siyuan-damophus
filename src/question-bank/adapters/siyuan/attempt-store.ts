@@ -17,6 +17,7 @@ import {
   textCell,
 } from "./cells";
 import type { AttributeViewValue, NodeIdGenerator, RawAttributeView, SiyuanKernelClient } from "./types";
+import { questionRowIdentityMaps } from "./row-identity";
 
 function fieldValues(
   av: RawAttributeView,
@@ -82,12 +83,10 @@ export async function readAttemptEvents(
     readAttributeView(client, binding.attemptLog.avId),
     readAttributeView(client, binding.questionIndex.avId),
   ]);
-  const questionPrimary = questionAv.keyValues.find(
-    (keyValues) => keyValues.key.id === binding.questionIndex.keys.block_id,
-  )?.values ?? [];
-  const sourceBlockByRowId = new Map(questionPrimary.flatMap((value) => (
-    value.block?.id ? [[value.blockID, value.block.id] as const] : []
-  )));
+  const sourceBlockByRowId = questionRowIdentityMaps(
+    questionAv,
+    binding.questionIndex.keys.block_id,
+  ).sourceBlockIdByItemId;
   const primary = fieldValues(av, binding, "entry");
   const fields = Object.fromEntries(
     ([
@@ -163,11 +162,14 @@ async function resolveQuestionRowId(
     if (itemIds[attempt.question_relation]) return itemIds[attempt.question_relation];
   }
   const questionAv = await readAttributeView(client, binding.questionIndex.avId);
+  const identities = questionRowIdentityMaps(questionAv, binding.questionIndex.keys.block_id);
   const questionIds = questionAv.keyValues.find(
     (keyValues) => keyValues.key.id === binding.questionIndex.keys.question_id,
   )?.values ?? [];
   for (const value of questionIds) {
-    if (value.text?.content === attempt.question_id) return value.blockID;
+    if (value.text?.content === attempt.question_id) {
+      return identities.itemIdByValueBlockId.get(value.blockID);
+    }
   }
   return undefined;
 }
