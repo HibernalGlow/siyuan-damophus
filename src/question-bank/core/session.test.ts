@@ -164,6 +164,31 @@ describe("practice session machine", () => {
     actor.stop();
   });
 
+  it("ignores submission success for another question or session", () => {
+    const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000 } }).start();
+    actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: "question-1",
+      patch: { selected_option_ids: ["A"], revealed: true, objective_correct: true },
+      now: 2_000,
+    });
+    actor.send({ type: "BEGIN_SUBMIT", questionId: "question-1", now: 3_000 });
+
+    actor.send({ type: "SUBMIT_SUCCEEDED", attempt: attempt("question-2"), now: 4_000 });
+    expect(actor.getSnapshot().matches("submitting")).toBe(true);
+    expect(actor.getSnapshot().context.session.completed_question_ids).toEqual([]);
+
+    actor.send({
+      type: "SUBMIT_SUCCEEDED",
+      attempt: { ...attempt("question-1"), session_id: "another-session" },
+      now: 5_000,
+    });
+    expect(actor.getSnapshot().matches("submitting")).toBe(true);
+    expect(actor.getSnapshot().context.session.completed_question_ids).toEqual([]);
+    expect(actor.getSnapshot().context.attemptsByQuestionId).toEqual({});
+    actor.stop();
+  });
+
   it("completes after the final submission and supports read-only review", () => {
     const initial = snapshot();
     initial.completed_question_ids = ["question-1"];

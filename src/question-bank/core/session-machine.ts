@@ -1,4 +1,4 @@
-import { assign, setup } from "xstate";
+import { and, assign, setup } from "xstate";
 import type { AttemptEvent } from "./types";
 import type { PracticeDraft, PracticeSessionSnapshot } from "./session-schema";
 
@@ -122,6 +122,11 @@ const machineSetup = setup({
       && new Set([...context.session.completed_question_ids, event.attempt.question_id]).size
         >= context.session.queue_question_ids.length
     ),
+    submissionMatchesPending: ({ context, event }) => (
+      event.type === "SUBMIT_SUCCEEDED"
+      && event.attempt.question_id === context.pendingQuestionId
+      && event.attempt.session_id === context.session.session_id
+    ),
   },
   actions: {
     changeDraft: assign(({ context, event }) => {
@@ -238,11 +243,11 @@ export const practiceSessionMachine = machineSetup.createMachine({
       on: {
         SUBMIT_SUCCEEDED: [
           {
-            guard: "submissionCompletesSession",
+            guard: and(["submissionMatchesPending", "submissionCompletesSession"]),
             target: "completed",
             actions: "commitSubmission",
           },
-          { target: "active", actions: "commitSubmission" },
+          { guard: "submissionMatchesPending", target: "active", actions: "commitSubmission" },
         ],
         SUBMIT_FAILED: { target: "active", actions: "failSubmission" },
       },

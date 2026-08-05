@@ -3,7 +3,7 @@ import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import "@/styles/damophus.css";
 import type { AttemptAggregate, AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
-import type { PracticeSessionSnapshot } from "@/question-bank/core";
+import { createPracticeSessionSnapshot, type PracticeSessionSnapshot } from "@/question-bank/core";
 import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
   QuestionBankBinding,
@@ -516,6 +516,31 @@ describe("question bank browser flow", () => {
 
     expect(document.body.textContent).toContain("Objective question");
     expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("keeps an unfinished session when another window owns its lease", async () => {
+    const { controller, practiceSessions } = mockController({ preview: makePreview([objectiveQuestion]) });
+    const unfinished = createPracticeSessionSnapshot({
+      sessionId: "unfinished-session",
+      sourceKey: documentId,
+      filter: "all",
+      order: "sequential",
+      queue: [{ question: objectiveQuestion, optionOrder: ["A", "B", "C"] }],
+      now: new Date("2026-08-06T00:00:00.000Z"),
+    });
+    practiceSessions.set(documentId, unfinished);
+    vi.mocked(controller.acquirePracticeSession).mockResolvedValue(false);
+    render(controller);
+    await scanAndSync();
+
+    button("Use current settings").click();
+    await flush();
+    button("Replace and start").click();
+    await flush();
+
+    expect(controller.removePracticeSession).not.toHaveBeenCalled();
+    expect(practiceSessions.get(documentId)).toEqual(unfinished);
+    expect(document.body.textContent).toContain("This practice session is open in another window");
   });
 
   it("ends a partial session without deleting submitted attempt events", async () => {

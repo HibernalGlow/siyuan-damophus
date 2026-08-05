@@ -166,7 +166,12 @@ export class PracticeSessionRuntime {
     if (snapshot.matches("active")) {
       this.actor.send({ type: "PAUSE", now: Date.now() });
       await this.flush().catch(() => undefined);
+    } else if (snapshot.matches("submitting")) {
+      await this.flush().catch(() => undefined);
     }
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = undefined;
+    this.pending = undefined;
     await this.host.releasePracticeSession(snapshot.context.session.source_key).catch(() => undefined);
     this.actorSubscription?.unsubscribe();
     this.actorSubscription = undefined;

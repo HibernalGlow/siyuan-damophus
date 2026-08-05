@@ -107,4 +107,46 @@ describe("practice session runtime", () => {
     expect(storage.releasePracticeSession).not.toHaveBeenCalled();
     await runtime.dispose();
   });
+
+  it("flushes a submitting snapshot before releasing its lease and cancels later autosaves", async () => {
+    vi.useFakeTimers();
+    try {
+      const storage = host();
+      const runtime = new PracticeSessionRuntime({
+        host: storage,
+        input: { snapshot: snapshot(), now: 1_000 },
+        persistedRevision: 0,
+        autosaveDelayMs: 100,
+      });
+      runtime.actor.send({
+        type: "DRAFT_CHANGED",
+        questionId: "question-1",
+        patch: { revealed: true, subjective_score: 60 },
+        now: 2_000,
+      });
+      runtime.actor.send({ type: "BEGIN_SUBMIT", questionId: "question-1", now: 3_000 });
+      expect(runtime.actor.getSnapshot().matches("submitting")).toBe(true);
+
+      await runtime.dispose();
+
+      expect(storage.savePracticeSession).toHaveBeenCalledTimes(1);
+      expect(storage.savePracticeSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          revision: 2,
+          drafts: expect.objectContaining({
+            "question-1": expect.objectContaining({ revealed: true, subjective_score: 60 }),
+          }),
+        }),
+        0,
+      );
+      expect(storage.savePracticeSession.mock.invocationCallOrder[0])
+        .toBeLessThan(storage.releasePracticeSession.mock.invocationCallOrder[0]);
+      expect(storage.releasePracticeSession).toHaveBeenCalledWith("source-1");
+
+      await vi.advanceTimersByTimeAsync(100);
+      expect(storage.savePracticeSession).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
