@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Damophus - Absurd Variant</title>
+  <desc id="desc">A fallen sword pins the unraised boulder while Sisyphus keeps pushing.</desc>
+  <defs>
+    <clipPath id="absurd-boulder-clip">
+      <circle cx="320" cy="341" r="66"/>
+    </clipPath>
+  </defs>
+
+  <rect x="20" y="20" width="472" height="472" rx="108" fill="#14211f"/>
+  <rect x="30" y="30" width="452" height="452" rx="99" fill="none" stroke="#2b3b37" stroke-width="4"/>
+
+  <!-- The empty incline begins beyond the boulder. -->
+  <path d="m378 421 63-91v91Z" fill="#273633"/>
+  <path d="m378 421 63-91" fill="none" stroke="#c6ad76" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- The severed thread no longer reaches the sword. -->
+  <path d="M337 43v37l-7 8 7 8" fill="none" stroke="#e0644d" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- The boulder remains at the foot of the unused slope. -->
+  <circle cx="320" cy="341" r="66" fill="#d95b47"/>
+  <path d="M278.8 309.4A52 52 0 0 1 326.3 289.4" fill="none" stroke="#f08a6d" stroke-width="10"
+        stroke-linecap="round" clip-path="url(#absurd-boulder-clip)"/>
+
+  <!-- The fallen sword has pierced and pinned the stone. -->
+  <circle cx="337" cy="124" r="11" fill="none" stroke="#dbe5e5" stroke-width="8"/>
+  <path d="m337 134 10 10-10 10-10-10Z" fill="#d7ad5c"/>
+  <rect x="326" y="151" width="22" height="43" rx="8" fill="#76552f"/>
+  <path d="m328 159 18 8m-19 4 19 8m-19 4 18 8" fill="none" stroke="#d7ad5c" stroke-width="5"/>
+  <path d="M277 191q22 13 46 2l14-8 14 8q24 11 46-2l-8 19q-21 9-42-2l-10 9-10-9q-21 11-42 2Z"
+        fill="#d7ad5c"/>
+  <path d="M315 211h44l-7 139-15 70-15-70Z" fill="#b9c9ca" stroke="#e9f0ef" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m337 223 8 124-8 48-8-48Z" fill="#eef4f2"/>
+  <path d="m319 279-13 18 11 11-14 19m55-42 10 17-11 13 13 18"
+        fill="none" stroke="#a94438" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"
+        clip-path="url(#absurd-boulder-clip)"/>
+
+  <!-- Sisyphus still pushes from level ground. -->
+  <circle cx="190" cy="316" r="15" fill="#f3ede2"/>
+  <path d="m194 339-14 43" fill="none" stroke="#f3ede2" stroke-width="23" stroke-linecap="round"/>
+  <path d="m192 345 31-24 39-8m-73 40 34-14 39 3"
+        fill="none" stroke="#f3ede2" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m180 381-29 17-27 18h24" fill="none" stroke="#f3ede2" stroke-width="17"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m183 382 29 5-2 30h25" fill="none" stroke="#f3ede2" stroke-width="17"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M75 421h366" fill="none" stroke="#f3ede2" stroke-width="15" stroke-linecap="round"/>
+</svg>
