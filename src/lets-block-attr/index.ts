@@ -5,6 +5,7 @@ import { settings } from "@/settings";
 import ShowCustomPropertiesUnderTitle from "./ShowCustomPropertiesUnderTitle";
 import {
   DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
+  DEFAULT_CUSTOM_PROPERTY_STYLE,
   resolveCustomProperties,
 } from "./custom-properties";
 import pluginMetadata from "./plugin";
@@ -33,6 +34,8 @@ export default class BlockAttr extends SubPluginBase {
       customProperties.value,
       settings.getBySpace(pluginMetadata.name, "customPropertyBlockTypes")
         ?? DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
+      settings.getBySpace(pluginMetadata.name, "customStyle")
+        ?? DEFAULT_CUSTOM_PROPERTY_STYLE,
     );
   }
 

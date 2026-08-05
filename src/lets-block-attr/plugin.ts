@@ -2,6 +2,7 @@ import type { PluginMetadata } from "@/types/plugin";
 import {
   DEFAULT_CUSTOM_PROPERTIES,
   DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
+  DEFAULT_CUSTOM_PROPERTY_STYLE,
 } from "./custom-properties";
 
 export const pluginMetadata: PluginMetadata = {
@@ -19,6 +20,15 @@ export const pluginMetadata: PluginMetadata = {
       value: DEFAULT_CUSTOM_PROPERTIES,
       placeholder: `custom-qb-id|qb-id\ncustom-qb-type|qb-type`,
       height: "220px",
+    },
+    {
+      type: "textarea",
+      title: "lets-block-attr.customStyleTitle",
+      description: "lets-block-attr.customStyleDescription",
+      key: "customStyle",
+      value: DEFAULT_CUSTOM_PROPERTY_STYLE,
+      placeholder: `background-color: transparent;\nborder-radius: 4px;\ncolor: var(--b3-theme-on-surface);`,
+      height: "150px",
     },
     {
       type: "textarea",

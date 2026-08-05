@@ -37,6 +37,10 @@
     dispatch("changed", { key: settingKey, value: settingValue });
   }
 
+  function previewChanged() {
+    dispatch("preview", { key: settingKey, value: settingValue });
+  }
+
   $: tTitle = plugin.i18n[title] || title;
   $: tDescription = plugin.i18n[description] || description;
   $: tPlaceholder = plugin.i18n[placeholder] || placeholder;
@@ -58,6 +62,7 @@
         id={settingKey}
         placeholder={tPlaceholder}
         bind:value={settingValue}
+        on:input={previewChanged}
         on:change={changed}
       ></textarea>
     {:else if type === "list"}

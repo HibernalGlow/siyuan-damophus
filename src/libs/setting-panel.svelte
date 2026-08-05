@@ -22,6 +22,9 @@
     function onChanged( {detail}) {
         dispatch("changed", {group: group, ...detail});
     }
+    function onPreview( {detail}) {
+        dispatch("preview", {group: group, ...detail});
+    }
 
     $: fn__none = display ? "" : "fn__none";
 
@@ -44,6 +47,7 @@
                 height={item?.height}
                 on:click={onClick}
                 on:changed={onChanged}
+                on:preview={onPreview}
             />
         {/each}
     </div>

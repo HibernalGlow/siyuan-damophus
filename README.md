@@ -5,7 +5,7 @@ Damophus 是面向思源笔记的题库插件。题库功能遵循仓库内已�
 ## 当前模块
 
 - `lets-question-bank`：题库扫描、范围练习、Riff 到期复习和作答记录恢复。
-- `lets-block-attr`：仅显示安全的题库身份属性，默认展示 `qb-id` 与 `qb-type`；答案属性始终隐藏。
+- `lets-block-attr`：仅显示安全的题库身份属性，默认横向展示 `qb-id` 与 `qb-type`，空间不足时自动换行；设置页可预览并自定义标签与样式，答案属性始终隐藏。
 
 Dashboard、链接/引用转换、排版、快捷属性操作、列表视图转换、Memo，以及 EPUB、OCR、VoiceNotes、日记、随机题图、同步等旧模块均不属于 Damophus 产品范围。需要这些通用工具时继续使用原 `siyuan-hqweay-go` 插件。
 

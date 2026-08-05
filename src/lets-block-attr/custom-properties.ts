@@ -17,6 +17,8 @@ NodeListItem
 NodeBlockquote
 NodeSuperBlock`;
 
+export const DEFAULT_CUSTOM_PROPERTY_STYLE = "";
+
 export interface DisplayedCustomProperty {
   key: string;
   label: string;
@@ -25,6 +27,39 @@ export interface DisplayedCustomProperty {
 const CUSTOM_ATTRIBUTE_PATTERN = /^custom-[a-z0-9][a-z0-9_-]*$/u;
 const BLOCK_TYPE_PATTERN = /^Node[A-Z][A-Za-z0-9]*$/u;
 const HIDDEN_CUSTOM_ATTRIBUTES = new Set(["custom-qb-answer"]);
+const SAFE_STYLE_PROPERTIES = new Set([
+  "background",
+  "background-color",
+  "border",
+  "border-color",
+  "border-left",
+  "border-left-color",
+  "border-left-style",
+  "border-left-width",
+  "border-radius",
+  "border-style",
+  "border-width",
+  "box-shadow",
+  "color",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "line-height",
+  "margin",
+  "margin-bottom",
+  "margin-left",
+  "margin-right",
+  "margin-top",
+  "opacity",
+  "padding",
+  "padding-bottom",
+  "padding-left",
+  "padding-right",
+  "padding-top",
+  "text-decoration",
+  "text-transform",
+]);
 
 function normalizeLines(value: string): string {
   return value.replace(/\r\n?/gu, "\n").trim();
@@ -77,6 +112,30 @@ export function parseCustomPropertyBlockTypes(value: string): string[] {
   return blockTypes;
 }
 
+export function sanitizeCustomPropertyStyle(value: unknown): string {
+  if (typeof value !== "string") return "";
+
+  return value
+    .replace(/\/\*[\s\S]*?\*\//gu, "")
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter(Boolean)
+    .flatMap((declaration) => {
+      const separator = declaration.indexOf(":");
+      if (separator <= 0) return [];
+      const property = declaration.slice(0, separator).trim().toLowerCase();
+      const propertyValue = declaration.slice(separator + 1).trim();
+      if (
+        !SAFE_STYLE_PROPERTIES.has(property)
+        || !propertyValue
+        || /[{}]/u.test(propertyValue)
+        || /attr\s*\(|url\s*\(|expression\s*\(|javascript:/iu.test(propertyValue)
+      ) return [];
+      return [`${property}: ${propertyValue};`];
+    })
+    .join("\n");
+}
+
 function escapeCssString(value: string): string {
   return value
     .replace(/\\/gu, "\\\\")
@@ -89,47 +148,80 @@ function targetSelector(blockType: string): string {
   return `.protyle-wysiwyg [data-node-id][data-type="${blockType}"]`;
 }
 
-export function buildCustomPropertiesCss(
+interface PropertyTarget {
+  selector: string;
+  pseudoElement: "::before" | "::after";
+}
+
+function buildCustomPropertiesCssForTargets(
   customProperties: string,
-  customPropertyBlockTypes: string,
+  targets: readonly PropertyTarget[],
+  customStyle: string,
 ): string {
   const properties = parseCustomProperties(customProperties);
-  const blockTypes = parseCustomPropertyBlockTypes(customPropertyBlockTypes);
-  if (properties.length === 0 || blockTypes.length === 0) return "";
+  if (properties.length === 0 || targets.length === 0) return "";
 
-  const targets = blockTypes.map(targetSelector);
+  const targetSelectors = targets.map(({ selector }) => selector);
   const variables = properties.map((_, index) => `--damophus-displayed-attr-${index}`);
   const resetDeclarations = variables.map((variable) => `  ${variable}: "";`).join("\n");
   const propertyRules = properties.map((property, index) => {
-    const selectors = targets.map((target) => `${target}[${property.key}]`).join(",\n");
-    const label = property.label ? `"${escapeCssString(property.label)}\\A " ` : "";
-    return `${selectors} {\n  ${variables[index]}: ${label}attr(${property.key}) "\\A ";\n}`;
+    const selectors = targetSelectors.map((target) => `${target}[${property.key}]`).join(",\n");
+    const label = property.label ? `"${escapeCssString(property.label)}\\00a0" ` : "";
+    return `${selectors} {\n  ${variables[index]}: ${label}attr(${property.key});\n}`;
   }).join("\n\n");
 
-  const displaySelectors = blockTypes.flatMap((blockType) => {
-    const target = targetSelector(blockType);
-    const pseudoElement = blockType === "NodeDocument" ? "::before" : "::after";
-    return properties.map((property) => `${target}[${property.key}]${pseudoElement}`);
-  }).join(",\n");
+  const displaySelectors = targets.flatMap(({ selector, pseudoElement }) => (
+    properties.map((property) => `${selector}[${property.key}]${pseudoElement}`)
+  )).join(",\n");
+  const safeCustomStyle = sanitizeCustomPropertyStyle(customStyle);
+  const customDeclarations = safeCustomStyle
+    ? `\n  ${safeCustomStyle.replace(/\n/gu, "\n  ")}`
+    : "";
 
-  return `${targets.join(",\n")} {\n${resetDeclarations}\n}\n\n${propertyRules}\n\n${displaySelectors} {
-  content: ${variables.map((variable) => `var(${variable})`).join(" ")};
+  return `${targetSelectors.join(",\n")} {\n${resetDeclarations}\n}\n\n${propertyRules}\n\n${displaySelectors} {
+  content: ${variables.map((variable) => `var(${variable})`).join(' "  \\00b7  " ')};
   display: block;
   box-sizing: border-box;
   width: fit-content;
   max-width: 100%;
-  margin: 3px 0 5px;
-  padding: 2px 6px;
-  border-left: 2px solid var(--b3-theme-primary);
-  border-radius: 2px;
-  background: var(--b3-theme-surface-lighter);
-  color: var(--b3-theme-on-surface);
-  font-family: var(--b3-font-family-code);
-  font-size: 11px;
+  margin: 4px 0 3px;
+  padding: 3px 8px;
+  border: 1px solid var(--b3-theme-outline-variant, #d7dce3);
+  border-left: 2px solid var(--b3-theme-primary, #3573f0);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--b3-theme-primary, #3573f0) 7%, transparent);
+  color: var(--b3-theme-on-surface, #202124);
+  font-family: var(--b3-font-family-code, ui-monospace, monospace);
+  font-size: 12px;
   font-weight: 400;
-  line-height: 1.5;
+  line-height: 1.45;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  pointer-events: none;
+  white-space: normal;
+  pointer-events: none;${customDeclarations}
 }`;
+}
+
+export function buildCustomPropertiesCss(
+  customProperties: string,
+  customPropertyBlockTypes: string,
+  customStyle = DEFAULT_CUSTOM_PROPERTY_STYLE,
+): string {
+  const blockTypes = parseCustomPropertyBlockTypes(customPropertyBlockTypes);
+  const targets = blockTypes.map((blockType): PropertyTarget => ({
+    selector: targetSelector(blockType),
+    pseudoElement: blockType === "NodeDocument" ? "::before" : "::after",
+  }));
+  return buildCustomPropertiesCssForTargets(customProperties, targets, customStyle);
+}
+
+export function buildCustomPropertiesPreviewCss(
+  customProperties: string,
+  customStyle = DEFAULT_CUSTOM_PROPERTY_STYLE,
+): string {
+  return buildCustomPropertiesCssForTargets(
+    customProperties,
+    [{ selector: ".damophus-block-attr-preview__sample", pseudoElement: "::after" }],
+    customStyle,
+  );
 }

@@ -3,6 +3,11 @@
   import { showMessage } from "siyuan";
   import { onDestroy } from "svelte";
   import SettingPanel from "./libs/setting-panel.svelte";
+  import BlockAttributePreview from "./lets-block-attr/BlockAttributePreview.svelte";
+  import {
+    DEFAULT_CUSTOM_PROPERTIES,
+    DEFAULT_CUSTOM_PROPERTY_STYLE,
+  } from "./lets-block-attr/custom-properties";
   import { PluginRegistry } from "./plugin-registry";
   import { plugin } from "./utils";
   import { enableLogging, getLogger } from "./libs/logger";
@@ -98,6 +103,27 @@
   let focusGroup = "开关";
   let showBottomSheet = false;
 
+  function getFocusedPlugin() {
+    return PluginRegistry.getInstance().getPluginConfigs().find(
+      (item) => item.displayName === focusGroup || item.name === focusGroup,
+    );
+  }
+
+  function getFocusedSettingValue(key: string, fallback: string): string {
+    const value = SettingItems[focusGroup]?.find((item) => item.key === key)?.value;
+    return typeof value === "string" ? value : fallback;
+  }
+
+  $: showBlockAttributePreview = getFocusedPlugin()?.displayName === "lets-block-attr.displayName";
+  $: previewCustomProperties = getFocusedSettingValue(
+    "customProperties",
+    DEFAULT_CUSTOM_PROPERTIES,
+  );
+  $: previewCustomStyle = getFocusedSettingValue(
+    "customStyle",
+    DEFAULT_CUSTOM_PROPERTY_STYLE,
+  );
+
   $: {
     if (groups && !groups.includes(focusGroup)) {
       focusGroup = "开关";
@@ -186,6 +212,13 @@
     settings.save();
   };
 
+  const onPreview = ({ detail }: CustomEvent<ChangeEvent>) => {
+    const item = SettingItems[detail.group]?.find((candidate) => candidate.key === detail.key);
+    if (!item) return;
+    item.value = detail.value;
+    SettingItems = { ...SettingItems };
+  };
+
   onDestroy(async () => {
     await settings.save();
     //log.info("onDestroy");
@@ -246,7 +279,17 @@
         settingItems={SettingItems[focusGroup]}
         on:changed={onChanged}
         on:click={onClick}
-      />
+        on:preview={onPreview}
+      >
+        {#if showBlockAttributePreview}
+          <BlockAttributePreview
+            customProperties={previewCustomProperties}
+            customStyle={previewCustomStyle}
+            title={plugin.i18n["lets-block-attr.previewTitle"] || "Preview"}
+            widthLabel={plugin.i18n["lets-block-attr.previewWidth"] || "Preview width"}
+          />
+        {/if}
+      </SettingPanel>
     </div>
   </div>
 </div>
