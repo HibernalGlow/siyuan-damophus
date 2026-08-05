@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { playwright } from "@vitest/browser-playwright";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 
 const bundledChrome = "D:\\scoop\\apps\\chrome\\current\\chrome.exe";
@@ -12,7 +13,7 @@ export default defineConfig({
   resolve: {
     alias: { "@": resolve(import.meta.dirname, "src") },
   },
-  plugins: [svelte()],
+  plugins: [tailwindcss(), svelte()],
   test: {
     include: ["src/**/*.browser.test.ts"],
     browser: {

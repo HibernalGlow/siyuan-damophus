@@ -1,6 +1,7 @@
 import { Dialog, Menu, Plugin } from "siyuan";
 import { registerPlugin } from "@frostime/siyuan-plugin-kits";
 import { mount, unmount } from "svelte";
+import "@/styles/damophus.css";
 
 import SettingPanel from "@/setting.svelte";
 import { enableLogging, getLogger } from "@/libs/logger";

@@ -6,6 +6,7 @@ import minimist from "minimist";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import livereload from "rollup-plugin-livereload";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import tailwindcss from "@tailwindcss/vite";
 import zipPack from "vite-plugin-zip-pack";
 import fg from "fast-glob";
 import fs from "node:fs";
@@ -104,6 +105,7 @@ export default defineConfig({
   },
 
   plugins: [
+    tailwindcss(),
     svelte({
       compilerOptions: {
         compatibility: {
