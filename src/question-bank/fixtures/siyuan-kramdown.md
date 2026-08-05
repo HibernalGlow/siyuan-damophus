@@ -1,5 +1,5 @@
 ### 考点39：流押条款
-{: id="20260804000100-topic01" custom-qb-role="topic" custom-qb-topic-id="civil-security-flow-clause" custom-qb-subject="civil"}
+{: id="20260804000100-topic01" custom-qb-role="topic" custom-qb-topic-id="civil-security-flow-clause" custom-qb-year="2020" custom-qb-subject="civil"}
 
 ##### 108.
 {: id="20260804000200-quest01" custom-qb-id="civil-kramdown-108" custom-qb-type="multiple" custom-qb-answer="A,B,D"}

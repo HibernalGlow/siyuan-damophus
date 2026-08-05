@@ -104,7 +104,7 @@ function initializationPreview(): QuestionBankInitializationPreview {
 }
 
 function binding(): QuestionBankBinding {
-  return { schemaVersion: 1 } as QuestionBankBinding;
+  return { schemaVersion: 2 } as unknown as QuestionBankBinding;
 }
 
 function rebindingPreview(): QuestionBankRebindingPreview {
@@ -502,6 +502,7 @@ describe("question bank browser flow", () => {
       reason: "inferred-question-type",
     }];
     preview.bindingRepairs = [{
+      kind: "add",
       database: "attemptLog",
       field: "duration_ms",
       keyId: "20260804120005-abcdefg",

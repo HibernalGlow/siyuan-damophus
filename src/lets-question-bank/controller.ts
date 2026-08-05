@@ -9,6 +9,7 @@ import {
   confirmQuestionBankRebinding,
   getDueRiffCards,
   mapDueRiffCardsToQuestions,
+  migrateQuestionBankBinding,
   previewQuestionBankInitialization,
   previewQuestionBankRebinding,
   QuestionBankBindingSchema,
@@ -92,8 +93,12 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   getBinding(): QuestionBankBinding | undefined {
-    const parsed = QuestionBankBindingSchema.safeParse(this.options.getSetting(bindingSetting));
-    return parsed.success ? parsed.data as QuestionBankBinding : undefined;
+    const stored = this.options.getSetting(bindingSetting);
+    const binding = migrateQuestionBankBinding(stored);
+    if (binding && !QuestionBankBindingSchema.safeParse(stored).success) {
+      this.options.setSetting(bindingSetting, binding);
+    }
+    return binding;
   }
 
   async previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview> {

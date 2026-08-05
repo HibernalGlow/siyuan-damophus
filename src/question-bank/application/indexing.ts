@@ -6,7 +6,13 @@ import {
   type ManagedKeyRepair,
   type QuestionBankBinding,
 } from "../adapters/siyuan/binding";
-import { dateCell, setAttributeViewCell, textCell } from "../adapters/siyuan/cells";
+import {
+  dateCell,
+  numberCell,
+  selectCell,
+  setAttributeViewCell,
+  textCell,
+} from "../adapters/siyuan/cells";
 import {
   getQuestionBlockId,
   scanSiyuanDocument,
@@ -212,18 +218,19 @@ async function writeQuestionRow(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
   action: QuestionIndexAction,
+  itemId: string,
   scannedAt: number,
 ): Promise<void> {
   const { questionIndex } = binding;
   const metadata = action.question.metadata;
   const values = {
     question_id: textCell(action.question.id),
-    question_type: textCell(action.question.type),
-    year: textCell(metadata.year),
-    subject: textCell(metadata.subject),
-    category: textCell(metadata.category),
-    collection: textCell(metadata.collection),
-    source: textCell(metadata.source),
+    question_type: selectCell(action.question.type),
+    year: numberCell(metadata.year === undefined ? undefined : Number(metadata.year)),
+    subject: selectCell(metadata.subject),
+    category: selectCell(metadata.category),
+    collection: selectCell(metadata.collection),
+    source: selectCell(metadata.source),
     topic_id: textCell(metadata.topicId),
     parent_id: textCell(metadata.parentId),
     last_scanned_at: dateCell(scannedAt),
@@ -233,10 +240,24 @@ async function writeQuestionRow(
       client,
       questionIndex.avId,
       questionIndex.keys[field as keyof typeof values],
-      action.blockId,
+      itemId,
       value,
     );
   }
+}
+
+async function getQuestionRowItemId(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  blockId: string,
+): Promise<string> {
+  const itemIds = await client.request<Record<string, string>>(
+    "/api/av/getAttributeViewItemIDsByBoundIDs",
+    { avID: binding.questionIndex.avId, blockIDs: [blockId] },
+  );
+  const itemId = itemIds[blockId];
+  if (!itemId) throw new Error(`Question index row was not found for bound block '${blockId}'`);
+  return itemId;
 }
 
 export async function confirmQuestionIndexSync(
@@ -276,7 +297,8 @@ export async function confirmQuestionIndexSync(
           ignoreDefaultFill: true,
         });
       }
-      await writeQuestionRow(client, binding, action, scannedAt);
+      const itemId = await getQuestionRowItemId(client, binding, action.blockId);
+      await writeQuestionRow(client, binding, action, itemId, scannedAt);
       results.push({ questionId: action.question.id, status: "synced" });
     } catch (error) {
       results.push({

@@ -26,6 +26,11 @@ export interface AttributeViewKey {
     backKeyID?: string;
     isTwoWay?: boolean;
   };
+  rollup?: {
+    relationKeyID?: string;
+    keyID?: string;
+    calc?: { operator?: string };
+  };
 }
 
 export interface AttributeViewValue {
@@ -38,6 +43,7 @@ export interface AttributeViewValue {
   text?: { content?: string };
   number?: { content?: number; isNotEmpty?: boolean };
   date?: { content?: number; isNotEmpty?: boolean };
+  mSelect?: Array<{ content: string; color: string }>;
   checkbox?: { checked?: boolean };
   relation?: { blockIDs: string[]; contents?: AttributeViewValue[] };
 }

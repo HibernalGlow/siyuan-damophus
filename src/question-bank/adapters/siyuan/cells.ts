@@ -5,6 +5,7 @@ export interface AttributeViewCellInput {
   text?: { content: string };
   number?: { content?: number; isNotEmpty: boolean };
   date?: { content?: number; isNotEmpty: boolean; isNotTime?: boolean };
+  mSelect?: Array<{ content: string; color: string }>;
   relation?: { blockIDs: string[] };
 }
 
@@ -16,6 +17,23 @@ export function numberCell(content: number | undefined): AttributeViewCellInput 
   return {
     type: "number",
     number: content === undefined ? { isNotEmpty: false } : { content, isNotEmpty: true },
+  };
+}
+
+export function selectCell(content: string | undefined, color = "1"): AttributeViewCellInput {
+  return {
+    type: "select",
+    mSelect: content ? [{ content, color }] : [],
+  };
+}
+
+export function multiSelectCell(
+  contents: readonly string[] | undefined,
+  color = "1",
+): AttributeViewCellInput {
+  return {
+    type: "mSelect",
+    mSelect: (contents ?? []).map((content) => ({ content, color })),
   };
 }
 

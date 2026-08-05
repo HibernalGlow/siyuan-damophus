@@ -590,7 +590,10 @@
                 <strong>{label("bindingRepairs", "Database repairs")}</strong>
                 <ul>
                   {#each preview.bindingRepairs as repair}
-                    <li><code>{repair.database}</code><span>{String(repair.field)} ({repair.type})</span></li>
+                    <li>
+                      <code>{repair.database}</code>
+                      <span>{String(repair.field)} ({repair.currentType ? `${repair.currentType} -> ` : ""}{repair.type})</span>
+                    </li>
                   {/each}
                 </ul>
               </div>
