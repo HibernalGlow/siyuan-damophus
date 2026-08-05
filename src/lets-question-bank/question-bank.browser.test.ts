@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
+import "@/styles/damophus.css";
 import type { AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
 import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
@@ -420,6 +421,42 @@ describe("question bank browser flow", () => {
     const actions = document.querySelector<HTMLElement>(".action-bar")!.getBoundingClientRect();
     expect(Math.abs(practice.bottom - actions.bottom)).toBeLessThanOrEqual(1);
     expect(actions.top).toBeGreaterThan(practice.top);
+  });
+
+  it("scrolls long mobile questions inside the practice content while keeping the chrome visible", async () => {
+    await page.viewport(390, 844);
+    const longQuestion: Question = {
+      ...objectiveQuestion,
+      stemMarkdown: Array.from(
+        { length: 24 },
+        (_, index) => `Paragraph ${index + 1} with enough question text to require vertical scrolling.`,
+      ).join("\n\n"),
+    };
+    const { controller } = mockController({ preview: makePreview([longQuestion]) });
+    render(controller);
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    const host = document.body.firstElementChild as HTMLElement;
+    const root = document.querySelector<HTMLElement>(".question-bank")!;
+    const header = document.querySelector<HTMLElement>(".app-header")!;
+    const content = document.querySelector<HTMLElement>(".practice-content")!;
+    const actions = document.querySelector<HTMLElement>(".action-bar")!;
+    const hostRect = host.getBoundingClientRect();
+    const rootRect = root.getBoundingClientRect();
+    const headerRect = header.getBoundingClientRect();
+    const actionRect = actions.getBoundingClientRect();
+
+    expect(Math.abs(rootRect.bottom - hostRect.bottom)).toBeLessThanOrEqual(1);
+    expect(headerRect.top).toBeGreaterThanOrEqual(hostRect.top);
+    expect(actionRect.bottom).toBeLessThanOrEqual(hostRect.bottom);
+    expect(content.scrollHeight).toBeGreaterThan(content.clientHeight);
+    content.scrollTop = 240;
+    content.dispatchEvent(new Event("scroll"));
+    expect(content.scrollTop).toBeGreaterThan(0);
+    expect(header.getBoundingClientRect()).toEqual(headerRect);
+    expect(actions.getBoundingClientRect()).toEqual(actionRect);
   });
 
   it("opens the current question title block in the SiYuan source editor", async () => {

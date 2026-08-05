@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import { Button } from "@/components/ui/button";
   import { gradeQuestion } from "@/question-bank/core/answer";
   import { restoreQuestionOptions, shuffleQuestionOptions } from "@/question-bank/core/shuffle";
   import type {
@@ -484,7 +485,7 @@
   }
 </script>
 
-<main class="question-bank" data-testid="question-bank">
+<main class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden" data-testid="question-bank">
   <header class="app-header">
     <div>
       <h1>Damophus</h1>
@@ -509,7 +510,7 @@
   {/if}
 
   {#if !binding}
-    <section class="setup" aria-label={label("initialize", "Initialize")}>
+    <section class="setup min-h-0 flex-1 overflow-y-auto" aria-label={label("initialize", "Initialize")}>
       <label for="document-id">{label("documentId", "Document ID")}</label>
       <div class="document-row">
         <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" on:input={invalidateDocumentTarget} />
@@ -548,7 +549,7 @@
       </div>
     </section>
   {:else if queue.length === 0 && !complete}
-    <section class="workspace">
+    <section class="workspace min-h-0 flex-1 overflow-y-auto">
       <div class="document-row">
         <label for="document-id">{label("documentId", "Document ID")}</label>
         <input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" on:input={invalidateDocumentTarget} />
@@ -733,7 +734,7 @@
       {/if}
     </section>
   {:else if currentQuestion}
-    <section class="practice" aria-live="polite">
+    <section class="practice min-h-0 flex-1 overflow-hidden" aria-live="polite">
       <div class="practice-bar">
         <div class="practice-status">
           <span>{label("progress", "Progress")} {completedQuestionIndices.length + 1} / {queue.length}</span>
@@ -788,7 +789,7 @@
           </div>
         </aside>
       {/if}
-      <div class="practice-content">
+      <div class="practice-content min-h-0 overflow-y-auto overscroll-contain">
         <article class="question">
         <div class="question-heading">
           <h2>{currentQuestion.title}</h2>
@@ -851,24 +852,24 @@
           {#if timingEnabled}
             <span class="question-timer">{formatDuration(questionElapsedMs)}</span>
           {/if}
-          <button class="primary" on:click={revealAnswer}>
-            <svg aria-hidden="true"><use href="#iconEye"></use></svg>
+          <Button onclick={revealAnswer}>
+            <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>
             {label("reveal", "Reveal answer")}
-          </button>
+          </Button>
         </div>
       {:else}
         <div class="rating-bar">
-          <button class="icon-button retry" title={label("retry", "Undo and retry")} aria-label={label("retry", "Undo and retry")} disabled={submitting} on:click={retry}>
+          <Button variant="outline" size="icon" class="mr-1" title={label("retry", "Undo and retry")} aria-label={label("retry", "Undo and retry")} disabled={submitting} onclick={retry}>
             <svg aria-hidden="true"><use href="#iconUndo"></use></svg>
-          </button>
+          </Button>
           {#each ["again", "hard", "good", "easy"] as rating}
-            <button class="rating {rating}" class:suggested={suggestedRating === rating} disabled={submitting} on:click={() => submitRating(rating as MasteryRating)}>{label(rating, rating)}</button>
+            <Button variant={suggestedRating === rating ? "secondary" : "outline"} class="min-w-0 px-1" disabled={submitting} onclick={() => submitRating(rating as MasteryRating)}>{label(rating, rating)}</Button>
           {/each}
         </div>
       {/if}
     </section>
   {:else if complete}
-    <section class="completion">
+    <section class="completion min-h-0 flex-1 overflow-y-auto">
       <h2>{queue.length === 0 ? label("noQuestions", "No questions match this scope and filter") : label("complete", "Practice complete")}</h2>
       <button class="secondary" on:click={resetPractice}>{label("restart", "Back to scope")}</button>
     </section>
@@ -878,7 +879,7 @@
 <style>
   :global(*) { box-sizing: border-box; }
   :global(button), :global(input), :global(select) { font: inherit; letter-spacing: 0; }
-  .question-bank { height: 100%; min-height: 100%; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
+  .question-bank { color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
   .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .app-header > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
   h1 { margin: 0; font-size: 20px; line-height: 1.2; }
@@ -945,13 +946,12 @@
   .segmented button:first-child { margin-left: 0; border-radius: 4px 0 0 4px; }
   .segmented button:last-child { border-radius: 0 4px 4px 0; }
   .segmented button.active { position: relative; color: var(--b3-theme-primary); border-color: var(--b3-theme-primary); background: var(--b3-theme-primary-lightest); }
-  .practice { position: relative; height: 100%; min-height: 0; padding: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+  .practice { position: relative; min-height: 0; padding: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
   .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: auto minmax(0, 1fr) 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
   .timer { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
   .timer svg { width: 14px; height: 14px; fill: currentColor; }
   .practice-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
-  .practice-content { min-height: 0; overflow: auto; overscroll-behavior: contain; }
   .answer-card-scrim { position: absolute; z-index: 3; inset: 44px 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
   .answer-card-panel { position: absolute; z-index: 4; top: 52px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 122px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
   .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }
@@ -989,13 +989,6 @@
   .action-bar:has(.question-timer) { justify-content: space-between; }
   .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
   .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
-  .rating { font-weight: 600; }
-  .rating.again { color: var(--b3-theme-error); }
-  .rating.hard { color: #b45f06; }
-  .rating.good { color: #24734f; }
-  .rating.easy { color: #2364aa; }
-  .rating.suggested { border-width: 2px; border-color: currentColor; background: var(--b3-theme-surface); }
-  .retry { margin-right: 4px; }
   .completion { min-height: 240px; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; }
 
   @container (max-width: 760px) {
@@ -1021,6 +1014,5 @@
     .answer-card-grid { grid-template-columns: repeat(5, minmax(36px, 1fr)); }
     .question, .answer { padding-inline: 14px; }
     .rating-bar { grid-template-columns: 34px repeat(4, minmax(0, 1fr)); padding: 8px; gap: 5px; }
-    .rating { min-width: 0; padding-inline: 4px; }
   }
 </style>
