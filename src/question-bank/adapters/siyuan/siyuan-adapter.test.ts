@@ -734,6 +734,14 @@ describe("SiYuan question bank adapter", () => {
     const created = await appendAttemptEvent(client, binding, event, nextId);
     if (created.status !== "created") throw new Error("Expected a created attempt");
     const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
+    const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
+    const legacyEmptyCollection = questionAv.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.collection,
+    )!;
+    legacyEmptyCollection.key.type = "text";
+    for (const value of legacyEmptyCollection.values) {
+      Object.assign(value, { type: "text", text: { content: "" }, mSelect: undefined });
+    }
     const legacyText = {
       question_type: "multiple",
       option_order: JSON.stringify(event.option_order),
@@ -769,9 +777,11 @@ describe("SiYuan question bank adapter", () => {
     expect(preview.bindingRepairs).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "changeType", field: "question_type", type: "select" }),
       expect.objectContaining({ kind: "changeType", field: "option_order", type: "mSelect" }),
+      expect.objectContaining({ kind: "changeType", field: "collection", type: "select" }),
       expect.objectContaining({ kind: "configureRelation", field: "question_relation" }),
       expect.objectContaining({ kind: "normalizeValues", field: "wrong_value" }),
     ]));
+    expect(legacyEmptyCollection.values.every((value) => value.text == null)).toBe(true);
     expect(read).toEqual({ events: [event], issues: [] });
     expect(relationValues.values[0].relation?.blockIDs).toEqual([questionRowId]);
     expect(attemptAv.keyValues.find(

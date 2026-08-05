@@ -2,7 +2,7 @@ import type { AttributeViewKeyType, SiyuanKernelClient } from "./types";
 
 export interface AttributeViewCellInput {
   type: AttributeViewKeyType;
-  text?: { content: string };
+  text?: { content: string } | null;
   number?: { content?: number; isNotEmpty: boolean };
   date?: { content?: number; isNotEmpty: boolean; isNotTime?: boolean };
   mSelect?: Array<{ content: string; color: string }>;
@@ -16,6 +16,7 @@ export function textCell(content: string | undefined): AttributeViewCellInput {
 export function numberCell(content: number | undefined): AttributeViewCellInput {
   return {
     type: "number",
+    text: null,
     number: content === undefined ? { isNotEmpty: false } : { content, isNotEmpty: true },
   };
 }
@@ -23,6 +24,7 @@ export function numberCell(content: number | undefined): AttributeViewCellInput 
 export function selectCell(content: string | undefined, color = "1"): AttributeViewCellInput {
   return {
     type: "select",
+    text: null,
     mSelect: content ? [{ content, color }] : [],
   };
 }
@@ -33,6 +35,7 @@ export function multiSelectCell(
 ): AttributeViewCellInput {
   return {
     type: "mSelect",
+    text: null,
     mSelect: (contents ?? []).map((content) => ({ content, color })),
   };
 }
@@ -40,6 +43,7 @@ export function multiSelectCell(
 export function dateCell(content: number | undefined): AttributeViewCellInput {
   return {
     type: "date",
+    text: null,
     date: content === undefined
       ? { isNotEmpty: false }
       : { content, isNotEmpty: true, isNotTime: false },
@@ -49,6 +53,7 @@ export function dateCell(content: number | undefined): AttributeViewCellInput {
 export function relationCell(blockId: string | undefined): AttributeViewCellInput {
   return {
     type: "relation",
+    text: null,
     relation: { blockIDs: blockId ? [blockId] : [] },
   };
 }
