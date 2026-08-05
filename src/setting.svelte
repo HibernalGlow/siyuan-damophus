@@ -58,8 +58,8 @@
         description: pluginMeta.description || "",
         key: pluginMeta.name,
         value:
-          settings.getBySpace(pluginMeta.name, "enabled") ||
-          pluginMeta.enabled ||
+          settings.getBySpace(pluginMeta.name, "enabled") ??
+          pluginMeta.enabled ??
           false,
         hasSetting: pluginMeta.settings ? true : false,
       });
@@ -70,7 +70,7 @@
       // 创建新的设置数组，但不修改原对象
       const newSettings = pluginMeta.settings?.map((item) => ({
         ...item,
-        value: settings.getBySpace(pluginMeta.name, item.key) || item.value,
+        value: settings.getBySpace(pluginMeta.name, item.key) ?? item.value,
       }));
 
       // 添加到 dynamicSettings

@@ -24,31 +24,11 @@ PluginLetsGo scans `src/lets-*/plugin.ts` -> PluginRegistry auto-instantiates Su
 - All `console.*` calls replaced across all plugins (500+ replacements). The only exception: `.catch(console.error)` callback refs.
 - Usage: `import { getLogger } from "@/libs/logger"; const log = getLogger("lets-xxx");` at module top.
 
-# Full-Doc Commands (API-based, bypasses frontend lazy-load)
-
-When implementing a command that needs to process ALL blocks in a document (not just lazily-rendered DOM):
-
-1. Query block IDs via SQL: `SELECT id FROM blocks WHERE root_id = '${docId}' AND type IN (...)` (see `commands.ts:getDocBlockIds`).
-2. For each block: `POST /api/block/getBlockDOM` → parse DOM → transform in-place → `updateBlock("dom", outerHTML, id)`.
-3. Use `callback` (not `editorCallback`) for `plugin.addCommand()` so it works from both the command palette and bound hotkeys.
-4. Reference: `src/lets-href-to-ref/commands.ts`.
-
-# Adding Plugin Commands
-
-- Use `plugin.addCommand({ langKey, hotkey, callback })` in the plugin's `onload()`.
-- `langKey` must have a matching translation entry (e.g. `"lets-xxx.cmdMyAction"`).
-- For editor-scoped commands: `editorCallback` receives the active protyle automatically; `callback` does not.
-- For full-doc operations: prefer `callback` + the SQL+getBlockDOM pattern above.
-
 # CRITICAL GOTCHAS
 
 1. SiYuan `Plugin` class has `i18n` property but **NO `t()` method**. Injection in `plugin-registry.ts:101` uses `this.mainPlugin?.i18n?.[key] ?? key`; calling `this.mainPlugin?.t(key)` crashes with `_a2.t is not a function`.
 2. `tsconfig` has `useDefineForClassFields: true`. SubPluginBase fields like `t!: ...` are `undefined` during constructor. Injection is done after instantiation in PluginRegistry.
 3. Settings `getBySpace(space, key)` — `space` must match the plugin's `name` field (e.g. `"convert"`), NOT the folder name or `displayName`.
-
-# Known Issues
-
-- `src/lets-block-attr/plugin.ts` customProperties default has Chinese labels (`"创建时间"`, `"更新时间"`). These are CSS content strings in user-configurable textarea — i18n-izing them requires resolving keys at CSS generation time in `ShowCustomPropertiesUnderTitle.ts`, which is a larger refactor beyond simple key substitution.
 
 # Release
 

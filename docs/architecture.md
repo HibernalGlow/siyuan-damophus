@@ -4,7 +4,7 @@ Status: accepted on 2026-08-04.
 
 ## Existing Shell
 
-Damophus 继续使用上游的 `PluginRegistry` 和 `SubPluginBase` 生命周期。保留模块仍位于 `src/lets-*/`；题库界面作为 `src/lets-question-bank/` 接入，但题库核心不得放进该 UI 模块。
+Damophus 继续使用上游的 `PluginRegistry` 和 `SubPluginBase` 生命周期。运行时只发现 `src/lets-question-bank/` 与 `src/lets-block-attr/`；题库核心不得放进 UI 模块。
 
 ## Target Layers
 

@@ -1,20 +1,17 @@
 # Damophus Product Scope
 
-Status: accepted on 2026-08-04.
+Status: accepted on 2026-08-05.
 
 ## Purpose
 
-Damophus 是一个精简的思源多功能插件。题库是主要新增能力，少量成熟工具继续保留；思源负责文档、数据库、同步和 Riff 调度，Damophus 负责题目识别、练习交互、作答事件和范围化复习。
+Damophus 是一个专注于题库的思源插件。思源负责文档、数据库、同步和 Riff 调度，Damophus 负责题目识别、练习交互、作答事件、范围化复习，以及安全展示题库块身份。
 
 ## Retained Modules
 
-- `lets-dashboard`
-- `lets-block-attr`
-- `lets-href-to-ref`
-- `lets-typography-go`
-- 新增 `lets-question-bank`
+- `lets-question-bank`
+- `lets-block-attr`，仅保留题库身份属性显示
 
-其余 EPUB、OCR、VoiceNotes、日记、随机题图、同步和未列出的工具模块均移除。删除模块时保留可追溯的上游 Git 历史，不复制无关实现到新模块。
+Dashboard、链接/引用转换、排版、快捷属性操作、列表视图转换、Memo，以及 EPUB、OCR、VoiceNotes、日记、随机题图、同步和未列出的工具模块均移除。删除模块时保留可追溯的上游 Git 历史，不复制无关实现到新模块。
 
 ## Version One
 
@@ -74,6 +71,7 @@ Damophus 是一个精简的思源多功能插件。题库是主要新增能力�
 
 ## Explicit Non-goals
 
+- 不重复实现原 `siyuan-hqweay-go` 已提供的通用工具。
 - 不实现网站账号、网站后端或网站作答同步。
 - 不让插件改写题干、选项、答案或解析正文。
 - 不创建独立错题文档或每次作答文档。

@@ -94,8 +94,8 @@ export class PluginRegistry {
       pluginInstance.description = metadata.description;
       pluginInstance.version = metadata.version;
       pluginInstance.enabled =
-        settings.getBySpace(pluginInstance.name, "enabled") ||
-        metadata.enabled ||
+        settings.getBySpace(pluginInstance.name, "enabled") ??
+        metadata.enabled ??
         false;
       // enabled will be read from settings when needed
 

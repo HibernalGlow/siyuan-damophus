@@ -1,4 +1,3 @@
-import { fetchSyncPost } from "siyuan";
 import { deepMerge, plugin } from "./utils";
 import { PluginRegistry } from "./plugin-registry";
 import { getLogger } from "@/libs/logger";
@@ -119,37 +118,8 @@ class Settings {
     await this.load();
   }
 
-  async saveTo(config: string) {
-    plugin.data[config]["docBuilder"] = plugin.data[CONFIG]["docBuilder"];
-    await plugin.saveData(CONFIG, plugin.data[config]);
-  }
-
   async remove(config = CONFIG) {
     await plugin.removeData(config);
-  }
-
-  async rename(config: string, newname: string) {
-    await fetchSyncPost("/api/file/renameFile", {
-      path: `/data/storage/petal/siyuan-plugins-index/${config}`,
-      newPath: `/data/storage/petal/siyuan-plugins-index/${newname}`,
-    });
-  }
-
-  loadSettings(data: any) {
-    this.set("icon", data.icon);
-    this.set("depth", data.depth);
-    this.set("listType", data.listType);
-    this.set("linkType", data.linkType);
-    this.set("fold", data.fold);
-    this.set("col", data.col);
-    this.set("autoUpdate", data.autoUpdate);
-  }
-
-  loadSettingsforOutline(data: any) {
-    this.set("at", data.at);
-    this.set("outlineType", data.outlineType);
-    this.set("outlineAutoUpdate", data.outlineAutoUpdate);
-    this.set("listTypeOutline", data.listTypeOutline);
   }
 }
 

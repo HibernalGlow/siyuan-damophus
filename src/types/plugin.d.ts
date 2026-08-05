@@ -45,15 +45,6 @@ export interface SubPlugin {
 
   // Event handlers
   addMenuItem?(menu: Menu): void;
-  editortitleiconEvent?(detail: any): void;
-  mobilekeyboardshowEvent?(detail: any): void;
-  mobilekeyboardhideEvent?(detail: any): void;
-  switchProtyleEvent?(detail: any): void;
-  openSiyuanUrlPluginEvent?(detail: any): void;
-  blockIconEvent?(detail: any): void;
-  imageMenuEvent?(detail: any): void;
-  updateProtyleToolbar?(toolbar: any[]): any[];
-  onProtyleLoaded?(event): void;
 }
 
 export interface PluginMetadata {

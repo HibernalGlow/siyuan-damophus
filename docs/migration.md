@@ -4,7 +4,9 @@
 
 Damophus uses the plugin ID `siyuan-damophus`, so SiYuan installs it as a separate plugin. Existing `siyuan-hqweay-go` settings are not migrated automatically.
 
-The retained tools are Dashboard, block attributes, link/reference conversion, and typography. EPUB, OCR, VoiceNotes, journal, random question image, synchronization, and other unlisted modules are no longer included. Keep the old plugin installed until any settings you still need have been recorded.
+Damophus does not carry over the upstream Dashboard, link/reference conversion, typography, quick attribute actions, list view conversions, Memo, EPUB, OCR, VoiceNotes, journal, random question image, synchronization, or other general-purpose tools. Keep `siyuan-hqweay-go` installed when you need those features.
+
+The only retained upstream-derived utility is block attribute display, narrowed to question-bank identity markers. By default it shows `qb-id` and `qb-type` on supported blocks, excludes tables, and always suppresses `custom-qb-answer`.
 
 ## Initialize The Question Bank
 

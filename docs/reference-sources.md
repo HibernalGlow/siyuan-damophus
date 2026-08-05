@@ -6,7 +6,7 @@ Reference snapshot date: 2026-08-04.
 
 | Repository | Pinned commit | Primary use |
 | --- | --- | --- |
-| `hqweay/siyuan-hqweay-go` | `84e74939df8e5d7d9796f1930d0a36413730a330` | Damophus 上游历史、注册表和保留工具实现 |
+| `hqweay/siyuan-hqweay-go` | `84e74939df8e5d7d9796f1930d0a36413730a330` | Damophus 上游历史、注册表和块属性显示来源 |
 | `frostime/sy-f-misc` | `250d7645cc3c65ee53ea705438cfc1a7cfe1f575` | 成熟思源插件的 AV、菜单、设置和生命周期调用模式 |
 | `frostime/siyuan-plugin-kits` | `6bb8e79ab421740501412cf0b17125a1508323a1` | 可复用的思源插件工具封装 |
 | `siyuan-note/plugin-sample-vite-svelte` | `2044f582afbaf435c2b6a26f4ddff0548080d1ac` | 官方插件生命周期、Vite 和 Svelte 示例 |

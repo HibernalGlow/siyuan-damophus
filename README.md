@@ -1,16 +1,13 @@
 # Damophus
 
-Damophus 是面向思源笔记的题库与实用工具插件。题库功能遵循仓库内已经接受的产品范围和数据契约；现有插件壳继续使用 `PluginRegistry` 与 `SubPluginBase` 自动发现子插件。
+Damophus 是面向思源笔记的题库插件。题库功能遵循仓库内已经接受的产品范围和数据契约；插件壳继续使用 `PluginRegistry` 与 `SubPluginBase` 自动发现子插件。
 
-## 当前保留工具
+## 当前模块
 
-- `lets-dashboard`：仪表盘、文档流、图片流和自定义 SQL 视图。
-- `lets-block-attr`：块属性快捷操作与属性驱动样式。
-- `lets-href-to-ref`：块引用、思源链接和行内格式转换。
-- `lets-typography-go`：中英文排版、图片样式和资源本地化。
 - `lets-question-bank`：题库扫描、范围练习、Riff 到期复习和作答记录恢复。
+- `lets-block-attr`：仅显示安全的题库身份属性，默认展示 `qb-id` 与 `qb-type`；答案属性始终隐藏。
 
-未列入产品范围的 EPUB、OCR、VoiceNotes、日记、随机题图、同步和其他旧模块已经从运行时代码、翻译、依赖与打包资源中移除。
+Dashboard、链接/引用转换、排版、快捷属性操作、列表视图转换、Memo，以及 EPUB、OCR、VoiceNotes、日记、随机题图、同步等旧模块均不属于 Damophus 产品范围。需要这些通用工具时继续使用原 `siyuan-hqweay-go` 插件。
 
 ## 题库
 

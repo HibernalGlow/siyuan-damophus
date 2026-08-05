@@ -18,11 +18,9 @@ Each sub-plugin has a file `src/translations/parts/lets-{name}.ts` exporting `en
 
 ```
 src/translations/parts/
-├── lets-do-on-paste.ts
-├── lets-dockPlus.ts
-├── lets-dashboard.ts
+├── lets-block-attr.ts
+├── lets-question-bank.ts
 ├── settings.ts              # core settings keys
-└── ...
 ```
 
 ### Key naming convention
@@ -30,17 +28,15 @@ src/translations/parts/
 All keys are prefixed by the **kebab-case folder name** of the plugin.
 
 ```ts
-// src/translations/parts/lets-do-on-paste.ts
+// src/translations/parts/lets-block-attr.ts
 export const en = {
-  "lets-do-on-paste.displayName": "Preprocess Data on Paste",
-  "lets-do-on-paste.description": "Automatically preprocess and format data when pasting",
-  "lets-do-on-paste.titleLink": "Auto Title Link",
+  "lets-block-attr.displayName": "Question identity markers",
+  "lets-block-attr.description": "Show safe question-bank identity attributes",
 } as const;
 
 export const zhCN: typeof en = {
-  "lets-do-on-paste.displayName": "粘贴时对数据预处理",
-  "lets-do-on-paste.description": "在粘贴内容时自动进行数据预处理和格式化",
-  "lets-do-on-paste.titleLink": "自动获取标题链接",
+  "lets-block-attr.displayName": "题库块标识",
+  "lets-block-attr.description": "显示安全的题库身份属性",
 };
 ```
 
@@ -86,12 +82,6 @@ parts/*.ts  ──(generateTranslations)──>  en.ts, zh-CN.ts (aggregated)
 3. Exported objects are serialized to JSON and written to `public/i18n/`.
 4. Vite's `viteStaticCopy` copies `public/i18n/` to `dist/i18n/` during build.
 5. SiYuan reads `dist/i18n/{lang}.json` and sets `plugin.i18n` via its petal system.
-
-### Core keys (hardcoded in vite.config.ts)
-
-Common keys like `menuByURL`, `cancel`, `save` are currently hardcoded in `generateTranslations()` (lines 41-54 and 68-81 of `vite.config.ts`). These can be optionally extracted into `settings.ts` or a new `core.ts` part.
-
----
 
 ## 3. Runtime Injection
 
@@ -159,21 +149,14 @@ const getGroupLabel = (groupName: string) => {
 
   const found = pluginConfigs.find(p => p.displayName === groupName || p.name === groupName);
   if (found) {
-    const key = `lets-${found.name}.displayName`;
-    return plugin.i18n[key] || plugin.i18n[found.displayName] || found.displayName || found.name;
+    return plugin.i18n[found.displayName] || found.displayName || found.name;
   }
 
   return groupName;
 };
 ```
 
-### Known pitfall
-
-`found.name` is the internal camelCase name from `plugin.ts` metadata (e.g. `"doOnPaste"`), while the actual i18n key uses the kebab folder name (e.g. `"lets-do-on-paste.displayName"`). The construction `lets-${found.name}.displayName` produces `"lets-doOnPaste.displayName"` which does NOT exist in the translation file.
-
-**Fallback chain order:** `plugin.i18n[lets-{name}.displayName]` → `plugin.i18n[found.displayName]` → `found.displayName` → `found.name` → raw key.
-
-The second fallback `plugin.i18n[found.displayName]` is the key fix: `found.displayName` is already the full kebab key from `plugin.ts` (e.g. `"lets-do-on-paste.displayName"`) and directly matches the translation JSON key.
+`found.displayName` is already the complete translation key from `plugin.ts`, so settings must resolve it directly rather than deriving a key from the internal plugin name.
 
 ### Individual setting items
 
@@ -226,16 +209,8 @@ Since `title` is already the full i18n key (defined in each plugin's `plugin.set
 | Symptom | Root cause | Fix |
 |---------|-----------|-----|
 | `_a2.t is not a function` | Code calls `mainPlugin?.t(key)` but SiYuan Plugin has no `t()` | Use `mainPlugin?.i18n?.[key] ?? key` instead |
-| Group label shows key string like `"lets-do-on-paste.displayName"` | `getGroupLabel` generates wrong key | `plugin.i18n[found.displayName]` fallback should resolve it; verify translation JSON contains the key |
+| Group label shows key string like `"lets-block-attr.displayName"` | Translation part is missing or stale | Verify `plugin.i18n[found.displayName]` and rebuild the generated JSON |
 | Individual setting shows key string | Key not found in `plugin.i18n` | Check `public/i18n/en.json` for the key; regenerate with `pnpm build` |
 | Chinese characters visible in built source | Migration missed a string | `grep -rn '[^\x00-\x7F]' src/ --include="*.ts" --include="*.svelte"` (exclude backlink-panel) |
 | `this.t` is undefined at runtime | SubPluginBase field initialized to `undefined` before injection | Don't call `this.t` in constructor; only after PluginRegistry injects it in `onload()` |
 | Build error: `TranslationKey` type out of sync | Added keys to parts file but haven't rebuilt | Run `pnpm dev` or `pnpm build` to regenerate aggregated files |
-
----
-
-## 7. Exceptions
-
-### lets-syplugin-backlink-panel
-
-This plugin maintains its own independent i18n system (84+ keys in `vendor/siyuan` style JSON files). It is excluded from the parts-based system and the grep verification command.
