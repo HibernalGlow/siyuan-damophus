@@ -306,6 +306,16 @@ async function scanAndSync(): Promise<void> {
 }
 
 describe("question bank browser flow", () => {
+  it("shows session storage errors discovered during startup", async () => {
+    const { controller } = mockController();
+    vi.mocked(controller.listPracticeSessions).mockRejectedValueOnce(new Error("Practice session storage is invalid"));
+
+    render(controller);
+    await flush();
+
+    expect(document.body.textContent).toContain("Practice session storage is invalid");
+  });
+
   it("previews initialization, scans, and confirms index synchronization", async () => {
     const { controller } = mockController({ initialized: false });
     render(controller);

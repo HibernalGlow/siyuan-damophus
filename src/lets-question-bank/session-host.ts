@@ -37,22 +37,38 @@ export class PracticeSessionConflictError extends Error {
   }
 }
 
+export class PracticeSessionStorageError extends Error {
+  constructor(message = "Practice session storage is invalid") {
+    super(message);
+    this.name = "PracticeSessionStorageError";
+  }
+}
+
 function parseFile(value: unknown): SessionFile {
+  if (value === undefined || value === null || value === "") {
+    return { schema_version: 1, sessions: {} };
+  }
   let parsed = value;
   if (typeof parsed === "string") {
     try {
       parsed = JSON.parse(parsed);
     } catch {
-      return { schema_version: 1, sessions: {} };
+      throw new PracticeSessionStorageError("Practice session storage contains invalid JSON");
     }
   }
-  if (!parsed || typeof parsed !== "object") return { schema_version: 1, sessions: {} };
-  const sessions = (parsed as { sessions?: unknown }).sessions;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new PracticeSessionStorageError();
+  }
+  const root = parsed as { schema_version?: unknown; sessions?: unknown };
+  if (root.schema_version !== 1) {
+    throw new PracticeSessionStorageError("Practice session storage version is unsupported");
+  }
+  if (!root.sessions || typeof root.sessions !== "object" || Array.isArray(root.sessions)) {
+    throw new PracticeSessionStorageError("Practice session storage has an invalid sessions index");
+  }
   return {
     schema_version: 1,
-    sessions: sessions && typeof sessions === "object"
-      ? { ...(sessions as Record<string, unknown>) }
-      : {},
+    sessions: { ...(root.sessions as Record<string, unknown>) },
   };
 }
 

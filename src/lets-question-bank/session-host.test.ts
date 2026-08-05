@@ -3,6 +3,7 @@ import { createPracticeSessionSnapshot } from "../question-bank/core/session-sch
 import type { Question } from "../question-bank/core/types";
 import {
   PracticeSessionConflictError,
+  PracticeSessionStorageError,
   SiyuanPracticeSessionRepository,
   type PluginDataApi,
 } from "./session-host";
@@ -90,5 +91,20 @@ describe("SiYuan practice session repository", () => {
 
     expect(await repository.load("source-1")).toEqual({ status: "unsupported", schemaVersion: 99 });
     expect(await repository.diagnostic("source-1")).toContain('"schema_version": 99');
+  });
+
+  it.each([
+    ["malformed JSON", "{not-json"],
+    ["missing file version", { sessions: {} }],
+    ["invalid sessions index", { schema_version: 1, sessions: "not-an-object" }],
+    ["unsupported file version", { schema_version: 2, sessions: {} }],
+  ])("refuses to overwrite %s", async (_name, original) => {
+    const data = new MemoryData();
+    data.value = structuredClone(original);
+    const repository = new SiyuanPracticeSessionRepository(data);
+
+    await expect(repository.list()).rejects.toBeInstanceOf(PracticeSessionStorageError);
+    await expect(repository.save(snapshot())).rejects.toBeInstanceOf(PracticeSessionStorageError);
+    expect(data.value).toEqual(original);
   });
 });

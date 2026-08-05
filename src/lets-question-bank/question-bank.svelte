@@ -195,7 +195,7 @@
       else if (detail === "pause") void pausePractice();
     };
     host?.addEventListener("damophus-practice-command", command);
-    void refreshStoredSessions();
+    void run(refreshStoredSessions);
     return () => host?.removeEventListener("damophus-practice-command", command);
   });
 
