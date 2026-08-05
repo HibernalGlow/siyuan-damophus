@@ -1,6 +1,6 @@
 {
   "name": "siyuan-damophus",
-  "version": "0.25.3",
+  "version": "0.0.1",
   "type": "module",
   "packageManager": "pnpm@11.18.0",
   "engines": {
