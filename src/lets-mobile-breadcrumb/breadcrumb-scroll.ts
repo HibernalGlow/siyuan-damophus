@@ -1,6 +1,13 @@
 import type { BlockBreadcrumbItem } from "@/api";
 
 export type BreadcrumbOverflowPriority = "head" | "tail";
+export type BreadcrumbTextMode = "characters" | "full" | "width";
+
+export interface BreadcrumbTextDisplay {
+  mode: BreadcrumbTextMode;
+  maxCharacters: number;
+  maxWidth: number;
+}
 
 export interface ScrollableBreadcrumbOptions {
   priority: BreadcrumbOverflowPriority;
@@ -9,6 +16,32 @@ export interface ScrollableBreadcrumbOptions {
 
 export function normalizeBreadcrumbPriority(value: unknown): BreadcrumbOverflowPriority {
   return value === "head" ? "head" : "tail";
+}
+
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+export function normalizeBreadcrumbTextDisplay(
+  mode: unknown,
+  maxCharacters: unknown,
+  maxWidth: unknown,
+): BreadcrumbTextDisplay {
+  return {
+    mode: mode === "characters" || mode === "width" ? mode : "full",
+    maxCharacters: boundedInteger(maxCharacters, 16, 4, 100),
+    maxWidth: boundedInteger(maxWidth, 160, 64, 480),
+  };
+}
+
+export function visibleBreadcrumbText(name: string, display: BreadcrumbTextDisplay): string {
+  if (display.mode !== "characters") return name;
+  const characters = Array.from(name);
+  return characters.length > display.maxCharacters
+    ? `${characters.slice(0, display.maxCharacters).join("")}...`
+    : name;
 }
 
 export function breadcrumbIcon(type: string, subType: string): string {
@@ -75,6 +108,7 @@ export class ScrollableBreadcrumb {
     items: BlockBreadcrumbItem[],
     activeId: string | undefined,
     expandLabel: string,
+    textDisplay: BreadcrumbTextDisplay = normalizeBreadcrumbTextDisplay("full", 16, 160),
   ): void {
     const fragment = document.createDocumentFragment();
     items.forEach((item, index) => {
@@ -96,13 +130,17 @@ export class ScrollableBreadcrumb {
       const text = document.createElement("span");
       text.className = "protyle-breadcrumb__text";
       text.title = item.name;
-      text.textContent = item.name;
+      text.textContent = visibleBreadcrumbText(item.name, textDisplay);
+      if (textDisplay.mode === "width") {
+        text.classList.add("damophus-mobile-breadcrumb__text--width");
+        text.style.maxWidth = `${textDisplay.maxWidth}px`;
+      }
       pathItem.append(icon, text);
       fragment.append(pathItem);
 
       if (index < items.length - 1) {
         const arrow = document.createElement("span");
-        arrow.className = "protyle-breadcrumb__arrow protyle-breadcrumb__arrow--interactive ariaLabel";
+        arrow.className = "protyle-breadcrumb__arrow ariaLabel";
         arrow.setAttribute("role", "button");
         arrow.setAttribute("tabindex", "-1");
         arrow.setAttribute("aria-label", expandLabel);
@@ -147,9 +185,15 @@ export class ScrollableBreadcrumb {
     if (this.frame !== undefined) cancelAnimationFrame(this.frame);
     this.frame = requestAnimationFrame(() => {
       this.frame = undefined;
-      this.element.scrollLeft = this.priority === "tail"
-        ? this.element.scrollWidth - this.element.clientWidth
-        : 0;
+      if (this.priority === "head") {
+        this.element.scrollLeft = 0;
+        return;
+      }
+      const items = this.element.querySelectorAll<HTMLElement>(".protyle-breadcrumb__item");
+      const tail = items.item(items.length - 1);
+      this.element.scrollLeft = tail
+        ? Math.max(0, tail.offsetLeft + tail.offsetWidth - this.element.clientWidth)
+        : this.element.scrollWidth - this.element.clientWidth;
     });
   }
 }

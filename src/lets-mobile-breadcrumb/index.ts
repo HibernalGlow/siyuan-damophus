@@ -5,6 +5,7 @@ import { isMobile, plugin } from "@/utils";
 import { getAllEditor, openMobileFileById, type IEventBusMap, type IProtyle } from "siyuan";
 import {
   normalizeBreadcrumbPriority,
+  normalizeBreadcrumbTextDisplay,
   ScrollableBreadcrumb,
 } from "./breadcrumb-scroll";
 
@@ -92,7 +93,17 @@ export default class MobileBreadcrumbPlugin extends SubPluginBase {
       const items = await getBlockBreadcrumb(blockId, protyle.notebookId);
       if (this.requestVersions.get(element) !== requestVersion || items.length === 0) return;
       const activeId = protyle.block.showAll ? protyle.block.id : protyle.block.parentID;
-      scroller.renderMobileItems(items, activeId, this.t("lets-mobile-breadcrumb.expand"));
+      const textDisplay = normalizeBreadcrumbTextDisplay(
+        this.getSetting("textDisplayMode"),
+        this.getSetting("maxCharacters"),
+        this.getSetting("maxTextWidth"),
+      );
+      scroller.renderMobileItems(
+        items,
+        activeId,
+        this.t("lets-mobile-breadcrumb.expand"),
+        textDisplay,
+      );
       this.renderedBlockIds.set(element, blockId);
     } catch (error) {
       log.warn("Failed to load the mobile breadcrumb path", error);

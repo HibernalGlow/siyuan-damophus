@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ScrollableBreadcrumb } from "./breadcrumb-scroll";
+import {
+  normalizeBreadcrumbTextDisplay,
+  ScrollableBreadcrumb,
+} from "./breadcrumb-scroll";
 
 const items = [
   { id: "root", name: "Document root", type: "NodeDocument", subType: "" },
@@ -32,14 +35,21 @@ describe("scrollable mobile breadcrumb", () => {
     const breadcrumb = new ScrollableBreadcrumb(element, { priority: "tail" });
 
     breadcrumb.renderMobileItems(items, "current", "Expand");
+    const trailingThemeSpace = document.createElement("span");
+    trailingThemeSpace.style.cssText = "display:block;flex:0 0 120px";
+    element.append(trailingThemeSpace);
     await settleLayout();
 
+    const tail = element.querySelector<HTMLElement>('[data-node-id="current"]')!;
     expect(element.querySelectorAll(".protyle-breadcrumb__item")).toHaveLength(3);
-    expect(element.querySelectorAll(".protyle-breadcrumb__arrow--interactive")).toHaveLength(2);
+    expect(element.querySelectorAll(".protyle-breadcrumb__arrow")).toHaveLength(2);
     expect(element.textContent).toContain("Document root");
     expect(element.textContent).toContain("Current paragraph");
     expect(element.scrollWidth).toBeGreaterThan(element.clientWidth);
-    expect(element.scrollLeft).toBe(element.scrollWidth - element.clientWidth);
+    expect(element.scrollLeft).toBeCloseTo(
+      tail.offsetLeft + tail.offsetWidth - element.clientWidth,
+    );
+    expect(element.scrollLeft).toBeLessThan(element.scrollWidth - element.clientWidth);
     breadcrumb.destroy();
   });
 
@@ -55,7 +65,7 @@ describe("scrollable mobile breadcrumb", () => {
     expect(navigate).toHaveBeenCalledWith("section");
     expect(officialHandler).not.toHaveBeenCalled();
 
-    element.querySelector<HTMLElement>(".protyle-breadcrumb__arrow--interactive")!.click();
+    element.querySelector<HTMLElement>(".protyle-breadcrumb__arrow")!.click();
     expect(officialHandler).toHaveBeenCalledOnce();
     breadcrumb.destroy();
   });
@@ -74,5 +84,51 @@ describe("scrollable mobile breadcrumb", () => {
     await settleLayout();
     expect(element.scrollLeft).toBe(32);
     breadcrumb.destroy();
+  });
+
+  it("supports complete, character-limited, and width-limited path text", () => {
+    const { element } = breadcrumbElement();
+    const breadcrumb = new ScrollableBreadcrumb(element, { priority: "tail" });
+
+    breadcrumb.renderMobileItems(
+      items,
+      "current",
+      "Expand",
+      normalizeBreadcrumbTextDisplay("characters", 8, 160),
+    );
+    let text = element.querySelector<HTMLElement>('[data-node-id="current"] .protyle-breadcrumb__text')!;
+    expect(text.textContent).toBe("Current ...");
+    expect(text.title).toBe("Current paragraph");
+
+    breadcrumb.renderMobileItems(
+      items,
+      "current",
+      "Expand",
+      normalizeBreadcrumbTextDisplay("width", 16, 96),
+    );
+    text = element.querySelector<HTMLElement>('[data-node-id="current"] .protyle-breadcrumb__text')!;
+    expect(text.textContent).toBe("Current paragraph");
+    expect(text.style.maxWidth).toBe("96px");
+    expect(text.classList.contains("damophus-mobile-breadcrumb__text--width")).toBe(true);
+
+    breadcrumb.destroy();
+  });
+
+  it("keeps text limits within mobile-safe bounds", () => {
+    expect(normalizeBreadcrumbTextDisplay("characters", 1, 999)).toEqual({
+      mode: "characters",
+      maxCharacters: 4,
+      maxWidth: 480,
+    });
+    expect(normalizeBreadcrumbTextDisplay("width", 500, 20)).toEqual({
+      mode: "width",
+      maxCharacters: 100,
+      maxWidth: 64,
+    });
+    expect(normalizeBreadcrumbTextDisplay("unknown", "invalid", null)).toEqual({
+      mode: "full",
+      maxCharacters: 16,
+      maxWidth: 64,
+    });
   });
 });

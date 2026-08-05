@@ -125,6 +125,7 @@
   white-space: nowrap;
 }
 
-.damophus-scrollable-breadcrumb .protyle-breadcrumb__arrow--interactive {
-  flex: 0 0 24px;
+.damophus-scrollable-breadcrumb .damophus-mobile-breadcrumb__text--width {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
