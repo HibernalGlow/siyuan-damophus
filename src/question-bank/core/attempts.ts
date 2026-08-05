@@ -45,6 +45,8 @@ export function aggregateAttemptEvents(events: readonly AttemptEvent[]): Map<str
       objectiveCorrect: 0,
       objectiveIncorrect: 0,
       consecutiveReviewCount: 0,
+      consecutiveAgainCount: 0,
+      consecutiveHardCount: 0,
     };
     aggregate.attempts += 1;
     if (event.objective_correct !== null) {
@@ -54,6 +56,12 @@ export function aggregateAttemptEvents(events: readonly AttemptEvent[]): Map<str
     }
     aggregate.consecutiveReviewCount = ["again", "hard"].includes(event.mastery_rating)
       ? aggregate.consecutiveReviewCount + 1
+      : 0;
+    aggregate.consecutiveAgainCount = event.mastery_rating === "again"
+      ? aggregate.consecutiveAgainCount + 1
+      : 0;
+    aggregate.consecutiveHardCount = event.mastery_rating === "hard"
+      ? aggregate.consecutiveHardCount + 1
       : 0;
     aggregate.latestRating = event.mastery_rating;
     aggregate.lastAnsweredAt = event.answered_at;

@@ -86,6 +86,8 @@ describe("portable question core", () => {
         objectiveCorrect: 0,
         objectiveIncorrect: 2,
         consecutiveReviewCount: 2,
+        consecutiveAgainCount: 2,
+        consecutiveHardCount: 0,
       }],
     ]);
 
@@ -125,6 +127,8 @@ describe("portable question core", () => {
       objectiveCorrect: 1,
       objectiveIncorrect: 1,
       consecutiveReviewCount: 2,
+      consecutiveAgainCount: 0,
+      consecutiveHardCount: 1,
       latestRating: "hard",
       lastAnsweredAt: "2026-08-04T10:01:00.000Z",
     });

@@ -2,17 +2,18 @@ import { describe, expect, it } from "vitest";
 import { shouldAutoCreateQuickCard } from "./review";
 
 describe("Riff review application policy", () => {
-  it("creates a quick card only when the configured threshold is reached", () => {
+  it("uses independent Again and Hard thresholds for quick-card creation", () => {
     const aggregate = {
-      questionId: "q1",
-      attempts: 2,
-      objectiveAttempts: 2,
-      objectiveCorrect: 0,
-      objectiveIncorrect: 2,
-      consecutiveReviewCount: 2,
+      questionId: "q1", attempts: 2, objectiveAttempts: 2, objectiveCorrect: 0,
+      objectiveIncorrect: 2, consecutiveReviewCount: 2, consecutiveAgainCount: 2,
+      consecutiveHardCount: 0, latestRating: "again" as const,
     };
-    expect(shouldAutoCreateQuickCard(aggregate, 2)).toBe(true);
-    expect(shouldAutoCreateQuickCard(aggregate, 1)).toBe(false);
-    expect(shouldAutoCreateQuickCard(aggregate, 0)).toBe(false);
+    const thresholds = { again: 2, hard: 1 };
+    expect(shouldAutoCreateQuickCard(aggregate, thresholds)).toBe(true);
+    expect(shouldAutoCreateQuickCard({
+      ...aggregate, consecutiveAgainCount: 1, consecutiveHardCount: 1, latestRating: "hard",
+    }, thresholds)).toBe(true);
+    expect(shouldAutoCreateQuickCard({ ...aggregate, consecutiveAgainCount: 3 }, thresholds)).toBe(false);
+    expect(shouldAutoCreateQuickCard({ ...aggregate, latestRating: "good" }, thresholds)).toBe(false);
   });
 });

@@ -51,7 +51,7 @@ Damophus does not maintain a second copy of the editor. SiYuan handles text edit
 
 ## Riff
 
-Damophus uses SiYuan's built-in quick-card deck. When automatic quick cards are enabled, a question is added when its consecutive Again/Hard count reaches the configured threshold. The **Due** filter reads SiYuan's current schedule, restricts it to the selected Damophus scope, and submits the chosen mastery rating back to Riff.
+Damophus uses SiYuan's built-in quick-card deck. When automatic quick cards are enabled, a question is added after its configured consecutive rating threshold is reached: Hard defaults to one rating and Again defaults to two ratings. Both thresholds are independently customizable. The **Due** filter reads SiYuan's current schedule, restricts it to the selected Damophus scope, and submits the chosen mastery rating back to Riff.
 
 Damophus renders the question; SiYuan owns scheduling. Damophus does not create or manage legacy custom decks.
 

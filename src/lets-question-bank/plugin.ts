@@ -24,9 +24,16 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "number",
-      title: "lets-question-bank.autoCardThreshold",
-      description: "lets-question-bank.autoCardThresholdDescription",
-      key: "autoCardThreshold",
+      title: "lets-question-bank.autoCardHardThreshold",
+      description: "lets-question-bank.autoCardHardThresholdDescription",
+      key: "autoCardHardThreshold",
+      value: 1,
+    },
+    {
+      type: "number",
+      title: "lets-question-bank.autoCardAgainThreshold",
+      description: "lets-question-bank.autoCardAgainThresholdDescription",
+      key: "autoCardAgainThreshold",
       value: 2,
     },
     {

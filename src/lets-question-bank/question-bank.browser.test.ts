@@ -184,6 +184,8 @@ function mockController(options: {
         objectiveCorrect: 0,
         objectiveIncorrect: 1,
         consecutiveReviewCount: 2,
+        consecutiveAgainCount: 2,
+        consecutiveHardCount: 0,
       }],
     ])),
     loadDueCards: vi.fn(async () => options.dueCards ?? new Map()),

@@ -102,6 +102,8 @@ export interface AttemptAggregate {
   objectiveCorrect: number;
   objectiveIncorrect: number;
   consecutiveReviewCount: number;
+  consecutiveAgainCount: number;
+  consecutiveHardCount: number;
   latestRating?: MasteryRating;
   lastAnsweredAt?: string;
 }

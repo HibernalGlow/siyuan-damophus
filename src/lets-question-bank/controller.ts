@@ -202,7 +202,7 @@ export class QuestionBankController implements QuestionBankUiController {
       try {
         const aggregate = (await rebuildAttemptStatistics(this.client, this.requireBinding()))
           .aggregates.get(event.question_id);
-        if (shouldAutoCreateQuickCard(aggregate, this.autoCardThreshold())) {
+        if (shouldAutoCreateQuickCard(aggregate, this.autoCardThresholds())) {
           await addQuickRiffCards(this.client, [input.questionRelation]);
         }
       } catch (error) {
@@ -245,8 +245,15 @@ export class QuestionBankController implements QuestionBankUiController {
     return this.options.getSetting("autoAddQuickCards") !== false;
   }
 
-  private autoCardThreshold(): number {
-    const value = Number(this.options.getSetting("autoCardThreshold"));
-    return Number.isInteger(value) && value > 0 ? value : 2;
+  private autoCardThresholds(): { again: number; hard: number } {
+    return {
+      again: this.getPositiveIntegerSetting("autoCardAgainThreshold", 2),
+      hard: this.getPositiveIntegerSetting("autoCardHardThreshold", 1),
+    };
+  }
+
+  private getPositiveIntegerSetting(key: string, fallback: number): number {
+    const value = Number(this.options.getSetting(key));
+    return Number.isInteger(value) && value > 0 ? value : fallback;
   }
 }
