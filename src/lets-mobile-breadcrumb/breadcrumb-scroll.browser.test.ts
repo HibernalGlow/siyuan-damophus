@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  findMobileFlashcardBreadcrumbs,
   normalizeBreadcrumbTextDisplay,
   ScrollableBreadcrumb,
 } from "./breadcrumb-scroll";
@@ -130,5 +131,24 @@ describe("scrollable mobile breadcrumb", () => {
       maxCharacters: 16,
       maxWidth: 64,
     });
+  });
+
+  it("discovers the current block in a native mobile flashcard editor", () => {
+    const card = document.createElement("div");
+    card.className = "card__block";
+    card.innerHTML = `
+      <div class="protyle">
+        <div class="protyle-breadcrumb">
+          <button class="protyle-breadcrumb__icon" data-type="mobile-menu">Breadcrumb</button>
+        </div>
+        <div class="protyle-wysiwyg"><div data-node-id="flashcard-block"></div></div>
+      </div>
+    `;
+    document.body.append(card);
+
+    expect(findMobileFlashcardBreadcrumbs(document)).toEqual([{
+      element: card.querySelector(".protyle-breadcrumb__icon"),
+      blockId: "flashcard-block",
+    }]);
   });
 });

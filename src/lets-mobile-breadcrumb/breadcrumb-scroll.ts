@@ -14,6 +14,24 @@ export interface ScrollableBreadcrumbOptions {
   onNavigate?: (id: string) => void;
 }
 
+export interface MobileFlashcardBreadcrumbTarget {
+  element: HTMLElement;
+  blockId: string;
+}
+
+export function findMobileFlashcardBreadcrumbs(
+  root: ParentNode,
+): MobileFlashcardBreadcrumbTarget[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(
+    '.card__block .protyle-breadcrumb > .protyle-breadcrumb__icon[data-type="mobile-menu"]',
+  )).flatMap((element) => {
+    const block = element.closest(".protyle")
+      ?.querySelector<HTMLElement>(".protyle-wysiwyg [data-node-id]");
+    const blockId = block?.dataset.nodeId;
+    return blockId ? [{ element, blockId }] : [];
+  });
+}
+
 export function normalizeBreadcrumbPriority(value: unknown): BreadcrumbOverflowPriority {
   return value === "head" ? "head" : "tail";
 }

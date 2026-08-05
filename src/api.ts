@@ -268,8 +268,12 @@ export interface BlockBreadcrumbItem {
     hasChildren?: boolean;
 }
 
-export async function getBlockBreadcrumb(id: BlockId, notebook?: NotebookId): Promise<BlockBreadcrumbItem[]> {
-    const data: Record<string, unknown> = { id, excludeTypes: [] };
+export async function getBlockBreadcrumb(
+    id: BlockId,
+    notebook?: NotebookId,
+    excludeTypes: string[] = [],
+): Promise<BlockBreadcrumbItem[]> {
+    const data: Record<string, unknown> = { id, excludeTypes };
     if (notebook) data.notebook = notebook;
     return requestStrict<BlockBreadcrumbItem[]>('/api/block/getBlockBreadcrumb', data);
 }
