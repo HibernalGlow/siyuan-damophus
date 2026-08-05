@@ -21,6 +21,11 @@ export interface AttributeViewKey {
   id: string;
   name: string;
   type: AttributeViewKeyType;
+  options?: Array<{
+    name: string;
+    color: string;
+    desc?: string;
+  }>;
   relation?: {
     avID?: string;
     backKeyID?: string;

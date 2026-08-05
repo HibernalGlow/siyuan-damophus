@@ -211,8 +211,18 @@ class MockKernelClient implements SiyuanKernelClient {
         blockID: payload.itemID,
         type: payload.value.type,
       };
+      const nextValue = { ...payload.value };
+      if (["select", "mSelect"].includes(keyValues.key.type) && Array.isArray(payload.value.mSelect)) {
+        const options = keyValues.key.options ??= [];
+        nextValue.mSelect = payload.value.mSelect.map((item: { content: string; color: string }) => {
+          const existing = options.find((option) => option.name === item.content);
+          if (existing) return { ...item, color: existing.color };
+          options.push({ name: item.content, color: item.color });
+          return { ...item };
+        });
+      }
       const previousRelationIds = value.relation?.blockIDs ?? [];
-      Object.assign(value, payload.value);
+      Object.assign(value, nextValue);
       if (!keyValues.values.includes(value)) keyValues.values.push(value);
       if (keyValues.key.type === "relation" && keyValues.key.relation?.isTwoWay) {
         const destination = this.requireAv(keyValues.key.relation.avID!);
@@ -329,8 +339,11 @@ describe("SiYuan question bank adapter", () => {
         ["Attempts", "relation"],
         ["Attempt Count", "rollup"],
         ["Wrong Count", "rollup"],
-        ["Total Duration (ms)", "rollup"],
+        ["Total Duration (min)", "rollup"],
       ]);
+    expect(client.attributeViews.get(binding.attemptLog.avId)!.keyValues.find(
+      (keyValues) => keyValues.key.id === binding.attemptLog.keys.duration_ms,
+    )?.key.name).toBe("Duration (min)");
     expect(questionAv.keyValues.find(
       (keyValues) => keyValues.key.id === binding.questionIndex.keys.attempts_relation,
     )?.key.relation).toMatchObject({
@@ -420,6 +433,64 @@ describe("SiYuan question bank adapter", () => {
       expect.objectContaining({ kind: "changeType", field: "question_type", currentType: "text", type: "select" }),
       expect.objectContaining({ kind: "changeType", field: "year", currentType: "text", type: "number" }),
     ]));
+    expect((await verifyQuestionBankBinding(client, binding)).ok).toBe(true);
+  });
+
+  it("migrates legacy millisecond durations to visible minutes", async () => {
+    const { client, binding, nextId } = await initialized();
+    const documentId = "20260804120000-sourced";
+    client.documents.set(documentId, fixture("siyuan-kramdown"));
+    const sync = await previewQuestionIndexSync(client, binding, documentId);
+    await confirmQuestionIndexSync(client, binding, documentId, sync.token);
+    const event = createAttemptEvent({
+      attemptId: "attempt-duration-migration",
+      questionId: "civil-kramdown-108",
+      questionRelation: "20260804000200-quest01",
+      sessionId: "session-duration-migration",
+      answeredAt: "2026-08-04T12:00:00.000Z",
+      questionType: "multiple",
+      optionOrder: ["A", "B", "C", "D"],
+      selectedOptionIds: ["A", "B", "D"],
+      objectiveCorrect: true,
+      masteryRating: "good",
+      durationMs: 42000,
+    });
+    await appendAttemptEvent(client, binding, event, nextId);
+
+    const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
+    const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
+    const totalDuration = questionAv.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.total_duration_ms,
+    )!;
+    const duration = attemptAv.keyValues.find(
+      (value) => value.key.id === binding.attemptLog.keys.duration_ms,
+    )!;
+    totalDuration.key.name = "Total Duration (ms)";
+    duration.key.name = "Duration (ms)";
+    duration.values[0].number = { content: 42000, isNotEmpty: true };
+
+    const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
+    expect(preview.bindingRepairs).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "convertDurationUnit",
+        database: "attemptLog",
+        field: "duration_ms",
+        name: "Duration (min)",
+      }),
+      expect.objectContaining({
+        kind: "convertDurationUnit",
+        database: "questionIndex",
+        field: "total_duration_ms",
+        name: "Total Duration (min)",
+      }),
+    ]));
+
+    await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
+
+    expect(duration.key.name).toBe("Duration (min)");
+    expect(totalDuration.key.name).toBe("Total Duration (min)");
+    expect(duration.values[0].number?.content).toBeCloseTo(0.7);
+    expect((await readAttemptEvents(client, binding)).events[0].duration_ms).toBe(42000);
     expect((await verifyQuestionBankBinding(client, binding)).ok).toBe(true);
   });
 
@@ -710,6 +781,61 @@ describe("SiYuan question bank adapter", () => {
     expect(attemptAv.keyValues.find(
       (keyValues) => keyValues.key.id === binding.attemptLog.keys.wrong_value,
     )!.values[0].number).toMatchObject({ content: 0, isNotEmpty: true });
+    expect(attemptAv.keyValues.find(
+      (keyValues) => keyValues.key.id === binding.attemptLog.keys.duration_ms,
+    )!.values[0].number).toMatchObject({ content: 0.2, isNotEmpty: true });
+  });
+
+  it("reuses customized native select option colors for later attempts", async () => {
+    const { client, binding, nextId } = await initialized();
+    const documentId = "20260804120000-sourced";
+    client.documents.set(documentId, fixture("siyuan-kramdown"));
+    const sync = await previewQuestionIndexSync(client, binding, documentId);
+    await confirmQuestionIndexSync(client, binding, documentId, sync.token);
+    const first = createAttemptEvent({
+      attemptId: "attempt-style-1",
+      questionId: "civil-kramdown-108",
+      questionRelation: "20260804000200-quest01",
+      sessionId: "session-style",
+      answeredAt: "2026-08-04T12:00:00.000Z",
+      questionType: "multiple",
+      optionOrder: ["A", "B", "C", "D"],
+      selectedOptionIds: ["A", "B"],
+      objectiveCorrect: false,
+      masteryRating: "hard",
+    });
+    await appendAttemptEvent(client, binding, first, nextId);
+
+    const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
+    const questionType = attemptAv.keyValues.find(
+      (keyValues) => keyValues.key.id === binding.attemptLog.keys.question_type,
+    )!;
+    const order = attemptAv.keyValues.find(
+      (keyValues) => keyValues.key.id === binding.attemptLog.keys.option_order,
+    )!;
+    const selected = attemptAv.keyValues.find(
+      (keyValues) => keyValues.key.id === binding.attemptLog.keys.selected_option_ids,
+    )!;
+    questionType.key.options!.find((option) => option.name === "multiple")!.color = "13";
+    order.key.options!.find((option) => option.name === "A")!.color = "12";
+    order.key.options!.find((option) => option.name === "B")!.color = "4";
+    selected.key.options!.find((option) => option.name === "A")!.color = "12";
+    selected.key.options!.find((option) => option.name === "B")!.color = "4";
+
+    const second = { ...first, attempt_id: "attempt-style-2" };
+    await appendAttemptEvent(client, binding, second, nextId);
+
+    expect(questionType.values[1].mSelect).toEqual([{ content: "multiple", color: "13" }]);
+    expect(order.values[1].mSelect).toEqual([
+      { content: "A", color: "12" },
+      { content: "B", color: "4" },
+      { content: "C", color: "8" },
+      { content: "D", color: "8" },
+    ]);
+    expect(selected.values[1].mSelect).toEqual([
+      { content: "A", color: "12" },
+      { content: "B", color: "4" },
+    ]);
   });
 
   it("converts legacy Attempt text payloads and repairs relation row identities", async () => {

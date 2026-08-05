@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   dateCell,
+  durationMinutesFromMilliseconds,
   multiSelectCell,
   numberCell,
   relationCell,
@@ -163,7 +164,7 @@ const questionColumns: readonly ColumnDefinition<Exclude<QuestionField, "block_i
   { field: "attempts_relation", name: "Attempts", type: "relation" },
   { field: "attempt_count", name: "Attempt Count", type: "rollup" },
   { field: "wrong_count", name: "Wrong Count", type: "rollup" },
-  { field: "total_duration_ms", name: "Total Duration (ms)", type: "rollup" },
+  { field: "total_duration_ms", name: "Total Duration (min)", type: "rollup" },
 ];
 
 const attemptColumns: readonly ColumnDefinition<Exclude<AttemptField, "entry">>[] = [
@@ -180,7 +181,7 @@ const attemptColumns: readonly ColumnDefinition<Exclude<AttemptField, "entry">>[
   { field: "wrong_value", name: "Wrong Value", type: "number" },
   { field: "mastery_rating", name: "Mastery Rating", type: "select" },
   { field: "subjective_score", name: "Subjective Score", type: "number" },
-  { field: "duration_ms", name: "Duration (ms)", type: "number" },
+  { field: "duration_ms", name: "Duration (min)", type: "number" },
 ];
 
 export interface InitializeQuestionBankInput {
@@ -507,7 +508,8 @@ export interface BindingVerification {
 }
 
 export interface ManagedKeyRepair {
-  kind: "add" | "changeType" | "normalizeValues" | "configureRelation" | "configureRollup";
+  kind: "add" | "changeType" | "normalizeValues" | "configureRelation" | "configureRollup"
+    | "convertDurationUnit";
   database: "questionIndex" | "attemptLog";
   field: QuestionField | AttemptField;
   keyId: string;
@@ -681,6 +683,32 @@ export async function verifyQuestionBankBinding(
       fatalErrors,
       missingManagedKeys,
     );
+    const durationKey = attemptAv.keyValues.find(
+      (value) => value.key.id === binding.attemptLog.keys.duration_ms,
+    )?.key;
+    if (durationKey?.name === "Duration (ms)") {
+      pushRepair(missingManagedKeys, {
+        kind: "convertDurationUnit",
+        database: "attemptLog",
+        field: "duration_ms",
+        keyId: durationKey.id,
+        name: "Duration (min)",
+        type: "number",
+      });
+    }
+    const totalDurationKey = questionAv.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.total_duration_ms,
+    )?.key;
+    if (totalDurationKey?.name === "Total Duration (ms)") {
+      pushRepair(missingManagedKeys, {
+        kind: "convertDurationUnit",
+        database: "questionIndex",
+        field: "total_duration_ms",
+        keyId: totalDurationKey.id,
+        name: "Total Duration (min)",
+        type: "rollup",
+      });
+    }
     verifyKeys(
       attemptAv,
       binding.attemptLog.keys,
@@ -883,7 +911,11 @@ function valueArray(value: AttributeViewValue | undefined): string[] {
   return text.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-function normalizedCell(field: string, value: AttributeViewValue): AttributeViewCellInput | undefined {
+function normalizedCell(
+  field: string,
+  value: AttributeViewValue,
+  convertDurationUnit: boolean,
+): AttributeViewCellInput | undefined {
   if (["question_type", "subject", "category", "collection", "source", "objective_correct", "mastery_rating"]
     .includes(field)) {
     const content = valueText(value);
@@ -893,7 +925,10 @@ function normalizedCell(field: string, value: AttributeViewValue): AttributeView
     return multiSelectCell(valueArray(value), "8");
   }
   if (["year", "schema_version", "subjective_score", "duration_ms"].includes(field)) {
-    return numberCell(valueNumber(value));
+    const content = valueNumber(value);
+    return numberCell(field === "duration_ms" && convertDurationUnit
+      ? durationMinutesFromMilliseconds(content)
+      : content);
   }
   if (field === "last_scanned_at" || field === "answered_at") return dateCell(valueDate(value));
   return undefined;
@@ -913,14 +948,16 @@ async function normalizeManagedValues(
     const av = database === "questionIndex" ? questionAv : attemptAv;
     const fields = new Set(repairs
       .filter((repair) => repair.database === database
-        && ["add", "changeType", "normalizeValues"].includes(repair.kind))
+        && ["add", "changeType", "normalizeValues", "convertDurationUnit"].includes(repair.kind))
       .map((repair) => String(repair.field)));
     for (const field of fields) {
       if (field === "wrong_value" || field === "question_relation") continue;
       const keyId = target.keys[field as keyof typeof target.keys];
       const values = av.keyValues.find((item) => item.key.id === keyId)?.values ?? [];
+      const convertDurationUnit = repairs.some((repair) => repair.database === database
+        && repair.field === field && repair.kind === "convertDurationUnit");
       for (const value of values) {
-        const cell = normalizedCell(field, value);
+        const cell = normalizedCell(field, value, convertDurationUnit);
         if (cell) await setAttributeViewCell(client, target.avId, keyId, value.blockID, cell);
       }
     }
@@ -969,6 +1006,34 @@ async function normalizeManagedValues(
   }
 }
 
+async function updateDurationUnitLabels(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  repairs: readonly ManagedKeyRepair[],
+): Promise<void> {
+  for (const database of ["questionIndex", "attemptLog"] as const) {
+    const databaseRepairs = repairs.filter(
+      (repair) => repair.database === database && repair.kind === "convertDurationUnit",
+    );
+    if (databaseRepairs.length === 0) continue;
+    const target = binding[database];
+    await client.request("/api/transactions", {
+      session: "siyuan-damophus",
+      app: "siyuan-damophus",
+      reqId: Date.now(),
+      transactions: [{
+        doOperations: databaseRepairs.map((repair) => ({
+          action: "updateAttrViewCol",
+          avID: target.avId,
+          id: repair.keyId,
+          name: repair.name,
+          type: repair.type,
+        })),
+      }],
+    });
+  }
+}
+
 export async function repairQuestionBankBinding(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
@@ -988,6 +1053,7 @@ export async function repairQuestionBankBinding(
   await changeManagedKeyTypes(client, binding, "questionIndex", verification.missingManagedKeys);
   await changeManagedKeyTypes(client, binding, "attemptLog", verification.missingManagedKeys);
   await normalizeManagedValues(client, binding, verification.missingManagedKeys);
+  await updateDurationUnitLabels(client, binding, verification.missingManagedKeys);
   if (verification.missingManagedKeys.some((repair) => repair.kind === "configureRelation"
     || repair.field === "attempts_relation")) {
     await configureQuestionRelation(client, binding);

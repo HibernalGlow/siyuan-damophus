@@ -589,7 +589,7 @@ describe("question bank browser flow", () => {
       database: "attemptLog",
       field: "duration_ms",
       keyId: "20260804120005-abcdefg",
-      name: "Duration (ms)",
+      name: "Duration (min)",
       type: "number",
     }];
     const { controller } = mockController({ preview });

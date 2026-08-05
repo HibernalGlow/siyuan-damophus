@@ -21,6 +21,14 @@ export function numberCell(content: number | undefined): AttributeViewCellInput 
   };
 }
 
+export function durationMinutesFromMilliseconds(milliseconds: number | undefined): number | undefined {
+  return milliseconds === undefined ? undefined : milliseconds / 60_000;
+}
+
+export function durationMillisecondsFromMinutes(minutes: number | undefined): number | undefined {
+  return minutes === undefined ? undefined : Math.round(minutes * 60_000);
+}
+
 export function selectCell(content: string | undefined, color = "1"): AttributeViewCellInput {
   return {
     type: "select",

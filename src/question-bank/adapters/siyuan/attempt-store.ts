@@ -9,6 +9,8 @@ import {
 } from "./binding";
 import {
   dateCell,
+  durationMillisecondsFromMinutes,
+  durationMinutesFromMilliseconds,
   multiSelectCell,
   numberCell,
   relationCell,
@@ -125,7 +127,7 @@ export async function readAttemptEvents(
         objective_correct: parseObjectiveResult(objective),
         mastery_rating: textValue(fields.mastery_rating.get(itemID)),
         subjective_score: numberValue(fields.subjective_score.get(itemID)),
-        duration_ms: numberValue(fields.duration_ms.get(itemID)),
+        duration_ms: durationMillisecondsFromMinutes(numberValue(fields.duration_ms.get(itemID))),
       });
       if (!parsed.success) throw new Error(parsed.error.issues.map((issue) => issue.message).join("; "));
       events.push(parsed.data as AttemptEvent);
@@ -221,7 +223,7 @@ export async function appendAttemptEvent(
       ({ again: "1", hard: "2", good: "6", easy: "8" } as const)[attempt.mastery_rating],
     ),
     subjective_score: numberCell(attempt.subjective_score),
-    duration_ms: numberCell(attempt.duration_ms),
+    duration_ms: numberCell(durationMinutesFromMilliseconds(attempt.duration_ms)),
   };
   try {
     for (const [field, value] of Object.entries(values)) {
