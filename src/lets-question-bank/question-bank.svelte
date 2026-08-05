@@ -344,6 +344,40 @@
     ].filter(Boolean).join(" / ");
   }
 
+  function messageClipboardText(message: ScanMessage): string {
+    return [
+      `[${message.code}] ${message.message}`,
+      message.title ? `${label("heading", "Heading")}: ${message.title}` : "",
+      messageContext(message),
+      message.sourceMarkdown ? `${label("sourceMarkdown", "Original Markdown")}\n${message.sourceMarkdown}` : "",
+    ].filter(Boolean).join("\n");
+  }
+
+  function scanLogText(): string {
+    return scanMessageGroups
+      .filter((group) => group.messages.length > 0)
+      .map((group) => [
+        label(group.key, group.key),
+        ...group.messages.map(messageClipboardText),
+      ].join("\n\n"))
+      .join("\n\n---\n\n");
+  }
+
+  async function copyText(value: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+  }
+
   function optionMarkdown(option: ShuffledOption): string {
     if (currentQuestion?.type !== "true-false" || option.markdown) return option.markdown;
     return option.originalId === "true"
@@ -469,16 +503,45 @@
           {#if syncComplete}<span class="success">{label("synced", "Question index synchronized")}</span>{/if}
           <details class="scan-details">
             <summary>{label("scanDetails", "Scan details")}</summary>
+            <div class="scan-detail-actions">
+              <span>{label("inferenceNotice", "Inferences describe detected structure and are not errors.")}</span>
+              {#if scanMessageGroups.some((group) => group.messages.length > 0)}
+                <button class="secondary compact" type="button" on:click={() => void copyText(scanLogText())}>
+                  <svg aria-hidden="true"><use href="#iconCopy"></use></svg>
+                  {label("copyScanLog", "Copy scan log")}
+                </button>
+              {/if}
+            </div>
             {#each scanMessageGroups as group}
               {#if group.messages.length > 0}
                 <div class="report-group">
                   <strong>{label(group.key, group.key)}</strong>
                   <ul>
                     {#each group.messages as message}
-                      <li>
-                        <code>{message.code}</code>
-                        <span>{message.message}</span>
+                      <li class="report-message">
+                        <div class="report-message-heading">
+                          <div>
+                            <code>{message.code}</code>
+                            <span>{message.message}</span>
+                          </div>
+                          <button
+                            class="icon-button"
+                            type="button"
+                            aria-label={label("copyFinding", "Copy finding")}
+                            title={label("copyFinding", "Copy finding")}
+                            on:click={() => void copyText(messageClipboardText(message))}
+                          >
+                            <svg aria-hidden="true"><use href="#iconCopy"></use></svg>
+                          </button>
+                        </div>
+                        {#if message.title}<strong class="message-title">{label("heading", "Heading")}: {message.title}</strong>{/if}
                         {#if messageContext(message)}<small>{messageContext(message)}</small>{/if}
+                        {#if message.sourceMarkdown}
+                          <details class="message-source">
+                            <summary>{label("sourceMarkdown", "Original Markdown")}</summary>
+                            <pre><code>{message.sourceMarkdown}</code></pre>
+                          </details>
+                        {/if}
                       </li>
                     {/each}
                   </ul>
@@ -682,14 +745,23 @@
   .summary-grid span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; flex-direction: column; justify-content: center; font-size: 12px; color: var(--b3-theme-on-surface); }
   .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
   .summary-grid .danger strong, .error, .incorrect { color: var(--b3-theme-error); }
-  .scan-details { flex-basis: 100%; border-top: 1px solid var(--b3-border-color); padding-top: 10px; }
+  .scan-details { flex-basis: 100%; border-top: 1px solid var(--b3-border-color); padding-top: 10px; user-select: text; }
   .scan-details summary { cursor: pointer; color: var(--b3-theme-on-surface); font-size: 13px; font-weight: 600; }
+  .scan-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .scan-detail-actions .compact { min-height: 30px; padding: 4px 9px; white-space: nowrap; user-select: none; }
   .report-group { margin-top: 12px; }
   .report-group > strong { display: block; margin-bottom: 6px; font-size: 13px; }
   .report-group ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
   .report-group li { min-width: 0; }
-  .report-group li > span { margin-left: 8px; overflow-wrap: anywhere; }
+  .report-message-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .report-message-heading > div { min-width: 0; }
+  .report-message-heading span { margin-left: 8px; overflow-wrap: anywhere; }
+  .report-message-heading .icon-button { flex: 0 0 28px; width: 28px; height: 28px; min-height: 28px; padding: 5px; user-select: none; }
+  .message-title { display: block; margin-top: 5px; overflow-wrap: anywhere; }
   .report-group small { display: block; margin-top: 2px; color: var(--b3-theme-on-surface); overflow-wrap: anywhere; }
+  .message-source { margin-top: 6px; }
+  .message-source pre { max-height: 180px; margin: 6px 0 0; padding: 8px; overflow: auto; border: 1px solid var(--b3-border-color); border-radius: 4px; background: var(--b3-theme-background); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .message-source pre code { font-size: 12px; user-select: text; }
   .success, .correct { color: var(--b3-theme-success); font-size: 13px; }
   .practice-settings { padding: 20px 0 0; display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1fr) minmax(250px, 1.5fr) auto; gap: 16px; align-items: end; }
   .practice-settings > label { display: grid; gap: 6px; }

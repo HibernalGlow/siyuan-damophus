@@ -120,10 +120,23 @@ describe("question Markdown scanner", () => {
     const report = scanQuestionMarkdown(fixture("malformed-legacy"));
 
     expect(report.issues.map((issue) => issue.code)).toContain("missing-stable-question-id");
+    expect(report.issues.find((issue) => issue.code === "missing-stable-question-id")).toMatchObject({
+      title: "99. （单）",
+      sourceMarkdown: "##### 99. （单）",
+    });
     expect(report.conflicts.map((conflict) => conflict.code)).toEqual(
       expect.arrayContaining(["answer-conflict", "duplicate-question-id"]),
     );
     expect(report.document.questions).toEqual([]);
+  });
+
+  it("does not report numbered topic headings as questions without IDs", () => {
+    const report = scanQuestionMarkdown(`## 考点必背\n\n### 1. 证据保全\n\n正文\n\n##### 99. （单）\n\n- 旧题`);
+
+    expect(report.issues.filter((issue) => issue.code === "missing-stable-question-id")).toEqual([
+      expect.objectContaining({ title: "99. （单）", line: 7 }),
+    ]);
+    expect(report.document.topics.map((topic) => topic.title)).toEqual(["考点必背", "1. 证据保全"]);
   });
 
   it("infers a heading scope but does not invent a permanent topic ID", () => {

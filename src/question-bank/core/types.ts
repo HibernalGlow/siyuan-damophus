@@ -68,6 +68,8 @@ export interface ScanMessage {
   message: string;
   questionId?: string;
   line?: number;
+  title?: string;
+  sourceMarkdown?: string;
 }
 
 export interface QuestionScanReport {

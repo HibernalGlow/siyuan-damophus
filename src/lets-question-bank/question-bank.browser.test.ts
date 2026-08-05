@@ -454,6 +454,8 @@ describe("question bank browser flow", () => {
       message: "Inferred single choice",
       questionId: objectiveQuestion.id,
       line: 12,
+      title: "120. （多）",
+      sourceMarkdown: "##### 120. （多）",
     }];
     preview.ialWriteActions = [{
       blockId,
@@ -474,8 +476,31 @@ describe("question bank browser flow", () => {
     await scan();
 
     expect(document.body.textContent).toContain("Inferred single choice");
+    expect(document.body.textContent).toContain("Heading: 120. （多）");
+    expect(document.querySelector(".message-source")?.textContent).toContain("##### 120. （多）");
     expect(document.body.textContent).toContain("custom-qb-type");
     expect(document.body.textContent).toContain("duration_ms");
+  });
+
+  it("copies a complete scan log with heading and source Markdown", async () => {
+    const preview = makePreview([objectiveQuestion]);
+    preview.scan.report.issues = [{
+      code: "missing-stable-question-id",
+      message: "Question-like heading has no custom-qb-id and was not indexed",
+      line: 7,
+      title: "99. （单）",
+      sourceMarkdown: "##### 99. （单）",
+    }];
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const { controller } = mockController({ preview });
+    render(controller);
+    await scan();
+
+    button("Copy scan log").click();
+    await flush();
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Heading: 99. （单）"));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("##### 99. （单）"));
   });
 
   it("discards a scan preview when the target document ID changes", async () => {

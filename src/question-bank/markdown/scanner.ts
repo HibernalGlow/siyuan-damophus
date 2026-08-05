@@ -447,6 +447,8 @@ function buildQuestion(
 ): Question | undefined {
   const id = candidate.attributes["custom-qb-id"];
   const title = toString(candidate.heading).trim();
+  const headingBlock = blocks[candidate.blockIndex];
+  const headingContext = { title, sourceMarkdown: headingBlock.raw };
   const bodyBlocks = blocks.slice(candidate.blockIndex + 1, endIndex);
   const bodyText = bodyBlocks.map((block) => block.raw).join("\n\n");
   const explicitType = candidate.attributes["custom-qb-type"];
@@ -456,6 +458,7 @@ function buildQuestion(
       message: `Invalid custom-qb-type '${explicitType}'`,
       questionId: id,
       line: candidate.heading.position?.start.line,
+      ...headingContext,
     });
     return undefined;
   }
@@ -468,6 +471,7 @@ function buildQuestion(
         message: `Inferred question type '${type}' from visible text`,
         questionId: id,
         line: candidate.heading.position?.start.line,
+        ...headingContext,
       });
       addIalUpdate(
         report,
@@ -482,6 +486,7 @@ function buildQuestion(
         message: "Question has no valid custom-qb-type",
         questionId: id,
         line: candidate.heading.position?.start.line,
+        ...headingContext,
       });
       return undefined;
     }
@@ -496,6 +501,7 @@ function buildQuestion(
       message: "Question contains more than one solution boundary",
       questionId: id,
       line: candidate.heading.position?.start.line,
+      ...headingContext,
     });
     return undefined;
   }
@@ -508,6 +514,8 @@ function buildQuestion(
         message: "Inferred the solution boundary from a visible answer or explanation label",
         questionId: id,
         line: bodyBlocks[solutionIndex].line,
+        title,
+        sourceMarkdown: bodyBlocks[solutionIndex].raw,
       });
       addIalUpdate(
         report,
@@ -522,6 +530,7 @@ function buildQuestion(
         message: "Question has no explicit or safely inferred solution boundary",
         questionId: id,
         line: candidate.heading.position?.start.line,
+        ...headingContext,
       });
       return undefined;
     }
@@ -539,6 +548,8 @@ function buildQuestion(
       message: "custom-qb-option must use a non-empty ASCII alphanumeric ID",
       questionId: id,
       line: invalidExplicitOption.block.line,
+      title,
+      sourceMarkdown: invalidExplicitOption.block.raw,
     });
     return undefined;
   }
@@ -578,6 +589,7 @@ function buildQuestion(
       message: `Invalid custom-qb-answer for question type '${type}'`,
       questionId: id,
       line: candidate.heading.position?.start.line,
+      ...headingContext,
     });
     return undefined;
   }
@@ -588,6 +600,7 @@ function buildQuestion(
       message: "custom-qb-answer conflicts with the visible solution answer",
       questionId: id,
       line: candidate.heading.position?.start.line,
+      ...headingContext,
     });
     return undefined;
   }
@@ -598,6 +611,7 @@ function buildQuestion(
       message: "Inferred machine answer from the visible solution",
       questionId: id,
       line: candidate.heading.position?.start.line,
+      ...headingContext,
     });
     addIalUpdate(
       report,
@@ -625,6 +639,7 @@ function buildQuestion(
         message: issue.message,
         questionId: id,
         line: candidate.heading.position?.start.line,
+        ...headingContext,
       });
     }
     return undefined;
@@ -666,11 +681,15 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
     activeQuestionDepth = undefined;
 
     const headingTitle = toString(block.node).trim();
-    if (/^(?:\d+[.、]|第.{1,12}题)/u.test(headingTitle)) {
+    const looksLikeQuestionHeading = block.node.depth >= 4
+      && /^(?:\d+[.、]|第.{1,12}题)/u.test(headingTitle);
+    if (looksLikeQuestionHeading) {
       report.issues.push({
         code: "missing-stable-question-id",
         message: "Question-like heading has no custom-qb-id and was not indexed",
         line: block.line,
+        title: headingTitle,
+        sourceMarkdown: block.raw,
       });
       activeQuestionDepth = block.node.depth;
       continue;
@@ -686,6 +705,8 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
         code: "invalid-topic-id",
         message: `Topic ID must use lowercase ASCII kebab-case: ${explicitId}`,
         line: block.line,
+        title: headingTitle,
+        sourceMarkdown: block.raw,
       });
       continue;
     }
@@ -695,6 +716,8 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
         code: "missing-topic-id",
         message: "Explicit topic has no custom-qb-topic-id",
         line: block.line,
+        title: headingTitle,
+        sourceMarkdown: block.raw,
       });
     }
     if (topicIds.has(id)) {
@@ -702,6 +725,8 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
         code: "duplicate-topic-id",
         message: `Duplicate topic ID: ${id}`,
         line: block.line,
+        title: headingTitle,
+        sourceMarkdown: block.raw,
       });
       continue;
     }
@@ -729,6 +754,8 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
         code: "inferred-topic",
         message: `Inferred topic scope '${title}' from the heading tree`,
         line: block.line,
+        title,
+        sourceMarkdown: block.raw,
       });
     }
   }
@@ -743,6 +770,8 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
         message: `Duplicate question ID: ${id}`,
         questionId: id,
         line: candidate.heading.position?.start.line,
+        title: toString(candidate.heading).trim(),
+        sourceMarkdown: blocks[candidate.blockIndex].raw,
       });
       continue;
     }
