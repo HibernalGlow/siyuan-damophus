@@ -282,10 +282,24 @@ describe("question bank browser flow", () => {
     await flush();
     await scan();
     expect(document.querySelector(".scan-summary")).not.toBeNull();
+    expect(document.body.textContent).toContain("Index changes detected; synchronization is required");
     button("Confirm index sync").click();
     await flush();
     expect(document.body.textContent).toContain("Question index synchronized");
     expect(controller.confirmSync).toHaveBeenCalledWith(documentId, "preview-token");
+  });
+
+  it("shows that the index is current when a scan has no pending writes", async () => {
+    const currentPreview = makePreview([objectiveQuestion]);
+    currentPreview.actions = [];
+    const { controller } = mockController({ preview: currentPreview });
+    render(controller);
+
+    await scan();
+
+    const current = button("Index is up to date");
+    expect(current.disabled).toBe(true);
+    expect(document.body.textContent).not.toContain("Index changes detected");
   });
 
   it("reconnects an existing Damophus system document after preview", async () => {

@@ -176,6 +176,7 @@ export const devDocumentId = documentId;
 export class DevQuestionBankController implements QuestionBankUiController {
   private recentScope: RecentScope | undefined;
   private readonly preview = createPreview();
+  private synchronized = false;
 
   getBinding(): QuestionBankBinding {
     return binding;
@@ -208,11 +209,22 @@ export class DevQuestionBankController implements QuestionBankUiController {
   }
 
   async previewSync(): Promise<QuestionIndexPreview> {
-    return this.preview;
+    return this.synchronized
+      ? { ...this.preview, actions: [], ialWriteActions: [] }
+      : this.preview;
   }
 
   async confirmSync(): Promise<QuestionIndexPreview> {
-    return this.preview;
+    this.synchronized = true;
+    return {
+      ...this.preview,
+      actions: [],
+      ialWriteActions: [],
+      results: this.preview.actions.map((action) => ({
+        questionId: action.question.id,
+        status: "synced" as const,
+      })),
+    };
   }
 
   async loadAggregates() {

@@ -644,6 +644,25 @@ describe("SiYuan question bank adapter", () => {
     expect(client.attributeViews.get(binding.questionIndex.avId)!.keyValues).toContain(custom);
   });
 
+  it("only proposes index updates when managed question metadata differs", async () => {
+    const { client, binding } = await initialized();
+    const documentId = "20260804120000-sourced";
+    client.documents.set(documentId, fixture("siyuan-kramdown"));
+    const initial = await previewQuestionIndexSync(client, binding, documentId);
+    await confirmQuestionIndexSync(client, binding, documentId, initial.token);
+
+    const unchanged = await previewQuestionIndexSync(client, binding, documentId);
+    expect(unchanged.actions).toEqual([]);
+
+    const categoryValues = client.attributeViews.get(binding.questionIndex.avId)!.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.category,
+    )!.values;
+    categoryValues[0].mSelect = [{ content: "stale-category", color: "1" }];
+
+    const changed = await previewQuestionIndexSync(client, binding, documentId);
+    expect(changed.actions.map((action) => action.kind)).toEqual(["update"]);
+  });
+
   it("reports per-question sync failures and allows an idempotent retry", async () => {
     const { client, binding } = await initialized();
     const documentId = "20260804120000-sourced";

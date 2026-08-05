@@ -109,6 +109,11 @@
     { key: "conflicts", messages: preview.scan.report.conflicts },
     { key: "sourceProblems", messages: preview.scan.sourceIssues },
   ] : [];
+  $: pendingSync = Boolean(preview && !syncComplete && (
+    preview.actions.length > 0
+    || preview.bindingRepairs.length > 0
+    || preview.ialWriteActions.length > 0
+  ));
   $: suggestedRating = revealed
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
@@ -634,11 +639,25 @@
             <span><strong>{preview.scan.report.issues.length}</strong>{label("issues", "Issues")}</span>
             <span class:danger={preview.blockers.length > 0}><strong>{preview.blockers.length}</strong>{label("blockers", "Blockers")}</span>
           </div>
-          <Button variant="outline" disabled={busy || preview.blockers.length > 0} onclick={confirmSync}>
+          <Button
+            variant={pendingSync ? "default" : "outline"}
+            disabled={busy || preview.blockers.length > 0 || !pendingSync}
+            onclick={confirmSync}
+          >
             <svg data-icon="inline-start" aria-hidden="true"><use href="#iconCheck"></use></svg>
-            {label("confirmSync", "Confirm index sync")}
+            {pendingSync ? label("confirmSync", "Confirm index sync") : label("indexCurrent", "Index is up to date")}
           </Button>
-          {#if syncComplete}<span class="success">{label("synced", "Question index synchronized")}</span>{/if}
+          {#if pendingSync}
+            <span class="text-sm font-medium text-primary">
+              {preview.blockers.length > 0
+                ? label("syncBlocked", "Index changes detected; resolve blockers before syncing")
+                : label("syncRequired", "Index changes detected; synchronization is required")}
+            </span>
+          {:else}
+            <span class="text-sm text-muted-foreground">
+              {syncComplete ? label("synced", "Question index synchronized") : label("indexCurrent", "Index is up to date")}
+            </span>
+          {/if}
           <Collapsible.Root bind:open={scanDetailsOpen} class="basis-full border-t border-border pt-2.5 select-text">
             <Collapsible.Trigger class={buttonVariants({ variant: "ghost", size: "sm" })}>
               <svg data-icon="inline-start" aria-hidden="true"><use href={scanDetailsOpen ? "#iconUp" : "#iconDown"}></use></svg>
@@ -983,7 +1002,7 @@
   .report-message-heading span { margin-left: 8px; overflow-wrap: anywhere; }
   .message-title { display: block; margin-top: 5px; overflow-wrap: anywhere; }
   .report-group small { display: block; margin-top: 2px; color: var(--b3-theme-on-surface); overflow-wrap: anywhere; }
-  .success, .correct { color: var(--b3-theme-success); font-size: 13px; }
+  .correct { color: var(--b3-theme-success); font-size: 13px; }
   .practice-settings { padding: 20px 0 0; display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1fr) minmax(250px, 1.5fr) auto; gap: 16px; align-items: end; }
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend { margin-bottom: 6px; color: var(--b3-theme-on-surface); font-size: 13px; }

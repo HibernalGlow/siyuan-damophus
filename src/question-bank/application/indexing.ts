@@ -51,7 +51,22 @@ interface ExistingQuestionRow {
   itemId: string;
   blockId?: string;
   questionId?: string;
+  values: Partial<Record<QuestionIndexComparableField, AttributeViewValue>>;
 }
+
+const questionIndexComparableFields = [
+  "question_id",
+  "question_type",
+  "year",
+  "subject",
+  "category",
+  "collection",
+  "source",
+  "topic_id",
+  "parent_id",
+] as const;
+
+type QuestionIndexComparableField = typeof questionIndexComparableFields[number];
 
 const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
 
@@ -64,15 +79,53 @@ function existingQuestionRows(
   binding: QuestionBankBinding,
 ): ExistingQuestionRow[] {
   const identities = questionRowIdentityMaps(av, binding.questionIndex.keys.block_id);
-  const questionValues = valueByItem(av.keyValues.find(
-    (keyValues) => keyValues.key.id === binding.questionIndex.keys.question_id,
-  )?.values ?? []);
-  return identities.rows.map((row) => ({
-    itemId: row.itemId,
-    blockId: row.sourceBlockId,
-    questionId: (questionValues.get(row.itemId)
-      ?? (row.sourceBlockId ? questionValues.get(row.sourceBlockId) : undefined))?.text?.content,
-  }));
+  const valuesByField = new Map(questionIndexComparableFields.map((field) => [
+    field,
+    valueByItem(av.keyValues.find(
+      (keyValues) => keyValues.key.id === binding.questionIndex.keys[field],
+    )?.values ?? []),
+  ]));
+  return identities.rows.map((row) => {
+    const values = Object.fromEntries(questionIndexComparableFields.flatMap((field) => {
+      const fieldValues = valuesByField.get(field);
+      const value = fieldValues?.get(row.itemId)
+        ?? (row.sourceBlockId ? fieldValues?.get(row.sourceBlockId) : undefined);
+      return value ? [[field, value]] : [];
+    })) as Partial<Record<QuestionIndexComparableField, AttributeViewValue>>;
+    return {
+      itemId: row.itemId,
+      blockId: row.sourceBlockId,
+      questionId: values.question_id?.text?.content,
+      values,
+    };
+  });
+}
+
+function comparableText(value: AttributeViewValue | undefined): string {
+  return value?.mSelect?.[0]?.content ?? value?.text?.content ?? "";
+}
+
+function comparableNumber(value: AttributeViewValue | undefined): number | undefined {
+  if (value?.number?.isNotEmpty === false) return undefined;
+  if (value?.number?.content !== undefined) return value.number.content;
+  const text = value?.text?.content;
+  if (!text) return undefined;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function questionRowNeedsUpdate(row: ExistingQuestionRow, question: Question): boolean {
+  const metadata = question.metadata;
+  const expectedYear = metadata.year === undefined ? undefined : Number(metadata.year);
+  return comparableText(row.values.question_id) !== question.id
+    || comparableText(row.values.question_type) !== question.type
+    || comparableNumber(row.values.year) !== expectedYear
+    || comparableText(row.values.subject) !== (metadata.subject ?? "")
+    || comparableText(row.values.category) !== (metadata.category ?? "")
+    || comparableText(row.values.collection) !== (metadata.collection ?? "")
+    || comparableText(row.values.source) !== (metadata.source ?? "")
+    || comparableText(row.values.topic_id) !== (metadata.topicId ?? "")
+    || comparableText(row.values.parent_id) !== (metadata.parentId ?? "");
 }
 
 function hashPreview(value: string): string {
@@ -140,6 +193,7 @@ export async function previewQuestionIndexSync(
   const byBlockId = new Map(rows.filter((row) => row.blockId).map((row) => [row.blockId!, row]));
   const blockers = [...scan.report.conflicts, ...scan.sourceIssues];
   const actions: QuestionIndexAction[] = [];
+  const questionsWithIalWrites = new Set(scan.ialWriteActions.map((action) => action.questionId));
 
   for (const question of scan.report.document.questions) {
     const blockId = getQuestionBlockId(scan, question);
@@ -169,7 +223,11 @@ export async function previewQuestionIndexSync(
       });
       continue;
     }
-    actions.push({ kind: sameQuestion || sameBlock ? "update" : "add", question, blockId });
+    const existing = sameQuestion ?? sameBlock;
+    if (!existing) actions.push({ kind: "add", question, blockId });
+    else if (questionRowNeedsUpdate(existing, question) || questionsWithIalWrites.has(question.id)) {
+      actions.push({ kind: "update", question, blockId });
+    }
   }
 
   const scannedIds = new Set(scan.report.document.questions.map((question) => question.id));
@@ -308,5 +366,5 @@ export async function confirmQuestionIndexSync(
       });
     }
   }
-  return { ...preview, bindingRepairs: [], ialWriteActions: [], results };
+  return { ...preview, actions: [], bindingRepairs: [], ialWriteActions: [], results };
 }
