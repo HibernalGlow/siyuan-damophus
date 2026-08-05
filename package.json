@@ -13,7 +13,8 @@
   "license": "WTFPL",
   "scripts": {
     "make-link": "node  --no-warnings ./scripts/make_dev_link.js",
-    "dev": "vite build --watch",
+    "dev": "vite --config vite.dev.config.ts",
+    "dev:plugin": "vite build --watch",
     "build": "vite build",
     "deploy:test": "vite build && node scripts/deploy-test-workspace.mjs",
     "check": "svelte-check --config ./svelte.config.js --tsconfig ./tsconfig.json",

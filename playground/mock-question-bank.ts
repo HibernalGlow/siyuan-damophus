@@ -1,0 +1,242 @@
+import type {
+  AttemptImportPreview,
+  AttemptImportResult,
+  QuestionIndexPreview,
+} from "@/question-bank/application";
+import type {
+  QuestionBankBinding,
+  QuestionBankInitializationPreview,
+  QuestionBankRebindingPreview,
+  RiffCard,
+} from "@/question-bank/adapters/siyuan";
+import type { NewAttemptInput } from "@/question-bank/core/attempts";
+import type { AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
+import type {
+  AttemptSubmissionResult,
+  QuestionBankUiController,
+  RecentScope,
+} from "@/lets-question-bank/controller";
+
+const documentId = "20260805120000-damodev";
+const systemDocumentId = "20260805110000-system1";
+const blockIds = {
+  objective: "20260805120001-object1",
+  judgment: "20260805120002-judge01",
+  subjective: "20260805120003-subject",
+};
+
+const topics: TopicNode[] = [
+  { id: "civil", title: "民法", level: 2, childIds: ["contract"], explicit: true },
+  { id: "contract", title: "合同效力", level: 3, parentId: "civil", childIds: [], explicit: true },
+  { id: "procedure", title: "民事诉讼法", level: 2, childIds: [], explicit: true },
+];
+
+const questions: Question[] = [
+  {
+    id: "dev-objective",
+    type: "multiple",
+    title: "合同效力判断",
+    stemMarkdown: "甲无权代理乙与丙订立合同。关于该合同效力，下列哪些说法正确？",
+    options: [
+      { id: "A", markdown: "乙追认前，丙有权催告乙在合理期限内追认。" },
+      { id: "B", markdown: "乙追认前，善意的丙有撤销权。" },
+      { id: "C", markdown: "乙拒绝追认后，合同自始无效。" },
+      { id: "D", markdown: "只要甲事后取得代理权，合同当然对乙生效。" },
+    ],
+    answer: { kind: "options", optionIds: ["A", "B", "C"] },
+    solutionMarkdown: "**答案：ABC。** 无权代理须经被代理人追认才对其发生效力；相对人享有催告权，善意相对人在追认前享有撤销权。",
+    metadata: { topicId: "contract", topicPath: ["民法", "合同效力"] },
+  },
+  {
+    id: "dev-judgment",
+    type: "true-false",
+    title: "举证责任",
+    stemMarkdown: "当事人对自己提出的主张，有责任提供证据。",
+    options: [],
+    answer: { kind: "boolean", value: true },
+    solutionMarkdown: "正确。这是民事诉讼举证责任的一般规则。",
+    metadata: { topicId: "procedure", topicPath: ["民事诉讼法", "证据"] },
+  },
+  {
+    id: "dev-subjective",
+    type: "subjective",
+    title: "请求权基础分析",
+    stemMarkdown: "请简要说明合同解除后损害赔偿请求权的审查顺序。",
+    options: [],
+    solutionMarkdown: "可依次审查：解除是否有效、损害是否存在、因果关系、可预见性及减损规则。",
+    metadata: { topicId: "contract", topicPath: ["民法", "合同效力"] },
+  },
+];
+
+function createPreview(): QuestionIndexPreview {
+  const ids = new Map([
+    [questions[0].id, blockIds.objective],
+    [questions[1].id, blockIds.judgment],
+    [questions[2].id, blockIds.subjective],
+  ]);
+  return {
+    token: "dev-preview-token",
+    generatedAt: new Date().toISOString(),
+    documentId,
+    scan: {
+      documentId,
+      kramdown: "",
+      report: {
+        document: { questions, topics, groups: [] },
+        inferences: [{
+          code: "dev-inferred-type",
+          message: "已从题目标题推断出多选题类型",
+          questionId: questions[0].id,
+          line: 12,
+          title: questions[0].title,
+          sourceMarkdown: `##### ${questions[0].title}`,
+        }],
+        conflicts: [],
+        issues: [],
+        ialUpdates: [],
+      },
+      blockIdsByQuestionId: ids,
+      topicBlockIdsByTopicId: new Map([
+        ["civil", "20260805120010-civil00"],
+        ["contract", "20260805120011-contract"],
+        ["procedure", "20260805120012-procedu"],
+      ]),
+      ialWriteActions: [],
+      sourceIssues: [],
+    },
+    actions: questions.map((question) => ({
+      kind: "add" as const,
+      question,
+      blockId: ids.get(question.id) as string,
+    })),
+    staleQuestionIds: [],
+    blockers: [],
+    bindingRepairs: [],
+    ialWriteActions: [],
+    results: [],
+  };
+}
+
+function createAttempt(input: Omit<NewAttemptInput, "attemptId">): AttemptEvent {
+  return {
+    schema_version: 1,
+    attempt_id: crypto.randomUUID(),
+    question_id: input.questionId,
+    question_relation: input.questionRelation,
+    session_id: input.sessionId,
+    answered_at: new Date().toISOString(),
+    question_type: input.questionType,
+    option_order: input.optionOrder ?? [],
+    selected_option_ids: input.selectedOptionIds ?? [],
+    objective_correct: input.objectiveCorrect,
+    mastery_rating: input.masteryRating,
+    subjective_score: input.subjectiveScore,
+    duration_ms: input.durationMs,
+  };
+}
+
+const binding = { schemaVersion: 2 } as unknown as QuestionBankBinding;
+
+export const devDocumentId = documentId;
+
+export class DevQuestionBankController implements QuestionBankUiController {
+  private recentScope: RecentScope | undefined;
+  private readonly preview = createPreview();
+
+  getBinding(): QuestionBankBinding {
+    return binding;
+  }
+
+  async previewInitialization(): Promise<QuestionBankInitializationPreview> {
+    return {
+      token: "dev-init-token",
+      notebookId: "20260805110000-noteboo",
+      path: "/Damophus Dev",
+      questionBlockId: "20260805110001-questio",
+      questionAvId: "20260805110002-questav",
+      attemptBlockId: "20260805110003-attempt",
+      attemptAvId: "20260805110004-attempt",
+      questionColumns: [],
+      attemptColumns: [],
+    };
+  }
+
+  async confirmInitialization(): Promise<QuestionBankBinding> {
+    return binding;
+  }
+
+  async previewRebinding(): Promise<QuestionBankRebindingPreview> {
+    return { token: "dev-rebind-token", systemDocumentId, binding, bindingRepairs: [] };
+  }
+
+  async confirmRebinding(): Promise<QuestionBankBinding> {
+    return binding;
+  }
+
+  async previewSync(): Promise<QuestionIndexPreview> {
+    return this.preview;
+  }
+
+  async confirmSync(): Promise<QuestionIndexPreview> {
+    return this.preview;
+  }
+
+  async loadAggregates() {
+    return new Map([
+      [questions[0].id, {
+        questionId: questions[0].id,
+        attempts: 2,
+        objectiveAttempts: 2,
+        objectiveCorrect: 0,
+        objectiveIncorrect: 2,
+        consecutiveReviewCount: 2,
+        consecutiveAgainCount: 2,
+        consecutiveHardCount: 0,
+        latestRating: "again" as const,
+      }],
+    ]);
+  }
+
+  async loadDueCards(): Promise<ReadonlyMap<string, RiffCard>> {
+    return new Map();
+  }
+
+  async exportAttempts(): Promise<string> {
+    return JSON.stringify({ schemaVersion: 1, attempts: [] }, null, 2);
+  }
+
+  async previewImport(): Promise<AttemptImportPreview> {
+    return {
+      token: "dev-import-token",
+      schemaVersion: 1,
+      pluginVersion: "dev",
+      total: 3,
+      importable: 2,
+      duplicateAttemptIds: ["dev-duplicate"],
+      orphanQuestionIds: [],
+      existingRowIssues: [],
+    };
+  }
+
+  async confirmImport(): Promise<AttemptImportResult> {
+    return {
+      ...(await this.previewImport()),
+      imported: 2,
+      failures: [],
+    };
+  }
+
+  async submitAttempt(
+    input: Omit<NewAttemptInput, "attemptId">,
+  ): Promise<AttemptSubmissionResult> {
+    return { event: createAttempt(input), warnings: [] };
+  }
+
+  getRecentScope(): RecentScope | undefined {
+    return this.recentScope;
+  }
+
+  saveRecentScope(scope: RecentScope): void {
+    this.recentScope = scope;
+  }
+}

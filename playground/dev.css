@@ -1,0 +1,242 @@
+@custom-variant dark (&:where([data-color-mode="dark"], [data-color-mode="dark"] *));
+@import "@/styles/damophus.css";
+@source "../src";
+
+:root {
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  color: #25282b;
+  background: #eef0f2;
+  font-synthesis: none;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+.dev-shell {
+  --shell-bg: #eef0f2;
+  --toolbar-bg: #ffffff;
+  --toolbar-border: #d8dde2;
+  --toolbar-text: #25282b;
+  --toolbar-muted: #68717a;
+  --toolbar-hover: #f0f3f5;
+  --toolbar-active: #e1ebf4;
+  --toolbar-active-text: #185f8d;
+  width: 100%;
+  height: 100%;
+  color: var(--toolbar-text);
+  background: var(--shell-bg);
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+}
+
+.dev-shell[data-color-mode="dark"] {
+  --shell-bg: #17191c;
+  --toolbar-bg: #202328;
+  --toolbar-border: #343941;
+  --toolbar-text: #eceff2;
+  --toolbar-muted: #9ca5ae;
+  --toolbar-hover: #2a2e34;
+  --toolbar-active: #183e54;
+  --toolbar-active-text: #8bcaf0;
+}
+
+.dev-toolbar {
+  position: relative;
+  z-index: 10;
+  min-width: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--toolbar-border);
+  background: var(--toolbar-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dev-identity {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dev-identity strong {
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.dev-identity span {
+  overflow: hidden;
+  color: var(--toolbar-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dev-controls,
+.segmented {
+  display: flex;
+  align-items: center;
+}
+
+.dev-controls {
+  gap: 6px;
+}
+
+.segmented {
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segmented button,
+.tool-button {
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  color: var(--toolbar-muted);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--toolbar-border);
+}
+
+.segmented button:hover,
+.tool-button:hover {
+  color: var(--toolbar-text);
+  background: var(--toolbar-hover);
+}
+
+.segmented button[aria-pressed="true"] {
+  color: var(--toolbar-active-text);
+  background: var(--toolbar-active);
+}
+
+.tool-button {
+  border-radius: 6px;
+}
+
+.locale-button {
+  width: auto;
+  min-width: 44px;
+  padding: 0 7px;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.preview-stage {
+  min-height: 0;
+  padding: 20px 24px 24px;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.preview-frame {
+  --b3-theme-background: #fbfbfc;
+  --b3-theme-on-background: #25282b;
+  --b3-theme-surface: #f2f3f5;
+  --b3-theme-on-surface: #606870;
+  --b3-theme-primary: #2f6f91;
+  --b3-theme-on-primary: #ffffff;
+  --b3-theme-primary-lightest: #e5f0f6;
+  --b3-theme-error: #b33b35;
+  --b3-theme-on-error: #ffffff;
+  --b3-theme-success: #287853;
+  --b3-border-color: #d9dde1;
+  --b3-list-hover: #e8edf0;
+  --b3-font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  --b3-font-size: 15px;
+  color-scheme: light;
+  width: min(1180px, calc(100vw - 48px));
+  height: min(820px, calc(100vh - 96px));
+  min-height: 560px;
+  border: 1px solid var(--toolbar-border);
+  background: var(--b3-theme-background);
+  box-shadow: 0 12px 36px rgb(30 37 43 / 12%);
+  overflow: hidden;
+  transition: width 180ms ease;
+}
+
+.preview-frame[data-color-mode="dark"] {
+  --b3-theme-background: #202328;
+  --b3-theme-on-background: #edf0f2;
+  --b3-theme-surface: #292d33;
+  --b3-theme-on-surface: #aeb6be;
+  --b3-theme-primary: #64a8ce;
+  --b3-theme-on-primary: #102835;
+  --b3-theme-primary-lightest: #263e4b;
+  --b3-theme-error: #e06c64;
+  --b3-theme-on-error: #27100e;
+  --b3-theme-success: #6dc49a;
+  --b3-border-color: #3a4048;
+  --b3-list-hover: #32373e;
+  color-scheme: dark;
+  box-shadow: 0 14px 38px rgb(0 0 0 / 30%);
+}
+
+.preview-stage[data-view-mode="mobile"] .preview-frame {
+  width: min(390px, calc(100vw - 24px));
+  height: min(844px, calc(100vh - 76px));
+}
+
+.preview-frame > .question-bank {
+  width: 100%;
+  height: 100%;
+}
+
+.dev-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  max-width: min(420px, calc(100vw - 36px));
+  padding: 9px 12px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  color: var(--toolbar-text);
+  background: var(--toolbar-bg);
+  box-shadow: 0 8px 24px rgb(20 26 31 / 18%);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  .dev-toolbar {
+    padding-inline: 10px;
+  }
+
+  .dev-identity span {
+    display: none;
+  }
+
+  .preview-stage {
+    padding: 12px;
+  }
+
+  .preview-frame {
+    width: 100%;
+    height: calc(100vh - 76px);
+    min-height: 0;
+  }
+}

@@ -29,6 +29,7 @@ Dashboard、链接/引用转换、排版、快捷属性操作、列表视图转�
 
 ```sh
 pnpm install
+pnpm dev
 pnpm check
 pnpm test
 pnpm test:browser
@@ -36,5 +37,7 @@ pnpm test:smoke
 pnpm build
 pnpm test:package
 ```
+
+`pnpm dev` 会启动独立的本地题库预览页（默认 `http://127.0.0.1:5173/`），使用内存模拟数据，不连接或写入思源。预览页支持桌面/手机宽度、浅色/深色主题和中英文切换。需要监听构建并部署到思源插件目录时使用 `pnpm dev:plugin`。
 
 构建会自动生成翻译聚合文件与 `package.zip`；这些生成物不进入 Git。子插件约束、i18n 规则和生命周期要求见 [AGENTS.md](AGENTS.md)。
