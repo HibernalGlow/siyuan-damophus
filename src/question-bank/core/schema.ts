@@ -3,6 +3,7 @@ import { z } from "zod";
 export const QuestionTypeSchema = z.enum([
   "single",
   "multiple",
+  "indefinite",
   "true-false",
   "subjective",
   "group",
@@ -44,27 +45,27 @@ export const QuestionSchema = z
     metadata: QuestionMetadataSchema,
   })
   .superRefine((question, context) => {
-    if (["single", "multiple", "true-false"].includes(question.type) && !question.answer) {
+    if (["single", "multiple", "indefinite", "true-false"].includes(question.type) && !question.answer) {
       context.addIssue({ code: "custom", message: "Objective questions require an answer" });
     }
-    if (["single", "multiple"].includes(question.type) && question.options.length < 2) {
+    if (["single", "multiple", "indefinite"].includes(question.type) && question.options.length < 2) {
       context.addIssue({ code: "custom", message: "Choice questions require at least two options" });
     }
     const optionIds = question.options.map((option) => option.id);
     if (new Set(optionIds).size !== optionIds.length) {
       context.addIssue({ code: "custom", message: "Question option IDs must be unique" });
     }
-    if (question.type === "single" || question.type === "multiple") {
+    if (["single", "multiple", "indefinite"].includes(question.type)) {
       if (question.answer?.kind !== "options") {
         context.addIssue({ code: "custom", message: "Choice questions require option answers" });
       } else {
-        const expectedCount = question.type === "single" ? 1 : 2;
+        const expectedCount = question.type === "multiple" ? 2 : 1;
         if (question.answer.optionIds.length < expectedCount) {
           context.addIssue({
             code: "custom",
-            message: question.type === "single"
-              ? "Single-choice questions require exactly one answer"
-              : "Multiple-choice questions require at least two answers",
+            message: question.type === "multiple"
+              ? "Multiple-choice questions require at least two answers"
+              : "Single-choice and indefinite-choice questions require at least one answer",
           });
         }
         if (question.type === "single" && question.answer.optionIds.length !== 1) {
@@ -117,7 +118,7 @@ export const AttemptEventSchema = z.object({
   if (attempt.question_type !== "subjective" && attempt.subjective_score !== undefined) {
     context.addIssue({ code: "custom", message: "Only subjective attempts can have a subjective score" });
   }
-  if (["single", "multiple", "true-false"].includes(attempt.question_type)
+  if (["single", "multiple", "indefinite", "true-false"].includes(attempt.question_type)
     && attempt.objective_correct === null) {
     context.addIssue({ code: "custom", message: "Objective attempts require an objective result" });
   }

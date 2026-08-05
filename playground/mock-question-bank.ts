@@ -23,6 +23,8 @@ const blockIds = {
   objective: "20260805120001-object1",
   judgment: "20260805120002-judge01",
   subjective: "20260805120003-subject",
+  single: "20260805120004-single1",
+  indefinite: "20260805120005-indef1",
 };
 
 const topics: TopicNode[] = [
@@ -66,6 +68,36 @@ const questions: Question[] = [
     solutionMarkdown: "可依次审查：解除是否有效、损害是否存在、因果关系、可预见性及减损规则。",
     metadata: { topicId: "contract", topicPath: ["民法", "合同效力"] },
   },
+  {
+    id: "dev-single",
+    type: "single",
+    title: "撤销权行使",
+    stemMarkdown: "下列关于善意相对人撤销权的说法，哪一项正确？",
+    options: [
+      { id: "A", markdown: "只能在被代理人追认后行使。" },
+      { id: "B", markdown: "应当在被代理人追认前行使。" },
+      { id: "C", markdown: "不以通知方式作出。" },
+      { id: "D", markdown: "恶意相对人同样享有撤销权。" },
+    ],
+    answer: { kind: "options", optionIds: ["B"] },
+    solutionMarkdown: "**答案：B。** 善意相对人可以在被代理人追认前撤销合同。",
+    metadata: { topicId: "contract", topicPath: ["民法", "合同效力"] },
+  },
+  {
+    id: "dev-indefinite",
+    type: "indefinite",
+    title: "无权代理综合判断",
+    stemMarkdown: "关于无权代理，下列说法正确的有几项？",
+    options: [
+      { id: "A", markdown: "被代理人可以追认。" },
+      { id: "B", markdown: "善意相对人可以在追认前撤销。" },
+      { id: "C", markdown: "相对人不得催告被代理人追认。" },
+      { id: "D", markdown: "行为必然对被代理人发生效力。" },
+    ],
+    answer: { kind: "options", optionIds: ["A", "B"] },
+    solutionMarkdown: "**答案：AB。** 不定项题允许一个或多个正确选项。",
+    metadata: { topicId: "contract", topicPath: ["民法", "合同效力"] },
+  },
 ];
 
 function createPreview(): QuestionIndexPreview {
@@ -73,6 +105,8 @@ function createPreview(): QuestionIndexPreview {
     [questions[0].id, blockIds.objective],
     [questions[1].id, blockIds.judgment],
     [questions[2].id, blockIds.subjective],
+    [questions[3].id, blockIds.single],
+    [questions[4].id, blockIds.indefinite],
   ]);
   return {
     token: "dev-preview-token",

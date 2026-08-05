@@ -39,6 +39,31 @@ describe("question Markdown scanner", () => {
     expect(question.metadata.collection).toBe("gold");
   });
 
+  it("infers an indefinite-choice question and accepts a single correct option", () => {
+    const markdown = `##### 3. 不定项选择题
+{: custom-qb-id="civil-indefinite-3" custom-qb-answer="A"}
+
+- 下列说法中，正确的是：
+  - [ ] A. 甲说法
+  - [ ] B. 乙说法
+  - [ ] C. 丙说法
+
+正确答案为 A。
+{: custom-qb-section="solution"}`;
+    const report = scanQuestionMarkdown(markdown);
+
+    expect(report.issues).toEqual([]);
+    expect(report.document.questions[0]).toMatchObject({
+      id: "civil-indefinite-3",
+      type: "indefinite",
+      answer: { kind: "options", optionIds: ["A"] },
+    });
+    expect(report.ialUpdates).toContainEqual(expect.objectContaining({
+      questionId: "civil-indefinite-3",
+      attributes: { "custom-qb-type": "indefinite" },
+    }));
+  });
+
   it("removes nested block IAL from real SiYuan getBlockKramdown content", () => {
     const report = scanQuestionMarkdown(fixture("siyuan-host-kramdown"));
     const question = report.document.questions[0];

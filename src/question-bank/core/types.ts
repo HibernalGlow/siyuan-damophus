@@ -1,6 +1,7 @@
 export type QuestionType =
   | "single"
   | "multiple"
+  | "indefinite"
   | "true-false"
   | "subjective"
   | "group";

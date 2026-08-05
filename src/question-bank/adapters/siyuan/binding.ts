@@ -868,7 +868,7 @@ async function changeManagedKeyTypes(
 
 function selectColor(field: string, content: string): string {
   const semantic: Record<string, Record<string, string>> = {
-    question_type: { single: "8", multiple: "6", "true-false": "4", subjective: "2", group: "12" },
+    question_type: { single: "8", multiple: "6", indefinite: "13", "true-false": "4", subjective: "2", group: "12" },
     objective_correct: { true: "6", false: "1" },
     mastery_rating: { again: "1", hard: "2", good: "6", easy: "8" },
   };

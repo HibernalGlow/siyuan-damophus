@@ -140,6 +140,17 @@ describe("portable question core", () => {
     expect(QuestionSchema.safeParse(invalid).success).toBe(false);
   });
 
+  it("accepts an indefinite-choice question with one or more answers", () => {
+    const oneAnswer = question("indefinite-one");
+    oneAnswer.type = "indefinite";
+    oneAnswer.answer = { kind: "options", optionIds: ["A"] };
+    const severalAnswers = question("indefinite-several");
+    severalAnswers.type = "indefinite";
+
+    expect(QuestionSchema.safeParse(oneAnswer).success).toBe(true);
+    expect(QuestionSchema.safeParse(severalAnswers).success).toBe(true);
+  });
+
   it("restricts subjective scores to subjective attempts and the 0-100 range", () => {
     const base = {
       attemptId: "score-1",

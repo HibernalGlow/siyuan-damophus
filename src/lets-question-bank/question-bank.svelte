@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import * as Alert from "@/components/ui/alert";
+  import { Badge } from "@/components/ui/badge";
   import { Button, buttonVariants } from "@/components/ui/button";
   import * as Collapsible from "@/components/ui/collapsible";
   import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@
     MasteryRating,
     Question,
     QuestionGroup,
+    QuestionType,
     ScanMessage,
     ShuffledOption,
     ShuffledQuestion,
@@ -352,7 +354,7 @@
 
   function toggleOption(optionId: string): void {
     if (!currentQuestion || revealed) return;
-    if (currentQuestion.type === "multiple") {
+    if (currentQuestion.type === "multiple" || currentQuestion.type === "indefinite") {
       selectedOptionIds = selectedOptionIds.includes(optionId)
         ? selectedOptionIds.filter((id) => id !== optionId)
         : [...selectedOptionIds, optionId];
@@ -443,6 +445,18 @@
       message.questionId ? `${label("question", "Question")}: ${message.questionId}` : "",
       message.line ? `${label("line", "Line")}: ${message.line}` : "",
     ].filter(Boolean).join(" / ");
+  }
+
+  function questionTypeLabel(type: QuestionType): string {
+    const labels: Record<QuestionType, string> = {
+      single: label("questionTypeSingle", "Single choice"),
+      multiple: label("questionTypeMultiple", "Multiple choice"),
+      indefinite: label("questionTypeIndefinite", "Indefinite choice"),
+      "true-false": label("questionTypeTrueFalse", "True or false"),
+      subjective: label("questionTypeSubjective", "Subjective"),
+      group: label("questionTypeGroup", "Question group"),
+    };
+    return labels[type];
   }
 
   function messageClipboardText(message: ScanMessage): string {
@@ -842,7 +856,12 @@
       <ScrollArea.Root class="practice-content h-full min-h-0 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
         <article class="question">
         <div class="question-heading">
-          <h2>{currentQuestion.title}</h2>
+          <div class="question-title">
+            <Badge variant="secondary" data-question-type={currentQuestion.type}>
+              {questionTypeLabel(currentQuestion.type)}
+            </Badge>
+            <h2>{currentQuestion.title}</h2>
+          </div>
           {#if currentQuestionBlockId && openQuestionSource}
             <Button
               variant="ghost"
@@ -981,6 +1000,7 @@
   .answer-card-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 8px; }
   .question { max-width: 920px; margin: 0 auto; padding: 24px 22px 8px; }
   .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .question-title { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
   .markdown { min-width: 0; overflow-wrap: anywhere; }
   .native-content.protyle-wysiwyg { display: block; min-height: 0; padding: 0; overflow: visible; }

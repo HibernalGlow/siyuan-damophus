@@ -42,7 +42,7 @@ Status: accepted on 2026-08-04.
 | `custom-qb-role="topic"` | 规范化专题标题 | 声明可移植、可稳定引用的专题 |
 | `custom-qb-topic-id` | 规范化专题标题 | 稳定专题身份，使用小写 ASCII kebab-case |
 | `custom-qb-id` | 题目标题 | 全库唯一、永久稳定的题目身份 |
-| `custom-qb-type` | 题目标题 | `single`、`multiple`、`true-false`、`subjective` 或 `group` |
+| `custom-qb-type` | 题目标题 | `single`、`multiple`、`indefinite`、`true-false`、`subjective` 或 `group` |
 | `custom-qb-answer` | 可机器判分题目 | 原始选项 ID 列表，判断题为 `true` 或 `false` |
 | `custom-qb-year` | 题目或上级专题 | 题目年份 |
 | `custom-qb-subject` | 题目或上级专题 | 科目标识 |

@@ -37,6 +37,14 @@ const objectiveQuestion: Question = {
   metadata: { topicId: "child", topicPath: ["Root topic", "Child topic"] },
 };
 
+const indefiniteQuestion: Question = {
+  ...objectiveQuestion,
+  id: "q-indefinite",
+  type: "indefinite",
+  title: "Indefinite question",
+  answer: { kind: "options", optionIds: ["A"] },
+};
+
 const subjectiveQuestion: Question = {
   id: "q-subjective",
   type: "subjective",
@@ -322,6 +330,7 @@ describe("question bank browser flow", () => {
     await scanAndSync();
     button("Start practice").click();
     await flush();
+    expect(document.querySelector('[data-question-type="multiple"]')?.textContent?.trim()).toBe("Multiple choice");
     const before = [...document.querySelectorAll("button.option")].map((item) => item.textContent?.trim());
     expect(before.join(" ")).toMatch(/Beta.*Gamma.*Alpha/);
     option("Alpha").click();
@@ -347,6 +356,22 @@ describe("question bank browser flow", () => {
       masteryRating: "good",
     });
     expect(submitAttempt.mock.calls[0][0].durationMs).toEqual(expect.any(Number));
+  });
+
+  it("shows the indefinite type and allows selecting more than one option", async () => {
+    const { controller } = mockController({ preview: makePreview([indefiniteQuestion]) });
+    render(controller, { random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    expect(document.querySelector('[data-question-type="indefinite"]')?.textContent?.trim())
+      .toBe("Indefinite choice");
+    option("Alpha").click();
+    option("Beta").click();
+    await flush();
+    expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
+    expect(option("Beta").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("does not run or persist timing when the timer setting is disabled", async () => {

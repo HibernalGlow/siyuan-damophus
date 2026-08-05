@@ -69,6 +69,7 @@ const stableTopicIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const questionTypes: readonly QuestionType[] = [
   "single",
   "multiple",
+  "indefinite",
   "true-false",
   "subjective",
   "group",
@@ -253,6 +254,7 @@ function inferQuestionType(title: string, body: string): QuestionType | undefine
   if (/(?:题组|材料题|共用题干)/u.test(sample)) return "group";
   if (/(?:主观题|简答题|论述题)/u.test(sample)) return "subjective";
   if (/(?:判断题|正确还是错误|对还是错)/u.test(sample)) return "true-false";
+  if (/(?:不定项|不定项选择)/u.test(sample)) return "indefinite";
   if (/(?:多选|多项选择|[（(]多[）)])/u.test(sample)) return "multiple";
   if (/(?:单选|单项选择|[（(]单[）)])/u.test(sample)) return "single";
   return undefined;
@@ -286,7 +288,7 @@ function parseAnswer(
     if (["false", "错误", "错"].includes(normalized)) return { kind: "boolean", value: false };
     return undefined;
   }
-  if (type === "single" || type === "multiple") {
+  if (["single", "multiple", "indefinite"].includes(type)) {
     const optionIds = parseChoiceIds(value, validOptionIds);
     return optionIds ? { kind: "options", optionIds } : undefined;
   }
@@ -298,7 +300,7 @@ function visibleAnswer(solution: string, type: QuestionType): ObjectiveAnswer | 
     const match = solution.match(/(?:正确)?答案\s*(?:为|是|[:：])\s*(正确|错误|对|错|true|false)/iu);
     return parseAnswer(match?.[1], type);
   }
-  if (type === "single" || type === "multiple") {
+  if (["single", "multiple", "indefinite"].includes(type)) {
     const match = solution.match(/(?:正确)?答案\s*(?:为|是|[:：])\s*([A-H](?:[\s,，、]*[A-H])*)/iu);
     return parseAnswer(match?.[1], type);
   }
