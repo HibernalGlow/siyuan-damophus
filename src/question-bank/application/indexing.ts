@@ -8,7 +8,6 @@ import {
 } from "../adapters/siyuan/binding";
 import {
   dateCell,
-  numberCell,
   selectCell,
   setAttributeViewCell,
   textCell,
@@ -68,7 +67,54 @@ const questionIndexComparableFields = [
 
 type QuestionIndexComparableField = typeof questionIndexComparableFields[number];
 
+export interface StableQuestionIdMetadata {
+  year?: string;
+  collection?: string;
+  source?: string;
+}
+
+export interface QuestionIndexMaintenanceResult {
+  bindingRepairs: number;
+  updatedRows: number;
+}
+
 const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
+const questionKindTokens = new Set([
+  "group",
+  "indefinite",
+  "multiple",
+  "objective",
+  "single",
+  "subjective",
+  "true-false",
+]);
+
+export function stableQuestionIdMetadata(questionId: string): StableQuestionIdMetadata {
+  const tokens = questionId.split("-").filter(Boolean);
+  const yearIndex = tokens.findIndex((token) => /^(?:19|20)\d{2}$/u.test(token));
+  if (yearIndex < 0) return {};
+  let sourceIndex = yearIndex - 1;
+  if (sourceIndex >= 0 && questionKindTokens.has(tokens[sourceIndex])) sourceIndex -= 1;
+  const source = sourceIndex >= 0 ? tokens[sourceIndex] : undefined;
+  return {
+    year: tokens[yearIndex],
+    // Existing question IDs only carry one source-family token. Use it as the
+    // collection fallback until portable IAL provides a more specific value.
+    collection: source,
+    source,
+  };
+}
+
+function projectedMetadata(question: Question): Required<Pick<Question["metadata"], "topicPath">>
+  & Pick<Question["metadata"], "year" | "subject" | "category" | "collection" | "source" | "topicId" | "parentId"> {
+  const inferred = stableQuestionIdMetadata(question.id);
+  return {
+    ...question.metadata,
+    year: question.metadata.year ?? inferred.year,
+    collection: question.metadata.collection ?? inferred.collection,
+    source: question.metadata.source ?? inferred.source,
+  };
+}
 
 function valueByItem(values: readonly AttributeViewValue[]): Map<string, AttributeViewValue> {
   return new Map(values.map((value) => [value.blockID, value]));
@@ -105,21 +151,11 @@ function comparableText(value: AttributeViewValue | undefined): string {
   return value?.mSelect?.[0]?.content ?? value?.text?.content ?? "";
 }
 
-function comparableNumber(value: AttributeViewValue | undefined): number | undefined {
-  if (value?.number?.isNotEmpty === false) return undefined;
-  if (value?.number?.content !== undefined) return value.number.content;
-  const text = value?.text?.content;
-  if (!text) return undefined;
-  const parsed = Number(text);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 function questionRowNeedsUpdate(row: ExistingQuestionRow, question: Question): boolean {
-  const metadata = question.metadata;
-  const expectedYear = metadata.year === undefined ? undefined : Number(metadata.year);
+  const metadata = projectedMetadata(question);
   return comparableText(row.values.question_id) !== question.id
     || comparableText(row.values.question_type) !== question.type
-    || comparableNumber(row.values.year) !== expectedYear
+    || comparableText(row.values.year) !== (metadata.year ?? "")
     || comparableText(row.values.subject) !== (metadata.subject ?? "")
     || comparableText(row.values.category) !== (metadata.category ?? "")
     || comparableText(row.values.collection) !== (metadata.collection ?? "")
@@ -280,11 +316,11 @@ async function writeQuestionRow(
   scannedAt: number,
 ): Promise<void> {
   const { questionIndex } = binding;
-  const metadata = action.question.metadata;
+  const metadata = projectedMetadata(action.question);
   const values = {
     question_id: textCell(action.question.id),
     question_type: selectCell(action.question.type),
-    year: numberCell(metadata.year === undefined ? undefined : Number(metadata.year)),
+    year: selectCell(metadata.year),
     subject: selectCell(metadata.subject),
     category: selectCell(metadata.category),
     collection: selectCell(metadata.collection),
@@ -302,6 +338,57 @@ async function writeQuestionRow(
       value,
     );
   }
+}
+
+export async function maintainQuestionIndex(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<QuestionIndexMaintenanceResult> {
+  const verification = await verifyQuestionBankBinding(client, binding);
+  if (verification.fatalErrors.length > 0) {
+    throw new Error(`Question bank binding is invalid: ${verification.fatalErrors.join("; ")}`);
+  }
+  if (verification.missingManagedKeys.length > 0) {
+    await repairQuestionBankBinding(client, binding, verification.missingManagedKeys);
+  }
+  const av = await readAttributeView(client, binding.questionIndex.avId);
+  const rows = existingQuestionRows(av, binding);
+  let updatedRows = 0;
+  for (const row of rows) {
+    if (!row.questionId) continue;
+    const inferred = stableQuestionIdMetadata(row.questionId);
+    const attrs = row.blockId && nodeIdPattern.test(row.blockId)
+      ? await client.request<Record<string, string>>("/api/attr/getBlockAttrs", { id: row.blockId })
+      : {};
+    const values = [
+      ["year", inferred.year ?? attrs["custom-qb-year"], "select", true],
+      ["collection", attrs["custom-qb-collection"] ?? inferred.collection, "select", false],
+      ["source", attrs["custom-qb-source"] ?? inferred.source, "select", false],
+      ["parent_id", attrs["custom-qb-parent-id"], "text", false],
+    ] as const;
+    const pending = values.filter(([field, value, _type, always]) => {
+      if (value === undefined) return false;
+      const current = comparableText(row.values[field]);
+      // Year is derived from the stable ID and is always corrected. Collection
+      // and source only fill gaps so an explicit IAL projection remains intact.
+      return always ? current !== value : current === "";
+    });
+    if (pending.length === 0) continue;
+    for (const [field, value, type] of pending) {
+      await setAttributeViewCell(
+        client,
+        binding.questionIndex.avId,
+        binding.questionIndex.keys[field],
+        row.itemId,
+        type === "text" ? textCell(value) : selectCell(value),
+      );
+    }
+    updatedRows += 1;
+  }
+  return {
+    bindingRepairs: verification.missingManagedKeys.length,
+    updatedRows,
+  };
 }
 
 async function getQuestionRowItemId(

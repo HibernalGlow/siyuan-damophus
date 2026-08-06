@@ -378,7 +378,8 @@ function pushRepair(repairs: ManagedKeyRepair[], repair: ManagedKeyRepair): void
 
 function hasLegacyPayload(value: AttributeViewValue, type: AttributeViewKeyType): boolean {
   if (type === "select" || type === "mSelect") {
-    return value.text?.content !== undefined && value.mSelect === undefined;
+    return (value.text?.content !== undefined || value.number?.content !== undefined)
+      && value.mSelect === undefined;
   }
   if (type === "number") {
     return value.text?.content !== undefined && value.number === undefined;
@@ -768,15 +769,17 @@ function normalizedCell(
   value: AttributeViewValue,
   convertDurationUnit: boolean,
 ): AttributeViewCellInput | undefined {
-  if (["question_type", "subject", "category", "collection", "source", "objective_correct", "mastery_rating"]
+  if (["question_type", "year", "subject", "category", "collection", "source", "objective_correct", "mastery_rating"]
     .includes(field)) {
-    const content = valueText(value);
+    const content = field === "year" && value.number?.content !== undefined
+      ? String(value.number.content)
+      : valueText(value);
     return selectCell(content, content ? selectColor(field, content) : "1");
   }
   if (field === "option_order" || field === "selected_option_ids") {
     return multiSelectCell(valueArray(value), "8");
   }
-  if (["year", "schema_version", "subjective_score", "duration_ms"].includes(field)) {
+  if (["schema_version", "subjective_score", "duration_ms"].includes(field)) {
     const content = valueNumber(value);
     return numberCell(field === "duration_ms" && convertDurationUnit
       ? durationMinutesFromMilliseconds(content)

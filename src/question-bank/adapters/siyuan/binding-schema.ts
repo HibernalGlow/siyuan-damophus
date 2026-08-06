@@ -161,7 +161,7 @@ export interface PlannedColumn<Field extends string> extends ColumnDefinition<Fi
 export const questionColumns: readonly ColumnDefinition<Exclude<QuestionField, "block_id">>[] = [
   { field: "question_id", name: "Question ID", type: "text" },
   { field: "question_type", name: "Question Type", type: "select" },
-  { field: "year", name: "Year", type: "number" },
+  { field: "year", name: "Year", type: "select" },
   { field: "subject", name: "Subject", type: "select" },
   { field: "category", name: "Category", type: "select" },
   { field: "collection", name: "Collection", type: "select" },

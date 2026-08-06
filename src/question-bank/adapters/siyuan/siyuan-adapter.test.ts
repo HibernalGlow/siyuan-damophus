@@ -15,7 +15,12 @@ import {
   verifyQuestionBankBinding,
 } from "./binding";
 import { scanSiyuanDocument } from "./document";
-import { confirmQuestionIndexSync, previewQuestionIndexSync } from "../../application/indexing";
+import {
+  confirmQuestionIndexSync,
+  maintainQuestionIndex,
+  previewQuestionIndexSync,
+  stableQuestionIdMetadata,
+} from "../../application/indexing";
 import {
   addCustomColumn,
   fixture,
@@ -25,6 +30,49 @@ import {
   questionAvRowId,
 } from "./siyuan-adapter.fixtures";
 describe("SiYuan question bank adapter", () => {
+  it("reads year and source family from stable question IDs", () => {
+    expect(stableQuestionIdMetadata("civil-gold-objective-2020-2-1-14")).toEqual({
+      year: "2020",
+      collection: "gold",
+      source: "gold",
+    });
+    expect(stableQuestionIdMetadata("civil-procedure-gold-2015-3-48")).toEqual({
+      year: "2015",
+      collection: "gold",
+      source: "gold",
+    });
+  });
+
+  it("maintains inferred Question Index metadata on startup", async () => {
+    const { client, binding } = await initialized();
+    const sourceBlockId = "20260804120200-quest01";
+    await client.request("/api/av/addAttributeViewBlocks", {
+      avID: binding.questionIndex.avId,
+      blockID: binding.questionIndex.blockId,
+      viewID: "",
+      groupID: "",
+      previousID: "",
+      srcs: [{ id: sourceBlockId, isDetached: false, content: "1." }],
+      ignoreDefaultFill: true,
+    });
+    const rowId = questionAvRowId(client, binding, sourceBlockId);
+    await client.request("/api/av/setAttributeViewBlockAttr", {
+      avID: binding.questionIndex.avId,
+      keyID: binding.questionIndex.keys.question_id,
+      itemID: rowId,
+      value: { type: "text", text: { content: "civil-gold-objective-2020-2-1-14" } },
+    });
+
+    const result = await maintainQuestionIndex(client, binding);
+    expect(result.updatedRows).toBe(1);
+    const av = client.attributeViews.get(binding.questionIndex.avId)!;
+    for (const field of ["year", "collection", "source"] as const) {
+      const value = av.keyValues.find((entry) => entry.key.id === binding.questionIndex.keys[field])
+        ?.values.find((entry) => entry.blockID === rowId);
+      expect(value?.mSelect?.[0]?.content).toBe(field === "year" ? "2020" : "gold");
+    }
+  });
+
   it("initializes two AVs and records managed columns by immutable key ID", async () => {
     const { client, binding } = await initialized();
     const verification = await verifyQuestionBankBinding(client, binding);
@@ -43,7 +91,7 @@ describe("SiYuan question bank adapter", () => {
         ["Primary", "block"],
         ["Question ID", "text"],
         ["Question Type", "select"],
-        ["Year", "number"],
+        ["Year", "select"],
         ["Subject", "select"],
         ["Category", "select"],
         ["Collection", "select"],
@@ -167,7 +215,7 @@ describe("SiYuan question bank adapter", () => {
 
     expect(preview.bindingRepairs).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "changeType", field: "question_type", currentType: "text", type: "select" }),
-      expect.objectContaining({ kind: "changeType", field: "year", currentType: "text", type: "number" }),
+      expect.objectContaining({ kind: "changeType", field: "year", currentType: "text", type: "select" }),
     ]));
     expect((await verifyQuestionBankBinding(client, binding)).ok).toBe(true);
   });
@@ -406,7 +454,7 @@ describe("SiYuan question bank adapter", () => {
       (value) => value.key.id === binding.questionIndex.keys.year,
     )?.values.find((value) => value.blockID === rowId);
     expect(questionType).toMatchObject({ type: "select", mSelect: [{ content: "multiple", color: "1" }] });
-    expect(year).toMatchObject({ type: "number", number: { content: 2020, isNotEmpty: true } });
+    expect(year).toMatchObject({ type: "select", mSelect: [{ content: "2020" }] });
     expect(client.attributeViews.get(binding.questionIndex.avId)!.keyValues).toContain(custom);
   });
 
