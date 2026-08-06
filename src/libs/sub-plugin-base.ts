@@ -18,6 +18,7 @@ export class SubPluginBase implements SubPlugin {
   getSetting!: (key: string) => any;
   setSetting!: (key: string, value: any) => void;
 
+  registerModels(): void {}
   onload(): void {}
   onunload(): void {}
 }

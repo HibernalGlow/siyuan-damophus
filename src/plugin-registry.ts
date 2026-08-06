@@ -1,6 +1,7 @@
 import { settings } from "./settings";
 import type { PluginMetadata, SubPlugin } from "./types/plugin";
 import { getLogger } from "@/libs/logger";
+import { registerPluginModels } from "./plugin-models";
 const log = getLogger("plugin-registry");
 
 export class PluginRegistry {
@@ -22,15 +23,15 @@ export class PluginRegistry {
     return PluginRegistry.instance;
   }
 
-  async reScanPlugins() {
+  reScanPlugins(): void {
     this.plugins.clear();
     this.pluginConfigs.clear();
     log.info("重新扫描插件");
     log.info("this.plugins", this.pluginConfigs);
-    await this.scanPlugins();
+    this.scanPlugins();
   }
 
-  async scanPlugins() {
+  scanPlugins(): void {
     log.info("开始扫描插件");
     // 读取所有符合模式的文件
     const pluginFiles = import.meta.glob(
@@ -73,6 +74,24 @@ export class PluginRegistry {
           hasPluginClass: !!PluginClass,
         });
       }
+    }
+  }
+
+  /**
+   * Register host models before the main plugin crosses its first async boundary.
+   * SiYuan restores custom tabs during startup and needs their addTab contracts
+   * to be present synchronously.
+   */
+  registerModels(): void {
+    registerPluginModels(this.getAllPlugins(), (plugin, error) => {
+      log.error(`Failed to register models for plugin ${plugin.name}:`, error);
+    });
+  }
+
+  refreshEnabledStates(): void {
+    for (const plugin of this.getAllPlugins()) {
+      const enabled = plugin.name ? settings.getBySpace(plugin.name, "enabled") : undefined;
+      if (typeof enabled === "boolean") plugin.enabled = enabled;
     }
   }
 

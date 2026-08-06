@@ -25,6 +25,7 @@ import { installSourceAnswerMask } from "./source-answer-mask";
 type PracticeCommand = "previous" | "next" | "pause";
 
 export default class QuestionBankPlugin extends SubPluginBase {
+  private tabRegistered = false;
   private registered = false;
   private listening = false;
   private dockApp?: ReturnType<typeof mount>;
@@ -50,6 +51,26 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.addLaunchMenuItem(event.detail.menu, launchBlockIdFromElements(event.detail.elements));
   };
 
+  override registerModels(): void {
+    if (this.tabRegistered) return;
+    this.tabRegistered = true;
+    const owner = this;
+    plugin.addTab({
+      type: questionBankTabType,
+      init() {
+        const element = this.element as HTMLElement;
+        const app = owner.mountQuestionBank(element, this.data?.documentId);
+        owner.mountedTabs.set(element, app);
+      },
+      destroy() {
+        const element = this.element as HTMLElement;
+        const app = owner.mountedTabs.get(element);
+        if (app) void unmount(app);
+        owner.mountedTabs.delete(element);
+      },
+    });
+  }
+
   override onload(): void {
     this.stopSourceAnswerMask?.();
     this.stopSourceAnswerMask = undefined;
@@ -60,21 +81,6 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
     if (!this.registered) {
       this.registered = true;
-      const owner = this;
-      plugin.addTab({
-        type: questionBankTabType,
-        init() {
-          const element = this.element as HTMLElement;
-          const app = owner.mountQuestionBank(element, this.data?.documentId);
-          owner.mountedTabs.set(element, app);
-        },
-        destroy() {
-          const element = this.element as HTMLElement;
-          const app = owner.mountedTabs.get(element);
-          if (app) void unmount(app);
-          owner.mountedTabs.delete(element);
-        },
-      });
       plugin.addCommand({
         langKey: "lets-question-bank.commandOpen",
         callback: () => this.open(),

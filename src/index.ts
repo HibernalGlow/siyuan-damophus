@@ -25,10 +25,14 @@ export default class PluginLetsGo extends Plugin {
 
   override async onload(): Promise<void> {
     this.init();
+    // Custom tab models must be registered before the first await so SiYuan
+    // can restore persisted tabs during startup.
+    this.pluginRegistry.scanPlugins();
+    this.pluginRegistry.registerModels();
     await settings.load();
     enableLogging(settings.get("debugLogging") || false);
-    await this.pluginRegistry.scanPlugins();
     await settings.initData();
+    this.pluginRegistry.refreshEnabledStates();
     await this.pluginRegistry.initializeEnabledPlugins();
   }
 

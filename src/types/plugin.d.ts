@@ -33,6 +33,8 @@ export interface SubPlugin {
   version?: string;
   enabled?: boolean;
 
+  /** Register SiYuan models that must exist before the first async startup boundary. */
+  registerModels?(): void;
   onload(): void;
   onunload(): void;
   onLayoutReady?(): void;
