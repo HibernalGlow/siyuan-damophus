@@ -6,6 +6,7 @@ export interface PracticeSessionMachineInput {
   snapshot: PracticeSessionSnapshot;
   attempts?: ReadonlyMap<string, AttemptEvent>;
   now?: number;
+  pauseOnAnswerReveal?: boolean;
 }
 
 export interface PracticeSessionMachineContext {
@@ -15,6 +16,7 @@ export interface PracticeSessionMachineContext {
   questionActiveSinceMs?: number;
   pendingQuestionId?: string;
   error?: string;
+  pauseOnAnswerReveal: boolean;
 }
 
 export type PracticeSessionMachineEvent =
@@ -23,6 +25,7 @@ export type PracticeSessionMachineEvent =
   | { type: "NAVIGATE"; questionId: string; now: number }
   | { type: "PAUSE"; now: number }
   | { type: "RESUME"; now: number }
+  | { type: "RESET_QUESTION_TIMER"; now: number }
   | { type: "END"; now: number }
   | { type: "BEGIN_SUBMIT"; questionId: string; now: number }
   | { type: "SUBMIT_SUCCEEDED"; attempt: AttemptEvent; now: number }
@@ -134,8 +137,12 @@ const machineSetup = setup({
       const checked = checkpoint(context, event.now);
       const draft = checked.session.drafts[event.questionId];
       if (!draft || checked.session.completed_question_ids.includes(event.questionId)) return checked;
+      const revealed = event.patch.revealed === true;
+      const retrying = event.patch.revealed === false;
       return {
         ...checked,
+        activeSinceMs: revealed && checked.pauseOnAnswerReveal ? undefined : retrying ? event.now : checked.activeSinceMs,
+        questionActiveSinceMs: revealed && checked.pauseOnAnswerReveal ? undefined : retrying ? event.now : checked.questionActiveSinceMs,
         session: {
           ...checked.session,
           drafts: {
@@ -146,13 +153,33 @@ const machineSetup = setup({
         error: undefined,
       };
     }),
+    resetQuestionTimer: assign(({ context, event }) => {
+      if (event.type !== "RESET_QUESTION_TIMER") return context;
+      const checked = checkpoint(context, event.now);
+      const questionId = checked.session.current_question_id;
+      const draft = checked.session.drafts[questionId];
+      if (!draft) return checked;
+      const frozen = checked.pauseOnAnswerReveal && draft.revealed;
+      return {
+        ...checked,
+        session: {
+          ...checked.session,
+          drafts: { ...checked.session.drafts, [questionId]: { ...draft, elapsed_ms: 0 } },
+        },
+        questionActiveSinceMs: frozen ? undefined : event.now,
+        activeSinceMs: frozen ? undefined : checked.activeSinceMs ?? event.now,
+      };
+    }),
     navigate: assign(({ context, event }) => {
       if (!(event.type === "NAVIGATE" || event.type === "REVIEW")) return context;
       const checked = checkpoint(context, event.now);
+      const nextDraft = checked.session.drafts[event.questionId];
+      const frozen = checked.pauseOnAnswerReveal && Boolean(nextDraft?.revealed);
       return {
         ...checked,
         session: { ...checked.session, current_question_id: event.questionId },
-        questionActiveSinceMs: checked.session.completed_question_ids.includes(event.questionId)
+        activeSinceMs: frozen ? undefined : checked.activeSinceMs,
+        questionActiveSinceMs: frozen || checked.session.completed_question_ids.includes(event.questionId)
           ? undefined
           : event.now,
       };
@@ -189,13 +216,18 @@ const machineSetup = setup({
     commitSubmission: assign(({ context, event }) => (
       event.type === "SUBMIT_SUCCEEDED" ? commitSubmission(context, event) : context
     )),
-    failSubmission: assign(({ context, event }) => event.type === "SUBMIT_FAILED" ? {
-      ...context,
-      pendingQuestionId: undefined,
-      activeSinceMs: event.now,
-      questionActiveSinceMs: event.now,
-      error: event.message,
-    } : context),
+    failSubmission: assign(({ context, event }) => {
+      if (event.type !== "SUBMIT_FAILED") return context;
+      const draft = context.session.drafts[context.session.current_question_id];
+      const frozen = context.pauseOnAnswerReveal && Boolean(draft?.revealed);
+      return {
+        ...context,
+        pendingQuestionId: undefined,
+        activeSinceMs: frozen ? undefined : event.now,
+        questionActiveSinceMs: frozen ? undefined : event.now,
+        error: event.message,
+      };
+    }),
     exitReview: assign(({ context, event }) => event.type === "EXIT_REVIEW" ? {
       ...context,
       activeSinceMs: undefined,
@@ -213,10 +245,11 @@ export const practiceSessionMachine = machineSetup.createMachine({
     return {
       session: input.snapshot,
       attemptsByQuestionId: Object.fromEntries(input.attempts ?? []),
-      activeSinceMs: complete ? undefined : now,
-      questionActiveSinceMs: complete || input.snapshot.completed_question_ids.includes(
+      activeSinceMs: complete || (input.pauseOnAnswerReveal !== false && input.snapshot.drafts[input.snapshot.current_question_id]?.revealed) ? undefined : now,
+      questionActiveSinceMs: complete || (input.pauseOnAnswerReveal !== false && input.snapshot.drafts[input.snapshot.current_question_id]?.revealed) || input.snapshot.completed_question_ids.includes(
         input.snapshot.current_question_id,
       ) ? undefined : now,
+      pauseOnAnswerReveal: input.pauseOnAnswerReveal !== false,
     };
   },
   states: {
@@ -237,6 +270,7 @@ export const practiceSessionMachine = machineSetup.createMachine({
           target: "submitting",
           actions: "beginSubmission",
         },
+        RESET_QUESTION_TIMER: { actions: "resetQuestionTimer" },
       },
     },
     submitting: {

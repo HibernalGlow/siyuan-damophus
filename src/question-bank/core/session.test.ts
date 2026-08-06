@@ -99,7 +99,7 @@ describe("practice session machine", () => {
   });
 
   it("preserves independent drafts while navigating freely", () => {
-    const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000 } }).start();
+    const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000, pauseOnAnswerReveal: false } }).start();
     actor.send({
       type: "DRAFT_CHANGED",
       questionId: "question-1",
@@ -139,6 +139,37 @@ describe("practice session machine", () => {
     context = actor.getSnapshot().context;
     expect(practiceSessionElapsedMs(context, 52_000)).toBe(5_000);
     expect(practiceQuestionElapsedMs(context, 52_000)).toBe(5_000);
+    actor.stop();
+  });
+
+  it("pauses timing while viewing an answer and resumes after retry", () => {
+    const actor = createActor(practiceSessionMachine, {
+      input: { snapshot: snapshot(), now: 1_000, pauseOnAnswerReveal: true },
+    }).start();
+    actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: "question-1",
+      patch: { selected_option_ids: ["A"], revealed: true, objective_correct: true },
+      now: 4_000,
+    });
+    expect(practiceQuestionElapsedMs(actor.getSnapshot().context, 40_000)).toBe(3_000);
+    actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: "question-1",
+      patch: { selected_option_ids: [], revealed: false, objective_correct: null },
+      now: 41_000,
+    });
+    expect(practiceQuestionElapsedMs(actor.getSnapshot().context, 43_000)).toBe(5_000);
+    actor.stop();
+  });
+
+  it("resets only the current question timer", () => {
+    const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000 } }).start();
+    actor.send({ type: "RESET_QUESTION_TIMER", now: 4_000 });
+    const context = actor.getSnapshot().context;
+    expect(context.session.session_elapsed_ms).toBe(3_000);
+    expect(context.session.drafts["question-1"].elapsed_ms).toBe(0);
+    expect(practiceQuestionElapsedMs(context, 5_000)).toBe(1_000);
     actor.stop();
   });
 

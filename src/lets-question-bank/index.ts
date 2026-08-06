@@ -346,6 +346,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         autoSyncIndex: this.getSetting("autoSyncIndex") === true,
         autoScanDocument: this.getSetting("autoScanDocument") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
+        pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
         mobileBreadcrumb: isMobile,
         breadcrumbPriority: settings.getBySpace("mobileBreadcrumb", "overflowPriority") ?? "tail",
         breadcrumbTextDisplay: {

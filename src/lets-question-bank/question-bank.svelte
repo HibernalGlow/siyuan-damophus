@@ -114,13 +114,14 @@
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
-  export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution") => (() => void) | Promise<() => void>) | undefined = undefined;
+  export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined = undefined;
   export let prepareSourceBlock: ((blockId: string) => Promise<void>) | undefined = undefined;
   export let autoSyncIndex = false;
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let autoScanDocument = false;
   export let onAutoScanDocumentChange: ((value: boolean) => void) | undefined = undefined;
   export let timingEnabled = true;
+  export let pauseOnAnswerReveal = true;
   export let now: () => number = Date.now;
   export let mobileBreadcrumb = false;
   export let breadcrumbPriority: BreadcrumbOverflowPriority = "tail";
@@ -129,9 +130,9 @@
   export let onClose: (() => void) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
-  const buildRevision = (globalThis as typeof globalThis & {
-    process?: { env?: Record<string, string | undefined> };
-  }).process?.env?.DAMOPHUS_BUILD_REVISION ?? "dev-unknown";
+  const buildRevision = typeof __DAMOPHUS_BUILD_REVISION__ === "string"
+    ? __DAMOPHUS_BUILD_REVISION__
+    : "dev-unversioned";
   const recent = controller.getRecentScope();
   let documentId = initialDocumentId ?? recent?.documentId ?? "";
   let binding = controller.getBinding();
@@ -282,6 +283,8 @@
     : 0;
   $: reviewing = Boolean(practiceState?.matches("reviewing"));
   $: timerPaused = Boolean(practiceState?.matches("paused"));
+  $: answerTimerPaused = Boolean(revealed && pauseOnAnswerReveal && practiceState?.matches("active"));
+  $: timerEffectivelyPaused = timerPaused || answerTimerPaused;
 
   onMount(() => {
     const host = rootElement.closest<HTMLElement>(".damophus-question-bank-host");
@@ -623,7 +626,7 @@
     completionHandledSessionId = "";
     const runtime = new PracticeSessionRuntime({
       host: controller,
-      input: { snapshot, attempts, now: now() },
+      input: { snapshot, attempts, now: now(), pauseOnAnswerReveal },
       persistedRevision,
     });
     practiceRuntime = runtime;
@@ -842,6 +845,11 @@
       now: now(),
     });
     error = "";
+  }
+
+  function resetQuestionTimer(): void {
+    if (!currentQuestion || !practiceRuntime || readOnlyQuestion || submitting || !timingEnabled) return;
+    practiceRuntime.actor.send({ type: "RESET_QUESTION_TIMER", now: now() });
   }
 
   function changeSubjectiveScore(event: Event): void {
@@ -1678,13 +1686,13 @@
             variant="ghost"
             size="icon"
             data-practice-timer-toggle
-            disabled={submitting || reviewing}
-            title={timerPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
-            aria-label={timerPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
-            aria-pressed={timerPaused}
+            disabled={submitting || reviewing || answerTimerPaused}
+            title={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
+            aria-label={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
+            aria-pressed={timerEffectivelyPaused}
             onclick={togglePracticeTimer}
           >
-            {#if timerPaused}
+            {#if timerEffectivelyPaused}
               <Play size={17} aria-hidden="true" />
             {:else}
               <Pause size={17} aria-hidden="true" />
@@ -1808,6 +1816,9 @@
         <div class="action-bar">
           {#if timingEnabled}
             <span class="question-timer">{formatDuration(questionElapsedMs)}</span>
+            <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
+              <RotateCcw size={16} aria-hidden="true" />
+            </Button>
           {/if}
           <Button onclick={revealAnswer}>
             <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>

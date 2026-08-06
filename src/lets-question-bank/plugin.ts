@@ -79,6 +79,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.pauseOnAnswerReveal",
+      description: "lets-question-bank.pauseOnAnswerRevealDescription",
+      key: "pauseOnAnswerReveal",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.maskSourceAnswers",
       description: "lets-question-bank.maskSourceAnswersDescription",
       key: "maskSourceAnswers",

@@ -900,6 +900,49 @@ describe("question bank browser flow", () => {
     expect(submitAttempt.mock.calls[0][0]).toHaveProperty("durationMs", undefined);
   });
 
+  it("excludes answer viewing time by default", async () => {
+    let currentNow = 1_000;
+    const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { now: () => currentNow, random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    currentNow = 4_000;
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    expect(document.querySelector<HTMLButtonElement>("[data-practice-timer-toggle]")?.getAttribute("aria-pressed")).toBe("true");
+
+    currentNow = 14_000;
+    button("good").click();
+    await flush();
+    expect(submitAttempt.mock.calls[0][0].durationMs).toBe(3_000);
+  });
+
+  it("resets the current question timer without resetting session time", async () => {
+    let currentNow = 1_000;
+    const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { now: () => currentNow, random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    currentNow = 4_000;
+    button("Reset question timer").click();
+    await flush();
+    currentNow = 6_000;
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    button("good").click();
+    await flush();
+
+    expect(submitAttempt.mock.calls[0][0].durationMs).toBe(2_000);
+  });
+
   it("accumulates in-memory question time across answer-card navigation", async () => {
     let now = 1000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
