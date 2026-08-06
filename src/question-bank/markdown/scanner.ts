@@ -55,7 +55,7 @@ export interface MarkdownIalUpdate {
   line?: number;
   questionId: string;
   attributes: IalAttributes;
-  reason: "inferred-question-type" | "inferred-machine-answer" | "inferred-solution-boundary";
+  reason: "inferred-question-type" | "inferred-machine-answer" | "inferred-solution-boundary" | "suggested-stable-question-id";
 }
 
 export interface MarkdownQuestionScanReport extends QuestionScanReport {

@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock3, Flag, Send, X } from "lucide-svelte";
+  import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock3, Flag, Layers3, Send, X } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import type { Question } from "@/question-bank/core/types";
+  import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
+  import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
+  import type { QuestionIndexBatchPreview } from "@/question-bank/application";
   import {
     buildExamSubmissionPlan,
     buildExamSummaryEvent,
@@ -15,6 +18,7 @@
     type ExamSessionSnapshot,
   } from "@/question-bank/exam";
   import type { QuestionBankUiController } from "./controller";
+  import QuestionSetComposer from "./QuestionSetComposer.svelte";
 
   export let controller: QuestionBankUiController;
   export let questions: Question[] = [];
@@ -46,13 +50,22 @@
   let submittedSummary: ReturnType<typeof scoreExam> | undefined;
   let overdue = false;
   let unsubscribe: (() => void) | undefined;
+  let activeQuestions: Question[] = questions;
+  let activeBlockIdsByQuestionId: ReadonlyMap<string, string> = blockIdsByQuestionId;
+  let sourceDocuments: QuestionSourceDocument[] = [];
+  let questionCatalog: QuestionCatalogEntry[] = [];
+  let questionSetBlueprints: QuestionSetBlueprint[] = [];
+  let composerOpen = false;
+  let frozenSet: FrozenQuestionSet | undefined;
+  let frozenSetLabel = "";
 
-  $: currentQuestion = snapshot ? questions.find((question) => question.id === snapshot.current_question_id) : undefined;
+  $: currentQuestion = snapshot ? activeQuestions.find((question) => question.id === snapshot.current_question_id) : undefined;
   $: currentDraft = currentQuestion && snapshot ? snapshot.drafts[currentQuestion.id] : undefined;
   $: remainingMs = snapshot?.deadline_at ? Date.parse(snapshot.deadline_at) - now : undefined;
   $: if (actorState?.value === "submitting" && !busy) void submitRows();
 
   onMount(() => {
+    void loadQuestionSetData();
     void loadStored();
     clock = setInterval(() => {
       now = Date.now();
@@ -71,14 +84,93 @@
   async function loadStored(): Promise<void> {
     if (!controller.loadExamSession) return;
     const stored = await controller.loadExamSession();
-    if (!stored || stored.blueprint.source_key !== sourceKey) return;
+    if (!stored) return;
+    if (controller.hydrateQuestionSources) {
+      const hydrated = await controller.hydrateQuestionSources(stored.queue_question_ids);
+      activeQuestions = hydrated.questions;
+      activeBlockIdsByQuestionId = hydrated.blockIdsByQuestionId;
+    } else {
+      const available = new Set(questions.map((question) => question.id));
+      if (stored.queue_question_ids.some((questionId) => !available.has(questionId))) return;
+      activeQuestions = questions;
+      activeBlockIdsByQuestionId = blockIdsByQuestionId;
+    }
     snapshot = stored;
     phase = stored.status === "active" || stored.status === "submitting" || stored.status === "submit-failed"
       ? "active"
       : "result";
     questionIndex = Math.max(0, stored.queue_question_ids.indexOf(stored.current_question_id));
-    submittedSummary = phase === "result" ? scoreExam(stored, questions) : undefined;
+    submittedSummary = phase === "result" ? scoreExam(stored, activeQuestions) : undefined;
     startActor(stored);
+  }
+
+  async function loadQuestionSetData(): Promise<void> {
+    if (!controller.listQuestionSourceDocuments || !controller.loadQuestionCatalog || !controller.listQuestionSetBlueprints) return;
+    try {
+      [sourceDocuments, questionCatalog, questionSetBlueprints] = await Promise.all([
+        controller.listQuestionSourceDocuments(),
+        controller.loadQuestionCatalog(),
+        controller.listQuestionSetBlueprints(),
+      ]);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    }
+  }
+
+  async function previewSourceSync(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {
+    if (!controller.previewSyncBatch) throw new Error("Cross-document indexing is unavailable");
+    return controller.previewSyncBatch(documentIds);
+  }
+
+  async function confirmSourceSync(preview: QuestionIndexBatchPreview): Promise<QuestionIndexBatchPreview> {
+    if (!controller.confirmSyncBatch) throw new Error("Cross-document indexing is unavailable");
+    const confirmed = await controller.confirmSyncBatch(preview.documentIds, preview.token);
+    await loadQuestionSetData();
+    return confirmed;
+  }
+
+  function assembleBlueprint(blueprint: QuestionSetBlueprint): FrozenQuestionSet {
+    if (!controller.assembleQuestionSet) throw new Error("Cross-document assembly is unavailable");
+    const sourceRevision = questionCatalog
+      .map((entry) => `${entry.questionId}:${entry.blockId}:${entry.indexedAt ?? ""}`)
+      .sort()
+      .join("|");
+    frozenSetLabel = blueprint.name;
+    return controller.assembleQuestionSet({
+      blueprint,
+      catalog: questionCatalog,
+      sourceRevision,
+      setId: crypto.randomUUID(),
+      seed: crypto.randomUUID(),
+    });
+  }
+
+  async function saveBlueprint(blueprint: QuestionSetBlueprint): Promise<void> {
+    await controller.saveQuestionSetBlueprint?.(blueprint);
+    questionSetBlueprints = await controller.listQuestionSetBlueprints?.() ?? questionSetBlueprints;
+  }
+
+  async function removeBlueprint(blueprintId: string): Promise<void> {
+    await controller.removeQuestionSetBlueprint?.(blueprintId);
+    questionSetBlueprints = await controller.listQuestionSetBlueprints?.() ?? [];
+  }
+
+  async function useFrozenSet(next: FrozenQuestionSet): Promise<void> {
+    if (!controller.hydrateQuestionSources) throw new Error("Cross-document source hydration is unavailable");
+    busy = true;
+    try {
+      const hydrated = await controller.hydrateQuestionSources(next.question_ids);
+      activeQuestions = hydrated.questions;
+      activeBlockIdsByQuestionId = hydrated.blockIdsByQuestionId;
+      frozenSet = next;
+      questionCount = next.question_ids.length;
+      order = "sequential";
+      composerOpen = false;
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      busy = false;
+    }
   }
 
   function startActor(next: ExamSessionSnapshot): void {
@@ -107,22 +199,30 @@
 
   function startExam(): void {
     error = "";
-    if (questions.length === 0) return;
-    const selected = questions.slice(0, Math.max(1, Math.min(questionCount, questions.length)));
+    if (activeQuestions.length === 0) return;
+    const selected = frozenSet
+      ? frozenSet.question_ids.map((questionId) => activeQuestions.find((question) => question.id === questionId)!).filter(Boolean)
+      : activeQuestions.slice(0, Math.max(1, Math.min(questionCount, activeQuestions.length)));
     const blueprint: ExamBlueprint = {
       schema_version: 1,
-      title: sourceLabel || "Damophus Exam",
-      source_key: sourceKey,
-      source_label: sourceLabel,
+      title: frozenSetLabel || sourceLabel || "Damophus Exam",
+      source_key: frozenSet?.set_id ?? sourceKey,
+      source_label: frozenSetLabel || sourceLabel,
       question_ids: selected.map((question) => question.id),
-      order,
+      order: frozenSet ? "sequential" : order,
       time_limit_ms: Math.max(0, timeLimitMinutes) * 60_000,
       strict_timeout: strictTimeout,
       allow_answer_reveal: allowAnswerReveal,
       scoring_mode: scoringMode,
       subjective_points: 10,
     };
-    const created = createExamSessionSnapshot({ examId: uuid(), blueprint, questions: selected, random });
+    const created = createExamSessionSnapshot({
+      examId: uuid(),
+      blueprint,
+      questions: selected,
+      queueQuestionIds: frozenSet?.question_ids,
+      random,
+    });
     snapshot = created;
     phase = "active";
     questionIndex = 0;
@@ -171,7 +271,7 @@
     busy = true;
     error = "";
     try {
-      const plan = buildExamSubmissionPlan(snapshot, questions, [...blockIdsByQuestionId].map(([questionId, blockId]) => ({ questionId, blockId })));
+      const plan = buildExamSubmissionPlan(snapshot, activeQuestions, [...activeBlockIdsByQuestionId].map(([questionId, blockId]) => ({ questionId, blockId })));
       for (const attempt of plan.attempts) {
         if (snapshot.committed_question_ids.includes(attempt.question_id)) continue;
         await controller.submitExamAttempt(attempt);
@@ -180,7 +280,7 @@
       const summary = buildExamSummaryEvent(snapshot, plan, "exam_submitted");
       await controller.submitExamEvent(summary);
       send({ type: "SUBMIT_COMPLETE", pendingManualScore: plan.pendingSubjectiveQuestionIds.length > 0, now: Date.now() });
-      submittedSummary = scoreExam(snapshot, questions);
+      submittedSummary = scoreExam(snapshot, activeQuestions);
       phase = "result";
       if (plan.pendingSubjectiveQuestionIds.length === 0) await controller.removeExamSession?.(snapshot.exam_id);
     } catch (cause) {
@@ -202,7 +302,7 @@
     if (!snapshot || !controller.submitExamAttempt || !controller.submitExamEvent || busy) return;
     busy = true;
     try {
-      const plan = buildExamSubmissionPlan(snapshot, questions, [...blockIdsByQuestionId].map(([questionId, blockId]) => ({ questionId, blockId })));
+      const plan = buildExamSubmissionPlan(snapshot, activeQuestions, [...activeBlockIdsByQuestionId].map(([questionId, blockId]) => ({ questionId, blockId })));
       if (plan.pendingSubjectiveQuestionIds.length > 0) throw new Error("Every subjective question requires a score");
       for (const attempt of plan.attempts) {
         if (snapshot.committed_question_ids.includes(attempt.question_id)) continue;
@@ -229,7 +329,7 @@
     if (!globalThis.confirm(label("confirmAbandonExam", "Abandon this exam? Answers will not enter question statistics."))) return;
     busy = true;
     try {
-      const plan = buildExamSubmissionPlan(snapshot, questions);
+      const plan = buildExamSubmissionPlan(snapshot, activeQuestions);
       await controller.submitExamEvent(buildExamSummaryEvent(snapshot, plan, "exam_abandoned"));
       send({ type: "ABANDON", now: Date.now() });
       await controller.removeExamSession?.(snapshot.exam_id);
@@ -246,18 +346,38 @@
   }
 </script>
 
-{#if phase === "setup"}
+{#if phase === "setup" && composerOpen}
+  <QuestionSetComposer
+    catalog={questionCatalog}
+    documents={sourceDocuments}
+    blueprints={questionSetBlueprints}
+    {translations}
+    loading={busy}
+    onRefresh={() => { void loadQuestionSetData(); }}
+    onSync={previewSourceSync}
+    onConfirmSync={confirmSourceSync}
+    onAssemble={assembleBlueprint}
+    onSave={saveBlueprint}
+    onDelete={removeBlueprint}
+    onUse={(value) => { void useFrozenSet(value); }}
+    onClose={() => composerOpen = false}
+  />
+{:else if phase === "setup"}
   <section class="exam-workspace exam-setup">
     <header class="exam-heading"><div><strong>{label("examMode", "Exam mode")}</strong><span>{sourceLabel}</span></div><Button variant="ghost" size="icon" onclick={onClose}><X /></Button></header>
     <div class="exam-form">
-      <label>{label("questionCount", "Question count")}<Input type="number" min="1" max={questions.length} bind:value={questionCount} /></label>
+      <label>{label("questionCount", "Question count")}<Input type="number" min="1" max={activeQuestions.length} bind:value={questionCount} /></label>
       <label>{label("timeLimit", "Time limit (minutes)")}<Input type="number" min="0" bind:value={timeLimitMinutes} /></label>
       <label>{label("order", "Order")}<select bind:value={order}><option value="sequential">{label("sequential", "Sequential")}</option><option value="random">{label("random", "Random")}</option></select></label>
       <label>{label("scoringMode", "Scoring")}<select bind:value={scoringMode}><option value="legal-exam">{label("legalScoring", "Legal exam")}</option><option value="strict">{label("strictScoring", "Strict one-point")}</option></select></label>
       <label class="exam-check"><input type="checkbox" bind:checked={allowAnswerReveal} />{label("allowAnswerReveal", "Allow answer reveal")}</label>
       <label class="exam-check"><input type="checkbox" bind:checked={strictTimeout} />{label("strictTimeout", "Strict timeout auto-submit")}</label>
     </div>
-    <div class="exam-actions"><Button onclick={startExam} disabled={questions.length === 0}><Send size={16} />{label("startExam", "Start exam")}</Button></div>
+    {#if frozenSet}<div class="rounded border px-3 py-2 text-sm"><strong>{frozenSetLabel}</strong><span class="ml-2 text-muted-foreground">{frozenSet.question_ids.length} {label("questions", "题")}</span></div>{/if}
+    <div class="exam-actions">
+      <Button onclick={startExam} disabled={activeQuestions.length === 0}><Send size={16} />{label("startExam", "Start exam")}</Button>
+      <Button variant="outline" onclick={() => composerOpen = true}><Layers3 size={16} />{label("questionSet", "跨文档组卷")}</Button>
+    </div>
   </section>
 {:else if phase === "active" && snapshot && currentQuestion && currentDraft}
   <section class="exam-workspace exam-runner">
@@ -303,7 +423,7 @@
     {#if submittedSummary.pendingManualCount > 0}
       <div class="exam-manual-score-list">
         {#each snapshot.queue_question_ids as questionId (questionId)}
-          {@const question = questions.find((candidate) => candidate.id === questionId)}
+          {@const question = activeQuestions.find((candidate) => candidate.id === questionId)}
           {#if question?.type === "subjective"}
             <label>{question.title}<Input type="number" min="0" max="100" value={snapshot.drafts[questionId].subjective_score ?? ""} oninput={(event) => setSubjectiveScore(questionId, event.currentTarget.value)} /></label>
           {/if}

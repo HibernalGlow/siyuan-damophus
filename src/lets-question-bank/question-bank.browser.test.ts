@@ -4,7 +4,9 @@ import { mount, tick, unmount } from "svelte";
 import "@/styles/damophus.css";
 import type { AttemptAggregate, AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
 import { createPracticeSessionSnapshot, type PracticeSessionSnapshot } from "@/question-bank/core";
-import type { QuestionIndexPreview } from "@/question-bank/application";
+import type { QuestionIndexBatchPreview, QuestionIndexPreview } from "@/question-bank/application";
+import type { FrozenQuestionSet, QuestionCatalogEntry } from "@/question-bank/assembly";
+import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
 import type {
   QuestionBankBinding,
   QuestionBankInitializationPreview,
@@ -327,6 +329,78 @@ describe("question bank browser flow", () => {
     expect(document.body.textContent).toContain("Civil law");
     expect(controller.loadStatisticsQuestions).toHaveBeenCalledOnce();
     expect(controller.loadAttemptEvents).toHaveBeenCalledOnce();
+  });
+
+  it("starts a durable practice session from a frozen cross-document set", async () => {
+    const { controller, practiceSessions } = mockController();
+    const sourceDocuments: QuestionSourceDocument[] = [{
+      documentId,
+      notebookId: "notebook-1",
+      title: "Civil questions",
+    }];
+    const catalog: QuestionCatalogEntry[] = [{
+      questionId: objectiveQuestion.id,
+      blockId,
+      documentId,
+      notebookId: "notebook-1",
+      questionTitle: objectiveQuestion.title,
+      questionType: objectiveQuestion.type,
+    }];
+    const frozen: FrozenQuestionSet = {
+      schema_version: 1,
+      set_id: "set-practice-1",
+      blueprint_id: "blueprint-practice-1",
+      blueprint_revision: 1,
+      generated_at: "2026-08-06T00:00:00.000Z",
+      seed: "seed-practice-1",
+      source_revision: "revision-practice-1",
+      question_ids: [objectiveQuestion.id],
+      source_keys: [documentId],
+      widened: false,
+      deficits: [],
+    };
+    const batch = {
+      token: "batch-token",
+      generatedAt: "2026-08-06T00:00:00.000Z",
+      documentIds: [documentId],
+      aliases: [],
+      blockers: [],
+      documents: [{
+        ...makePreview([]),
+        actions: [],
+      }],
+    } as unknown as QuestionIndexBatchPreview;
+    controller.listQuestionSourceDocuments = vi.fn(async () => sourceDocuments);
+    controller.loadQuestionCatalog = vi.fn(async () => catalog);
+    controller.listQuestionSetBlueprints = vi.fn(async () => []);
+    controller.previewSyncBatch = vi.fn(async () => batch);
+    controller.confirmSyncBatch = vi.fn(async () => batch);
+    controller.assembleQuestionSet = vi.fn(() => frozen);
+    controller.hydrateQuestionSources = vi.fn(async () => ({
+      questions: [objectiveQuestion],
+      topics: [],
+      blockIdsByQuestionId: new Map([[objectiveQuestion.id, blockId]]),
+      sourceKeys: [documentId],
+    }));
+    render(controller);
+    await scan();
+
+    button("跨文档组卷").click();
+    await vi.waitFor(() => expect(document.querySelector(".question-set-composer")).not.toBeNull());
+    await page.getByRole("checkbox").click();
+    await page.getByRole("button", { name: "检查并入库" }).click();
+    await vi.waitFor(() => expect(controller.previewSyncBatch).toHaveBeenCalledOnce());
+    await page.getByRole("button", { name: "继续设置" }).click();
+    await page.getByRole("button", { name: "预览试卷" }).click();
+    await page.getByRole("button", { name: "用于考试/练习" }).click();
+
+    await vi.waitFor(() => expect(practiceSessions.has(frozen.set_id)).toBe(true));
+    expect(practiceSessions.get(frozen.set_id)).toMatchObject({
+      source_key: frozen.set_id,
+      source_label: "新组卷方案",
+      queue_question_ids: [objectiveQuestion.id],
+    });
+    expect(document.body.textContent).toContain(objectiveQuestion.title);
   });
 
   it("shows a working close action when hosted in a mobile dialog", async () => {

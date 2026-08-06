@@ -331,7 +331,28 @@ export async function confirmQuestionIndexSync(
   if (preview.blockers.length > 0) {
     throw new Error(`Question index sync is blocked: ${preview.blockers.map((item) => item.message).join("; ")}`);
   }
+  return applyQuestionIndexPreview(client, binding, preview);
+}
+
+export async function applyQuestionIndexPreview(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  preview: QuestionIndexPreview,
+): Promise<QuestionIndexPreview> {
   await repairQuestionBankBinding(client, binding, preview.bindingRepairs);
+  if (preview.staleQuestionIds.length > 0) {
+    const av = await readAttributeView(client, binding.questionIndex.avId);
+    const stale = new Set(preview.staleQuestionIds);
+    const itemIds = existingQuestionRows(av, binding)
+      .filter((row) => row.questionId && stale.has(row.questionId))
+      .map((row) => row.itemId);
+    if (itemIds.length > 0) {
+      await client.request("/api/av/removeAttributeViewBlocks", {
+        avID: binding.questionIndex.avId,
+        srcIDs: itemIds,
+      });
+    }
+  }
   const scannedAt = Date.now();
   const results: QuestionIndexWriteResult[] = [];
   for (const action of preview.actions) {
@@ -366,5 +387,12 @@ export async function confirmQuestionIndexSync(
       });
     }
   }
-  return { ...preview, actions: [], bindingRepairs: [], ialWriteActions: [], results };
+  return {
+    ...preview,
+    actions: [],
+    staleQuestionIds: [],
+    bindingRepairs: [],
+    ialWriteActions: [],
+    results,
+  };
 }

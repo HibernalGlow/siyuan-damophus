@@ -635,6 +635,36 @@ describe("SiYuan question bank adapter", () => {
       .toBe("");
   });
 
+  it("suggests and confirms a stable ID for a valid legacy question without rewriting its content", async () => {
+    const { client, binding } = await initialized();
+    const documentId = "20260804120000-missingid";
+    const source = `##### 12. （单）\n{: id="20260804120200-quest12" custom-qb-source="legacy" custom-qb-year="2022"}\n\n- Stem\n  - [ ] A. Correct\n  - [ ] B. Incorrect\n\n答案与解析：说明\n{: id="20260804120300-solut12"}\n\n正确答案为 A。\n{: id="20260804120400-answer12"}`;
+    client.documents.set(documentId, source);
+
+    const preview = await previewQuestionIndexSync(client, binding, documentId);
+    const question = preview.scan.report.document.questions[0];
+    expect(preview.blockers).toEqual([]);
+    expect(question.id).toBe("legacy-2022-12");
+    expect(preview.ialWriteActions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        blockId: "20260804120200-quest12",
+        questionId: question.id,
+        reason: "suggested-stable-question-id",
+        attributes: { "custom-qb-id": question.id },
+      }),
+    ]));
+    expect(client.documents.get(documentId)).toBe(source);
+    expect(client.blockAttrs.get("20260804120200-quest12")).toBeUndefined();
+
+    await confirmQuestionIndexSync(client, binding, documentId, preview.token);
+
+    expect(client.documents.get(documentId)).toBe(source);
+    expect(client.blockAttrs.get("20260804120200-quest12")).toMatchObject({
+      "custom-qb-id": question.id,
+      "custom-qb-type": "single",
+    });
+  });
+
   it("previews before writing, preserves user columns, and uses itemID for managed cells", async () => {
     const { client, binding } = await initialized();
     const custom = addCustomColumn(client.attributeViews.get(binding.questionIndex.avId)!);

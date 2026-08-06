@@ -1,10 +1,11 @@
 import type { Question, ScanMessage } from "../../core/types";
-import { parseIal } from "../../markdown/ial";
+import { parseIal, serializeIal } from "../../markdown/ial";
 import {
   scanQuestionMarkdown,
   type MarkdownIalUpdate,
   type MarkdownQuestionScanReport,
 } from "../../markdown/scanner";
+import { suggestStableQuestionId } from "../../assembly/fingerprint";
 import type { IalAttributes } from "../../markdown/ial";
 import type { SiyuanKernelClient } from "./types";
 
@@ -100,9 +101,45 @@ export async function scanSiyuanDocument(
   const result = await client.request<{ id: string; kramdown: string }>("/api/block/getBlockKramdown", {
     id: documentId,
   });
-  const headings = headingIals(result.kramdown);
+  const initialReport = scanQuestionMarkdown(result.kramdown);
+  const missing = initialReport.issues.filter((issue) => issue.code === "missing-stable-question-id");
+  let kramdown = result.kramdown;
+  const suggested: Array<{ line: number; blockId: string; questionId: string }> = [];
+  if (missing.length > 0) {
+    const lines = kramdown.split(/\r?\n/u);
+    for (const [index, issue] of missing.entries()) {
+      if (!issue.line) continue;
+      const headingLine = issue.line;
+      let ialLine = headingLine;
+      while (ialLine < lines.length && lines[ialLine].trim() === "") ialLine += 1;
+      const parsed = parseIal(lines[ialLine]?.trim() ?? "");
+      if (!parsed || parsed.errors.length > 0) continue;
+      const temporaryId = `__damophus_pending_${index}`;
+      lines[ialLine] = serializeIal({ ...parsed.attributes, "custom-qb-id": temporaryId });
+      const temporaryReport = scanQuestionMarkdown(lines.join("\n"));
+      const question = temporaryReport.document.questions.find((candidate) => candidate.id === temporaryId);
+      const blockId = parsed.attributes.id;
+      if (!question || !blockId || !nodeIdPattern.test(blockId)) continue;
+      const visibleNumber = issue.title?.match(/^(\d+)/u)?.[1];
+      const { id: _temporaryId, ...questionWithoutId } = question;
+      const questionId = await suggestStableQuestionId({ question: questionWithoutId, visibleNumber });
+      lines[ialLine] = serializeIal({ ...parsed.attributes, "custom-qb-id": questionId });
+      suggested.push({ line: headingLine, blockId, questionId });
+      kramdown = lines.join("\n");
+    }
+  }
+  const headings = headingIals(kramdown);
   const bindings = questionBlockIds(headings);
-  const report = scanQuestionMarkdown(result.kramdown);
+  const report = scanQuestionMarkdown(kramdown);
+  for (const update of suggested) {
+    report.ialUpdates.push({
+      blockId: update.blockId,
+      line: update.line,
+      questionId: update.questionId,
+      attributes: { "custom-qb-id": update.questionId },
+      reason: "suggested-stable-question-id",
+    });
+  }
   const headingIds = new Map(headings.flatMap((heading) => {
     const blockId = heading.attributes.id;
     return blockId && nodeIdPattern.test(blockId) ? [[heading.line, blockId] as const] : [];
@@ -135,7 +172,7 @@ export async function scanSiyuanDocument(
   }
   return {
     documentId,
-    kramdown: result.kramdown,
+    kramdown,
     report,
     blockIdsByQuestionId: bindings.ids,
     topicBlockIdsByTopicId,

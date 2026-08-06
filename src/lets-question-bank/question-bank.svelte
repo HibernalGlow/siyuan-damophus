@@ -12,6 +12,7 @@
     Database,
     Download,
     LayoutGrid,
+    Layers3,
     List,
     ListOrdered,
     Pause,
@@ -83,16 +84,20 @@
   import type {
     AttemptImportPreview,
     AttemptImportResult,
+    QuestionIndexBatchPreview,
     QuestionIndexPreview,
   } from "@/question-bank/application";
   import type {
     QuestionBankInitializationPreview,
     QuestionBankRebindingPreview,
   } from "@/question-bank/adapters/siyuan";
+  import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
+  import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
   import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
   import PracticeScanSummary from "./PracticeScanSummary.svelte";
   import ExamWorkspace from "./ExamWorkspace.svelte";
+  import QuestionSetComposer from "./QuestionSetComposer.svelte";
   import Statistics from "./Statistics.svelte";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
@@ -124,7 +129,9 @@
   export let onClose: (() => void) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
-  const buildRevision = process.env.DAMOPHUS_BUILD_REVISION ?? "dev-unknown";
+  const buildRevision = (globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> };
+  }).process?.env?.DAMOPHUS_BUILD_REVISION ?? "dev-unknown";
   const recent = controller.getRecentScope();
   let documentId = initialDocumentId ?? recent?.documentId ?? "";
   let binding = controller.getBinding();
@@ -193,10 +200,20 @@
   let statisticsRange: StatisticsRange = 30;
   let statisticsSort: StatisticsSort = "weakness";
   let examMode = false;
+  let composerOpen = false;
+  let sourceDocuments: QuestionSourceDocument[] = [];
+  let questionCatalog: QuestionCatalogEntry[] = [];
+  let questionSetBlueprints: QuestionSetBlueprint[] = [];
+  let assembledQuestions: Question[] | undefined;
+  let assembledBlockIdsByQuestionId: ReadonlyMap<string, string> = new Map();
+  let assembledSourceKey = "";
+  let assembledSourceLabel = "";
+  let pendingFrozenSetLabel = "";
 
   const entireDocumentScope = "__damophus_entire_document__";
 
   $: questions = preview?.scan.report.document.questions ?? [];
+  $: practiceSourceQuestions = assembledQuestions ?? questions;
   $: progressQuestions = questions.filter((question) => question.type !== "group");
   $: examQuestions = createPracticeQueue({
     questions,
@@ -580,7 +597,9 @@
   }
 
   function sourceBlockId(question: Question | undefined): string | undefined {
-    return question ? preview?.scan.blockIdsByQuestionId.get(question.id) : undefined;
+    return question
+      ? (assembledQuestions ? assembledBlockIdsByQuestionId : preview?.scan.blockIdsByQuestionId)?.get(question.id)
+      : undefined;
   }
 
   function scheduleSourcePreload(): void {
@@ -631,6 +650,7 @@
   }
 
   function practiceQueue(): Question[] {
+    if (assembledQuestions) return [...assembledQuestions];
     return createPracticeQueue({
       questions,
       topics,
@@ -676,8 +696,12 @@
     void run(() => beginNewPractice(nextQueue));
   }
 
-  async function beginNewPractice(nextQueue = practiceQueue()): Promise<void> {
-    if (!preview || nextQueue.length === 0) return;
+  async function beginNewPractice(
+    nextQueue = practiceQueue(),
+    sourceKey = assembledSourceKey || documentId,
+    sourceLabel = assembledSourceLabel || sourceIdentity?.content,
+  ): Promise<void> {
+    if ((!preview && !assembledQuestions) || nextQueue.length === 0) return;
     if (questionRenderMode === "embed" && prepareSourceBlock) {
       const initialBlockIds = nextQueue.slice(0, 2)
         .map((question) => sourceBlockId(question))
@@ -686,25 +710,31 @@
     }
     await startPracticeSession({
       host: controller,
-      sourceKey: documentId,
-      createSnapshot: () => createNewPracticeSnapshot(nextQueue),
+      sourceKey,
+      createSnapshot: () => createNewPracticeSnapshot(nextQueue, sourceKey, sourceLabel),
       activate: activateRuntime,
     });
   }
 
-  function createNewPracticeSnapshot(nextQueue = practiceQueue()): PracticeSessionSnapshot {
-    if (!preview || nextQueue.length === 0) throw new Error("A practice session requires at least one question");
-    controller.saveRecentScope({
-      documentId,
-      headingBlockId: topicId ? preview.scan.topicBlockIdsByTopicId.get(topicId) : undefined,
-    });
+  function createNewPracticeSnapshot(
+    nextQueue = practiceQueue(),
+    sourceKey = assembledSourceKey || documentId,
+    sourceLabel = assembledSourceLabel || sourceIdentity?.content,
+  ): PracticeSessionSnapshot {
+    if ((!preview && !assembledQuestions) || nextQueue.length === 0) throw new Error("A practice session requires at least one question");
+    if (!assembledQuestions && preview) {
+      controller.saveRecentScope({
+        documentId,
+        headingBlockId: topicId ? preview.scan.topicBlockIdsByTopicId.get(topicId) : undefined,
+      });
+    }
     return createPracticeSessionSnapshot({
       sessionId: uuid(),
-      sourceKey: documentId,
-      sourceLabel: sourceIdentity?.content,
-      scopeId: topicId || undefined,
-      filter,
-      order,
+      sourceKey,
+      sourceLabel,
+      scopeId: assembledQuestions ? undefined : topicId || undefined,
+      filter: assembledQuestions ? "all" : filter,
+      order: assembledQuestions ? "sequential" : order,
       queue: nextQueue.map((question) => ({
         question,
         optionOrder: shuffleQuestionOptions(question, random).optionOrder,
@@ -714,12 +744,12 @@
   }
 
   function resumePractice(snapshot = recoverableSession): void {
-    if (!snapshot || !preview) return;
+    if (!snapshot || (!preview && !assembledQuestions)) return;
     void run(async () => {
       await resumePracticeSession({
         host: controller,
         snapshot,
-        questions,
+        questions: practiceSourceQuestions,
         now: new Date(now()),
         activate: activateRuntime,
       });
@@ -916,9 +946,90 @@
   }
 
   function openStoredSession(stored: StoredPracticeSession): void {
+    const parsedStored = stored.result;
+    if (parsedStored.status === "ok"
+      && controller.hydrateQuestionSources
+      && !/^\d{14}-[a-z0-9]{7}$/u.test(stored.sourceKey)) {
+      void run(async () => {
+        const hydrated = await controller.hydrateQuestionSources!(parsedStored.snapshot.queue_question_ids);
+        assembledQuestions = hydrated.questions;
+        assembledBlockIdsByQuestionId = hydrated.blockIdsByQuestionId;
+        assembledSourceKey = stored.sourceKey;
+        assembledSourceLabel = parsedStored.snapshot.source_label ?? label("questionSet", "跨文档组卷");
+        await resumePracticeSession({
+          host: controller,
+          snapshot: parsedStored.snapshot,
+          questions: hydrated.questions,
+          now: new Date(now()),
+          activate: activateRuntime,
+        });
+      });
+      return;
+    }
     documentId = stored.sourceKey;
     invalidateDocumentTarget();
     scanDocument(false);
+  }
+
+  async function loadQuestionSetData(): Promise<void> {
+    if (!controller.listQuestionSourceDocuments || !controller.loadQuestionCatalog || !controller.listQuestionSetBlueprints) return;
+    [sourceDocuments, questionCatalog, questionSetBlueprints] = await Promise.all([
+      controller.listQuestionSourceDocuments(),
+      controller.loadQuestionCatalog(),
+      controller.listQuestionSetBlueprints(),
+    ]);
+  }
+
+  function openQuestionSetComposer(): void {
+    composerOpen = true;
+    void run(loadQuestionSetData);
+  }
+
+  async function previewSourceSync(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {
+    if (!controller.previewSyncBatch) throw new Error(label("questionSetIndexUnavailable", "跨文档入库服务尚未连接"));
+    return controller.previewSyncBatch(documentIds);
+  }
+
+  async function confirmSourceSync(target: QuestionIndexBatchPreview): Promise<QuestionIndexBatchPreview> {
+    if (!controller.confirmSyncBatch) throw new Error(label("questionSetIndexUnavailable", "跨文档入库服务尚未连接"));
+    const confirmed = await controller.confirmSyncBatch(target.documentIds, target.token);
+    await loadQuestionSetData();
+    return confirmed;
+  }
+
+  function assembleBlueprint(blueprint: QuestionSetBlueprint): FrozenQuestionSet {
+    if (!controller.assembleQuestionSet) throw new Error(label("questionSetAssemblyUnavailable", "组卷服务尚未连接"));
+    pendingFrozenSetLabel = blueprint.name;
+    return controller.assembleQuestionSet({
+      blueprint,
+      catalog: questionCatalog,
+      sourceRevision: questionCatalog.map((entry) => `${entry.questionId}:${entry.blockId}:${entry.indexedAt ?? ""}`).sort().join("|"),
+      setId: crypto.randomUUID(),
+      seed: crypto.randomUUID(),
+    });
+  }
+
+  async function saveBlueprint(blueprint: QuestionSetBlueprint): Promise<void> {
+    await controller.saveQuestionSetBlueprint?.(blueprint);
+    questionSetBlueprints = await controller.listQuestionSetBlueprints?.() ?? questionSetBlueprints;
+  }
+
+  async function removeBlueprint(blueprintId: string): Promise<void> {
+    await controller.removeQuestionSetBlueprint?.(blueprintId);
+    questionSetBlueprints = await controller.listQuestionSetBlueprints?.() ?? [];
+  }
+
+  async function useFrozenPracticeSet(frozen: FrozenQuestionSet): Promise<void> {
+    if (!controller.hydrateQuestionSources) throw new Error(label("questionSetHydrationUnavailable", "跨文档题源加载服务尚未连接"));
+    const hydrated = await controller.hydrateQuestionSources(frozen.question_ids);
+    assembledQuestions = frozen.question_ids
+      .map((questionId) => hydrated.questions.find((question) => question.id === questionId))
+      .filter((question): question is Question => Boolean(question));
+    assembledBlockIdsByQuestionId = hydrated.blockIdsByQuestionId;
+    assembledSourceKey = frozen.set_id;
+    assembledSourceLabel = pendingFrozenSetLabel || label("questionSet", "跨文档组卷");
+    composerOpen = false;
+    await beginNewPractice(assembledQuestions, assembledSourceKey, assembledSourceLabel);
   }
 
   function exportSessionDiagnostic(sourceKey: string): void {
@@ -1194,14 +1305,14 @@
       </div>
     </section>
   {:else}
-    {#if !currentQuestion && !practiceRuntime && !complete && !examMode}
+    {#if !currentQuestion && !practiceRuntime && !complete && !examMode && !composerOpen}
       <Tabs.Root bind:value={view} class="mx-4 mt-3 shrink-0" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
         <Tabs.List class="grid w-full grid-cols-2">
-          <Tabs.Trigger value="practice">
+          <Tabs.Trigger value="practice" class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <BookOpenCheck size={16} aria-hidden="true" />
             {label("practice", "练习")}
           </Tabs.Trigger>
-          <Tabs.Trigger value="statistics">
+          <Tabs.Trigger value="statistics" class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <BarChart3 size={16} aria-hidden="true" />
             {label("statistics", "统计")}
           </Tabs.Trigger>
@@ -1209,7 +1320,23 @@
       </Tabs.Root>
     {/if}
 
-    {#if view === "statistics" && !currentQuestion && !practiceRuntime && !complete && !examMode}
+    {#if composerOpen}
+      <QuestionSetComposer
+        catalog={questionCatalog}
+        documents={sourceDocuments}
+        blueprints={questionSetBlueprints}
+        {translations}
+        loading={busy}
+        onRefresh={() => { void run(loadQuestionSetData); }}
+        onSync={previewSourceSync}
+        onConfirmSync={confirmSourceSync}
+        onAssemble={assembleBlueprint}
+        onSave={saveBlueprint}
+        onDelete={removeBlueprint}
+        onUse={(value) => { void run(() => useFrozenPracticeSet(value)); }}
+        onClose={() => composerOpen = false}
+      />
+    {:else if view === "statistics" && !currentQuestion && !practiceRuntime && !complete && !examMode}
       <Statistics
         snapshot={statisticsSnapshot}
         loading={statisticsLoading}
@@ -1492,6 +1619,15 @@
           >
             <BookOpenCheck data-icon="inline-start" aria-hidden="true" />
             <span>{label("start", "Start practice")}</span>
+          </Button>
+          <Button
+            class="max-[760px]:w-full"
+            variant="outline"
+            disabled={busy}
+            onclick={openQuestionSetComposer}
+          >
+            <Layers3 data-icon="inline-start" aria-hidden="true" />
+            <span>{label("questionSet", "跨文档组卷")}</span>
           </Button>
           <Button
             class="max-[760px]:w-full"

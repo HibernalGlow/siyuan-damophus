@@ -3,6 +3,12 @@ import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/c
 import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent } from "@/question-bank/core/types";
 import type { ExamSessionSnapshot } from "@/question-bank/exam";
 import type { StatisticsQuestion } from "@/question-bank/core/statistics";
+import {
+  assembleQuestionSet,
+  type QuestionCatalogEntry,
+  type QuestionSetBlueprint,
+  type QuestionSetBlueprintRepository,
+} from "@/question-bank/assembly";
 import { getLogger } from "@/libs/logger";
 import {
   addQuickRiffCards,
@@ -19,6 +25,9 @@ import {
   rebuildAttemptStatistics,
   readExamSummaryEvents,
   readQuestionIndexStatistics,
+  hydrateQuestionSources,
+  listQuestionSourceDocuments,
+  readQuestionSourceCatalog,
   siyuanKernelClient,
   submitRiffRating,
   type QuestionBankBinding,
@@ -28,15 +37,19 @@ import {
   type SiyuanKernelClient,
 } from "@/question-bank/adapters/siyuan";
 import {
+  confirmQuestionIndexBatch,
   confirmQuestionIndexSync,
   confirmAttemptImport,
+  previewQuestionIndexBatch,
   previewQuestionIndexSync,
   previewAttemptImport,
   shouldAutoCreateQuickCard,
   type AttemptImportPreview,
   type AttemptImportResult,
   type QuestionIndexPreview,
+  type QuestionIndexBatchPreview,
 } from "@/question-bank/application";
+import type { QuestionSourceDocument, HydratedQuestionSource } from "@/question-bank/adapters/siyuan/source-catalog";
 import { loadSourceBlockIdentity, type SourceBlockIdentity } from "./source-identity";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "@/question-bank/core";
 import type {
@@ -81,6 +94,21 @@ export interface QuestionBankUiController {
   loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]>;
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
+  previewSyncBatch?(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview>;
+  confirmSyncBatch?(documentIds: readonly string[], token: string): Promise<QuestionIndexBatchPreview>;
+  listQuestionSourceDocuments?(): Promise<QuestionSourceDocument[]>;
+  loadQuestionCatalog?(): Promise<QuestionCatalogEntry[]>;
+  hydrateQuestionSources?(questionIds: readonly string[]): Promise<HydratedQuestionSource>;
+  listQuestionSetBlueprints?(): Promise<QuestionSetBlueprint[]>;
+  saveQuestionSetBlueprint?(blueprint: QuestionSetBlueprint): Promise<void>;
+  removeQuestionSetBlueprint?(blueprintId: string): Promise<void>;
+  assembleQuestionSet?(input: {
+    blueprint: QuestionSetBlueprint;
+    catalog: readonly QuestionCatalogEntry[];
+    sourceRevision: string;
+    setId: string;
+    seed: string;
+  }): ReturnType<typeof assembleQuestionSet>;
   loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>>;
   loadStatisticsQuestions?: () => Promise<StatisticsQuestion[]>;
   loadAttemptEvents?: () => Promise<AttemptEvent[]>;
@@ -111,6 +139,7 @@ export interface QuestionBankControllerOptions {
   sessionRepository?: PracticeSessionRepository;
   sessionLeases?: PracticeSessionLeaseCoordinator;
   examSessionRepository?: SiyuanExamSessionRepository;
+  questionSetRepository?: QuestionSetBlueprintRepository;
 }
 
 const bindingSetting = "binding";
@@ -249,6 +278,48 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview> {
     return confirmQuestionIndexSync(this.client, this.requireBinding(), documentId, token);
+  }
+
+  async previewSyncBatch(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {
+    return previewQuestionIndexBatch(this.client, this.requireBinding(), documentIds);
+  }
+
+  async confirmSyncBatch(documentIds: readonly string[], token: string): Promise<QuestionIndexBatchPreview> {
+    return confirmQuestionIndexBatch(this.client, this.requireBinding(), documentIds, token);
+  }
+
+  async listQuestionSourceDocuments(): Promise<QuestionSourceDocument[]> {
+    return listQuestionSourceDocuments(this.client);
+  }
+
+  async loadQuestionCatalog(): Promise<QuestionCatalogEntry[]> {
+    return readQuestionSourceCatalog(this.client, this.requireBinding(), await this.loadAggregates());
+  }
+
+  async hydrateQuestionSources(questionIds: readonly string[]): Promise<HydratedQuestionSource> {
+    return hydrateQuestionSources(this.client, await this.loadQuestionCatalog(), questionIds);
+  }
+
+  async listQuestionSetBlueprints(): Promise<QuestionSetBlueprint[]> {
+    return this.options.questionSetRepository?.list() ?? [];
+  }
+
+  async saveQuestionSetBlueprint(blueprint: QuestionSetBlueprint): Promise<void> {
+    await this.options.questionSetRepository?.save(blueprint);
+  }
+
+  async removeQuestionSetBlueprint(blueprintId: string): Promise<void> {
+    await this.options.questionSetRepository?.remove(blueprintId);
+  }
+
+  assembleQuestionSet(input: {
+    blueprint: QuestionSetBlueprint;
+    catalog: readonly QuestionCatalogEntry[];
+    sourceRevision: string;
+    setId: string;
+    seed: string;
+  }): ReturnType<typeof assembleQuestionSet> {
+    return assembleQuestionSet(input);
   }
 
   async loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>> {

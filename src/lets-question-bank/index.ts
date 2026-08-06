@@ -21,6 +21,7 @@ import {
   SiyuanPracticeSessionRepository,
 } from "./session-host";
 import { SiyuanExamSessionRepository } from "./exam-session-host";
+import { QuestionSetBlueprintSettingsRepository } from "./question-set-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { installSourceAnswerMask } from "./source-answer-mask";
 import {
@@ -40,6 +41,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
   private readonly examSessionRepository = new SiyuanExamSessionRepository(plugin);
+  private readonly questionSetRepository = new QuestionSetBlueprintSettingsRepository(
+    (key) => this.getSetting(key),
+    (key, value) => this.setSetting(key, value),
+  );
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
   private stopSourceAnswerMask?: () => void;
@@ -288,6 +293,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       sessionRepository: this.sessionRepository,
       sessionLeases: this.sessionLeases,
       examSessionRepository: this.examSessionRepository,
+      questionSetRepository: this.questionSetRepository,
     });
     const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceQueryCache = new Map<string, Promise<string>>();

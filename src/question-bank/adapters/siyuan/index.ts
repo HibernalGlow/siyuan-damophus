@@ -4,5 +4,6 @@ export * from "./cells";
 export * from "./client";
 export * from "./document";
 export * from "./question-index";
+export * from "./source-catalog";
 export * from "./riff";
 export * from "./types";
