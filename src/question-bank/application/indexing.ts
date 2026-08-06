@@ -78,6 +78,19 @@ export interface QuestionIndexMaintenanceResult {
   updatedRows: number;
 }
 
+export interface QuestionIndexMaintenancePreview {
+  bindingRepairs: readonly ManagedKeyRepair[];
+  updatedRows: number;
+  needsMaintenance: boolean;
+}
+
+interface PlannedMaintenanceUpdate {
+  itemId: string;
+  field: "year" | "collection" | "source" | "parent_id";
+  value: string;
+  type: "select" | "text";
+}
+
 const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
 const questionKindTokens = new Set([
   "group",
@@ -340,20 +353,17 @@ async function writeQuestionRow(
   }
 }
 
-export async function maintainQuestionIndex(
+async function readQuestionIndexMaintenancePlan(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
-): Promise<QuestionIndexMaintenanceResult> {
+): Promise<{ bindingRepairs: ManagedKeyRepair[]; updates: PlannedMaintenanceUpdate[] }> {
   const verification = await verifyQuestionBankBinding(client, binding);
   if (verification.fatalErrors.length > 0) {
     throw new Error(`Question bank binding is invalid: ${verification.fatalErrors.join("; ")}`);
   }
-  if (verification.missingManagedKeys.length > 0) {
-    await repairQuestionBankBinding(client, binding, verification.missingManagedKeys);
-  }
   const av = await readAttributeView(client, binding.questionIndex.avId);
   const rows = existingQuestionRows(av, binding);
-  let updatedRows = 0;
+  const updates: PlannedMaintenanceUpdate[] = [];
   for (const row of rows) {
     if (!row.questionId) continue;
     const inferred = stableQuestionIdMetadata(row.questionId);
@@ -375,19 +385,44 @@ export async function maintainQuestionIndex(
     });
     if (pending.length === 0) continue;
     for (const [field, value, type] of pending) {
-      await setAttributeViewCell(
-        client,
-        binding.questionIndex.avId,
-        binding.questionIndex.keys[field],
-        row.itemId,
-        type === "text" ? textCell(value) : selectCell(value),
-      );
+      updates.push({ itemId: row.itemId, field, value, type });
     }
-    updatedRows += 1;
+  }
+  return { bindingRepairs: verification.missingManagedKeys, updates };
+}
+
+export async function previewQuestionIndexMaintenance(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<QuestionIndexMaintenancePreview> {
+  const plan = await readQuestionIndexMaintenancePlan(client, binding);
+  return {
+    bindingRepairs: plan.bindingRepairs,
+    updatedRows: new Set(plan.updates.map((update) => update.itemId)).size,
+    needsMaintenance: plan.bindingRepairs.length > 0 || plan.updates.length > 0,
+  };
+}
+
+export async function maintainQuestionIndex(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<QuestionIndexMaintenanceResult> {
+  const plan = await readQuestionIndexMaintenancePlan(client, binding);
+  if (plan.bindingRepairs.length > 0) {
+    await repairQuestionBankBinding(client, binding, plan.bindingRepairs);
+  }
+  for (const update of plan.updates) {
+    await setAttributeViewCell(
+      client,
+      binding.questionIndex.avId,
+      binding.questionIndex.keys[update.field],
+      update.itemId,
+      update.type === "text" ? textCell(update.value) : selectCell(update.value),
+    );
   }
   return {
-    bindingRepairs: verification.missingManagedKeys.length,
-    updatedRows,
+    bindingRepairs: plan.bindingRepairs.length,
+    updatedRows: new Set(plan.updates.map((update) => update.itemId)).size,
   };
 }
 

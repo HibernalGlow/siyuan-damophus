@@ -45,6 +45,13 @@ const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "button",
+      title: "lets-question-bank.indexMaintenance",
+      description: "lets-question-bank.indexMaintenanceDescription",
+      key: "maintainIndex",
+      value: "lets-question-bank.maintainIndex",
+    },
+    {
       type: "checkbox",
       title: "lets-question-bank.autoScanDocument",
       description: "lets-question-bank.autoScanDocumentDescription",

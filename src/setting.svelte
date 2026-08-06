@@ -5,6 +5,8 @@
   import { Button } from "@/components/ui/button";
   import { enableLogging } from "@/libs/logger";
   import { settings } from "@/settings";
+  import { migrateQuestionBankBinding, siyuanKernelClient } from "@/question-bank/adapters/siyuan";
+  import { maintainQuestionIndex } from "@/question-bank/application";
   import { getHostColorMode, observeHostColorMode } from "@/theme/runtime";
   import { parseStoredThemes } from "@/theme/schema";
   import { DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
@@ -185,17 +187,38 @@
   }
 
   async function onClick({ detail }: CustomEvent<ChangeEvent>) {
-    if (detail.group !== GENERAL_GROUP) return;
-    if (detail.key === "resetData") {
+    if (detail.group === GENERAL_GROUP && detail.key === "resetData") {
       await settings.resetData();
       settingItems = initData();
       customThemes = parseStoredThemes(settings.get("customThemes"));
       selectedThemeId = savedThemeId = settings.get("uiThemeId") ?? DEFAULT_THEME_ID;
       showMessage(t("settings.resetSuccess", "Configuration reset"));
-    } else if (detail.key === "mergeData") {
+    } else if (detail.group === GENERAL_GROUP && detail.key === "mergeData") {
       await settings.mergeData();
       settingItems = initData();
       showMessage(t("settings.mergeSuccess", "Configuration merged"));
+    } else {
+      const pluginSetting = settingItems[SWITCH_GROUP].find((item) => item.title === detail.group);
+      if (pluginSetting?.key !== QUESTION_BANK_PLUGIN || detail.key !== "maintainIndex") return;
+      const binding = migrateQuestionBankBinding(settings.getBySpace(QUESTION_BANK_PLUGIN, "binding"));
+      if (!binding) {
+        showMessage(t("lets-question-bank.indexMaintenanceUnavailable", "Question Bank is not initialized"), 5000, "error");
+        return;
+      }
+      try {
+        const result = await maintainQuestionIndex(siyuanKernelClient, binding);
+        settingItems = initData();
+        showMessage(
+          `${t("lets-question-bank.indexMaintenanceComplete", "Question Index maintenance completed")}: ${result.updatedRows}`,
+          5000,
+        );
+      } catch (error) {
+        showMessage(
+          `${t("lets-question-bank.indexMaintenanceFailed", "Question Index maintenance failed")}: ${error instanceof Error ? error.message : String(error)}`,
+          8000,
+          "error",
+        );
+      }
     }
   }
 

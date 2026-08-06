@@ -18,6 +18,7 @@ import { scanSiyuanDocument } from "./document";
 import {
   confirmQuestionIndexSync,
   maintainQuestionIndex,
+  previewQuestionIndexMaintenance,
   previewQuestionIndexSync,
   stableQuestionIdMetadata,
 } from "../../application/indexing";
@@ -43,7 +44,7 @@ describe("SiYuan question bank adapter", () => {
     });
   });
 
-  it("maintains inferred Question Index metadata on startup", async () => {
+  it("previews inferred Question Index metadata without writing", async () => {
     const { client, binding } = await initialized();
     const sourceBlockId = "20260804120200-quest01";
     await client.request("/api/av/addAttributeViewBlocks", {
@@ -62,6 +63,15 @@ describe("SiYuan question bank adapter", () => {
       itemID: rowId,
       value: { type: "text", text: { content: "civil-gold-objective-2020-2-1-14" } },
     });
+
+    const requestCount = client.requests.length;
+    const preview = await previewQuestionIndexMaintenance(client, binding);
+    expect(preview.needsMaintenance).toBe(true);
+    expect(preview.updatedRows).toBe(1);
+    expect(client.requests.slice(requestCount).some((request) =>
+      request.endpoint === "/api/av/setAttributeViewBlockAttr"
+      || request.endpoint === "/api/transactions",
+    )).toBe(false);
 
     const result = await maintainQuestionIndex(client, binding);
     expect(result.updatedRows).toBe(1);

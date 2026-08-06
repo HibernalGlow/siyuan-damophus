@@ -8,6 +8,7 @@ import {
   openMobileFileById,
   openTab,
   Protyle,
+  showMessage,
   type IEventBusMap,
   type Menu,
 } from "siyuan";
@@ -17,7 +18,7 @@ import QuestionBank from "./question-bank.svelte";
 import { QuestionBankController } from "./controller";
 import { getLogger } from "@/libs/logger";
 import { migrateQuestionBankBinding, siyuanKernelClient } from "@/question-bank/adapters/siyuan";
-import { maintainQuestionIndex } from "@/question-bank/application";
+import { previewQuestionIndexMaintenance } from "@/question-bank/application";
 import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
 import {
   BroadcastPracticeSessionLeaseCoordinator,
@@ -61,7 +62,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
   private stopSourceAnswerMask?: () => void;
-  private startupMaintenanceStarted = false;
+  private startupMaintenanceCheckStarted = false;
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
@@ -135,21 +136,27 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
-    this.startQuestionIndexMaintenance();
+    this.checkQuestionIndexMaintenance();
   }
 
-  private startQuestionIndexMaintenance(): void {
-    if (this.startupMaintenanceStarted) return;
+  private checkQuestionIndexMaintenance(): void {
+    if (this.startupMaintenanceCheckStarted) return;
     const binding = migrateQuestionBankBinding(this.getSetting("binding"));
     if (!binding) return;
-    this.startupMaintenanceStarted = true;
-    void maintainQuestionIndex(siyuanKernelClient, binding)
-      .then((result) => {
-        log.info("question-index.maintained", result);
+    this.startupMaintenanceCheckStarted = true;
+    void previewQuestionIndexMaintenance(siyuanKernelClient, binding)
+      .then((preview) => {
+        log.info("question-index.maintenance-check", preview);
+        if (preview.needsMaintenance) {
+          showMessage(
+            this.t("lets-question-bank.indexMaintenanceRequired"),
+            10000,
+            "info",
+          );
+        }
       })
       .catch((error) => {
-        this.startupMaintenanceStarted = false;
-        log.warn("question-index.maintenance-failed", error);
+        log.warn("question-index.maintenance-check-failed", error);
       });
   }
 
@@ -201,7 +208,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.listening = false;
     for (const app of this.mountedTabs.values()) void unmount(app);
     this.mountedTabs.clear();
-    this.startupMaintenanceStarted = false;
+    this.startupMaintenanceCheckStarted = false;
     await this.sessionLeases.releaseAll();
   }
 
