@@ -53,3 +53,12 @@ export function observeFocusedBlock(
   observer.observe(wysiwyg, { childList: true, subtree: true });
   return () => observer.disconnect();
 }
+
+export function defocusProtyleEditor(wysiwyg: HTMLElement): void {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && wysiwyg.contains(active)) active.blur();
+  const selection = window.getSelection();
+  if (selection && selection.rangeCount > 0 && wysiwyg.contains(selection.anchorNode)) {
+    selection.removeAllRanges();
+  }
+}

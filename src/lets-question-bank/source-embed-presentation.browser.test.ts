@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { observeFocusedBlock } from "./source-embed-presentation";
+import { defocusProtyleEditor, observeFocusedBlock } from "./source-embed-presentation";
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -10,6 +10,22 @@ async function flushMutations(): Promise<void> {
 }
 
 describe("focused Protyle block isolation", () => {
+  it("clears focus and selection inside a mounted Protyle editor", () => {
+    const wysiwyg = document.createElement("div");
+    const editable = document.createElement("div");
+    editable.contentEditable = "true";
+    editable.tabIndex = 0;
+    editable.textContent = "Question";
+    wysiwyg.append(editable);
+    document.body.append(wysiwyg);
+    editable.focus();
+
+    defocusProtyleEditor(wysiwyg);
+
+    expect(document.activeElement).not.toBe(editable);
+    expect(window.getSelection()?.rangeCount ?? 0).toBe(0);
+  });
+
   it("removes sibling blocks appended after the focused block has rendered", async () => {
     const wysiwyg = document.createElement("div");
     wysiwyg.innerHTML = '<div data-node-id="stem"><div data-id="stem-result">Question</div></div>';
