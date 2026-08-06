@@ -17,7 +17,6 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb {
     inset: 40px 0 auto;
     width: 100%;
     z-index: 5;
-    isolation: isolate;
     background: transparent !important;
     border-bottom: 0;
     -webkit-backdrop-filter: none;
@@ -44,14 +43,14 @@ html[data-frontend="browser-mobile"][data-theme-mode="dark"] {
 `;
 
 const BLUR = `
-html[data-frontend="mobile"] #editor > .protyle-breadcrumb::before,
-html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::before {
+html[data-frontend="mobile"] #editor::before,
+html[data-frontend="browser-mobile"] #editor::before {
     content: "";
     position: absolute;
-    inset: -40px 0 auto;
+    inset: 0 0 auto;
     height: 126px;
     pointer-events: none;
-    z-index: -1;
+    z-index: 2;
     background-color: transparent;
     -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
@@ -75,28 +74,28 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::before {
 `;
 
 const FROSTED = `
-html[data-frontend="mobile"] #editor > .protyle-breadcrumb::before,
-html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::before {
+html[data-frontend="mobile"] #editor::before,
+html[data-frontend="browser-mobile"] #editor::before {
     content: "";
     position: absolute;
-    inset: -40px 0 auto;
+    inset: 0 0 auto;
     height: 80px;
     pointer-events: none;
-    z-index: -1;
+    z-index: 2;
     background: oklch(from var(--b3-theme-background) l c h / 0.5);
     -webkit-backdrop-filter: blur(6px) brightness(0.9);
     backdrop-filter: blur(6px) brightness(0.9);
     box-shadow: 0 1px 0 0 var(--damophus-mobile-glass-highlight), 0 2px 8px 1px var(--damophus-mobile-glass-shadow);
 }
 
-html[data-frontend="mobile"] #editor > .protyle-breadcrumb::after,
-html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::after {
+html[data-frontend="mobile"] #editor::after,
+html[data-frontend="browser-mobile"] #editor::after {
     content: "";
     position: absolute;
-    inset: -40px 0 auto;
+    inset: 0 0 auto;
     height: 160px;
     pointer-events: none;
-    z-index: -1;
+    z-index: 2;
     -webkit-backdrop-filter: blur(40px) saturate(3.5);
     backdrop-filter: blur(40px) saturate(3.5);
     -webkit-mask: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.7) 80px, #000 80px, #000 81px, transparent 81px, transparent 160px);
@@ -105,32 +104,32 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::after {
 `;
 
 const LIQUID = `
-html[data-frontend="mobile"] #editor > .protyle-breadcrumb::before,
-html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::before {
+html[data-frontend="mobile"] #editor::before,
+html[data-frontend="browser-mobile"] #editor::before {
     content: "";
     position: absolute;
-    inset: -40px 0 auto;
+    inset: 0 0 auto;
     height: 80px;
     pointer-events: none;
-    z-index: -1;
-    background: oklch(from var(--b3-theme-background) l c h / 0.7);
-    -webkit-backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
-    backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
+    z-index: 2;
+    background: oklch(from var(--b3-theme-background) l c h / 0.1);
+    -webkit-backdrop-filter: blur(3px) saturate(1.5);
+    backdrop-filter: blur(3px) saturate(1.5);
     box-shadow: 0 1px 0 0 var(--damophus-mobile-glass-highlight), 0 2px 8px 1px var(--damophus-mobile-glass-shadow);
 }
 
-html[data-frontend="mobile"] #editor > .protyle-breadcrumb::after,
-html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::after {
+html[data-frontend="mobile"] #editor::after,
+html[data-frontend="browser-mobile"] #editor::after {
     content: "";
     position: absolute;
-    inset: -40px 0 auto;
-    height: 160px;
+    inset: 0 0 auto;
+    height: 80px;
     pointer-events: none;
-    z-index: -1;
-    -webkit-backdrop-filter: blur(40px) saturate(3.5);
-    backdrop-filter: blur(40px) saturate(3.5);
-    -webkit-mask: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.7) 80px, #000 80px, #000 81px, transparent 81px, transparent 160px);
-    mask: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.7) 80px, #000 80px, #000 81px, transparent 81px, transparent 160px);
+    z-index: 2;
+    -webkit-backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
+    backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
+    -webkit-mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 6px, transparent 17px 63px, rgba(0, 0, 0, 0.72) 74px, #000 80px);
+    mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 6px, transparent 17px 63px, rgba(0, 0, 0, 0.72) 74px, #000 80px);
 }
 `;
 

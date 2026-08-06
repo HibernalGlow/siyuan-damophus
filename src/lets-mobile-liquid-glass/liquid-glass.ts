@@ -75,8 +75,8 @@ export class MobileLiquidGlass {
     image.setAttribute("href", MOBILE_LIQUID_GLASS_MAP_URL);
     image.setAttribute("x", "0");
     image.setAttribute("y", "0");
-    image.setAttribute("width", "478");
-    image.setAttribute("height", "36");
+    image.setAttribute("width", "2000");
+    image.setAttribute("height", "80");
     image.setAttribute("result", "mapSource");
     image.setAttribute("preserveAspectRatio", "none");
     const blur = this.targetDocument.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
@@ -104,7 +104,7 @@ export class MobileLiquidGlass {
     blendRGB.setAttribute("in", "RG"); blendRGB.setAttribute("in2", "B"); blendRGB.setAttribute("mode", "screen"); blendRGB.setAttribute("result", "refracted");
     const composite = this.targetDocument.createElementNS("http://www.w3.org/2000/svg", "feComposite");
     composite.setAttribute("in", "refracted"); composite.setAttribute("in2", "SourceGraphic"); composite.setAttribute("operator", "in");
-    filter.append(image, blur, ...channel("28.63808971827122", "R"), ...channel("31.82009968696802", "G"), ...channel("35.002109655664825", "B"), blendRG, blendRGB, composite);
+    filter.append(image, blur, ...channel("61.756106280954576", "R"), ...channel("65.00642766416271", "G"), ...channel("68.25674904737086", "B"), blendRG, blendRGB, composite);
     defs.append(filter);
     svg.append(defs);
     head.append(svg);

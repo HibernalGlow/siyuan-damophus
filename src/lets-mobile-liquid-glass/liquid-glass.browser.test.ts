@@ -26,10 +26,10 @@ describe("mobile liquid glass", () => {
     expect(liquidGlass.mount()).toBe(true);
     expect(document.querySelectorAll(`#${MOBILE_LIQUID_GLASS_STYLE_ID}`)).toHaveLength(1);
     const css = document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent ?? "";
-    expect(css).toContain(`#editor > .protyle-breadcrumb::before`);
-    expect(css).not.toContain(`#editor::before`);
-    expect(css).toContain(`isolation: isolate`);
+    expect(css).toContain(`#editor::before`);
+    expect(css).not.toContain(`.protyle-breadcrumb::before`);
     expect(css).toContain(`backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5)`);
+    expect(css).toContain(`transparent 17px 63px`);
     expect(css).not.toContain(`#sidebar .toolbar__icon`);
     expect(css).not.toMatch(/(?:^|[,{])\s*(?:svg|use|symbol)\b/);
     expect(document.querySelectorAll(`#${MOBILE_LIQUID_GLASS_FILTER_HOST_ID}`)).toHaveLength(1);
@@ -37,7 +37,11 @@ describe("mobile liquid glass", () => {
     expect(filter?.querySelector("feTurbulence")).toBeNull();
     expect(filter?.querySelector("feImage")?.getAttribute("href"))
       .toBe("/plugins/siyuan-damophus/neo-superfusion-map.png");
+    expect(filter?.querySelector("feImage")?.getAttribute("width")).toBe("2000");
+    expect(filter?.querySelector("feImage")?.getAttribute("height")).toBe("80");
     expect(filter?.querySelectorAll("feDisplacementMap")).toHaveLength(3);
+    expect([...filter?.querySelectorAll("feDisplacementMap") ?? []].map((node) => node.getAttribute("scale")))
+      .toEqual(["61.756106280954576", "65.00642766416271", "68.25674904737086"]);
     expect(filter?.querySelectorAll("feColorMatrix")).toHaveLength(3);
     expect(filter?.querySelectorAll("feBlend")).toHaveLength(2);
   });
