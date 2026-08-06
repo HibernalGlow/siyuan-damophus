@@ -157,6 +157,10 @@ export default defineConfig({
           src: "./icon.png",
           dest: "./",
         },
+        {
+          src: "./src/lets-mobile-liquid-glass/neo-superfusion-map.png",
+          dest: "./",
+        },
       ],
     }),
   ],
