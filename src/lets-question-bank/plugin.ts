@@ -1,4 +1,5 @@
 import type { PluginMetadata } from "@/types/plugin";
+import { ANSWER_MASK_STYLES, DEFAULT_ANSWER_MASK_STYLE } from "./source-answer-mask";
 
 const pluginMetadata: PluginMetadata = {
   name: "questionBank",
@@ -56,6 +57,25 @@ const pluginMetadata: PluginMetadata = {
       description: "lets-question-bank.timingEnabledDescription",
       key: "timingEnabled",
       value: true,
+    },
+    {
+      type: "checkbox",
+      title: "lets-question-bank.maskSourceAnswers",
+      description: "lets-question-bank.maskSourceAnswersDescription",
+      key: "maskSourceAnswers",
+      value: false,
+    },
+    {
+      type: "select",
+      title: "lets-question-bank.answerMaskStyle",
+      description: "lets-question-bank.answerMaskStyleDescription",
+      key: "answerMaskStyle",
+      value: DEFAULT_ANSWER_MASK_STYLE,
+      options: {
+        blur: "lets-question-bank.answerMaskStyleBlur",
+        solid: "lets-question-bank.answerMaskStyleSolid",
+        underline: "lets-question-bank.answerMaskStyleUnderline",
+      },
     },
   ],
 };

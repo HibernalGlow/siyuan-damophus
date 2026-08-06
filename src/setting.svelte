@@ -5,13 +5,13 @@
   import { Button } from "@/components/ui/button";
   import { enableLogging } from "@/libs/logger";
   import { settings } from "@/settings";
-  import { applyThemeVariables, getHostColorMode, observeHostColorMode } from "@/theme/runtime";
-  import { parseStoredThemes, type DamophusTheme } from "@/theme/schema";
-  import { BUILTIN_THEMES, DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
-  import { mergeCustomThemes, removeCustomTheme } from "@/theme/library";
-  import ThemeSettings from "@/theme/ThemeSettings.svelte";
+  import { getHostColorMode, observeHostColorMode } from "@/theme/runtime";
+  import { parseStoredThemes } from "@/theme/schema";
+  import { DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
   import SettingPanel from "./libs/setting-panel.svelte";
-  import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
+import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
+  import SourceAnswerMaskSettings from "./lets-question-bank/SourceAnswerMaskSettings.svelte";
+  import type { AnswerMaskStyle } from "./lets-question-bank/source-answer-mask";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
     DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
@@ -20,10 +20,11 @@
   import { PluginRegistry } from "./plugin-registry";
   import { plugin } from "./utils";
 
-  const THEME_GROUP = "主题";
   const SWITCH_GROUP = "开关";
   const GENERAL_GROUP = "设置";
   const BLOCK_ATTRIBUTE_PLUGIN = "quickAttr";
+  const QUESTION_BANK_PLUGIN = "questionBank";
+  const QUESTION_BANK_MASK_KEYS = new Set(["maskSourceAnswers", "answerMaskStyle"]);
 
   interface ChangeEvent {
     group: string;
@@ -86,9 +87,10 @@
   }
 
   let settingItems = initData();
-  let focusGroup = THEME_GROUP;
+  // Damophus' own theme picker is intentionally hidden for now.
+  // The settings panel follows SiYuan's active theme instead.
+  let focusGroup = SWITCH_GROUP;
   let showBottomSheet = false;
-  let themeRoot: HTMLElement;
   let mode = getHostColorMode();
   let customThemes = parseStoredThemes(settings.get("customThemes"));
   let savedThemeId = typeof settings.get("uiThemeId") === "string"
@@ -97,7 +99,6 @@
   let selectedThemeId = savedThemeId;
 
   $: groups = [
-    THEME_GROUP,
     SWITCH_GROUP,
     GENERAL_GROUP,
     ...settingItems[SWITCH_GROUP]
@@ -109,8 +110,8 @@
     (item) => item.displayName === focusGroup || item.name === focusGroup,
   );
   $: showBlockAttributeSettings = focusedPlugin?.name === BLOCK_ATTRIBUTE_PLUGIN;
-  $: if (groups && !groups.includes(focusGroup)) focusGroup = THEME_GROUP;
-  $: if (themeRoot) applyThemeVariables(themeRoot, selectedTheme, mode);
+  $: showQuestionBankSettings = focusedPlugin?.name === QUESTION_BANK_PLUGIN;
+  $: if (groups && !groups.includes(focusGroup)) focusGroup = SWITCH_GROUP;
 
   function t(key: string, fallback: string) {
     return plugin.i18n[key] || fallback;
@@ -130,28 +131,16 @@
     return typeof value === "string" ? value : fallback;
   }
 
+  function getFocusedSettingAnyValue<T>(key: string, fallback: T): T {
+    const value = settingItems[focusGroup]?.find((item) => item.key === key)?.value;
+    return (value ?? fallback) as T;
+  }
+
   function updateLocalSetting(group: string, key: string, value: any) {
     const item = settingItems[group]?.find((candidate) => candidate.key === key);
     if (!item) return;
     item.value = value;
     settingItems = { ...settingItems };
-  }
-
-  function themeLabels() {
-    return {
-      builtin: t("settings.themeBuiltin", "Built-in themes"),
-      custom: t("settings.themeCustom", "Custom themes"),
-      import: t("settings.themeImport", "Import JSON"),
-      export: t("settings.themeExport", "Export custom themes"),
-      apply: t("settings.themeApply", "Apply theme"),
-      applied: t("settings.themeApplied", "Applied"),
-      reset: t("settings.themeReset", "Use default"),
-      remove: t("settings.themeRemove", "Remove theme"),
-      empty: t("settings.themeEmpty", "No custom themes"),
-      importConfirm: t("settings.themeImportConfirm", "Import"),
-      importSummary: t("settings.themeImportSummary", "{count} valid themes ready"),
-      invalidFile: t("settings.themeInvalidFile", "No valid themes found"),
-    };
   }
 
   function blockAttributeLabels() {
@@ -181,30 +170,18 @@
     };
   }
 
-  async function persistThemeLibrary(themes: DamophusTheme[]) {
-    customThemes = themes;
-    settings.set("customThemes", themes);
-    await settings.save();
-  }
-
-  async function applySelectedTheme(id: string) {
-    selectedThemeId = id;
-    savedThemeId = id;
-    settings.set("uiThemeId", id);
-    await settings.save();
-    await PluginRegistry.getInstance().beginPlugin(BLOCK_ATTRIBUTE_PLUGIN);
-  }
-
-  async function removeTheme(name: string) {
-    const removedId = `custom:${name}`;
-    const nextThemes = removeCustomTheme(customThemes, name);
-    if (selectedThemeId === removedId) selectedThemeId = DEFAULT_THEME_ID;
-    if (savedThemeId === removedId) {
-      savedThemeId = DEFAULT_THEME_ID;
-      settings.set("uiThemeId", DEFAULT_THEME_ID);
-    }
-    await persistThemeLibrary(nextThemes);
-    await PluginRegistry.getInstance().beginPlugin(BLOCK_ATTRIBUTE_PLUGIN);
+  function questionBankMaskLabels() {
+    return {
+      title: t("lets-question-bank.answerMaskSettings", "Source answer masking"),
+      description: t("lets-question-bank.answerMaskSettingsDescription", "Hide answer letters in source-document solution blocks without changing Markdown or IAL."),
+      enabled: t("lets-question-bank.maskSourceAnswers", "Hide source answers"),
+      style: t("lets-question-bank.answerMaskStyle", "Mask style"),
+      preview: t("lets-question-bank.answerMaskPreview", "Preview"),
+      answerPrefix: t("lets-question-bank.answerMaskPreviewPrefix", "Answer: "),
+      blur: t("lets-question-bank.answerMaskStyleBlur", "Blur"),
+      solid: t("lets-question-bank.answerMaskStyleSolid", "Solid cover"),
+      underline: t("lets-question-bank.answerMaskStyleUnderline", "Underline cover"),
+    };
   }
 
   async function onClick({ detail }: CustomEvent<ChangeEvent>) {
@@ -255,8 +232,8 @@
 </script>
 
 <div
-  bind:this={themeRoot}
-  class="damophus-theme-root flex h-full min-h-0 overflow-hidden bg-background text-foreground max-[768px]:flex-col"
+  class="damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 overflow-hidden bg-background text-foreground max-[768px]:flex-col"
+  data-color-mode={mode}
 >
   <nav class="w-48 shrink-0 overflow-y-auto border-r border-border bg-muted/30 p-3 max-[768px]:hidden" aria-label={t("settings.selectCategory", "Setting categories")}>
     <div class="mb-3 border-b border-border px-2 pb-3">
@@ -293,26 +270,10 @@
     <div class="mx-auto flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
       <header class="border-b border-border pb-4">
         <h2 class="m-0 text-lg font-semibold">{getGroupLabel(focusGroup)}</h2>
-        {#if focusGroup === THEME_GROUP}
-          <p class="mt-1 text-sm text-muted-foreground">{t("settings.themeDescription", "Choose the appearance used by Damophus settings and question markers.")}</p>
-        {/if}
       </header>
 
-      {#if focusGroup === THEME_GROUP}
-        <ThemeSettings
-          builtinThemes={BUILTIN_THEMES}
-          {customThemes}
-          selectedId={selectedThemeId}
-          savedId={savedThemeId}
-          {mode}
-          labels={themeLabels()}
-          on:select={(event) => (selectedThemeId = event.detail.id)}
-          on:apply={(event) => void applySelectedTheme(event.detail.id)}
-          on:import={(event) => void persistThemeLibrary(mergeCustomThemes(customThemes, event.detail.themes).themes)}
-          on:remove={(event) => void removeTheme(event.detail.name)}
-          on:reset={() => (selectedThemeId = DEFAULT_THEME_ID)}
-        />
-      {:else if showBlockAttributeSettings}
+      <!-- Damophus theme settings are temporarily hidden; the panel follows SiYuan's theme. -->
+      {#if showBlockAttributeSettings}
         <BlockAttributeSettings
           customProperties={getFocusedSettingValue("customProperties", DEFAULT_CUSTOM_PROPERTIES)}
           customPropertyBlockTypes={getFocusedSettingValue("customPropertyBlockTypes", DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES)}
@@ -320,6 +281,21 @@
           theme={selectedTheme}
           {mode}
           labels={blockAttributeLabels()}
+          on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
+          on:preview={(event) => onPreview(new CustomEvent("preview", { detail: { group: focusGroup, ...event.detail } }))}
+        />
+      {:else if showQuestionBankSettings}
+        <SettingPanel
+          group={focusGroup}
+          settingItems={(settingItems[focusGroup] ?? []).filter((item) => !QUESTION_BANK_MASK_KEYS.has(item.key))}
+          on:changed={onChanged}
+          on:click={onClick}
+          on:preview={onPreview}
+        />
+        <SourceAnswerMaskSettings
+          enabled={getFocusedSettingAnyValue("maskSourceAnswers", false)}
+          style={getFocusedSettingValue("answerMaskStyle", "blur") as AnswerMaskStyle}
+          labels={questionBankMaskLabels()}
           on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
           on:preview={(event) => onPreview(new CustomEvent("preview", { detail: { group: focusGroup, ...event.detail } }))}
         />
@@ -333,7 +309,7 @@
         />
       {/if}
 
-      {#if focusGroup !== THEME_GROUP && !showBlockAttributeSettings}
+      {#if !showBlockAttributeSettings && !showQuestionBankSettings}
         <div class="flex items-center justify-between gap-3 border-y border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <span class="flex items-center gap-2"><Info class="size-4" />{t("settings.restartWarning", "Some changes require a plugin restart.")}</span>
           <Button variant="ghost" size="sm" onclick={() => location.reload()}>{t("settings.reloadNow", "Reload now")}</Button>

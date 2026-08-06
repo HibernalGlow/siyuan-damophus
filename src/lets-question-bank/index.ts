@@ -20,6 +20,7 @@ import {
   SiyuanPracticeSessionRepository,
 } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
+import { installSourceAnswerMask } from "./source-answer-mask";
 
 type PracticeCommand = "previous" | "next" | "pause";
 
@@ -32,6 +33,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
+  private stopSourceAnswerMask?: () => void;
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
@@ -50,6 +52,13 @@ export default class QuestionBankPlugin extends SubPluginBase {
   };
 
   override onload(): void {
+    this.stopSourceAnswerMask?.();
+    this.stopSourceAnswerMask = undefined;
+    if (settings.getBySpace("questionBank", "maskSourceAnswers") === true) {
+      this.stopSourceAnswerMask = installSourceAnswerMask(
+        settings.getBySpace("questionBank", "answerMaskStyle") ?? "blur",
+      );
+    }
     if (!this.registered) {
       this.registered = true;
       const owner = this;
@@ -138,6 +147,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   override async onunload(): Promise<void> {
+    this.stopSourceAnswerMask?.();
+    this.stopSourceAnswerMask = undefined;
     if (this.dockApp) void unmount(this.dockApp);
     this.dockApp = undefined;
     this.topBarElement?.remove();

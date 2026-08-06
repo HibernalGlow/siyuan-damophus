@@ -31,6 +31,12 @@ Expand **Scan details** to inspect every inference, source issue, conflict, plan
 
 If a managed database column was deleted, Damophus previews its restoration using the immutable key ID recorded in the binding. Unknown user columns and their relative order are preserved. Wrong column types, missing primary keys, and relation columns targeting the wrong database remain blockers rather than being changed automatically.
 
+## Hide Answers In The Source Document
+
+Open the **Question Bank** settings and enable **Source answer masking**. Damophus then uses the existing `custom-qb-answer` and `custom-qb-section="solution"` attributes to mask answer letters in the original SiYuan editor. It does not change Markdown, IAL, block content, or the separate practice renderer.
+
+Choose **Blur**, **Solid cover**, or **Underline cover** and use the live preview in settings. Hovering or clicking a masked letter reveals it temporarily; disabling the setting removes the injected spans and restores the editor text.
+
 ## Practice
 
 - Choose the entire document or a detected topic heading.
