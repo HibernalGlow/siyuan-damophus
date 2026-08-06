@@ -5,10 +5,10 @@ html[data-frontend="browser-mobile"] > body > .toolbar {
     inset: 0 0 auto;
     width: 100%;
     z-index: 6;
-    background: transparent !important;
+    background: oklch(from var(--b3-theme-background) l c h / 0.7) !important;
     border-bottom-color: transparent;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
 }
 
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb,
@@ -17,10 +17,10 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb {
     inset: 40px 0 auto;
     width: 100%;
     z-index: 5;
-    background: transparent !important;
+    background: oklch(from var(--b3-theme-background) l c h / 0.7) !important;
     border-bottom: 0;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
 }
 `;
 
