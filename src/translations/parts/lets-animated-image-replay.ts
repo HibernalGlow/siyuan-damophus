@@ -6,6 +6,12 @@ export const en = {
   "lets-animated-image-replay.showReplayButtonDescription": "Show a replay control at the lower-right corner of each supported animated image.",
   "lets-animated-image-replay.replayOnHoverTitle": "Replay on hover",
   "lets-animated-image-replay.replayOnHoverDescription": "On desktop, replay a supported image after the pointer stays over it briefly.",
+  "lets-animated-image-replay.hoverReplayDelayTitle": "Hover delay (ms)",
+  "lets-animated-image-replay.hoverReplayDelayDescription": "Wait between 100 and 5000 milliseconds before replaying on hover.",
+  "lets-animated-image-replay.replayWhenOpenedLargeTitle": "Replay in the image viewer",
+  "lets-animated-image-replay.replayWhenOpenedLargeDescription": "Replay an animated image when opening it in SiYuan's large-image viewer.",
+  "lets-animated-image-replay.replayBlobCacheSizeTitle": "Replay cache size",
+  "lets-animated-image-replay.replayBlobCacheSizeDescription": "Keep between 1 and 16 recently replayed images ready to play again.",
 };
 
 export const zhCN: typeof en = {
@@ -16,4 +22,10 @@ export const zhCN: typeof en = {
   "lets-animated-image-replay.showReplayButtonDescription": "在每张支持的动图右下角显示重播按钮。",
   "lets-animated-image-replay.replayOnHoverTitle": "悬停重播",
   "lets-animated-image-replay.replayOnHoverDescription": "桌面端鼠标短暂停留在支持的动图上时自动重播。",
+  "lets-animated-image-replay.hoverReplayDelayTitle": "悬停延迟（毫秒）",
+  "lets-animated-image-replay.hoverReplayDelayDescription": "鼠标悬停后等待多久重播，可设为 100 至 5000 毫秒。",
+  "lets-animated-image-replay.replayWhenOpenedLargeTitle": "大图预览时重播",
+  "lets-animated-image-replay.replayWhenOpenedLargeDescription": "在思源的大图预览中打开动图时，自动从头播放。",
+  "lets-animated-image-replay.replayBlobCacheSizeTitle": "重播缓存数量",
+  "lets-animated-image-replay.replayBlobCacheSizeDescription": "保留最近重播的动图，范围为 1 至 16 张。",
 };

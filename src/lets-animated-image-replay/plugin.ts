@@ -21,6 +21,27 @@ export const pluginMetadata: PluginMetadata = {
       key: "replayOnHover",
       value: true,
     },
+    {
+      type: "number",
+      title: "lets-animated-image-replay.hoverReplayDelayTitle",
+      description: "lets-animated-image-replay.hoverReplayDelayDescription",
+      key: "hoverReplayDelayMs",
+      value: 700,
+    },
+    {
+      type: "checkbox",
+      title: "lets-animated-image-replay.replayWhenOpenedLargeTitle",
+      description: "lets-animated-image-replay.replayWhenOpenedLargeDescription",
+      key: "replayWhenOpenedLarge",
+      value: true,
+    },
+    {
+      type: "number",
+      title: "lets-animated-image-replay.replayBlobCacheSizeTitle",
+      description: "lets-animated-image-replay.replayBlobCacheSizeDescription",
+      key: "replayBlobCacheSize",
+      value: 4,
+    },
   ],
 };
 

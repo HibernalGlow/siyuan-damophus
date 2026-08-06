@@ -5,16 +5,28 @@ export interface AnimatedImageReplayOptions {
   showReplayButton?: boolean;
   replayOnHover?: boolean;
   replayLabel?: string;
+  hoverReplayDelayMs?: number;
+  focusReturnGuardMs?: number;
+  fallbackReplayDurationMs?: number;
+  playbackEndGuardMs?: number;
+  replayBlobCacheSize?: number;
+  replayWhenOpenedLarge?: boolean;
+  scanDocument?: boolean;
 }
 
 export interface AnimatedImageReplayHandle {
+  dispose(): void;
+  scanRoot(root: Node): void;
+  disposeRoot(root: Node): void;
+}
+
+interface LegacyAnimatedImageReplayHandle {
   dispose(): void;
 }
 
 declare global {
   interface Window {
-    __damophusAnimatedImagePlayer?: AnimatedImageReplayHandle;
-    __inkloomAnimatedImagePlayer?: AnimatedImageReplayHandle;
+    __inkloomAnimatedImagePlayer?: LegacyAnimatedImageReplayHandle;
   }
 }
 
@@ -22,13 +34,19 @@ export const startAnimatedImageReplay = ({
   showReplayButton = true,
   replayOnHover = true,
   replayLabel = "Replay image",
+  hoverReplayDelayMs = 700,
+  focusReturnGuardMs = 1000,
+  fallbackReplayDurationMs = 20000,
+  playbackEndGuardMs = 500,
+  replayBlobCacheSize = 4,
+  replayWhenOpenedLarge = true,
+  scanDocument = true,
 }: AnimatedImageReplayOptions = {}): AnimatedImageReplayHandle => {
-  const INSTANCE_KEY = "__damophusAnimatedImagePlayer";
   window.__inkloomAnimatedImagePlayer?.dispose?.();
-  window[INSTANCE_KEY]?.dispose?.();
 
   // APNG only matches .apng by default, so ordinary PNG images are not scanned.
   // data-damophus-animated-type also supports extensionless image sources.
+  const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, Number(value) || minimum));
   const CONFIG = {
     imageTypes: [
       {name: 'WebP', extensions: ['webp'], mimeType: 'image/webp'},
@@ -38,15 +56,17 @@ export const startAnimatedImageReplay = ({
     ],
     showReplayButton, // Show the small replay control.
     replayOnHover, // Replay when the pointer enters the image.
-    hoverReplayDelayMs: 700, // Require an intentional hover before replaying.
-    focusReturnGuardMs: 1000, // Defer hover replay briefly after returning to SiYuan.
-    fallbackReplayDurationMs: 20000, // Used when an InkLoom scene manifest is unavailable.
-    playbackEndGuardMs: 500, // Allow for image decode before releasing the replay lock.
-    replayBlobCacheSize: 4, // Bound decoded replay media retained during a SiYuan session.
-    replayWhenOpenedLarge: true, // Replay when SiYuan opens the large-image viewer.
+    hoverReplayDelayMs: clamp(hoverReplayDelayMs, 100, 5000), // Require an intentional hover before replaying.
+    focusReturnGuardMs: clamp(focusReturnGuardMs, 0, 5000), // Defer hover replay briefly after returning to SiYuan.
+    fallbackReplayDurationMs: clamp(fallbackReplayDurationMs, 1000, 120000), // Used when a scene manifest is unavailable.
+    playbackEndGuardMs: clamp(playbackEndGuardMs, 0, 5000), // Allow for image decode before releasing the replay lock.
+    replayBlobCacheSize: Math.round(clamp(replayBlobCacheSize, 1, 16)), // Bound decoded replay media retained during a SiYuan session.
+    replayWhenOpenedLarge: replayWhenOpenedLarge !== false, // Replay when SiYuan opens the large-image viewer.
   };
 
   const LEGACY_WRAPPER_CLASS = 'inkloom-animated-image-player';
+  const LEGACY_OVERLAY_CLASS = 'inkloom-animated-image-overlay';
+  const LEGACY_STYLE_ID = 'inkloom-animated-image-player-styles';
   const OVERLAY_CLASS = 'damophus-animated-image-overlay';
   const STYLE_ID = 'damophus-animated-image-replay-styles';
   const PLAYER_STATE_KEY = 'damophusAnimatedImageReplay';
@@ -77,7 +97,9 @@ export const startAnimatedImageReplay = ({
       wrapper.remove();
     });
 
-    document.querySelectorAll(`.${OVERLAY_CLASS}`).forEach((overlay) => overlay.remove());
+    document.querySelectorAll(`.${OVERLAY_CLASS}, .${LEGACY_OVERLAY_CLASS}`)
+      .forEach((overlay) => overlay.remove());
+    document.getElementById(LEGACY_STYLE_ID)?.remove();
     document.getElementById(STYLE_ID)?.remove();
   };
 
@@ -681,9 +703,45 @@ export const startAnimatedImageReplay = ({
     });
   };
 
+  const observedRoots = new Set();
+  const observer = new MutationObserver((records) => {
+    const addedNodes = records.flatMap((record) => [...record.addedNodes]);
+    scan(addedNodes);
+  });
+  const mutationObserverOptions = {childList: true, subtree: true};
+  const rootElementFor = (root) => root instanceof Document ? root.body : root;
+  const refreshObservedRoots = () => {
+    observer.disconnect();
+    [...observedRoots].forEach((root) => {
+      if (!(root instanceof Node) || !root.isConnected) {
+        observedRoots.delete(root);
+        return;
+      }
+      observer.observe(root, mutationObserverOptions);
+    });
+  };
+  const scanRoot = (root) => {
+    const rootElement = rootElementFor(root);
+    if (!(rootElement instanceof Node)) return;
+    if (!observedRoots.has(rootElement)) {
+      observedRoots.add(rootElement);
+      observer.observe(rootElement, mutationObserverOptions);
+    }
+    scan([root]);
+  };
+  const disposeRoot = (root) => {
+    const rootElement = rootElementFor(root);
+    if (!(rootElement instanceof Node)) return;
+    observedRoots.delete(rootElement);
+    refreshObservedRoots();
+    [...activeControllers].forEach((controller) => {
+      if (rootElement.contains(controller.img)) disposeController(controller);
+    });
+  };
+
   cleanupLegacyPlayers();
   installStyles();
-  scan([document]);
+  if (scanDocument) scanRoot(document);
   const blockHoverReplay = () => {
     hoverReplayBlockedUntil = Date.now() + CONFIG.focusReturnGuardMs;
     [...activeControllers].forEach((controller) => controller.cancelHoverReplay?.());
@@ -704,14 +762,10 @@ export const startAnimatedImageReplay = ({
   window.addEventListener('focus', handleFocus);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   document.addEventListener('click', handleDocumentClick, true);
-  const observer = new MutationObserver((records) => {
-    const addedNodes = records.flatMap((record) => [...record.addedNodes]);
-    scan(addedNodes);
-  });
-  observer.observe(document.body, {childList: true, subtree: true});
 
   const dispose = () => {
     observer.disconnect();
+    observedRoots.clear();
     window.removeEventListener('resize', scheduleOverlaySync);
     window.removeEventListener('blur', blockHoverReplay);
     window.removeEventListener('focus', handleFocus);
@@ -724,7 +778,5 @@ export const startAnimatedImageReplay = ({
     document.getElementById(STYLE_ID)?.remove();
   };
 
-  const player = {dispose};
-  window[INSTANCE_KEY] = player;
-  return player;
+  return {dispose, scanRoot, disposeRoot};
 };

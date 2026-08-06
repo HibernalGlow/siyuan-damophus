@@ -33,6 +33,26 @@ afterEach(() => {
 });
 
 describe("animated image replay", () => {
+  it("only scans roots supplied by the host when document scanning is disabled", async () => {
+    await mountImage();
+    player = startAnimatedImageReplay({
+      replayLabel: "Replay image",
+      replayOnHover: false,
+      scanDocument: false,
+    });
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
+    expect(document.querySelector(".damophus-animated-image-overlay")).toBeNull();
+
+    player.scanRoot(document.body);
+    await vi.waitFor(() => {
+      expect(document.querySelector(".damophus-animated-image-overlay")).not.toBeNull();
+    });
+
+    player.disposeRoot(document.body);
+    expect(document.querySelector(".damophus-animated-image-overlay")).toBeNull();
+  });
+
   it("freezes the initial frame and keeps a replay control above it", async () => {
     await mountImage();
     player = startAnimatedImageReplay({
