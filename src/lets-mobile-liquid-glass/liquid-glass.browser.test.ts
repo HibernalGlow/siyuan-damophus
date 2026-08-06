@@ -37,11 +37,11 @@ describe("mobile liquid glass", () => {
     expect(filter?.querySelector("feTurbulence")).toBeNull();
     expect(filter?.querySelector("feImage")?.getAttribute("href"))
       .toBe("/plugins/siyuan-damophus/neo-superfusion-map.png");
-    expect(filter?.querySelector("feImage")?.getAttribute("width")).toBe("2000");
-    expect(filter?.querySelector("feImage")?.getAttribute("height")).toBe("80");
+    expect(filter?.querySelector("feImage")?.getAttribute("width")).toBe("100%");
+    expect(filter?.querySelector("feImage")?.getAttribute("height")).toBe("82");
     expect(filter?.querySelectorAll("feDisplacementMap")).toHaveLength(3);
     expect([...filter?.querySelectorAll("feDisplacementMap") ?? []].map((node) => node.getAttribute("scale")))
-      .toEqual(["61.756106280954576", "65.00642766416271", "68.25674904737086"]);
+      .toEqual(["28.63808971827122", "31.82009968696802", "35.002109655664825"]);
     expect(filter?.querySelectorAll("feColorMatrix")).toHaveLength(3);
     expect(filter?.querySelectorAll("feBlend")).toHaveLength(2);
   });

@@ -29,6 +29,7 @@ export type MobileLiquidGlassPreset = "blur" | "frosted-glass" | "liquid-glass";
 const SHARED = `
 html[data-frontend="mobile"],
 html[data-frontend="browser-mobile"] {
+    --_damophus-mobile-superfusion-height: 82px;
     --_damophus-superfusion-frosted-glass-filter: blur(6px) brightness(1.05);
     --_damophus-superfusion-frosted-glass-strip: 0 1px 0 0 oklch(from var(--b3-theme-background) 0.99 c h / 0.88), 0 2px 8px 1px oklch(from var(--b3-theme-on-background) calc(l - 0.035) c h / 0.08);
     --_damophus-superfusion-liquid-glass-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
@@ -111,12 +112,14 @@ html[data-frontend="browser-mobile"] #editor::before {
     content: "";
     position: absolute;
     inset: 0 0 auto;
-    height: 80px;
+    height: var(--_damophus-mobile-superfusion-height);
     pointer-events: none;
     z-index: 2;
     background: oklch(from var(--b3-theme-background) l c h / 0.7);
     -webkit-backdrop-filter: var(--_damophus-superfusion-liquid-glass-filter);
     backdrop-filter: var(--_damophus-superfusion-liquid-glass-filter);
+    -webkit-mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.82) 6px, rgba(0, 0, 0, 0.48) 18px, rgba(0, 0, 0, 0.42) 24px 58px, rgba(0, 0, 0, 0.48) 64px, rgba(0, 0, 0, 0.82) 76px, #000 82px);
+    mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.82) 6px, rgba(0, 0, 0, 0.48) 18px, rgba(0, 0, 0, 0.42) 24px 58px, rgba(0, 0, 0, 0.48) 64px, rgba(0, 0, 0, 0.82) 76px, #000 82px);
     box-shadow: var(--_damophus-superfusion-frosted-glass-strip);
 }
 `;
