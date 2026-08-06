@@ -83,6 +83,40 @@ describe("SiYuan question bank adapter", () => {
     }
   });
 
+  it("repairs legacy numeric Year values from the stable question ID", async () => {
+    const { client, binding } = await initialized();
+    const sourceBlockId = "20260804120200-quest02";
+    await client.request("/api/av/addAttributeViewBlocks", {
+      avID: binding.questionIndex.avId,
+      blockID: binding.questionIndex.blockId,
+      viewID: "",
+      groupID: "",
+      previousID: "",
+      srcs: [{ id: sourceBlockId, isDetached: false, content: "2." }],
+      ignoreDefaultFill: true,
+    });
+    const rowId = questionAvRowId(client, binding, sourceBlockId);
+    await client.request("/api/av/setAttributeViewBlockAttr", {
+      avID: binding.questionIndex.avId,
+      keyID: binding.questionIndex.keys.question_id,
+      itemID: rowId,
+      value: { type: "text", text: { content: "civil-procedure-gold-2015-3-48" } },
+    });
+    await client.request("/api/av/setAttributeViewBlockAttr", {
+      avID: binding.questionIndex.avId,
+      keyID: binding.questionIndex.keys.year,
+      itemID: rowId,
+      value: { type: "select", number: { content: 0, isNotEmpty: true } },
+    });
+
+    const result = await maintainQuestionIndex(client, binding);
+    expect(result.updatedRows).toBe(1);
+    const year = client.attributeViews.get(binding.questionIndex.avId)!.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.year,
+    )?.values.find((value) => value.blockID === rowId);
+    expect(year).toMatchObject({ type: "select", mSelect: [{ content: "2015" }] });
+  });
+
   it("initializes two AVs and records managed columns by immutable key ID", async () => {
     const { client, binding } = await initialized();
     const verification = await verifyQuestionBankBinding(client, binding);

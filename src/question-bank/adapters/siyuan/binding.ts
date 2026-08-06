@@ -454,7 +454,11 @@ function verifyKeys<Field extends string>(
     }
     else {
       const values = av.keyValues.find((item) => item.key.id === key.id)?.values ?? [];
-      if (values.some((value) => hasLegacyPayload(value, column.type))) {
+      // Year is derived from the stable question ID. Its legacy numeric/text
+      // payload is repaired by Question Index maintenance, so do not route it
+      // through the generic value normalizer during binding repair.
+      if (!(database === "questionIndex" && column.field === "year")
+        && values.some((value) => hasLegacyPayload(value, column.type))) {
         pushRepair(missingManagedKeys, {
           kind: "normalizeValues",
           database,
