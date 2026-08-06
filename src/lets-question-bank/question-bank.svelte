@@ -1,48 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import {
-    ArrowLeft,
-    BarChart3,
-    BookOpenCheck,
-    ChevronLeft,
-    ChevronDown,
-    ChevronRight,
-    CircleX,
-    Clock3,
-    Database,
-    Download,
-    LayoutGrid,
-    Layers3,
-    List,
-    ListOrdered,
-    Pause,
-    Play,
-    RotateCcw,
-    ScanLine,
-    Shuffle,
-    Upload,
-    X,
-  } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
-  import {
-    normalizeBreadcrumbPriority,
-    normalizeBreadcrumbTextDisplay,
-    ScrollableBreadcrumb,
-    type BreadcrumbTextDisplay,
-    type BreadcrumbOverflowPriority,
-  } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
-  import * as Alert from "@/components/ui/alert";
-  import { Badge } from "@/components/ui/badge";
-  import { Button } from "@/components/ui/button";
-  import * as Collapsible from "@/components/ui/collapsible";
-  import { Input } from "@/components/ui/input";
-  import { Label as FormLabel } from "@/components/ui/label";
-  import * as ScrollArea from "@/components/ui/scroll-area";
-  import * as Select from "@/components/ui/select";
-  import { Switch } from "@/components/ui/switch";
-  import * as Tabs from "@/components/ui/tabs";
-  import * as ToggleGroup from "@/components/ui/toggle-group";
-  import { gradeQuestion } from "@/question-bank/core/answer";
+  import { normalizeBreadcrumbTextDisplay, type BreadcrumbTextDisplay, type BreadcrumbOverflowPriority } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
+  import { getLogger } from "@/libs/logger";
   import {
     questionOptionsFromOrder,
     restoreQuestionOptions,
@@ -50,20 +10,17 @@
   } from "@/question-bank/core/shuffle";
   import type {
     AttemptAggregate,
-    MasteryRating,
     Question,
     QuestionGroup,
     QuestionType,
     ScanMessage,
     ShuffledOption,
     ShuffledQuestion,
-    TopicNode,
   } from "@/question-bank/core/types";
   import { buildStatistics, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
     createPracticeQueue,
-    PracticeSessionLifecycleError,
     PracticeSessionRuntime,
     replacePracticeSession,
     resumePracticeSession,
@@ -93,17 +50,26 @@
   } from "@/question-bank/adapters/siyuan";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
   import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
-  import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
-  import PracticeCompletion from "./PracticeCompletion.svelte";
-  import PracticeScanSummary from "./PracticeScanSummary.svelte";
-  import ExamWorkspace from "./ExamWorkspace.svelte";
-  import QuestionSetComposer from "./QuestionSetComposer.svelte";
-  import Statistics from "./Statistics.svelte";
+  import QuestionBankView from "./QuestionBankView.svelte";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
   import type { StoredPracticeSession } from "./session-host";
-
+  import { createPracticeActions } from "./question-bank-practice-actions";
+  import {
+    completionStatusLabel as getCompletionStatusLabel,
+    copyText,
+    createLatestBreadcrumbLoader,
+    formatDuration,
+    getBuildRevision,
+    messageClipboardText as getMessageClipboardText,
+    messageContext as getMessageContext,
+    optionMarkdown as getOptionMarkdown,
+    practiceErrorMessage,
+    questionTypeLabel as getQuestionTypeLabel,
+    scanLogText as getScanLogText,
+    sourceTypeLabel as getSourceTypeLabel,
+  } from "./question-bank-display";
   export let controller: QuestionBankUiController;
   export let initialDocumentId: string | undefined = undefined;
   export let translations: Record<string, string> = {};
@@ -130,9 +96,15 @@
   export let onClose: (() => void) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
-  const buildRevision = typeof __DAMOPHUS_BUILD_REVISION__ === "string"
-    ? __DAMOPHUS_BUILD_REVISION__
-    : "dev-unversioned";
+  const log = getLogger("question-bank.practice");
+  const questionTypeLabel = (type: QuestionType) => getQuestionTypeLabel(type, label);
+  const sourceTypeLabel = (type: string) => getSourceTypeLabel(type, label);
+  const completionStatusLabel = (attempted: number, total: number) => getCompletionStatusLabel(attempted, total, label);
+  const messageContext = (message: ScanMessage) => getMessageContext(message, label);
+  const messageClipboardText = (message: ScanMessage) => getMessageClipboardText(message, label);
+  const scanLogText = () => getScanLogText(scanMessageGroups, label);
+  const optionMarkdown = (option: ShuffledOption) => getOptionMarkdown(option, currentQuestion?.type, label);
+  const buildRevision = getBuildRevision();
   const recent = controller.getRecentScope();
   let documentId = initialDocumentId ?? recent?.documentId ?? "";
   let binding = controller.getBinding();
@@ -158,8 +130,6 @@
   let currentQuestion: Question | undefined;
   let breadcrumbItems: BlockBreadcrumbItem[] = [];
   let breadcrumbBlockId = "";
-  let breadcrumbRequest = 0;
-  let breadcrumbScroller: ScrollableBreadcrumb | undefined;
   let shuffled: ShuffledQuestion | undefined;
   let displayedOptions: ShuffledOption[] = [];
   let selectedOptionIds: string[] = [];
@@ -210,9 +180,33 @@
   let assembledSourceKey = "";
   let assembledSourceLabel = "";
   let pendingFrozenSetLabel = "";
+  const loadPracticeBreadcrumb = createLatestBreadcrumbLoader(
+    () => loadBreadcrumb,
+    (items) => { breadcrumbItems = items; },
+  );
 
-  const entireDocumentScope = "__damophus_entire_document__";
-
+  const practiceActions = createPracticeActions({
+    getState: () => ({
+      currentQuestion,
+      shuffled,
+      practiceRuntime,
+      selectedOptionIds,
+      revealed,
+      readOnlyQuestion,
+      submitting,
+      timingEnabled,
+      previewBlockIds: preview?.scan.blockIdsByQuestionId,
+      sessionId,
+      filter,
+      dueCards,
+      log,
+    }),
+    now,
+    setError: (value) => { error = value; },
+    setSubmitting: (value) => { submitting = value; },
+    label,
+    controller,
+  });
   $: questions = preview?.scan.report.document.questions ?? [];
   $: practiceSourceQuestions = assembledQuestions ?? questions;
   $: progressQuestions = questions.filter((question) => question.type !== "group");
@@ -297,7 +291,9 @@
     host?.addEventListener("damophus-practice-command", command);
     const updateAdaptivePanels = () => {
       const availableHeight = rootElement.getBoundingClientRect().height || window.innerHeight;
-      if (!scanPanelUserControlled) scanPanelOpen = availableHeight >= 680;
+      const compactViewport = window.matchMedia("(max-width: 760px)").matches;
+      const scanOpenThreshold = compactViewport ? 900 : 680;
+      if (!scanPanelUserControlled) scanPanelOpen = availableHeight >= scanOpenThreshold;
       if (!dataPanelUserControlled) dataPanelOpen = availableHeight >= 900;
     };
     updateAdaptivePanels();
@@ -322,7 +318,6 @@
     if (timer) clearInterval(timer);
     timer = undefined;
   }
-
   function startTimer(): void {
     clearTimer();
     timerNow = now();
@@ -332,29 +327,13 @@
     }, 1000);
   }
 
-  function formatDuration(milliseconds: number): string {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    return hours > 0
-      ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
-      : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-
   async function run(operation: () => Promise<void>): Promise<void> {
     busy = true;
     error = "";
     try {
       await operation();
     } catch (reason) {
-      if (reason instanceof PracticeSessionLifecycleError && reason.code === "session-in-use") {
-        error = label("sessionInUse", "This practice session is open in another window");
-      } else if (reason instanceof PracticeSessionLifecycleError && reason.code === "session-has-no-questions") {
-        error = label("sessionHasNoQuestions", "None of this session's questions still exist");
-      } else {
-        error = reason instanceof Error ? reason.message : String(reason);
-      }
+      error = practiceErrorMessage(reason, label);
     } finally {
       busy = false;
     }
@@ -798,103 +777,12 @@
     if (questionIndex < queue.length - 1) goToQuestion(questionIndex + 1);
   }
 
-  function toggleOption(optionId: string): void {
-    if (!currentQuestion || revealed || readOnlyQuestion || !practiceRuntime) return;
-    const nextSelection = currentQuestion.type === "multiple" || currentQuestion.type === "indefinite"
-      ? selectedOptionIds.includes(optionId)
-        ? selectedOptionIds.filter((id) => id !== optionId)
-        : [...selectedOptionIds, optionId]
-      : [optionId];
-    practiceRuntime.actor.send({
-      type: "DRAFT_CHANGED",
-      questionId: currentQuestion.id,
-      patch: { selected_option_ids: nextSelection },
-      now: now(),
-    });
-  }
-
-  function revealAnswer(): void {
-    if (!currentQuestion || !shuffled || !practiceRuntime || readOnlyQuestion) return;
-    if (currentQuestion.type !== "subjective" && selectedOptionIds.length === 0) {
-      error = label("selectAnswer", "Select an answer before revealing");
-      return;
-    }
-    error = "";
-    practiceRuntime.actor.send({
-      type: "DRAFT_CHANGED",
-      questionId: currentQuestion.id,
-      patch: {
-        revealed: true,
-        objective_correct: gradeQuestion(currentQuestion, selectedOptionIds),
-      },
-      now: now(),
-    });
-  }
-
-  function retry(): void {
-    if (!currentQuestion || !practiceRuntime || readOnlyQuestion) return;
-    practiceRuntime.actor.send({
-      type: "DRAFT_CHANGED",
-      questionId: currentQuestion.id,
-      patch: {
-        selected_option_ids: [],
-        revealed: false,
-        objective_correct: null,
-        subjective_score: undefined,
-      },
-      now: now(),
-    });
-    error = "";
-  }
-
-  function resetQuestionTimer(): void {
-    if (!currentQuestion || !practiceRuntime || readOnlyQuestion || submitting || !timingEnabled) return;
-    practiceRuntime.actor.send({ type: "RESET_QUESTION_TIMER", now: now() });
-  }
-
-  function changeSubjectiveScore(event: Event): void {
-    if (!currentQuestion || !practiceRuntime || readOnlyQuestion) return;
-    const value = (event.currentTarget as HTMLInputElement).valueAsNumber;
-    practiceRuntime.actor.send({
-      type: "DRAFT_CHANGED",
-      questionId: currentQuestion.id,
-      patch: { subjective_score: Number.isFinite(value) ? value : undefined },
-      now: now(),
-    });
-  }
-
-  function submitRating(rating: MasteryRating): void {
-    if (!currentQuestion || !shuffled || !revealed || submitting || !practiceRuntime || readOnlyQuestion) return;
-    submitting = true;
-    error = "";
-    const question = currentQuestion;
-    const runtime = practiceRuntime;
-    runtime.actor.send({ type: "BEGIN_SUBMIT", questionId: question.id, now: now() });
-    const draft = runtime.actor.getSnapshot().context.session.drafts[question.id];
-    const durationMs = timingEnabled ? draft.elapsed_ms : undefined;
-    void controller.submitAttempt({
-      questionId: question.id,
-      questionRelation: preview?.scan.blockIdsByQuestionId.get(question.id),
-      sessionId,
-      questionType: question.type,
-      optionOrder: shuffled.optionOrder,
-      selectedOptionIds: draft.selected_option_ids,
-      objectiveCorrect: draft.objective_correct,
-      masteryRating: rating,
-      subjectiveScore: draft.subjective_score,
-      durationMs,
-    }, filter === "due" ? dueCards.get(question.id) : undefined).then((result) => {
-      if (result.warnings.length > 0) error = result.warnings.join("; ");
-      runtime.actor.send({ type: "SUBMIT_SUCCEEDED", attempt: result.event, now: now() });
-    }).catch((reason) => {
-      const message = reason instanceof Error ? reason.message : String(reason);
-      error = message;
-      runtime.actor.send({ type: "SUBMIT_FAILED", message, now: now() });
-    }).finally(() => {
-      submitting = false;
-    });
-  }
-
+  const toggleOption = practiceActions.toggleOption;
+  const revealAnswer = practiceActions.revealAnswer;
+  const retry = practiceActions.retry;
+  const resetQuestionTimer = practiceActions.resetQuestionTimer;
+  const changeSubjectiveScore = practiceActions.changeSubjectiveScore;
+  const submitRating = practiceActions.submitRating;
   function pausePractice(): void {
     if (!practiceRuntime || !practiceState?.matches("active")) return;
     void run(async () => {
@@ -1065,161 +953,6 @@
     });
   }
 
-  function topicLabel(topic: TopicNode): string {
-    const depth = Math.max(0, topic.level - 1);
-    return `${"  ".repeat(depth)}${topic.title}`;
-  }
-
-  function messageContext(message: ScanMessage): string {
-    return [
-      message.questionId ? `${label("question", "Question")}: ${message.questionId}` : "",
-      message.line ? `${label("line", "Line")}: ${message.line}` : "",
-    ].filter(Boolean).join(" / ");
-  }
-
-  function questionTypeLabel(type: QuestionType): string {
-    const labels: Record<QuestionType, string> = {
-      single: label("questionTypeSingle", "Single choice"),
-      multiple: label("questionTypeMultiple", "Multiple choice"),
-      indefinite: label("questionTypeIndefinite", "Indefinite choice"),
-      "true-false": label("questionTypeTrueFalse", "True or false"),
-      subjective: label("questionTypeSubjective", "Subjective"),
-      group: label("questionTypeGroup", "Question group"),
-    };
-    return labels[type];
-  }
-
-  async function loadPracticeBreadcrumb(blockId: string): Promise<void> {
-    const request = ++breadcrumbRequest;
-    if (!loadBreadcrumb) {
-      breadcrumbItems = [];
-      return;
-    }
-    try {
-      const items = await loadBreadcrumb(blockId);
-      if (request === breadcrumbRequest) breadcrumbItems = items;
-    } catch {
-      if (request === breadcrumbRequest) breadcrumbItems = [];
-    }
-  }
-
-  function practiceBreadcrumb(node: HTMLElement, state: {
-    items: BlockBreadcrumbItem[];
-    activeId?: string;
-    fallback: string;
-  }) {
-    breadcrumbScroller = new ScrollableBreadcrumb(node, {
-      priority: mobileBreadcrumb ? normalizeBreadcrumbPriority(breadcrumbPriority) : "head",
-      onNavigate: (id) => openQuestionSource?.(id),
-    });
-
-    const render = (next: typeof state): void => {
-      if (next.items.length > 0 && next.items.some((item) => item.name.trim().length > 0)) {
-        breadcrumbScroller?.renderMobileItems(
-          next.items,
-          next.activeId,
-          label("expand", "Expand"),
-          mobileBreadcrumb
-            ? breadcrumbTextDisplay
-            : normalizeBreadcrumbTextDisplay("full", 16, 160),
-        );
-      } else renderFallbackBreadcrumb(node, next.fallback);
-    };
-    render(state);
-    return {
-      update: render,
-      destroy: () => {
-        breadcrumbScroller?.destroy();
-        breadcrumbScroller = undefined;
-      },
-    };
-  }
-
-  function renderFallbackBreadcrumb(node: HTMLElement, fallback: string): void {
-    const parts = fallback.split(/\s*\/\s*/u).filter(Boolean);
-    const fragment = document.createDocumentFragment();
-    parts.forEach((part, index) => {
-      const text = document.createElement("span");
-      text.className = "practice-breadcrumb-fallback-item";
-      text.textContent = part;
-      fragment.append(text);
-      if (index >= parts.length - 1) return;
-      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      icon.setAttribute("viewBox", "0 0 24 24");
-      icon.setAttribute("fill", "none");
-      icon.setAttribute("stroke", "currentColor");
-      icon.setAttribute("stroke-width", "2");
-      icon.setAttribute("stroke-linecap", "round");
-      icon.setAttribute("stroke-linejoin", "round");
-      icon.setAttribute("aria-hidden", "true");
-      icon.classList.add("practice-breadcrumb-separator");
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", "m9 18 6-6-6-6");
-      icon.append(path);
-      fragment.append(icon);
-    });
-    node.replaceChildren(fragment);
-  }
-
-  function sourceTypeLabel(type: string): string {
-    const labels: Record<string, string> = {
-      d: label("sourceTypeDocument", "Document"),
-      h: label("sourceTypeHeading", "Heading"),
-      p: label("sourceTypeParagraph", "Paragraph"),
-      l: label("sourceTypeList", "List"),
-      i: label("sourceTypeListItem", "List item"),
-      t: label("sourceTypeTable", "Table"),
-    };
-    return labels[type] ?? label("sourceTypeBlock", "Block");
-  }
-
-  function completionStatusLabel(attempted: number, total: number): string {
-    if (attempted === 0) return label("notStarted", "Not started");
-    if (attempted >= total) return label("completed", "Completed");
-    return label("inProgress", "In progress");
-  }
-
-  function messageClipboardText(message: ScanMessage): string {
-    return [
-      `[${message.code}] ${message.message}`,
-      message.title ? `${label("heading", "Heading")}: ${message.title}` : "",
-      messageContext(message),
-      message.sourceMarkdown ? `${label("sourceMarkdown", "Original Markdown")}\n${message.sourceMarkdown}` : "",
-    ].filter(Boolean).join("\n");
-  }
-
-  function scanLogText(): string {
-    return scanMessageGroups
-      .filter((group) => group.messages.length > 0)
-      .map((group) => [
-        label(group.key, group.key),
-        ...group.messages.map(messageClipboardText),
-      ].join("\n\n"))
-      .join("\n\n---\n\n");
-  }
-
-  async function copyText(value: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = value;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      textarea.remove();
-    }
-  }
-
-  function optionMarkdown(option: ShuffledOption): string {
-    if (currentQuestion?.type !== "true-false" || option.markdown) return option.markdown;
-    return option.originalId === "true"
-      ? label("trueAnswer", "True")
-      : label("falseAnswer", "False");
-  }
-
   function renderedQuestionContent(markdown: string, sourceStyles: boolean): string {
     if (questionRenderMode === "html") return renderMarkdownHtml(markdown);
     return renderQuestionMarkdown?.(markdown, sourceStyles) ?? renderMarkdownHtml(markdown);
@@ -1238,789 +971,29 @@
   }
 </script>
 
-<main
-  bind:this={rootElement}
-  class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden"
-  data-testid="question-bank"
-  data-practice-active={currentQuestion ? "true" : "false"}
->
-  <header class="app-header" class:app-header--practice={currentQuestion !== undefined}>
-    <div class="app-brand">
-      <h1>Damophus</h1>
-      <span>{label("displayName", "Question Bank")}</span>
-      <code class="build-revision" title={buildRevision}>{buildRevision}</code>
-    </div>
-    {#if currentQuestion}
-      <div class="practice-toolbar">
-        <div class="practice-status">
-          <span class="progress-copy">
-            <span class="progress-label">{label("progress", "Progress")} </span>
-            {questionIndex + 1} / {queue.length}
-            <span class="submitted-copy"> · {completedQuestionIndices.length} {label("submitted", "submitted")}</span>
-          </span>
-          {#if timingEnabled}
-            <span class="timer" title={label("sessionElapsed", "Session elapsed time")}>
-              <svg aria-hidden="true"><use href="#iconClock"></use></svg>
-              {formatDuration(sessionElapsedMs)}
-            </span>
-          {/if}
-        </div>
-        <div
-          class="practice-topic practice-breadcrumb"
-          use:practiceBreadcrumb={{
-            items: breadcrumbItems,
-            activeId: currentQuestionBlockId,
-            fallback: currentQuestion.metadata.topicPath.join(" / "),
-          }}
-          aria-label="Breadcrumb"
-        ></div>
-        <div class="practice-controls">
-          <Button variant="ghost" size="icon" disabled={questionIndex === 0 || submitting} title={label("previous", "Previous question")} aria-label={label("previous", "Previous question")} onclick={previousQuestion}>
-            <ChevronLeft size={17} aria-hidden="true" />
-          </Button>
-          <Button variant="ghost" size="icon" disabled={questionIndex >= queue.length - 1 || submitting} title={label("next", "Next question")} aria-label={label("next", "Next question")} onclick={nextQuestion}>
-            <ChevronRight size={17} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            data-practice-timer-toggle
-            disabled={submitting || reviewing || answerTimerPaused}
-            title={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
-            aria-label={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
-            aria-pressed={timerEffectivelyPaused}
-            onclick={togglePracticeTimer}
-          >
-            {#if timerEffectivelyPaused}
-              <Play size={17} aria-hidden="true" />
-            {:else}
-              <Pause size={17} aria-hidden="true" />
-            {/if}
-          </Button>
-          {#if reviewing}
-            <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
-              <ArrowLeft size={17} aria-hidden="true" />
-            </Button>
-          {:else}
-            <Button variant="ghost" size="icon" data-practice-return disabled={submitting} title={label("pause", "Pause and return")} aria-label={label("pause", "Pause and return")} onclick={pausePractice}>
-              <ArrowLeft size={17} aria-hidden="true" />
-            </Button>
-          {/if}
-          <Button variant="ghost" size="icon" disabled={submitting} title={label("end", "End practice")} aria-label={label("end", "End practice")} onclick={requestEndPractice}>
-            <X size={17} aria-hidden="true" />
-          </Button>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="answer-card-button"
-          title={label("answerCard", "Answer card")}
-          aria-label={label("answerCard", "Answer card")}
-          aria-expanded={answerCardOpen}
-          onclick={() => answerCardOpen = !answerCardOpen}
-        >
-          <LayoutGrid size={17} aria-hidden="true" />
-        </Button>
-      </div>
-    {:else}
-      <div class="header-actions">
-        {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
-        {#if onClose}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title={translations["settings.close"] ?? "Close"}
-            aria-label={translations["settings.close"] ?? "Close"}
-            onclick={onClose}
-          >
-            <X />
-          </Button>
-        {/if}
-      </div>
-    {/if}
-  </header>
-
-  {#if error}
-    <Alert.Root variant="destructive" class="mx-5 mt-3 w-auto shrink-0">
-      <Alert.Title>{label("error", "Operation failed")}</Alert.Title>
-      <Alert.Description>{error}</Alert.Description>
-    </Alert.Root>
-  {/if}
-
-  {#if !binding}
-    <section class="setup min-h-0 flex-1 overflow-y-auto" aria-label={label("initialize", "Initialize")}>
-      <FormLabel class="mb-2" for="document-id">{label("documentId", "Document ID")}</FormLabel>
-      <div class="document-row">
-        <Input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" oninput={invalidateDocumentTarget} />
-        <Button disabled={!validDocument() || busy} onclick={previewInitialization}>
-          {label("previewInitialization", "Preview initialization")}
-        </Button>
-      </div>
-      {#if initializationPreview}
-        <div class="preview-line">
-          <span>{label("initializationReady", "System document and databases are ready to create")}</span>
-          <code>{initializationPreview.path}</code>
-          <Button disabled={busy} onclick={confirmInitialization}>
-            {label("confirmInitialization", "Create system document")}
-          </Button>
-        </div>
-      {/if}
-      <div class="rebind-setup">
-        <FormLabel class="mb-2" for="system-document-id">{label("systemDocumentId", "Existing Damophus system document ID")}</FormLabel>
-        <div class="document-row">
-          <Input id="system-document-id" name="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" oninput={invalidateSystemDocumentTarget} />
-          <Button variant="outline" disabled={!/^\d{14}-[a-z0-9]{7}$/u.test(systemDocumentId) || busy} onclick={previewRebinding}>
-            {label("previewRebinding", "Preview reconnection")}
-          </Button>
-        </div>
-        {#if rebindingPreview}
-          <div class="preview-line">
-            <span>{label("rebindingReady", "Question index and attempt log are ready to reconnect")}</span>
-            {#if rebindingPreview.bindingRepairs.length > 0}
-              <span>{rebindingPreview.bindingRepairs.length} {label("bindingRepairs", "Database repairs")}</span>
-            {/if}
-            <Button disabled={busy} onclick={confirmRebinding}>
-              {label("confirmRebinding", "Reconnect")}
-            </Button>
-          </div>
-        {/if}
-      </div>
-    </section>
-  {:else}
-    {#if !currentQuestion && !practiceRuntime && !complete && !examMode && !composerOpen}
-      <Tabs.Root bind:value={view} class="mx-4 mt-3 shrink-0" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
-        <Tabs.List class="grid w-full grid-cols-2">
-          <Tabs.Trigger value="practice" class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <BookOpenCheck size={16} aria-hidden="true" />
-            {label("practice", "练习")}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="statistics" class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <BarChart3 size={16} aria-hidden="true" />
-            {label("statistics", "统计")}
-          </Tabs.Trigger>
-        </Tabs.List>
-      </Tabs.Root>
-    {/if}
-
-    {#if composerOpen}
-      <QuestionSetComposer
-        catalog={questionCatalog}
-        documents={sourceDocuments}
-        blueprints={questionSetBlueprints}
-        {translations}
-        loading={busy}
-        onRefresh={() => { void run(loadQuestionSetData); }}
-        onSync={previewSourceSync}
-        onConfirmSync={confirmSourceSync}
-        onAssemble={assembleBlueprint}
-        onSave={saveBlueprint}
-        onDelete={removeBlueprint}
-        onUse={(value) => { void run(() => useFrozenPracticeSet(value)); }}
-        onClose={() => composerOpen = false}
-      />
-    {:else if view === "statistics" && !currentQuestion && !practiceRuntime && !complete && !examMode}
-      <Statistics
-        snapshot={statisticsSnapshot}
-        loading={statisticsLoading}
-        range={statisticsRange}
-        sort={statisticsSort}
-        onRangeChange={changeStatisticsRange}
-        onSortChange={changeStatisticsSort}
-        {label}
-      />
-    {:else if examMode}
-      <ExamWorkspace
-        controller={controller}
-        questions={examQuestions}
-        blockIdsByQuestionId={preview?.scan.blockIdsByQuestionId ?? new Map()}
-        sourceKey={documentId}
-        sourceLabel={sourceIdentity?.content ?? documentId}
-        {translations}
-        {uuid}
-        {random}
-        {renderQuestionMarkdown}
-        onClose={() => { examMode = false; void refreshStoredSessions(); }}
-      />
-    {:else if queue.length === 0 && !complete}
-    <section class="workspace min-h-0 flex-1 overflow-y-auto">
-      <div class="workspace-toolbar">
-        <div class="document-row">
-          <FormLabel class="document-id-label" for="document-id">{label("documentId", "Document ID")}</FormLabel>
-          <Input id="document-id" name="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" oninput={invalidateDocumentTarget} />
-          <Button variant="outline" size="icon" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} onclick={() => scanDocument(true)}>
-            <ScanLine aria-hidden="true" />
-          </Button>
-          <label class="auto-scan-control" for="auto-scan-document" title={label("autoScanDocument", "Automatically scan document")}>
-            <Switch
-              id="auto-scan-document"
-              size="sm"
-              checked={autoScanDocument}
-              onCheckedChange={toggleAutoScanDocument}
-              aria-label={label("autoScanDocument", "Automatically scan document")}
-            />
-            <span>{label("autoScanDocument", "Auto scan")}</span>
-          </label>
-        </div>
-      </div>
-        {#if storedSessions.length > 0}
-        <section class="unfinished-sessions" aria-label={label("unfinishedSessions", "Unfinished sessions")}>
-          <div class="section-heading">
-            <strong>{label("unfinishedSessions", "Unfinished sessions")}</strong>
-            <Badge variant="secondary">{storedSessions.length}</Badge>
-          </div>
-          <div class="unfinished-list">
-            {#each storedSessions as stored (stored.sourceKey)}
-              <div class="unfinished-row">
-                {#if stored.result.status === "ok"}
-                  <div>
-                    <strong>{stored.result.snapshot.source_label ?? stored.sourceKey}</strong>
-                    <span>{stored.result.snapshot.completed_question_ids.length} / {stored.result.snapshot.queue_question_ids.length}</span>
-                    <small>{new Date(stored.result.snapshot.updated_at).toLocaleString()}</small>
-                  </div>
-                  <Button variant="outline" size="sm" onclick={() => openStoredSession(stored)}>
-                    {label("openSession", "Open")}
-                  </Button>
-                {:else}
-                  <div>
-                    <strong>{stored.sourceKey}</strong>
-                    <span>{stored.result.status === "unsupported"
-                      ? `${label("unsupportedSession", "Unsupported session version")} ${stored.result.schemaVersion}`
-                      : label("invalidSession", "Invalid saved session")}</span>
-                  </div>
-                  <Button variant="outline" size="sm" onclick={() => exportSessionDiagnostic(stored.sourceKey)}>
-                    {label("exportDiagnostic", "Export diagnostic")}
-                  </Button>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </section>
-        {/if}
-
-      <Collapsible.Root bind:open={dataPanelOpen} class="workspace-panel data-panel">
-        <Collapsible.Trigger class="workspace-panel-trigger" onclick={() => dataPanelUserControlled = true}>
-          <span class="workspace-panel-heading">
-            <Database aria-hidden="true" />
-            <span>
-              <strong>{label("attemptData", "Attempt data")}</strong>
-              <small>{label("exportAttempts", "Export attempts")} · {label("importAttempts", "Import attempts")}</small>
-            </span>
-          </span>
-          <ChevronDown class={dataPanelOpen ? "open" : ""} aria-hidden="true" />
-        </Collapsible.Trigger>
-        <Collapsible.Content class="workspace-panel-content">
-          <div class="recovery-actions">
-            <Button variant="outline" disabled={busy} onclick={exportAttempts}>
-              <Download data-icon="inline-start" aria-hidden="true" />
-              {label("exportAttempts", "Export attempts")}
-            </Button>
-            <Button variant="outline" disabled={busy} onclick={() => fileInput?.click()}>
-              <Upload data-icon="inline-start" aria-hidden="true" />
-              {label("importAttempts", "Import attempts")}
-            </Button>
-            <Input data-import-file class="hidden" bind:ref={fileInput} type="file" accept="application/json,.json" onchange={selectImportFile} />
-          </div>
-      {#if importPreview}
-        <section class="import-report" aria-label={label("importPreview", "Import preview")}>
-          <span><strong>{importPreview.importable}</strong>{label("importable", "Importable")}</span>
-          <span><strong>{importPreview.duplicateAttemptIds.length}</strong>{label("duplicates", "Duplicates")}</span>
-          <span><strong>{importPreview.orphanQuestionIds.length}</strong>{label("orphans", "Orphans")}</span>
-          <Button disabled={busy} onclick={confirmImport}>{label("confirmImport", "Confirm import")}</Button>
-          {#if importPreview.orphanQuestionIds.length > 0}
-            <code>{importPreview.orphanQuestionIds.join(", ")}</code>
-          {/if}
-          {#if importPreview.existingRowIssues.length > 0}
-            <code>{importPreview.existingRowIssues.map((issue) => issue.message).join("; ")}</code>
-          {/if}
-        </section>
-      {/if}
-
-      {#if importResult}
-        <section class="import-report result">
-          <span><strong>{importResult.imported}</strong>{label("imported", "Imported")}</span>
-          <span><strong>{importResult.duplicateAttemptIds.length}</strong>{label("duplicates", "Duplicates")}</span>
-          <span><strong>{importResult.orphanQuestionIds.length}</strong>{label("orphans", "Orphans")}</span>
-          <span class:danger={importResult.failures.length > 0}><strong>{importResult.failures.length}</strong>{label("failures", "Failures")}</span>
-          {#if importResult.failures.length > 0}
-            <code>{importResult.failures.map((failure) => failure.attemptId).join(", ")}</code>
-          {/if}
-        </section>
-      {/if}
-        </Collapsible.Content>
-      </Collapsible.Root>
-
-      {#if preview}
-        <Collapsible.Root bind:open={scanPanelOpen} class="workspace-panel scan-panel">
-          <Collapsible.Trigger class="workspace-panel-trigger" onclick={() => scanPanelUserControlled = true}>
-            <span class="workspace-panel-heading">
-              <ScanLine aria-hidden="true" />
-              <span>
-                <strong>{label("scanSummary", "Scan summary")}</strong>
-                <small>{progressQuestions.length} {label("questions", "questions")} · {preview.scan.report.issues.length} {label("issues", "issues")}</small>
-              </span>
-            </span>
-            <span class="workspace-panel-meta">
-              {#if preview.blockers.length > 0}<Badge variant="destructive">{preview.blockers.length}</Badge>{/if}
-              <ChevronDown class={scanPanelOpen ? "open" : ""} aria-hidden="true" />
-            </span>
-          </Collapsible.Trigger>
-          <Collapsible.Content class="workspace-panel-content">
-        <PracticeScanSummary
-          {preview}
-          {sourceIdentity}
-          progressQuestionCount={progressQuestions.length}
-          {completionPercent}
-          {attemptedQuestions}
-          {untouchedQuestions}
-          {reviewQuestions}
-          {pendingSync}
-          {busy}
-          {syncComplete}
-          {autoSyncIndex}
-          bind:scanDetailsOpen
-          {scanMessageGroups}
-          {sourceTypeLabel}
-          {completionStatusLabel}
-          {messageContext}
-          {messageClipboardText}
-          {scanLogText}
-          {copyText}
-          {confirmSync}
-          {toggleAutoSyncIndex}
-          {label}
-        />
-          </Collapsible.Content>
-        </Collapsible.Root>
-
-        <section class="practice-section" aria-labelledby="practice-settings-heading">
-          <div class="practice-section-heading">
-            <BookOpenCheck aria-hidden="true" />
-            <div>
-              <h2 id="practice-settings-heading">{label("practice", "Practice")}</h2>
-              <span>{label("scope", "Scope")} · {label("order", "Order")} · {label("filter", "Filter")}</span>
-            </div>
-          </div>
-        <section class="practice-settings">
-          {#if recoverableSession}
-            <div class="session-recovery">
-              <div>
-                <strong>{label("unfinishedFound", "Unfinished practice found")}</strong>
-                <span>{recoverableSession.completed_question_ids.length} / {recoverableSession.queue_question_ids.length}</span>
-              </div>
-              <div class="session-recovery-actions">
-                <Button onclick={() => resumePractice()}>{label("continue", "Continue")}</Button>
-                <Button variant="outline" onclick={() => pendingReplacement = true}>{label("newSettings", "Use current settings")}</Button>
-              </div>
-            </div>
-          {/if}
-
-          {#if pendingReplacement && recoverableSession}
-            <Alert.Root variant="destructive" class="col-span-full w-auto">
-              <Alert.Title>{label("replaceSession", "Replace unfinished practice?")}</Alert.Title>
-              <Alert.Description>{label("replaceSessionDescription", "Draft progress will be removed. Submitted attempts are preserved.")}</Alert.Description>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <Button variant="destructive" size="sm" onclick={confirmRestartPractice}>{label("confirmRestart", "Replace and start")}</Button>
-                <Button variant="outline" size="sm" onclick={() => pendingReplacement = false}>{label("cancel", "Cancel")}</Button>
-              </div>
-            </Alert.Root>
-          {/if}
-
-          <div class="scope-control grid gap-2">
-            <FormLabel>{label("scope", "Scope")}</FormLabel>
-            <Select.Root
-              type="single"
-              value={topicId || entireDocumentScope}
-              onValueChange={(value) => topicId = value === entireDocumentScope ? "" : value}
-            >
-              <Select.Trigger class="w-full">
-                {topicId ? topicLabel(topics.find((topic) => topic.id === topicId) ?? topics[0]) : label("entireDocument", "Entire document")}
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Group>
-                  <Select.Item value={entireDocumentScope} label={label("entireDocument", "Entire document")} />
-                  {#each topics as topic (topic.id)}
-                    <Select.Item value={topic.id} label={topicLabel(topic)} />
-                  {/each}
-                </Select.Group>
-              </Select.Content>
-            </Select.Root>
-          </div>
-
-          <fieldset class="order-control">
-            <legend>{label("order", "Order")}</legend>
-            <ToggleGroup.Root
-              type="single"
-              variant="outline"
-              class="grid w-full grid-cols-2"
-              value={order}
-              onValueChange={(value) => { if (value) order = value as PracticeOrder; }}
-            >
-              <ToggleGroup.Item value="sequential" title={label("sequential", "Sequential")} aria-label={label("sequential", "Sequential")}>
-                <ListOrdered aria-hidden="true" />
-                <span class="control-copy">{label("sequential", "Sequential")}</span>
-              </ToggleGroup.Item>
-              <ToggleGroup.Item value="random" title={label("random", "Random")} aria-label={label("random", "Random")}>
-                <Shuffle aria-hidden="true" />
-                <span class="control-copy">{label("random", "Random")}</span>
-              </ToggleGroup.Item>
-            </ToggleGroup.Root>
-          </fieldset>
-
-          <fieldset class="filter-control">
-            <legend>{label("filter", "Filter")}</legend>
-            <ToggleGroup.Root
-              type="single"
-              variant="outline"
-              class="grid w-full grid-cols-4 max-[520px]:grid-cols-2"
-              value={filter}
-              onValueChange={(value) => { if (value) filter = value as PracticeFilter; }}
-            >
-              <ToggleGroup.Item value="all" title={label("all", "All")} aria-label={label("all", "All")}>
-                <List aria-hidden="true" />
-                <span class="control-copy">{label("all", "All")}</span>
-              </ToggleGroup.Item>
-              <ToggleGroup.Item value="wrong" title={label("wrong", "Wrong")} aria-label={label("wrong", "Wrong")}>
-                <CircleX aria-hidden="true" />
-                <span class="control-copy">{label("wrong", "Wrong")}</span>
-              </ToggleGroup.Item>
-              <ToggleGroup.Item value="review" title={label("review", "Review")} aria-label={label("review", "Review")}>
-                <RotateCcw aria-hidden="true" />
-                <span class="control-copy">{label("review", "Review")}</span>
-              </ToggleGroup.Item>
-              <ToggleGroup.Item value="due" title={label("due", "Due")} aria-label={label("due", "Due")}>
-                <Clock3 aria-hidden="true" />
-                <span class="control-copy">{label("due", "Due")}</span>
-              </ToggleGroup.Item>
-            </ToggleGroup.Root>
-          </fieldset>
-
-          <Button
-            class="start max-[760px]:w-full"
-            disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
-            onclick={startPractice}
-          >
-            <BookOpenCheck data-icon="inline-start" aria-hidden="true" />
-            <span>{label("start", "Start practice")}</span>
-          </Button>
-          <Button
-            class="max-[760px]:w-full"
-            variant="outline"
-            disabled={busy}
-            onclick={openQuestionSetComposer}
-          >
-            <Layers3 data-icon="inline-start" aria-hidden="true" />
-            <span>{label("questionSet", "跨文档组卷")}</span>
-          </Button>
-          <Button
-            class="max-[760px]:w-full"
-            variant="outline"
-            disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
-            onclick={() => examMode = true}
-          >
-            <Clock3 data-icon="inline-start" aria-hidden="true" />
-            <span>{label("startExam", "Start exam")}</span>
-          </Button>
-        </section>
-        </section>
-      {/if}
-    </section>
-  {:else if currentQuestion}
-    <section class="practice min-h-0 flex-1 overflow-hidden" aria-live="polite">
-      {#if endConfirmation}
-        <Alert.Root variant="destructive" class="mx-5 mt-3 w-auto shrink-0">
-          <Alert.Title>{label("confirmEnd", "End this practice?")}</Alert.Title>
-          <Alert.Description>{label("confirmEndDescription", "Draft progress will be removed. Submitted attempts are preserved.")}</Alert.Description>
-          <div class="mt-3 flex gap-2">
-            <Button variant="destructive" size="sm" onclick={confirmEndPractice}>{label("endNow", "End practice")}</Button>
-            <Button variant="outline" size="sm" onclick={() => endConfirmation = false}>{label("cancel", "Cancel")}</Button>
-          </div>
-        </Alert.Root>
-      {/if}
-      {#if practiceSaveStatus === "error"}
-        <Alert.Root variant="destructive" class="mx-5 mt-3 w-auto shrink-0">
-          <Alert.Title>{label("saveFailed", "Progress was not saved")}</Alert.Title>
-          <Alert.Description>{practiceSaveError}</Alert.Description>
-          <Button class="mt-3" variant="outline" size="sm" onclick={retryPracticeSave}>{label("retrySave", "Retry save")}</Button>
-        </Alert.Root>
-      {:else if practiceSaveStatus === "saving"}
-        <span class="save-status">{label("saving", "Saving...")}</span>
-      {/if}
-      {#if recoveryIssues.length > 0}
-        <Alert.Root class="mx-5 mt-3 w-auto shrink-0">
-          <Alert.Title>{label("recoveryChanges", "Source changes were reconciled")}</Alert.Title>
-          <Alert.Description>{recoveryIssues.map((issue) => `${issue.questionId}: ${label(issue.code, issue.code)}`).join("; ")}</Alert.Description>
-        </Alert.Root>
-      {/if}
-      {#if answerCardOpen}
-        <button
-          class="answer-card-scrim"
-          aria-label={label("closeAnswerCard", "Close answer card")}
-          onclick={() => answerCardOpen = false}
-        ></button>
-        <aside class="answer-card-panel" aria-label={label("answerCard", "Answer card")}>
-          <header>
-            <strong>{label("answerCard", "Answer card")}</strong>
-            <span>{completedQuestionIndices.length} / {queue.length}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              title={label("closeAnswerCard", "Close answer card")}
-              aria-label={label("closeAnswerCard", "Close answer card")}
-              onclick={() => answerCardOpen = false}
-            >
-              <svg aria-hidden="true"><use href="#iconClose"></use></svg>
-            </Button>
-          </header>
-          <div class="answer-card-grid">
-            {#each queue as question, index (question.id)}
-              <Button
-                variant={index === questionIndex ? "default" : completedQuestionIndices.includes(index) ? "secondary" : "outline"}
-                class="h-auto min-h-9 w-full min-w-0 aspect-square p-1 tabular-nums disabled:opacity-100"
-                aria-current={index === questionIndex ? "step" : undefined}
-                aria-label={`${label("question", "Question")} ${index + 1}`}
-                onclick={() => goToQuestion(index)}
-              >{index + 1}</Button>
-            {/each}
-          </div>
-        </aside>
-      {/if}
-      <ScrollArea.Root class="practice-content min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
-        <PracticeQuestionContent
-          {currentQuestion}
-          {currentGroup}
-          {currentQuestionBlockId}
-          {displayedOptions}
-          {selectedOptionIds}
-          {revealed}
-          {readOnlyQuestion}
-          {objectiveCorrect}
-          {subjectiveScore}
-          {currentAttempt}
-          {inheritSourceStyles}
-          {questionRenderMode}
-          {openQuestionSource}
-          renderQuestionContent={renderedQuestionContent}
-          {mountSourceBlock}
-          {questionTypeLabel}
-          {optionMarkdown}
-          {formatDuration}
-          {toggleOption}
-          {changeSubjectiveScore}
-          {label}
-        />
-      </ScrollArea.Root>
-
-      {#if readOnlyQuestion}
-        <div class="action-bar review-navigation">
-          <Button variant="outline" disabled={questionIndex === 0} onclick={previousQuestion}>{label("previous", "Previous question")}</Button>
-          <Button variant="outline" disabled={questionIndex >= queue.length - 1} onclick={nextQuestion}>{label("next", "Next question")}</Button>
-        </div>
-      {:else if !revealed}
-        <div class="action-bar">
-          {#if timingEnabled}
-            <span class="question-timer">{formatDuration(questionElapsedMs)}</span>
-            <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
-              <RotateCcw size={16} aria-hidden="true" />
-            </Button>
-          {/if}
-          <Button onclick={revealAnswer}>
-            <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>
-            {label("reveal", "Reveal answer")}
-          </Button>
-        </div>
-      {:else}
-        <div class="rating-bar">
-          <Button variant="outline" size="icon" class="mr-1" title={label("retry", "Undo and retry")} aria-label={label("retry", "Undo and retry")} disabled={submitting} onclick={retry}>
-            <svg aria-hidden="true"><use href="#iconUndo"></use></svg>
-          </Button>
-          {#each ["again", "hard", "good", "easy"] as rating}
-            <Button variant={suggestedRating === rating ? "secondary" : "outline"} class="min-w-0 px-1" disabled={submitting} onclick={() => submitRating(rating as MasteryRating)}>{label(rating, rating)}</Button>
-          {/each}
-        </div>
-      {/if}
-    </section>
-  {:else if complete}
-    <PracticeCompletion
-      {queue}
-      submittedCount={sessionAttempts.length}
-      correctCount={completionCorrect}
-      {completionDurationMs}
-      {touchedDrafts}
-      {formatDuration}
-      {goToQuestion}
-      {resetPractice}
-      {label}
-    />
-    {/if}
-  {/if}
-</main>
-
-<style>
-  /* Keep the reset inside the question-bank surface. A document-wide `*`
-     reset also reaches SiYuan's SVG sprite and breaks native icons in the
-     mobile WebView when a theme supplies duplicate symbol ids. */
-  :global(.question-bank), :global(.question-bank *) { box-sizing: border-box; }
-  :global(.question-bank button), :global(.question-bank input), :global(.question-bank select) { font: inherit; letter-spacing: 0; }
-  :global(.question-bank .lucide) { fill: none !important; stroke: currentColor; stroke-width: 2; }
-  .question-bank { color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
-  .question-bank :global(button), .question-bank :global([role="button"]) { touch-action: manipulation; -webkit-tap-highlight-color: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
-  .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 16px; }
-  .app-header > div { min-width: 0; }
-  .app-brand { display: flex; align-items: baseline; gap: 12px; }
-  h1 { margin: 0; font-size: 20px; line-height: 1.2; }
-  h2 { margin: 0; font-size: 18px; line-height: 1.45; }
-  .app-header span, .status { color: var(--b3-theme-on-surface); font-size: 13px; }
-  .build-revision { color: var(--b3-theme-on-surface-light); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-  .practice-toolbar { min-width: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
-  section { padding: 18px 20px; }
-  .workspace-toolbar { position: relative; z-index: 2; }
-  .document-row { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto auto; align-items: center; gap: 10px; }
-  .auto-scan-control { min-width: max-content; display: inline-flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface); font-size: 12px; cursor: pointer; }
-  :global(.workspace-panel) { margin-top: 12px; border: 1px solid var(--b3-border-color); border-radius: 10px; background: var(--b3-theme-surface); overflow: hidden; }
-  :global(.workspace-panel-trigger) { width: 100%; min-height: 58px; padding: 10px 14px; border: 0; background: transparent; color: inherit; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; cursor: pointer; }
-  :global(.workspace-panel-trigger:hover) { background: var(--b3-list-hover); }
-  :global(.workspace-panel-trigger:focus-visible) { outline: 2px solid var(--b3-theme-primary); outline-offset: -2px; }
-  .workspace-panel-heading, .workspace-panel-meta { min-width: 0; display: flex; align-items: center; gap: 10px; }
-  .workspace-panel-heading > :global(svg) { width: 19px; height: 19px; flex: 0 0 19px; color: var(--b3-theme-primary); }
-  .workspace-panel-heading > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .workspace-panel-heading strong { font-size: 14px; }
-  .workspace-panel-heading small { color: var(--b3-theme-on-surface); font-size: 11px; overflow-wrap: anywhere; }
-  .workspace-panel-meta > :global(svg), :global(.workspace-panel-trigger > svg) { width: 17px; height: 17px; flex: 0 0 17px; color: var(--b3-theme-on-surface); transition: transform 160ms ease; }
-  .workspace-panel-meta > :global(svg.open), :global(.workspace-panel-trigger > svg.open) { transform: rotate(180deg); }
-  :global(.workspace-panel-content) { border-top: 1px solid var(--b3-border-color); }
-  .setup { max-width: 760px; }
-  .setup .document-row { grid-template-columns: minmax(220px, 1fr) auto; }
-  .rebind-setup { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--b3-border-color); }
-  .preview-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-  .recovery-actions { padding: 14px 16px 0; display: flex; justify-content: flex-end; gap: 8px; }
-  .unfinished-sessions { margin: 14px -20px 0; padding: 14px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
-  .section-heading { display: flex; align-items: center; gap: 8px; }
-  .unfinished-list { margin-top: 10px; display: grid; gap: 1px; background: var(--b3-border-color); }
-  .unfinished-row { min-width: 0; padding: 10px 12px; background: var(--b3-theme-surface); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .unfinished-row > div { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; }
-  .unfinished-row strong { overflow-wrap: anywhere; }
-  .unfinished-row span, .unfinished-row small { color: var(--b3-theme-on-surface); font-size: 12px; }
-  .unfinished-row small { grid-column: 1 / -1; }
-  .import-report { margin-top: 12px; padding: 12px 16px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
-  .import-report span { min-width: 76px; display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
-  .import-report strong { color: var(--b3-theme-on-background); font-size: 17px; }
-  .import-report code { flex-basis: 100%; overflow-wrap: anywhere; }
-  .practice-section { margin-top: 16px; padding: 16px; border: 1px solid var(--b3-border-color); border-radius: 10px; }
-  .practice-section-heading { display: flex; align-items: center; gap: 10px; }
-  .practice-section-heading > :global(svg) { width: 20px; height: 20px; flex: 0 0 20px; color: var(--b3-theme-primary); }
-  .practice-section-heading h2 { font-size: 16px; text-wrap: balance; }
-  .practice-section-heading span { color: var(--b3-theme-on-surface); font-size: 12px; }
-  .practice-settings { padding: 16px 0 0; display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(190px, 0.9fr) minmax(320px, 1.6fr) auto; gap: 14px; align-items: end; }
-  .session-recovery { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .session-recovery > div:first-child { display: flex; align-items: baseline; gap: 10px; }
-  .session-recovery span { color: var(--b3-theme-on-surface); font-size: 12px; }
-  .session-recovery-actions { display: flex; gap: 8px; }
-  fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-  legend { margin-bottom: 6px; color: var(--b3-theme-on-surface); font-size: 13px; }
-  .practice { position: relative; min-height: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
-  .timer { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .timer svg { width: 14px; height: 14px; fill: currentColor; }
-  .practice-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
-  .practice-breadcrumb :global(.practice-breadcrumb-fallback-item) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .practice-breadcrumb :global(.practice-breadcrumb-separator) { width: 13px; height: 13px; flex: 0 0 13px; opacity: 0.58; }
-  .practice-controls { display: flex; align-items: center; min-width: max-content; }
-  .save-status { padding: 4px 20px; color: var(--b3-theme-on-surface); font-size: 11px; text-align: right; }
-  .answer-card-scrim { position: absolute; z-index: 3; inset: 0 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
-  .answer-card-panel { position: absolute; z-index: 4; top: 8px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 74px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
-  .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }
-  .answer-card-panel header span { color: var(--b3-theme-on-surface); font-size: 12px; }
-  .answer-card-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 8px; }
-  .action-bar, .rating-bar { min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
-  .action-bar:has(.question-timer) { justify-content: space-between; }
-  .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
-  :global(.damophus-question-bank-mobile-dialog .b3-dialog__header) { display: none !important; }
-  :global(.damophus-question-bank-mobile-dialog .b3-dialog__container) { padding-top: 0 !important; }
-  .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
-
-  @container (max-width: 960px) {
-    .app-header { padding-inline: 14px; }
-    .app-header { align-items: center; gap: 10px; }
-    .app-header--practice { min-height: 52px; padding-block: 6px; }
-    .app-header--practice .app-brand span, .app-header--practice .build-revision { display: none; }
-    .app-header--practice .app-brand { gap: 0; }
-    .app-header--practice h1 { font-size: 17px; }
-    .header-actions { flex-direction: column; align-items: flex-end; gap: 6px; }
-    section { padding: 14px; }
-    .document-row { grid-template-columns: minmax(0, 1fr) 34px auto; }
-    :global(.document-id-label) { display: none; }
-    .recovery-actions { justify-content: stretch; }
-    .practice-settings {
-      grid-template-columns: minmax(0, 1fr) minmax(190px, 0.75fr);
-      gap: 12px;
-    }
-    .filter-control, .practice-settings :global(button.start) { grid-column: 1 / -1; }
-    .practice-settings :global(button.start) { width: 100%; }
-    .unfinished-sessions { margin-inline: -14px; padding-inline: 14px; }
-    .unfinished-row { align-items: flex-start; }
-    .unfinished-row > div { grid-template-columns: 1fr; }
-    .unfinished-row small { grid-column: auto; }
-    .session-recovery { align-items: stretch; flex-direction: column; }
-    .session-recovery-actions > :global(*) { flex: 1; }
-    .practice-toolbar {
-      min-height: 40px;
-      padding: 5px 8px 4px 10px;
-      grid-template-columns: auto minmax(0, 1fr) auto 32px;
-      grid-template-rows: 34px 20px;
-      grid-template-areas:
-        "timer spacer controls card"
-        "topic topic topic progress";
-      column-gap: 4px;
-      row-gap: 2px;
-    }
-    .practice-status { display: contents; }
-    .progress-copy { grid-area: progress; justify-self: end; align-self: center; font-variant-numeric: tabular-nums; }
-    .progress-label, .submitted-copy { display: none; }
-    .timer { grid-area: timer; align-self: center; }
-    .practice-topic { grid-area: topic; display: block; text-align: left; align-self: center; font-size: 12px; }
-    .practice-controls { grid-area: controls; gap: 1px; justify-self: end; }
-    .practice-controls :global(button), .practice-toolbar > :global(.answer-card-button) { width: 32px; height: 32px; }
-    .practice-controls :global(button[data-practice-return]) { order: -1; }
-    .practice-toolbar > :global(.answer-card-button) { grid-area: card; }
-    .answer-card-panel { top: 0; right: 0; bottom: 48px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
-    .answer-card-grid { grid-template-columns: repeat(5, minmax(36px, 1fr)); }
-    .action-bar, .rating-bar { min-height: 48px; }
-    .action-bar { padding: 6px 10px; }
-    .action-bar .question-timer { display: none; }
-    .rating-bar { grid-template-columns: 34px repeat(4, minmax(0, 1fr)); padding: 8px; gap: 5px; }
-  }
-
-  @container (max-width: 760px) {
-    .workspace { padding-top: 0; }
-    .workspace-toolbar {
-      position: sticky;
-      top: 0;
-      margin: -14px -14px 0;
-      padding: 10px 14px 8px;
-      border-bottom: 1px solid var(--b3-border-color);
-      background: color-mix(in srgb, var(--b3-theme-background) 94%, transparent);
-      backdrop-filter: blur(14px);
-    }
-    :global(.workspace-panel) { margin-top: 10px; }
-    :global(.workspace-panel-trigger) { min-height: 54px; padding: 9px 12px; }
-    .recovery-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .document-row :global(button) { width: 44px; height: 44px; }
-    .auto-scan-control { min-height: 44px; }
-    .practice-settings :global([data-slot="toggle-group-item"]),
-    .practice-settings :global(button.start) { min-height: 44px; }
-    .practice-section { margin-top: 10px; padding: 12px; }
-    .practice-settings { padding-top: 12px; }
-  }
-
-  @container (max-width: 430px) {
-    .document-row { grid-template-columns: minmax(0, 1fr) 44px; }
-    .auto-scan-control { grid-column: 1 / -1; justify-self: end; }
-    .practice-settings { grid-template-columns: 1fr; }
-    .filter-control, .practice-settings :global(button.start) { grid-column: auto; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .workspace-panel-meta > :global(svg), :global(.workspace-panel-trigger > svg) { transition: none; }
-  }
-</style>
+<QuestionBankView
+  bind:rootElement bind:documentId bind:initializationPreview bind:systemDocumentId bind:rebindingPreview
+  bind:view bind:composerOpen bind:examMode bind:autoScanDocument bind:dataPanelOpen bind:dataPanelUserControlled bind:fileInput
+  bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:filter
+  bind:endConfirmation bind:answerCardOpen
+  {currentQuestion} {buildRevision} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
+  {timingEnabled} {sessionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
+  {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
+  {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
+  {validDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
+  {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
+  {questionSetBlueprints} {run} {loadQuestionSetData} {previewSourceSync} {confirmSourceSync} {assembleBlueprint} {saveBlueprint}
+  {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}
+  {changeStatisticsRange} {changeStatisticsSort} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
+  {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
+  {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
+  {completionPercent} {attemptedQuestions} {untouchedQuestions} {reviewQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
+  {scanMessageGroups} {sourceTypeLabel} {completionStatusLabel} {messageContext} {messageClipboardText} {scanLogText} {copyText}
+  {confirmSync} {toggleAutoSyncIndex} {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
+  {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
+  {objectiveCorrect} {subjectiveScore} {currentAttempt} {inheritSourceStyles} {questionRenderMode} {renderedQuestionContent}
+  {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}
+  {questionElapsedMs} {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
+  {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {sessionAttempts}
+  {completionCorrect} {completionDurationMs} {touchedDrafts} {resetPractice}
+/>

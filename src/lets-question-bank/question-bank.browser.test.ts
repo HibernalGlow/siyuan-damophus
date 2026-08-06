@@ -1,313 +1,46 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
-import { mount, tick, unmount } from "svelte";
-import "@/styles/damophus.css";
-import type { AttemptAggregate, AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
-import { createPracticeSessionSnapshot, type PracticeSessionSnapshot } from "@/question-bank/core";
-import type { QuestionIndexBatchPreview, QuestionIndexPreview } from "@/question-bank/application";
+import type { Question } from "@/question-bank/core/types";
+import { createPracticeSessionSnapshot } from "@/question-bank/core";
+import type { QuestionIndexBatchPreview } from "@/question-bank/application";
 import type { FrozenQuestionSet, QuestionCatalogEntry } from "@/question-bank/assembly";
 import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
-import type {
-  QuestionBankBinding,
-  QuestionBankInitializationPreview,
-  QuestionBankRebindingPreview,
-} from "@/question-bank/adapters/siyuan";
-import { QUICK_RIFF_DECK_ID, type RiffCard } from "@/question-bank/adapters/siyuan/riff";
-import QuestionBank from "./question-bank.svelte";
-import type { QuestionBankUiController, RecentScope, SourceBlockIdentity } from "./controller";
-
-const documentId = "20260804120000-abcdefg";
-const blockId = "20260804120001-abcdefg";
-const systemDocumentId = "20260804110000-system1";
-
-const topics: TopicNode[] = [
-  { id: "root", title: "Root topic", level: 2, childIds: ["child"], explicit: true },
-  { id: "child", title: "Child topic", level: 3, parentId: "root", childIds: [], explicit: true },
-];
-
-const objectiveQuestion: Question = {
-  id: "q-objective",
-  type: "multiple",
-  title: "Objective question",
-  stemMarkdown: "Select the correct options.",
-  options: [
-    { id: "A", markdown: "Alpha" },
-    { id: "B", markdown: "Beta" },
-    { id: "C", markdown: "Gamma" },
-  ],
-  answer: { kind: "options", optionIds: ["A", "C"] },
-  solutionMarkdown: "**Answer:** A and C",
-  metadata: { topicId: "child", topicPath: ["Root topic", "Child topic"] },
-};
-
-const indefiniteQuestion: Question = {
-  ...objectiveQuestion,
-  id: "q-indefinite",
-  type: "indefinite",
-  title: "Indefinite question",
-  answer: { kind: "options", optionIds: ["A"] },
-};
-
-const subjectiveQuestion: Question = {
-  id: "q-subjective",
-  type: "subjective",
-  title: "Subjective question",
-  stemMarkdown: "Explain the rule.",
-  options: [],
-  solutionMarkdown: "Reference answer.",
-  metadata: { topicId: "root", topicPath: ["Root topic"] },
-};
-
-const dueCard: RiffCard = {
-  deckID: QUICK_RIFF_DECK_ID,
-  cardID: "card-1",
-  blockID: blockId,
-  lapses: 0,
-  reps: 1,
-  state: 2,
-  lastReview: 1785825600000,
-  nextDues: { "1": "1 minute", "2": "6 minutes", "3": "1 day", "4": "4 days" },
-};
-
-function makePreview(questions: Question[] = [objectiveQuestion, subjectiveQuestion]): QuestionIndexPreview {
-  return {
-    token: "preview-token",
-    generatedAt: "2026-08-04T12:00:00.000Z",
-    documentId,
-    scan: {
-      documentId,
-      kramdown: "",
-      report: {
-        document: { questions, topics, groups: [] },
-        inferences: [],
-        conflicts: [],
-        issues: [],
-        ialUpdates: [],
-      },
-      blockIdsByQuestionId: new Map(questions.map((question) => [question.id, blockId])),
-      topicBlockIdsByTopicId: new Map([
-        ["root", "20260804120002-abcdefg"],
-        ["child", "20260804120003-abcdefg"],
-      ]),
-      ialWriteActions: [],
-      sourceIssues: [],
-    },
-    actions: questions.map((question) => ({ kind: "add" as const, question, blockId })),
-    staleQuestionIds: [],
-    blockers: [],
-    bindingRepairs: [],
-    ialWriteActions: [],
-    results: [],
-  };
-}
-
-function initializationPreview(): QuestionBankInitializationPreview {
-  return {
-    token: "init-token",
-    notebookId: "20260804110000-abcdefg",
-    path: "/Damophus",
-    questionBlockId: "20260804110001-abcdefg",
-    questionAvId: "20260804110002-abcdefg",
-    attemptBlockId: "20260804110003-abcdefg",
-    attemptAvId: "20260804110004-abcdefg",
-    questionColumns: [],
-    attemptColumns: [],
-  };
-}
-
-function binding(): QuestionBankBinding {
-  return { schemaVersion: 2 } as unknown as QuestionBankBinding;
-}
-
-function rebindingPreview(): QuestionBankRebindingPreview {
-  return { token: "rebind-token", systemDocumentId, binding: binding(), bindingRepairs: [] };
-}
-
-function attempt(input: Parameters<QuestionBankUiController["submitAttempt"]>[0]): AttemptEvent {
-  return {
-    schema_version: 1,
-    attempt_id: "attempt-1",
-    question_id: input.questionId,
-    question_relation: input.questionRelation,
-    session_id: input.sessionId,
-    answered_at: "2026-08-04T12:00:00.000Z",
-    question_type: input.questionType,
-    option_order: input.optionOrder ?? [],
-    selected_option_ids: input.selectedOptionIds ?? [],
-    objective_correct: input.objectiveCorrect,
-    mastery_rating: input.masteryRating,
-    subjective_score: input.subjectiveScore,
-    duration_ms: input.durationMs,
-  };
-}
-
-function mockController(options: {
-  initialized?: boolean;
-  preview?: QuestionIndexPreview;
-  dueCards?: ReadonlyMap<string, RiffCard>;
-  recent?: RecentScope;
-  aggregates?: ReadonlyMap<string, AttemptAggregate>;
-  sourceIdentity?: SourceBlockIdentity;
-} = {}) {
-  let currentBinding = options.initialized === false ? undefined : binding();
-  let recent = options.recent;
-  const practiceSessions = new Map<string, PracticeSessionSnapshot>();
-  const sessionAttempts: AttemptEvent[] = [];
-  const preview = options.preview ?? makePreview();
-  const submitAttempt = vi.fn(async (
-    input: Parameters<QuestionBankUiController["submitAttempt"]>[0],
-    _dueCard?: RiffCard,
-  ) => ({
-    event: attempt(input),
-    warnings: [],
-  }));
-  const saveRecentScope = vi.fn((scope: RecentScope) => { recent = scope; });
-  const previewImport = vi.fn(async () => ({
-    token: "import-token",
-    schemaVersion: 1 as const,
-    pluginVersion: "0.25.3",
-    total: 3,
-    importable: 1,
-    duplicateAttemptIds: ["duplicate-1"],
-    orphanQuestionIds: ["missing-question"],
-    existingRowIssues: [],
-  }));
-  const confirmImport = vi.fn(async () => ({
-    ...(await previewImport()),
-    imported: 1,
-    failures: [],
-  }));
-  const controller: QuestionBankUiController = {
-    getBinding: () => currentBinding,
-    previewInitialization: vi.fn(async () => initializationPreview()),
-    confirmInitialization: vi.fn(async () => {
-      currentBinding = binding();
-      return currentBinding;
-    }),
-    previewRebinding: vi.fn(async () => rebindingPreview()),
-    confirmRebinding: vi.fn(async () => {
-      currentBinding = binding();
-      return currentBinding;
-    }),
-    loadSourceIdentity: vi.fn(async () => options.sourceIdentity ?? ({
-      id: documentId,
-      rootId: documentId,
-      type: "d",
-      content: "2021 Civil Procedure Gold Questions",
-      hpath: "/Legal Exam/Civil Procedure/2021 Gold Questions",
-    })),
-    listPracticeSessions: vi.fn(async () => [...practiceSessions.entries()].map(([sourceKey, snapshot]) => ({
-      sourceKey,
-      result: { status: "ok" as const, snapshot },
-    }))),
-    loadPracticeSession: vi.fn(async (sourceKey: string) => {
-      const snapshot = practiceSessions.get(sourceKey);
-      return snapshot ? { status: "ok" as const, snapshot } : undefined;
-    }),
-    savePracticeSession: vi.fn(async (snapshot: PracticeSessionSnapshot) => {
-      practiceSessions.set(snapshot.source_key, structuredClone(snapshot));
-    }),
-    removePracticeSession: vi.fn(async (sourceKey: string) => {
-      practiceSessions.delete(sourceKey);
-    }),
-    exportPracticeSessionDiagnostic: vi.fn(async (sourceKey: string) => JSON.stringify(practiceSessions.get(sourceKey))),
-    acquirePracticeSession: vi.fn(async () => true),
-    releasePracticeSession: vi.fn(async () => undefined),
-    loadSessionAttempts: vi.fn(async (sessionId: string) => sessionAttempts.filter((event) => event.session_id === sessionId)),
-    previewSync: vi.fn(async () => preview),
-    confirmSync: vi.fn(async () => preview),
-    loadAggregates: vi.fn(async () => options.aggregates ?? new Map([
-      [objectiveQuestion.id, {
-        questionId: objectiveQuestion.id,
-        attempts: 1,
-        objectiveAttempts: 1,
-        objectiveCorrect: 0,
-        objectiveIncorrect: 1,
-        consecutiveReviewCount: 2,
-        consecutiveAgainCount: 2,
-        consecutiveHardCount: 0,
-      }],
-    ])),
-    loadDueCards: vi.fn(async () => options.dueCards ?? new Map()),
-    exportAttempts: vi.fn(async () => "{}\n"),
-    previewImport,
-    confirmImport,
-    submitAttempt: vi.fn(async (...args: Parameters<QuestionBankUiController["submitAttempt"]>) => {
-      const result = await submitAttempt(...args);
-      sessionAttempts.push(result.event);
-      return result;
-    }),
-    getRecentScope: () => recent,
-    saveRecentScope,
-  };
-  return { controller, submitAttempt, saveRecentScope, previewImport, confirmImport, practiceSessions, sessionAttempts };
-}
-
-let mounted: ReturnType<typeof mount> | undefined;
-
-afterEach(async () => {
-  if (mounted) await unmount(mounted);
-  mounted = undefined;
-  document.body.innerHTML = "";
-  vi.restoreAllMocks();
-  await page.viewport(1024, 768);
-});
-
-function render(controller: QuestionBankUiController, props: Record<string, unknown> = {}): void {
-  const target = document.createElement("div");
-  target.style.height = "100vh";
-  document.body.appendChild(target);
-  mounted = mount(QuestionBank, {
-    target,
-    props: {
-      controller,
-      initialDocumentId: documentId,
-      translations: {},
-      uuid: () => "session-1",
-      ...props,
-    },
-  });
-}
-
-async function flush(): Promise<void> {
-  await Promise.resolve();
-  await tick();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  await tick();
-}
-
-function button(name: string): HTMLButtonElement {
-  const result = [...document.querySelectorAll<HTMLButtonElement>("button")]
-    .find((item) => item.textContent?.trim() === name || item.getAttribute("aria-label") === name);
-  if (!result) throw new Error(`Missing button '${name}'`);
-  return result;
-}
-
-function option(name: string): HTMLButtonElement {
-  const result = [...document.querySelectorAll<HTMLButtonElement>("button.option")]
-    .find((item) => item.textContent?.includes(name));
-  if (!result) throw new Error(`Missing option '${name}'`);
-  return result;
-}
-
-async function selectScope(name: string): Promise<void> {
-  await page.getByRole("button", { name: "Entire document", exact: true }).click();
-  await page.getByRole("option", { name, exact: true }).click();
-  await flush();
-}
-
-async function scan(): Promise<void> {
-  button("Scan document").click();
-  await flush();
-}
-
-async function scanAndSync(): Promise<void> {
-  await scan();
-  button("Confirm index sync").click();
-  await flush();
-}
-
+import { attempt, blockId, button, documentId, flush, indefiniteQuestion, makePreview, mockController, objectiveQuestion, option, render, scan, scanAndSync, selectScope, subjectiveQuestion, systemDocumentId } from "./question-bank.browser.fixtures";
 describe("question bank browser flow", () => {
+  it("uses a compact highlighted icon for automatic document scanning", async () => {
+    const { controller } = mockController();
+    render(controller, { autoScanDocument: true });
+    await flush();
+
+    const toggle = document.querySelector<HTMLButtonElement>("[data-auto-scan-toggle]");
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+    expect(toggle?.textContent?.trim()).toBe("");
+    expect(toggle?.getAttribute("aria-label")).toBe("Automatically scan document");
+
+    toggle?.click();
+    await flush();
+    expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("keeps the scan summary collapsed on a short mobile viewport", async () => {
+    await page.viewport(390, 640);
+    const { controller } = mockController();
+    render(controller, { autoScanDocument: true });
+
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    await flush();
+
+    const panel = document.querySelector<HTMLElement>(".scan-panel");
+    expect(panel).not.toBeNull();
+    expect(panel?.getAttribute("data-state")).toBe("closed");
+
+    const trigger = panel?.querySelector<HTMLButtonElement>(".workspace-panel-trigger");
+    trigger?.click();
+    await flush();
+    expect(panel?.getAttribute("data-state")).toBe("open");
+  });
+
   it("switches from practice to the full-library read-only statistics view", async () => {
     const { controller } = mockController();
     controller.loadStatisticsQuestions = vi.fn(async () => [
@@ -1245,160 +978,5 @@ describe("question bank browser flow", () => {
     await flush();
     expect(document.body.textContent).toContain("Shared material");
     expect(document.body.textContent).toContain("Shared case facts");
-  });
-
-  it("clears a saved heading scope when its block no longer exists", async () => {
-    const { controller, saveRecentScope } = mockController({
-      recent: { documentId, headingBlockId: "20260804120004-deleted" },
-    });
-    render(controller);
-    await scan();
-    expect(document.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("Entire document");
-    expect(saveRecentScope).toHaveBeenCalledWith({ documentId });
-  });
-
-  it("restores a saved scope by immutable heading block ID", async () => {
-    const { controller } = mockController({
-      recent: { documentId, headingBlockId: "20260804120003-abcdefg" },
-    });
-    render(controller);
-    await scan();
-
-    expect(document.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("Child topic");
-  });
-
-  it("shows concrete scan findings and planned writes", async () => {
-    const preview = makePreview([objectiveQuestion]);
-    preview.scan.report.inferences = [{
-      code: "inferred-question-type",
-      message: "Inferred single choice",
-      questionId: objectiveQuestion.id,
-      line: 12,
-      title: "120. （多）",
-      sourceMarkdown: "##### 120. （多）",
-    }];
-    preview.ialWriteActions = [{
-      blockId,
-      questionId: objectiveQuestion.id,
-      line: 12,
-      attributes: { "custom-qb-type": "multiple" },
-      reason: "inferred-question-type",
-    }];
-    preview.bindingRepairs = [{
-      kind: "add",
-      database: "attemptLog",
-      field: "duration_ms",
-      keyId: "20260804120005-abcdefg",
-      name: "Duration (min)",
-      type: "number",
-    }];
-    const { controller } = mockController({ preview });
-    render(controller);
-    await scan();
-
-    expect(document.body.textContent).toContain("Inferred single choice");
-    expect(document.body.textContent).toContain("Heading: 120. （多）");
-    expect(document.querySelector(".message-source")?.textContent).toContain("##### 120. （多）");
-    expect(document.body.textContent).toContain("custom-qb-type");
-    expect(document.body.textContent).toContain("duration_ms");
-  });
-
-  it("copies a complete scan log with heading and source Markdown", async () => {
-    const preview = makePreview([objectiveQuestion]);
-    preview.scan.report.issues = [{
-      code: "missing-stable-question-id",
-      message: "Question-like heading has no custom-qb-id and was not indexed",
-      line: 7,
-      title: "99. （单）",
-      sourceMarkdown: "##### 99. （单）",
-    }];
-    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    const { controller } = mockController({ preview });
-    render(controller);
-    await scan();
-
-    button("Copy scan log").click();
-    await flush();
-
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Heading: 99. （单）"));
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("##### 99. （单）"));
-  });
-
-  it("discards a scan preview when the target document ID changes", async () => {
-    const { controller } = mockController();
-    render(controller);
-    await scan();
-    expect(document.querySelector(".scan-summary")).not.toBeNull();
-    const input = document.querySelector<HTMLInputElement>("#document-id");
-    if (!input) throw new Error("Missing document input");
-
-    input.value = "20260804120009-changed";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    await flush();
-
-    expect(document.querySelector(".scan-summary")).toBeNull();
-    expect(document.body.textContent).not.toContain("Start practice");
-  });
-
-  it("submits mapped Riff cards when practicing the due filter", async () => {
-    const { controller, submitAttempt } = mockController({
-      preview: makePreview([objectiveQuestion]),
-      dueCards: new Map([[objectiveQuestion.id, dueCard]]),
-    });
-    render(controller);
-    await scanAndSync();
-    button("Due").click();
-    button("Start practice").click();
-    await flush();
-    option("Alpha").click();
-    option("Gamma").click();
-    button("Reveal answer").click();
-    await flush();
-    button("good").click();
-    await flush();
-    expect(submitAttempt.mock.calls[0][1]).toEqual(dueCard);
-  });
-
-  it("previews attempt imports before confirming writes", async () => {
-    const { controller, previewImport, confirmImport } = mockController();
-    render(controller);
-    const input = document.querySelector<HTMLInputElement>("[data-import-file]");
-    if (!input) throw new Error("Missing import input");
-    const file = new File(["{}"], "attempts.json", { type: "application/json" });
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    input.files = transfer.files;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    await vi.waitFor(() => expect(previewImport).toHaveBeenCalledWith("{}"));
-    await flush();
-    expect(document.body.textContent).toContain("missing-question");
-    button("Confirm import").click();
-    await flush();
-    expect(confirmImport).toHaveBeenCalledWith("{}", "import-token");
-    expect(document.body.textContent).toContain("Imported");
-  });
-
-  it("keeps mobile practice controls inside the viewport without overlap", async () => {
-    await page.viewport(390, 844);
-    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
-    render(controller);
-    await scanAndSync();
-    button("Start practice").click();
-    await flush();
-    option("Alpha").click();
-    option("Gamma").click();
-    button("Reveal answer").click();
-    await flush();
-    const controls = [...document.querySelectorAll<HTMLButtonElement>(".rating-bar button")];
-    const rects = controls.map((control) => control.getBoundingClientRect());
-    expect(controls).toHaveLength(5);
-    for (const rect of rects) {
-      expect(rect.left).toBeGreaterThanOrEqual(0);
-      expect(rect.right).toBeLessThanOrEqual(390);
-      expect(rect.width).toBeGreaterThan(0);
-    }
-    for (let index = 1; index < rects.length; index += 1) {
-      expect(rects[index - 1].right).toBeLessThanOrEqual(rects[index].left);
-    }
   });
 });
