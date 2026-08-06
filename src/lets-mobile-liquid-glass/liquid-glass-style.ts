@@ -112,9 +112,9 @@ html[data-frontend="browser-mobile"] #editor::before {
     height: 80px;
     pointer-events: none;
     z-index: 2;
-    background: oklch(from var(--b3-theme-background) l c h / 0.1);
-    -webkit-backdrop-filter: blur(3px) saturate(1.5);
-    backdrop-filter: blur(3px) saturate(1.5);
+    background: oklch(from var(--b3-theme-background) l c h / 0.04);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     box-shadow: 0 1px 0 0 var(--damophus-mobile-glass-highlight), 0 2px 8px 1px var(--damophus-mobile-glass-shadow);
 }
 
@@ -128,8 +128,8 @@ html[data-frontend="browser-mobile"] #editor::after {
     z-index: 2;
     -webkit-backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
     backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
-    -webkit-mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 6px, transparent 17px 63px, rgba(0, 0, 0, 0.72) 74px, #000 80px);
-    mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 6px, transparent 17px 63px, rgba(0, 0, 0, 0.72) 74px, #000 80px);
+    -webkit-mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 4px, transparent 9px 71px, rgba(0, 0, 0, 0.72) 76px, #000 80px);
+    mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 4px, transparent 9px 71px, rgba(0, 0, 0, 0.72) 76px, #000 80px);
 }
 `;
 
