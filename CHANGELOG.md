@@ -1,12 +1,13 @@
 # siyuan-damophus
 
-## 0.0.2
+## 0.0.3
 
 ### Patch Changes
 
 - Improve question-bank practice rendering, index status, and mobile session controls.
 - Refine the mobile title bar, full breadcrumb behavior, and liquid-glass surface.
 - Add native SiYuan E2E screenshots to the README.
+- Compress the plugin icon below the SiYuan Bazaar 20 KB asset limit.
 
 ## 0.0.1
 
