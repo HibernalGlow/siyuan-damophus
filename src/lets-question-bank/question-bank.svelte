@@ -1536,12 +1536,12 @@
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend { margin-bottom: 6px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice { position: relative; min-height: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: auto minmax(0, 1fr) auto 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
+  .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
-  .timer { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+  .timer { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .timer svg { width: 14px; height: 14px; fill: currentColor; }
   .practice-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
-  .practice-controls { display: flex; align-items: center; }
+  .practice-controls { display: flex; align-items: center; min-width: max-content; }
   .save-status { padding: 4px 20px; color: var(--b3-theme-on-surface); font-size: 11px; text-align: right; }
   .answer-card-scrim { position: absolute; z-index: 3; inset: 44px 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
   .answer-card-panel { position: absolute; z-index: 4; top: 52px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 122px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
@@ -1573,6 +1573,8 @@
   .action-bar, .rating-bar { min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
   .action-bar:has(.question-timer) { justify-content: space-between; }
   .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
+  :global(.damophus-question-bank-mobile-dialog .b3-dialog__header) { display: none !important; }
+  :global(.damophus-question-bank-mobile-dialog .b3-dialog__container) { padding-top: 0 !important; }
   .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
   .completion { min-height: 240px; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; }
   .completion-summary { width: min(680px, 100%); display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); border: 1px solid var(--b3-border-color); }
@@ -1582,7 +1584,7 @@
   .completion-review { width: min(680px, 100%); display: grid; gap: 6px; }
   .completion-review :global(button) { min-width: 0; justify-content: flex-start; overflow-wrap: anywhere; white-space: normal; text-align: left; }
 
-  @container (max-width: 760px) {
+  @container (max-width: 960px) {
     .question-bank[data-practice-active="true"] .app-header { display: none; }
     .app-header { padding-inline: 14px; }
     .app-header { align-items: flex-start; }
@@ -1617,7 +1619,7 @@
     .progress-label, .submitted-copy { display: none; }
     .timer { grid-area: timer; align-self: center; }
     .practice-topic { grid-area: topic; display: block; text-align: left; align-self: center; font-size: 12px; }
-    .practice-controls { grid-area: controls; gap: 1px; }
+    .practice-controls { grid-area: controls; gap: 1px; justify-self: end; }
     .practice-controls :global(button), .practice-bar > :global(.answer-card-button) { width: 32px; height: 32px; }
     .practice-controls :global(button[data-practice-return]) { order: -1; }
     .practice-bar > :global(.answer-card-button) { grid-area: card; }

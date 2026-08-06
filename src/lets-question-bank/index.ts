@@ -179,13 +179,14 @@ export default class QuestionBankPlugin extends SubPluginBase {
       let app: ReturnType<typeof mount> | undefined;
       const dialog = new Dialog({
         title: this.t("lets-question-bank.displayName"),
-        content: '<div class="b3-dialog__content damophus-question-bank-dialog flex min-h-0 flex-1 overflow-hidden p-0"></div>',
+      content: '<div class="b3-dialog__content damophus-question-bank-dialog flex min-h-0 flex-1 overflow-hidden p-0"></div>',
         width: "94vw",
         height: "calc(100dvh - 24px)",
         destroyCallback: () => {
           if (app) void unmount(app);
         },
       });
+      dialog.element.classList.add("damophus-question-bank-mobile-dialog");
       const target = dialog.element.querySelector<HTMLElement>(".damophus-question-bank-dialog");
       if (!target) return;
       app = this.mountQuestionBank(target, blockId, () => dialog.destroy());

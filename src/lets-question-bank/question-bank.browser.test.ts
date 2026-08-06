@@ -835,6 +835,27 @@ describe("question bank browser flow", () => {
     expect(getComputedStyle(bottomTimer).display).toBe("none");
   });
 
+  it("keeps the mobile timer clear of the practice controls", async () => {
+    await page.viewport(390, 844);
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller);
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    const bar = document.querySelector<HTMLElement>(".practice-bar")!;
+    const timer = document.querySelector<HTMLElement>(".timer")!.getBoundingClientRect();
+    const controls = document.querySelector<HTMLElement>(".practice-controls")!.getBoundingClientRect();
+    const overlaps = timer.left < controls.right
+      && timer.right > controls.left
+      && timer.top < controls.bottom
+      && timer.bottom > controls.top;
+
+    expect(overlaps).toBe(false);
+    expect(timer.left).toBeGreaterThanOrEqual(bar.getBoundingClientRect().left);
+    expect(controls.right).toBeLessThanOrEqual(bar.getBoundingClientRect().right);
+  });
+
   it("keeps the desktop reveal action visible while a long question scrolls internally", async () => {
     await page.viewport(1280, 840);
     const longQuestion: Question = {
