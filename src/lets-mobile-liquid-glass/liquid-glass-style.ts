@@ -112,7 +112,7 @@ html[data-frontend="browser-mobile"] #editor::before {
     height: 80px;
     pointer-events: none;
     z-index: 2;
-    background: oklch(from var(--b3-theme-background) l c h / 0.04);
+    background: oklch(from var(--b3-theme-background) l c h / 0.7);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     box-shadow: 0 1px 0 0 var(--damophus-mobile-glass-highlight), 0 2px 8px 1px var(--damophus-mobile-glass-shadow);
