@@ -4,7 +4,17 @@
   .question-bank, .question-bank * { box-sizing: border-box; }
   .question-bank button, .question-bank input, .question-bank select { font: inherit; letter-spacing: 0; }
   .question-bank .lucide { fill: none !important; stroke: currentColor; stroke-width: 2; }
-  .question-bank { color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
+  .question-bank { color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; overscroll-behavior-y: contain; }
+  .damophus-question-bank-mobile-dialog,
+  .damophus-question-bank-mobile-dialog .damophus-question-bank-dialog,
+  .damophus-question-bank-mobile-dialog .question-bank,
+  .damophus-question-bank-mobile-dialog .workspace,
+  .damophus-question-bank-mobile-dialog .setup,
+  .damophus-question-bank-mobile-dialog .practice,
+  .damophus-question-bank-mobile-dialog .practice-content,
+  .damophus-question-bank-mobile-dialog .practice-content [data-slot="scroll-area-viewport"] {
+    overscroll-behavior-y: contain;
+  }
   .question-bank button, .question-bank [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
   .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 16px; }
   .app-header > div { min-width: 0; }
@@ -136,7 +146,7 @@
   }
 
   @container (max-width: 760px) {
-    .workspace { padding-top: 0; }
+    .workspace { padding-top: 0; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
     .workspace-toolbar {
       position: sticky;
       top: 0;

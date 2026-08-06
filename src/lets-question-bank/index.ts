@@ -24,6 +24,7 @@ import { SiyuanExamSessionRepository } from "./exam-session-host";
 import { QuestionSetBlueprintSettingsRepository } from "./question-set-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { installSourceAnswerMask } from "./source-answer-mask";
+import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
 import {
   loadSourceEmbedRows,
   sourceEmbedBlockIds,
@@ -32,6 +33,7 @@ import {
   type SourceEmbedSection,
 } from "./source-embed-query";
 import {
+  defocusProtyleEditor,
   observeFocusedBlock,
   sourceBlockProtyleActions,
   sourceEmbedBlockAttributes,
@@ -44,6 +46,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
   private listening = false;
   private dockApp?: ReturnType<typeof mount>;
+  private removeDockGestureIsolation?: () => void;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
   private readonly examSessionRepository = new SiyuanExamSessionRepository(plugin);
@@ -152,9 +155,12 @@ export default class QuestionBankPlugin extends SubPluginBase {
       init() {
         const target = this.element as HTMLElement;
         target.innerHTML = "";
+        if (isMobile) owner.removeDockGestureIsolation = isolateMobileDialogGestures(target);
         owner.dockApp = owner.mountQuestionBank(target, owner.currentDocumentId());
       },
       destroy() {
+        owner.removeDockGestureIsolation?.();
+        owner.removeDockGestureIsolation = undefined;
         if (owner.dockApp) void unmount(owner.dockApp);
         owner.dockApp = undefined;
       },
@@ -164,6 +170,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
   override async onunload(): Promise<void> {
     this.stopSourceAnswerMask?.();
     this.stopSourceAnswerMask = undefined;
+    this.removeDockGestureIsolation?.();
+    this.removeDockGestureIsolation = undefined;
     if (this.dockApp) void unmount(this.dockApp);
     this.dockApp = undefined;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
@@ -203,16 +211,22 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private open(blockId = this.currentDocumentId()): void {
     if (isMobile) {
       let app: ReturnType<typeof mount> | undefined;
+      let removeGestureIsolation: (() => void) | undefined;
       const dialog = new Dialog({
         title: this.t("lets-question-bank.displayName"),
-      content: '<div class="b3-dialog__content damophus-question-bank-dialog flex min-h-0 flex-1 overflow-hidden p-0"></div>',
+        content: '<div class="b3-dialog__content damophus-question-bank-dialog flex min-h-0 flex-1 overflow-hidden p-0"></div>',
         width: "94vw",
         height: "calc(100dvh - 24px)",
+        // The question bank owns vertical scrolling. Prevent Siyuan's mobile
+        // dialog gesture from interpreting a content swipe as close/dismiss.
+        disableClose: true,
         destroyCallback: () => {
+          removeGestureIsolation?.();
           if (app) void unmount(app);
         },
       });
       dialog.element.classList.add("damophus-question-bank-mobile-dialog");
+      removeGestureIsolation = isolateMobileDialogGestures(dialog.element);
       const target = dialog.element.querySelector<HTMLElement>(".damophus-question-bank-dialog");
       if (!target) return;
       const closeDialog = () => dialog.destroy();
@@ -409,6 +423,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
             host.className = "damophus-native-source-block";
             target.append(host);
             let stopBlockIsolation = () => {};
+            let defocusTimer: ReturnType<typeof setTimeout> | undefined;
             const editor = new Protyle(plugin.app, host, {
               mode: editable ? "wysiwyg" : "preview",
               action: [...sourceBlockProtyleActions],
@@ -419,20 +434,34 @@ export default class QuestionBankPlugin extends SubPluginBase {
                   mountedEditor.protyle.wysiwyg.element,
                   mountedBlockId,
                 );
+                if (isMobile) {
+                  defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element);
+                  defocusTimer = setTimeout(
+                    () => defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element),
+                    0,
+                  );
+                }
               },
               render: {
                 background: false,
                 title: false,
-                gutter: true,
+                gutter: !isMobile,
                 scroll: false,
                 breadcrumb: false,
               },
             });
             if (binding?.notebookId) editor.protyle.notebookId = binding.notebookId;
-            return { editor, stopBlockIsolation: () => stopBlockIsolation() };
+            return {
+              editor,
+              stopBlockIsolation: () => stopBlockIsolation(),
+              cancelDefocus: () => {
+                if (defocusTimer !== undefined) clearTimeout(defocusTimer);
+              },
+            };
           }));
           return async () => {
             for (const mounted of editors) {
+              mounted.cancelDefocus();
               mounted.stopBlockIsolation();
               mounted.editor.destroy();
             }
