@@ -88,7 +88,7 @@
   export let mobileBreadcrumb = false;
   export let breadcrumbPriority: BreadcrumbOverflowPriority = "tail";
   export let breadcrumbTextDisplay: BreadcrumbTextDisplay = normalizeBreadcrumbTextDisplay("full", 16, 160);
-  export let loadBreadcrumb: ((blockId: string) => Promise<BlockBreadcrumbItem[]>) | undefined;
+  export let loadBreadcrumb: ((blockId: string) => Promise<BlockBreadcrumbItem[]>) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const recent = controller.getRecentScope();
