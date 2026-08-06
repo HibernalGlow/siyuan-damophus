@@ -38,7 +38,7 @@ describe("mobile breadcrumb toolbar actions", () => {
     more.addEventListener("click", moreClick);
 
     expect(getComputedStyle(lock).position).toBe("fixed");
-    expect(getComputedStyle(lock).top).toBe("-40px");
+    expect(getComputedStyle(lock).top).toBe("0px");
     expect(getComputedStyle(lock).right).toBe("158px");
     expect(getComputedStyle(doc).position).toBe("fixed");
     expect(getComputedStyle(doc).right).toBe("118px");
