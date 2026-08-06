@@ -306,6 +306,34 @@ async function scanAndSync(): Promise<void> {
 }
 
 describe("question bank browser flow", () => {
+  it("shows a working close action when hosted in a mobile dialog", async () => {
+    const onClose = vi.fn();
+    const { controller } = mockController();
+    render(controller, { onClose });
+    await flush();
+
+    button("Close").click();
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("does not leak its box sizing reset into SiYuan's SVG icon sprite", async () => {
+    const hostIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const hostUse = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    hostIcon.append(hostUse);
+    document.body.append(hostIcon);
+
+    const { controller } = mockController();
+    render(controller);
+    await flush();
+
+    expect(getComputedStyle(hostIcon).boxSizing).not.toBe("border-box");
+    expect(getComputedStyle(hostUse).boxSizing).not.toBe("border-box");
+    const questionBank = document.querySelector<HTMLElement>(".question-bank");
+    expect(questionBank).not.toBeNull();
+    expect(getComputedStyle(questionBank!).boxSizing).toBe("border-box");
+  });
+
   it("shows session storage errors discovered during startup", async () => {
     const { controller } = mockController();
     vi.mocked(controller.listPracticeSessions).mockRejectedValueOnce(new Error("Practice session storage is invalid"));
