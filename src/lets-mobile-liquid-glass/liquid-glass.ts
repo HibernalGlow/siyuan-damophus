@@ -1,22 +1,4 @@
-const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-
-export const MOBILE_LIQUID_GLASS_HOST_ID = "damophus-mobile-liquid-glass-host";
-export const MOBILE_LIQUID_GLASS_FILTER_ID = "damophus-mobile-liquid-glass-filter";
 export const MOBILE_LIQUID_GLASS_STYLE_ID = "damophus-mobile-liquid-glass-style";
-
-const LIQUID_MAP = `
-<svg xmlns="http://www.w3.org/2000/svg" width="478" height="82" viewBox="0 0 478 82">
-  <defs>
-    <linearGradient id="edge-lens" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#808000"/>
-      <stop offset="0.7" stop-color="#808000"/>
-      <stop offset="0.82" stop-color="#809600"/>
-      <stop offset="0.9" stop-color="#80be00"/>
-      <stop offset="1" stop-color="#808000"/>
-    </linearGradient>
-  </defs>
-  <rect width="478" height="82" fill="url(#edge-lens)"/>
-</svg>`;
 
 export const MOBILE_LIQUID_GLASS_CSS = `
 html[data-frontend="mobile"],
@@ -67,14 +49,22 @@ html[data-frontend="browser-mobile"] #editor::before {
         var(--damophus-mobile-glass-tail) 68px,
         transparent 82px
     );
-    -webkit-backdrop-filter: url(#${MOBILE_LIQUID_GLASS_FILTER_ID}) blur(0.6px) saturate(1.2);
-    backdrop-filter: url(#${MOBILE_LIQUID_GLASS_FILTER_ID}) blur(0.6px) saturate(1.2);
+    -webkit-backdrop-filter: blur(5px) saturate(1.24) contrast(1.03);
+    backdrop-filter: blur(5px) saturate(1.24) contrast(1.03);
     -webkit-mask-image: linear-gradient(180deg, #000 0, #000 72%, rgba(0, 0, 0, 0.86) 90%, transparent 100%);
     mask-image: linear-gradient(180deg, #000 0, #000 72%, rgba(0, 0, 0, 0.86) 90%, transparent 100%);
     box-shadow:
         inset 0 1px 0 0 var(--damophus-mobile-glass-highlight),
         inset 0 -1px 0 0 var(--damophus-mobile-glass-highlight),
         0 2px 8px 0 var(--damophus-mobile-glass-shadow);
+}
+
+/* The mobile side panel owns the first 82px while open. Keeping the editor
+   compositor there makes its SVG toolbar icons look invisible even though
+   they remain clickable underneath the pointer-events-none glass layer. */
+html[data-frontend="mobile"] > body:has(> #sidebar[style*="translateX(0px)"]) #editor::before,
+html[data-frontend="browser-mobile"] > body:has(> #sidebar[style*="translateX(0px)"]) #editor::before {
+    display: none;
 }
 
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb,
@@ -124,9 +114,6 @@ export class MobileLiquidGlass {
       head.append(style);
     }
 
-    if (!this.targetDocument.getElementById(MOBILE_LIQUID_GLASS_HOST_ID)) {
-      head.append(this.createFilterHost());
-    }
     return true;
   }
 
@@ -134,45 +121,5 @@ export class MobileLiquidGlass {
     this.frontendObserver?.disconnect();
     this.frontendObserver = undefined;
     this.targetDocument.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.remove();
-    this.targetDocument.getElementById(MOBILE_LIQUID_GLASS_HOST_ID)?.remove();
-  }
-
-  private createFilterHost(): SVGSVGElement {
-    const svg = this.targetDocument.createElementNS(SVG_NAMESPACE, "svg");
-    svg.id = MOBILE_LIQUID_GLASS_HOST_ID;
-    svg.setAttribute("aria-hidden", "true");
-    svg.setAttribute("focusable", "false");
-    svg.setAttribute("width", "0");
-    svg.setAttribute("height", "0");
-    svg.style.position = "fixed";
-    svg.style.pointerEvents = "none";
-
-    const defs = this.targetDocument.createElementNS(SVG_NAMESPACE, "defs");
-    const filter = this.targetDocument.createElementNS(SVG_NAMESPACE, "filter");
-    filter.id = MOBILE_LIQUID_GLASS_FILTER_ID;
-    filter.setAttribute("color-interpolation-filters", "sRGB");
-    filter.setAttribute("x", "-50%");
-    filter.setAttribute("y", "-50%");
-    filter.setAttribute("width", "200%");
-    filter.setAttribute("height", "200%");
-
-    const image = this.targetDocument.createElementNS(SVG_NAMESPACE, "feImage");
-    image.setAttribute("href", `data:image/svg+xml,${encodeURIComponent(LIQUID_MAP)}`);
-    image.setAttribute("width", "100%");
-    image.setAttribute("height", "100%");
-    image.setAttribute("preserveAspectRatio", "none");
-    image.setAttribute("result", "map");
-
-    const displacement = this.targetDocument.createElementNS(SVG_NAMESPACE, "feDisplacementMap");
-    displacement.setAttribute("in", "SourceGraphic");
-    displacement.setAttribute("in2", "map");
-    displacement.setAttribute("scale", "28");
-    displacement.setAttribute("xChannelSelector", "R");
-    displacement.setAttribute("yChannelSelector", "G");
-
-    filter.append(image, displacement);
-    defs.append(filter);
-    svg.append(defs);
-    return svg;
   }
 }

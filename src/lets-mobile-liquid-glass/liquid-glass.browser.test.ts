@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  MOBILE_LIQUID_GLASS_FILTER_ID,
-  MOBILE_LIQUID_GLASS_HOST_ID,
   MOBILE_LIQUID_GLASS_STYLE_ID,
   MobileLiquidGlass,
 } from "./liquid-glass";
@@ -9,36 +7,24 @@ import {
 afterEach(() => {
   delete document.documentElement.dataset.frontend;
   document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.remove();
-  document.getElementById(MOBILE_LIQUID_GLASS_HOST_ID)?.remove();
 });
 
 describe("mobile liquid glass", () => {
-  it("mounts one unified, self-contained filter on mobile", () => {
+  it("mounts one unified CSS glass surface without a global SVG filter", () => {
     document.documentElement.dataset.frontend = "browser-mobile";
     const liquidGlass = new MobileLiquidGlass(document);
 
     expect(liquidGlass.mount()).toBe(true);
     expect(liquidGlass.mount()).toBe(true);
     expect(document.querySelectorAll(`#${MOBILE_LIQUID_GLASS_STYLE_ID}`)).toHaveLength(1);
-    expect(document.querySelectorAll(`#${MOBILE_LIQUID_GLASS_HOST_ID}`)).toHaveLength(1);
-    expect(document.head.querySelector(`#${MOBILE_LIQUID_GLASS_HOST_ID}`)).not.toBeNull();
-
-    const filter = document.getElementById(MOBILE_LIQUID_GLASS_FILTER_ID)!;
-    expect(filter.querySelectorAll("feDisplacementMap")).toHaveLength(1);
-    expect(filter.querySelector("feColorMatrix")).toBeNull();
-    expect(filter.querySelector("feImage")?.getAttribute("width")).toBe("100%");
-    expect(filter.querySelector("feImage")?.getAttribute("height")).toBe("100%");
-    expect(filter.querySelector("feDisplacementMap")?.getAttribute("scale")).toBe("28");
-    const map = decodeURIComponent(
-      filter.querySelector("feImage")?.getAttribute("href")?.split(",", 2)[1] ?? "",
-    );
-    expect(map).toContain('id="edge-lens"');
-    expect(map).not.toContain('id="x-refraction"');
-    expect(map).not.toContain('id="y-refraction"');
-    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
-      .toContain(`#editor::before`);
-    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
-      .not.toContain(`#editor::after`);
+    const css = document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent ?? "";
+    expect(css).toContain(`#editor::before`);
+    expect(css).toContain(`backdrop-filter: blur(5px) saturate(1.24) contrast(1.03)`);
+    expect(css).not.toContain(`backdrop-filter: url(`);
+    expect(css)
+      .toContain(`body:has(> #sidebar[style*="translateX(0px)"]) #editor::before`);
+    expect(css).not.toContain(`#editor::after`);
+    expect(document.querySelectorAll("#damophus-mobile-liquid-glass-host")).toHaveLength(0);
   });
 
   it("waits for the mobile frontend and removes every injected node", async () => {
@@ -53,6 +39,5 @@ describe("mobile liquid glass", () => {
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)).not.toBeNull();
     liquidGlass.destroy();
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)).toBeNull();
-    expect(document.getElementById(MOBILE_LIQUID_GLASS_HOST_ID)).toBeNull();
   });
 });
