@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { ChevronDown, Info, X } from "lucide-svelte";
+  import { Info } from "lucide-svelte";
   import { showMessage } from "siyuan";
   import { Button } from "@/components/ui/button";
   import { enableLogging } from "@/libs/logger";
@@ -9,7 +9,7 @@
   import { parseStoredThemes } from "@/theme/schema";
   import { DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
   import SettingPanel from "./libs/setting-panel.svelte";
-import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
+  import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
   import SourceAnswerMaskSettings from "./lets-question-bank/SourceAnswerMaskSettings.svelte";
   import type { AnswerMaskStyle } from "./lets-question-bank/source-answer-mask";
   import {
@@ -19,6 +19,7 @@ import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.sve
   } from "./lets-block-attr/custom-properties";
   import { PluginRegistry } from "./plugin-registry";
   import { plugin } from "./utils";
+  import SettingCategoryNavigation from "./components/setting-category-navigation.svelte";
 
   const SWITCH_GROUP = "开关";
   const GENERAL_GROUP = "设置";
@@ -90,7 +91,6 @@ import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.sve
   // Damophus' own theme picker is intentionally hidden for now.
   // The settings panel follows SiYuan's active theme instead.
   let focusGroup = SWITCH_GROUP;
-  let showBottomSheet = false;
   let mode = getHostColorMode();
   let customThemes = parseStoredThemes(settings.get("customThemes"));
   let savedThemeId = typeof settings.get("uiThemeId") === "string"
@@ -235,36 +235,16 @@ import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.sve
   class="damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 overflow-hidden bg-background text-foreground max-[768px]:flex-col"
   data-color-mode={mode}
 >
-  <nav class="w-48 shrink-0 overflow-y-auto border-r border-border bg-muted/30 p-3 max-[768px]:hidden" aria-label={t("settings.selectCategory", "Setting categories")}>
-    <div class="mb-3 border-b border-border px-2 pb-3">
-      <strong class="block text-sm font-semibold">Damophus</strong>
-      <span class="text-xs text-muted-foreground">{t("settings.preferences", "Preferences")}</span>
-    </div>
-    <ul class="b3-list b3-list--background m-0 list-none p-0">
-      {#each groups as group}
-        <li>
-          <button
-            type="button"
-            class="b3-list-item my-1 w-full"
-            class:b3-list-item--focus={group === focusGroup}
-            aria-current={group === focusGroup ? "page" : undefined}
-            onclick={() => (focusGroup = group)}
-          >
-            <span class="b3-list-item__text min-w-0 truncate">{getGroupLabel(group)}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
-  </nav>
-
-  <Button
-    class="m-3 hidden w-auto justify-between max-[768px]:flex"
-    variant="outline"
-    onclick={() => (showBottomSheet = true)}
-  >
-    {getGroupLabel(focusGroup)}
-    <ChevronDown />
-  </Button>
+  <SettingCategoryNavigation
+    {groups}
+    {focusGroup}
+    getGroupLabel={getGroupLabel}
+    categoryLabel={t("settings.selectCategory", "Setting categories")}
+    categoryDescription={t("settings.selectCategoryDescription", "Choose which Damophus settings to display.")}
+    preferencesLabel={t("settings.preferences", "Preferences")}
+    closeLabel={t("settings.close", "Close")}
+    on:select={(event) => (focusGroup = event.detail)}
+  />
 
   <main class="min-w-0 flex-1 overflow-y-auto">
     <div class="mx-auto flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
@@ -318,35 +298,3 @@ import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.sve
     </div>
   </main>
 </div>
-
-{#if showBottomSheet}
-  <div class="damophus-theme-root fixed inset-0 z-[9999] flex items-end bg-black/45" role="presentation" onclick={() => (showBottomSheet = false)}>
-    <div
-      class="max-h-[70dvh] w-full overflow-y-auto rounded-t-lg border-t border-border bg-popover p-4 text-popover-foreground shadow-lg"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(event) => event.stopPropagation()}
-      onkeydown={(event) => event.stopPropagation()}
-    >
-      <div class="mb-3 flex items-center justify-between border-b border-border pb-3">
-        <strong class="text-sm">{t("settings.selectCategory", "Select category")}</strong>
-        <Button variant="ghost" size="icon-sm" title={t("settings.close", "Close")} onclick={() => (showBottomSheet = false)}><X /><span class="sr-only">{t("settings.close", "Close")}</span></Button>
-      </div>
-      <div class="b3-list b3-list--background flex flex-col gap-1">
-        {#each groups as group}
-          <button
-            type="button"
-            class="b3-list-item min-h-10 w-full"
-            class:b3-list-item--focus={group === focusGroup}
-            aria-current={group === focusGroup ? "page" : undefined}
-            onclick={() => {
-              focusGroup = group;
-              showBottomSheet = false;
-            }}
-          ><span class="b3-list-item__text">{getGroupLabel(group)}</span></button>
-        {/each}
-      </div>
-    </div>
-  </div>
-{/if}

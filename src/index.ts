@@ -147,10 +147,12 @@ export default class PluginLetsGo extends Plugin {
 
   openSetting(): void {
     let panel: ReturnType<typeof mount> | undefined;
+    const mobileSetting = isMobile;
     const dialog = new Dialog({
       title: "Damophus",
-      content: '<div id="damophus-setting-panel" style="height: 600px;"></div>',
-      width: "800px",
+      content: '<div id="damophus-setting-panel" style="height: 100%; min-height: 0;"></div>',
+      width: mobileSetting ? "100vw" : "800px",
+      height: mobileSetting ? "100dvh" : undefined,
       destroyCallback: () => {
         if (panel) void unmount(panel);
       },
