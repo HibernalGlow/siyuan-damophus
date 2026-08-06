@@ -172,25 +172,38 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__ico
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"],
 html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] {
   position: fixed;
-  top: 0;
-  width: 40px;
+  top: 4px;
+  width: 32px;
   height: 40px;
   margin: 0;
+  padding: 0;
   z-index: 6;
   background: transparent;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"] > svg,
+html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"] > svg,
+html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="doc"] > svg,
+html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="doc"] > svg,
+html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] > svg,
+html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] > svg {
+  width: 18px;
+  height: 18px;
 }
 
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"],
 html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"] {
-  right: 158px;
+  right: 168px;
 }
 
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="doc"],
 html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="doc"] {
-  right: 118px;
+  right: 134px;
 }
 
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"],
 html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] {
-  right: 78px;
+  right: 100px;
 }
