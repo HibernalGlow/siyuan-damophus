@@ -240,17 +240,17 @@ import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.sve
       <strong class="block text-sm font-semibold">Damophus</strong>
       <span class="text-xs text-muted-foreground">{t("settings.preferences", "Preferences")}</span>
     </div>
-    <ul class="m-0 flex list-none flex-col gap-1 p-0">
+    <ul class="b3-list b3-list--background m-0 list-none p-0">
       {#each groups as group}
         <li>
           <button
-            class="flex h-9 w-full items-center rounded-md px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            class:bg-primary={group === focusGroup}
-            class:text-primary-foreground={group === focusGroup}
-            class:font-medium={group === focusGroup}
+            type="button"
+            class="b3-list-item my-1 w-full"
+            class:b3-list-item--focus={group === focusGroup}
+            aria-current={group === focusGroup ? "page" : undefined}
             onclick={() => (focusGroup = group)}
           >
-            <span class="min-w-0 truncate">{getGroupLabel(group)}</span>
+            <span class="b3-list-item__text min-w-0 truncate">{getGroupLabel(group)}</span>
           </button>
         </li>
       {/each}
@@ -333,17 +333,18 @@ import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.sve
         <strong class="text-sm">{t("settings.selectCategory", "Select category")}</strong>
         <Button variant="ghost" size="icon-sm" title={t("settings.close", "Close")} onclick={() => (showBottomSheet = false)}><X /><span class="sr-only">{t("settings.close", "Close")}</span></Button>
       </div>
-      <div class="flex flex-col gap-1">
+      <div class="b3-list b3-list--background flex flex-col gap-1">
         {#each groups as group}
           <button
-            class="min-h-10 rounded-md px-3 text-left text-sm hover:bg-muted"
-            class:bg-primary={group === focusGroup}
-            class:text-primary-foreground={group === focusGroup}
+            type="button"
+            class="b3-list-item min-h-10 w-full"
+            class:b3-list-item--focus={group === focusGroup}
+            aria-current={group === focusGroup ? "page" : undefined}
             onclick={() => {
               focusGroup = group;
               showBottomSheet = false;
             }}
-          >{getGroupLabel(group)}</button>
+          ><span class="b3-list-item__text">{getGroupLabel(group)}</span></button>
         {/each}
       </div>
     </div>
