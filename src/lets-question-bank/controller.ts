@@ -1,6 +1,7 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
 import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/core/recovery";
 import type { AttemptAggregate, AttemptEvent } from "@/question-bank/core/types";
+import type { StatisticsQuestion } from "@/question-bank/core/statistics";
 import { getLogger } from "@/libs/logger";
 import {
   addQuickRiffCards,
@@ -14,6 +15,7 @@ import {
   previewQuestionBankRebinding,
   QuestionBankBindingSchema,
   rebuildAttemptStatistics,
+  readQuestionIndexStatistics,
   siyuanKernelClient,
   submitRiffRating,
   type QuestionBankBinding,
@@ -69,6 +71,8 @@ export interface QuestionBankUiController {
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
   loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>>;
+  loadStatisticsQuestions?: () => Promise<StatisticsQuestion[]>;
+  loadAttemptEvents?: () => Promise<AttemptEvent[]>;
   loadDueCards(blockIdsByQuestionId: ReadonlyMap<string, string>): Promise<ReadonlyMap<string, RiffCard>>;
   exportAttempts(): Promise<string>;
   previewImport(source: string): Promise<AttemptImportPreview>;
@@ -209,6 +213,14 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>> {
     return (await rebuildAttemptStatistics(this.client, this.requireBinding())).aggregates;
+  }
+
+  async loadStatisticsQuestions(): Promise<StatisticsQuestion[]> {
+    return readQuestionIndexStatistics(this.client, this.requireBinding());
+  }
+
+  async loadAttemptEvents(): Promise<AttemptEvent[]> {
+    return (await rebuildAttemptStatistics(this.client, this.requireBinding())).events;
   }
 
   async loadDueCards(

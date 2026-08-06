@@ -306,6 +306,29 @@ async function scanAndSync(): Promise<void> {
 }
 
 describe("question bank browser flow", () => {
+  it("switches from practice to the full-library read-only statistics view", async () => {
+    const { controller } = mockController();
+    controller.loadStatisticsQuestions = vi.fn(async () => [
+      { questionId: objectiveQuestion.id, questionType: objectiveQuestion.type, subject: "Civil law", category: "Security" },
+    ]);
+    controller.loadAttemptEvents = vi.fn(async () => [attempt({
+      questionId: objectiveQuestion.id,
+      sessionId: "statistics-session",
+      questionType: objectiveQuestion.type,
+      objectiveCorrect: false,
+      masteryRating: "again",
+      durationMs: 2000,
+    })]);
+    render(controller, { now: () => Date.parse("2026-08-06T02:00:00.000Z") });
+
+    button("统计").click();
+    await vi.waitFor(() => expect(document.querySelector('[data-testid="statistics-view"]')).not.toBeNull());
+    expect(document.body.textContent).toContain("Question coverage");
+    expect(document.body.textContent).toContain("Civil law");
+    expect(controller.loadStatisticsQuestions).toHaveBeenCalledOnce();
+    expect(controller.loadAttemptEvents).toHaveBeenCalledOnce();
+  });
+
   it("shows a working close action when hosted in a mobile dialog", async () => {
     const onClose = vi.fn();
     const { controller } = mockController();

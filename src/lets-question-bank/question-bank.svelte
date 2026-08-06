@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import {
     ArrowLeft,
+    BarChart3,
     BookOpenCheck,
     ChevronLeft,
     ChevronDown,
@@ -56,6 +57,7 @@
     ShuffledQuestion,
     TopicNode,
   } from "@/question-bank/core/types";
+  import { buildStatistics, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
     createPracticeQueue,
@@ -89,6 +91,7 @@
   import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
   import PracticeScanSummary from "./PracticeScanSummary.svelte";
+  import Statistics from "./Statistics.svelte";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
@@ -181,6 +184,11 @@
   let dataPanelUserControlled = false;
   let scanDetailsOpen = false;
   let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
+  let view: "practice" | "statistics" = "practice";
+  let statisticsSnapshot: StatisticsSnapshot | undefined;
+  let statisticsLoading = false;
+  let statisticsRange: StatisticsRange = 30;
+  let statisticsSort: StatisticsSort = "weakness";
 
   const entireDocumentScope = "__damophus_entire_document__";
 
@@ -430,6 +438,46 @@
       if ((savedHeadingBlockId || savedTopicId) && !topicExists) controller.saveRecentScope({ documentId });
       await refreshStoredSessions();
     });
+  }
+
+  function loadStatistics(): void {
+    if (!controller.loadStatisticsQuestions || !controller.loadAttemptEvents) {
+      statisticsSnapshot = undefined;
+      return;
+    }
+    void run(async () => {
+      statisticsLoading = true;
+      try {
+        const [statisticsQuestions, attempts] = await Promise.all([
+          controller.loadStatisticsQuestions!(),
+          controller.loadAttemptEvents!(),
+        ]);
+        statisticsSnapshot = buildStatistics(
+          statisticsQuestions,
+          attempts,
+          statisticsRange,
+          now(),
+          statisticsSort,
+        );
+      } finally {
+        statisticsLoading = false;
+      }
+    });
+  }
+
+  function selectView(next: "practice" | "statistics"): void {
+    view = next;
+    if (next === "statistics") loadStatistics();
+  }
+
+  function changeStatisticsRange(value: StatisticsRange): void {
+    statisticsRange = value;
+    loadStatistics();
+  }
+
+  function changeStatisticsSort(value: StatisticsSort): void {
+    statisticsSort = value;
+    loadStatistics();
   }
 
   function confirmSync(): void {
@@ -1133,7 +1181,41 @@
         {/if}
       </div>
     </section>
-  {:else if queue.length === 0 && !complete}
+  {:else}
+    <div class="view-tabs mx-4 mt-3 grid shrink-0 grid-cols-2 border-b" role="tablist" aria-label={label("views", "Views")}>
+      <button
+        type="button"
+        role="tab"
+        class={`view-tab flex items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm ${view === "practice" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
+        aria-selected={view === "practice"}
+        onclick={() => selectView("practice")}
+      >
+        <BookOpenCheck size={16} aria-hidden="true" />
+        {label("practice", "练习")}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class={`view-tab flex items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm ${view === "statistics" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
+        aria-selected={view === "statistics"}
+        onclick={() => selectView("statistics")}
+      >
+        <BarChart3 size={16} aria-hidden="true" />
+        {label("statistics", "统计")}
+      </button>
+    </div>
+
+    {#if view === "statistics"}
+      <Statistics
+        snapshot={statisticsSnapshot}
+        loading={statisticsLoading}
+        range={statisticsRange}
+        sort={statisticsSort}
+        onRangeChange={changeStatisticsRange}
+        onSortChange={changeStatisticsSort}
+        {label}
+      />
+    {:else if queue.length === 0 && !complete}
     <section class="workspace min-h-0 flex-1 overflow-y-auto">
       <div class="workspace-toolbar">
         <div class="document-row">
@@ -1593,6 +1675,7 @@
       {resetPractice}
       {label}
     />
+  {/if}
   {/if}
 </main>
 
