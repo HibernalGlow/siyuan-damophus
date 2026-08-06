@@ -5,10 +5,10 @@ html[data-frontend="browser-mobile"] > body > .toolbar {
     inset: 0 0 auto;
     width: 100%;
     z-index: 6;
-    background: oklch(from var(--b3-theme-background) l c h / 0.7) !important;
+    background: transparent !important;
     border-bottom-color: transparent;
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb,
@@ -17,10 +17,10 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb {
     inset: 40px 0 auto;
     width: 100%;
     z-index: 5;
-    background: oklch(from var(--b3-theme-background) l c h / 0.7) !important;
+    background: transparent !important;
     border-bottom: 0;
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 `;
 
@@ -29,16 +29,18 @@ export type MobileLiquidGlassPreset = "blur" | "frosted-glass" | "liquid-glass";
 const SHARED = `
 html[data-frontend="mobile"],
 html[data-frontend="browser-mobile"] {
-    --damophus-mobile-glass-highlight: hsla(0, 0%, 100%, 0.16);
-    --damophus-mobile-glass-shadow: hsla(0, 0%, 0%, 0.12);
+    --_damophus-superfusion-frosted-glass-filter: blur(6px) brightness(1.05);
+    --_damophus-superfusion-frosted-glass-strip: 0 1px 0 0 oklch(from var(--b3-theme-background) 0.99 c h / 0.88), 0 2px 8px 1px oklch(from var(--b3-theme-on-background) calc(l - 0.035) c h / 0.08);
+    --_damophus-superfusion-liquid-glass-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
 }
 
 html[data-frontend="mobile"].neo-mode-dark,
 html[data-frontend="browser-mobile"].neo-mode-dark,
 html[data-frontend="mobile"][data-theme-mode="dark"],
 html[data-frontend="browser-mobile"][data-theme-mode="dark"] {
-    --damophus-mobile-glass-highlight: hsla(0, 0%, 100%, 0.1);
-    --damophus-mobile-glass-shadow: hsla(0, 0%, 0%, 0.3);
+    --_damophus-superfusion-frosted-glass-filter: blur(6px) brightness(0.9);
+    --_damophus-superfusion-frosted-glass-strip: 0 1px 0 0 oklch(from var(--b3-theme-on-background) l c h / 0.18), 0 2px 8px 1px oklch(from var(--b3-theme-background) calc(l - 0.1) c h / 0.42);
+    --_damophus-superfusion-liquid-glass-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
 }
 `;
 
@@ -85,7 +87,7 @@ html[data-frontend="browser-mobile"] #editor::before {
     background: oklch(from var(--b3-theme-background) l c h / 0.5);
     -webkit-backdrop-filter: blur(6px) brightness(0.9);
     backdrop-filter: blur(6px) brightness(0.9);
-    box-shadow: 0 1px 0 0 var(--damophus-mobile-glass-highlight), 0 2px 8px 1px var(--damophus-mobile-glass-shadow);
+    box-shadow: var(--_damophus-superfusion-frosted-glass-strip);
 }
 
 html[data-frontend="mobile"] #editor::after,
@@ -113,23 +115,9 @@ html[data-frontend="browser-mobile"] #editor::before {
     pointer-events: none;
     z-index: 2;
     background: oklch(from var(--b3-theme-background) l c h / 0.7);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    box-shadow: 0 1px 0 0 var(--damophus-mobile-glass-highlight), 0 2px 8px 1px var(--damophus-mobile-glass-shadow);
-}
-
-html[data-frontend="mobile"] #editor::after,
-html[data-frontend="browser-mobile"] #editor::after {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
-    height: 80px;
-    pointer-events: none;
-    z-index: 2;
-    -webkit-backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
-    backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5);
-    -webkit-mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 4px, transparent 9px 71px, rgba(0, 0, 0, 0.72) 76px, #000 80px);
-    mask: linear-gradient(to bottom, #000 0, rgba(0, 0, 0, 0.72) 4px, transparent 9px 71px, rgba(0, 0, 0, 0.72) 76px, #000 80px);
+    -webkit-backdrop-filter: var(--_damophus-superfusion-liquid-glass-filter);
+    backdrop-filter: var(--_damophus-superfusion-liquid-glass-filter);
+    box-shadow: var(--_damophus-superfusion-frosted-glass-strip);
 }
 `;
 

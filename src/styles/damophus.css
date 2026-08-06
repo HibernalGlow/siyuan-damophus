@@ -172,7 +172,7 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__ico
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"],
 html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] {
   position: fixed;
-  top: 0;
+  top: -40px;
   width: 40px;
   height: 40px;
   margin: 0;

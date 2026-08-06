@@ -28,8 +28,8 @@ describe("mobile liquid glass", () => {
     const css = document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent ?? "";
     expect(css).toContain(`#editor::before`);
     expect(css).not.toContain(`.protyle-breadcrumb::before`);
-    expect(css).toContain(`backdrop-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5)`);
-    expect(css).toContain(`transparent 9px 71px`);
+    expect(css).toContain(`--_damophus-superfusion-liquid-glass-filter: url(#damophus-mobile-liquid-glass-filter) saturate(1.5)`);
+    expect(css).toContain(`backdrop-filter: var(--_damophus-superfusion-liquid-glass-filter)`);
     expect(css).not.toContain(`#sidebar .toolbar__icon`);
     expect(css).not.toMatch(/(?:^|[,{])\s*(?:svg|use|symbol)\b/);
     expect(document.querySelectorAll(`#${MOBILE_LIQUID_GLASS_FILTER_HOST_ID}`)).toHaveLength(1);
