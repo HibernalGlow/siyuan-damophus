@@ -150,9 +150,9 @@ export default class PluginLetsGo extends Plugin {
     const mobileSetting = isMobile;
     const dialog = new Dialog({
       title: "Damophus",
-      content: '<div id="damophus-setting-panel" style="height: 100%; min-height: 0;"></div>',
+      content: '<div id="damophus-setting-panel" style="height: 100%; min-height: 0; overflow: hidden;"></div>',
       width: mobileSetting ? "100vw" : "800px",
-      height: mobileSetting ? "100dvh" : undefined,
+      height: mobileSetting ? "100dvh" : "min(88dvh, 820px)",
       destroyCallback: () => {
         if (panel) void unmount(panel);
       },
