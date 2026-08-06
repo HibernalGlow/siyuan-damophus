@@ -8,6 +8,10 @@ const requiredFiles = [
   "dist/icon.png",
   "dist/preview.png",
   "dist/README.md",
+  "dist/assets/readme/hero.svg",
+  "dist/assets/readme/mobile-experience.svg",
+  "dist/assets/readme/workflow.svg",
+  "dist/assets/readme/screenshots/desktop-practice.png",
   "package.zip",
 ];
 

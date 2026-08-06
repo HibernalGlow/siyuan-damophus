@@ -87,6 +87,7 @@ const watchExternalPlugin: Plugin = {
       "src/translations/**",
       "./README*.md",
       "./plugin.json",
+      "./assets/readme/**",
     ]);
     for (const file of files) {
       this.addWatchFile(file);
@@ -155,6 +156,10 @@ export default defineConfig({
         },
         {
           src: "./icon.png",
+          dest: "./",
+        },
+        {
+          src: "./assets/readme/**/*",
           dest: "./",
         },
         {
