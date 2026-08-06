@@ -8,9 +8,10 @@ import { enableLogging, getLogger } from "@/libs/logger";
 import { PluginRegistry } from "@/plugin-registry";
 import { settings } from "@/settings";
 import { isMobile, setPlugin } from "@/utils";
-import damophusToolbarIcon from "../damophus-icon-mono.svg?raw";
+import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 
 const log = getLogger("index");
+const damophusToolbarIcon = damophusMonoIcon.replace(/^<\?xml[^>]*>\s*/u, "");
 
 export default class PluginLetsGo extends Plugin {
   private readonly pluginRegistry = PluginRegistry.getInstance();
@@ -24,7 +25,6 @@ export default class PluginLetsGo extends Plugin {
 
   override async onload(): Promise<void> {
     this.init();
-    this.registerTopBar();
     await settings.load();
     enableLogging(settings.get("debugLogging") || false);
     await this.pluginRegistry.scanPlugins();
@@ -33,6 +33,7 @@ export default class PluginLetsGo extends Plugin {
   }
 
   override async onLayoutReady(): Promise<void> {
+    this.registerTopBar();
     const plugins = this.pluginRegistry.getAllPlugins();
 
     for (const plugin of plugins) {
@@ -70,14 +71,22 @@ export default class PluginLetsGo extends Plugin {
 
   private addMenu(rect?: DOMRect): void {
     const menu = new Menu("siyuan-damophus-topbar");
+    let itemCount = 0;
     for (const plugin of this.pluginRegistry.getAllPlugins()) {
       if (!plugin.enabled || !plugin.addMenuItem) continue;
       try {
         plugin.addMenuItem(menu);
+        itemCount += 1;
       } catch (error) {
         log.error(`Failed to add menu item for plugin ${plugin.name}:`, error);
       }
     }
+    if (itemCount > 0) menu.addSeparator();
+    menu.addItem({
+      icon: "iconSettings",
+      label: this.i18n["settings.preferences"] ?? "设置",
+      click: () => this.openSetting(),
+    });
 
     if (isMobile) {
       menu.fullscreen();

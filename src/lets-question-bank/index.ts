@@ -27,7 +27,6 @@ type PracticeCommand = "previous" | "next" | "pause";
 export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
   private listening = false;
-  private topBarElement?: HTMLElement;
   private dockApp?: ReturnType<typeof mount>;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
@@ -112,16 +111,6 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
   }
 
-  onLayoutReady(): void {
-    if (this.topBarElement) return;
-    this.topBarElement = plugin.addTopBar({
-      icon: "iconDatabase",
-      title: this.t("lets-question-bank.displayName"),
-      position: "right",
-      callback: () => this.open(),
-    });
-  }
-
   private registerDock(): void {
     const owner = this;
     plugin.addDock({
@@ -151,8 +140,6 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.stopSourceAnswerMask = undefined;
     if (this.dockApp) void unmount(this.dockApp);
     this.dockApp = undefined;
-    this.topBarElement?.remove();
-    this.topBarElement = undefined;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
@@ -202,7 +189,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
       dialog.element.classList.add("damophus-question-bank-mobile-dialog");
       const target = dialog.element.querySelector<HTMLElement>(".damophus-question-bank-dialog");
       if (!target) return;
-      app = this.mountQuestionBank(target, blockId, () => dialog.destroy());
+      const closeDialog = () => dialog.destroy();
+      app = this.mountQuestionBank(target, blockId, closeDialog, closeDialog);
       return;
     }
     void openTab({
@@ -268,6 +256,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     target: HTMLElement,
     documentId?: string,
     beforeOpenQuestionSource?: () => void,
+    onClose?: () => void,
   ): ReturnType<typeof mount> {
     target.classList.add(
       "damophus-question-bank-host",
@@ -302,6 +291,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
           maxWidth: Number(settings.getBySpace("mobileBreadcrumb", "maxTextWidth")) || 160,
         },
         loadBreadcrumb: (blockId: string) => getBlockBreadcrumb(blockId),
+        onClose,
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),
