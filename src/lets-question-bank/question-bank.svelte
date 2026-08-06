@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { ArrowLeft, ChevronLeft, ChevronRight, X } from "lucide-svelte";
+  import { ArrowLeft, ChevronLeft, ChevronRight, Pause, Play, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import {
     normalizeBreadcrumbPriority,
@@ -210,6 +210,7 @@
       )).length
     : 0;
   $: reviewing = Boolean(practiceState?.matches("reviewing"));
+  $: timerPaused = Boolean(practiceState?.matches("paused"));
 
   onMount(() => {
     const host = rootElement.closest<HTMLElement>(".damophus-question-bank-host");
@@ -428,7 +429,9 @@
     submitting = snapshot.matches("submitting");
     timerNow = now();
     const host = rootElement?.closest<HTMLElement>(".damophus-question-bank-host, .damophus-question-bank-dialog");
-    if (host) host.dataset.practiceActive = String(snapshot.matches("active") || snapshot.matches("reviewing"));
+    if (host) host.dataset.practiceActive = String(
+      snapshot.matches("active") || snapshot.matches("paused") || snapshot.matches("reviewing"),
+    );
     currentQuestion = complete ? undefined : queue[questionIndex];
     if (!currentQuestion) {
       shuffled = undefined;
@@ -709,6 +712,18 @@
       await leavePracticeRuntime(runtime);
       await refreshStoredSessions();
     });
+  }
+
+  function togglePracticeTimer(): void {
+    if (!practiceRuntime || submitting || reviewing) return;
+    const current = practiceRuntime.actor.getSnapshot();
+    if (current.matches("active")) {
+      practiceRuntime.actor.send({ type: "PAUSE", now: now() });
+      clearTimer();
+    } else if (current.matches("paused")) {
+      practiceRuntime.actor.send({ type: "RESUME", now: now() });
+      startTimer();
+    }
   }
 
   function requestEndPractice(): void {
@@ -1345,6 +1360,22 @@
           </Button>
           <Button variant="ghost" size="icon" disabled={questionIndex >= queue.length - 1 || submitting} title={label("next", "Next question")} aria-label={label("next", "Next question")} onclick={nextQuestion}>
             <ChevronRight size={17} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            data-practice-timer-toggle
+            disabled={submitting || reviewing}
+            title={timerPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
+            aria-label={timerPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
+            aria-pressed={timerPaused}
+            onclick={togglePracticeTimer}
+          >
+            {#if timerPaused}
+              <Play size={17} aria-hidden="true" />
+            {:else}
+              <Pause size={17} aria-hidden="true" />
+            {/if}
           </Button>
           {#if reviewing}
             <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>

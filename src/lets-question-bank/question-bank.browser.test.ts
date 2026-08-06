@@ -573,6 +573,30 @@ describe("question bank browser flow", () => {
     expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("pauses only the practice timer without leaving the question", async () => {
+    let currentNow = 1_000;
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { now: () => currentNow });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    const toggle = document.querySelector<HTMLButtonElement>("[data-practice-timer-toggle]")!;
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    toggle.click();
+    await flush();
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(document.body.textContent).toContain("Objective question");
+
+    currentNow = 20_000;
+    await flush();
+    expect(document.querySelector<HTMLElement>(".timer")?.textContent).toMatch(/00:00/);
+
+    toggle.click();
+    await flush();
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+  });
+
   it("shows source reconciliation issues after resuming", async () => {
     const { controller, practiceSessions } = mockController({ preview: makePreview([objectiveQuestion]) });
     practiceSessions.set(documentId, createPracticeSessionSnapshot({
