@@ -38,6 +38,10 @@ describe("mobile liquid glass", () => {
       .toContain(`#editor::before`);
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
       .toContain(`#editor::after`);
+    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
+      .toContain(`inset: 58px 0 auto`);
+    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
+      .toContain(`height: 24px`);
   });
 
   it("waits for the mobile frontend and removes every injected node", async () => {

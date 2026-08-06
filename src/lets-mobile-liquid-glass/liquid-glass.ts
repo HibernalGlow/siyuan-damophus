@@ -5,7 +5,7 @@ export const MOBILE_LIQUID_GLASS_FILTER_ID = "damophus-mobile-liquid-glass-filte
 export const MOBILE_LIQUID_GLASS_STYLE_ID = "damophus-mobile-liquid-glass-style";
 
 const LIQUID_MAP = `
-<svg xmlns="http://www.w3.org/2000/svg" width="478" height="28" viewBox="0 0 478 28">
+<svg xmlns="http://www.w3.org/2000/svg" width="478" height="24" viewBox="0 0 478 24">
   <defs>
     <linearGradient id="x-refraction" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#800000"/>
@@ -30,8 +30,8 @@ const LIQUID_MAP = `
     </linearGradient>
   </defs>
   <g style="mix-blend-mode:screen">
-    <rect width="478" height="28" fill="url(#x-refraction)"/>
-    <rect width="478" height="28" fill="url(#y-refraction)"/>
+    <rect width="478" height="24" fill="url(#x-refraction)"/>
+    <rect width="478" height="24" fill="url(#y-refraction)"/>
   </g>
 </svg>`;
 
@@ -80,8 +80,9 @@ html[data-frontend="browser-mobile"] #editor::before {
     background: linear-gradient(
         180deg,
         var(--damophus-mobile-glass-core) 0,
-        var(--damophus-mobile-glass-core) 70px,
-        var(--damophus-mobile-glass-tail) 82px
+        var(--damophus-mobile-glass-core) 58px,
+        var(--damophus-mobile-glass-tail) 68px,
+        transparent 82px
     );
     -webkit-backdrop-filter: blur(1px) saturate(1.2);
     backdrop-filter: blur(1px) saturate(1.2);
@@ -92,8 +93,8 @@ html[data-frontend="mobile"] #editor::after,
 html[data-frontend="browser-mobile"] #editor::after {
     content: "";
     position: absolute;
-    inset: 76px 0 auto;
-    height: 28px;
+    inset: 58px 0 auto;
+    height: 24px;
     z-index: 4;
     pointer-events: none;
     background: linear-gradient(
