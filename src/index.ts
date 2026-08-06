@@ -47,6 +47,12 @@ export default class PluginLetsGo extends Plugin {
           if (rect) this.addMenu(rect);
         },
       });
+      // 右键弹出快捷菜单：快速进入设置
+      topBarElement.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.addQuickMenu(event);
+      });
     }
 
     for (const plugin of plugins) {
@@ -75,6 +81,19 @@ export default class PluginLetsGo extends Plugin {
     } else if (rect) {
       menu.open({ x: rect.right, y: rect.bottom, isLeft: true });
     }
+  }
+
+  /**
+   * 顶栏按钮右键菜单：快速进入设置
+   */
+  private addQuickMenu(event: MouseEvent): void {
+    const menu = new Menu("siyuan-damophus-topbar-context");
+    menu.addItem({
+      icon: "iconSettings",
+      label: this.i18n["settings.preferences"] ?? "偏好设置",
+      click: () => this.openSetting(),
+    });
+    menu.open({ x: event.clientX, y: event.clientY, isLeft: true });
   }
 
   override async onDataChanged(): Promise<void> {
