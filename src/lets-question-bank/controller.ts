@@ -368,6 +368,13 @@ export class QuestionBankController implements QuestionBankUiController {
     dueCard?: RiffCard,
   ): Promise<AttemptSubmissionResult> {
     const event = createAttemptEvent({ ...input, attemptId: this.uuid() });
+    log.info("attempt.created", {
+      attemptId: event.attempt_id,
+      questionId: event.question_id,
+      selectedOptionIds: event.selected_option_ids,
+      objectiveCorrect: event.objective_correct,
+      masteryRating: event.mastery_rating,
+    });
     const result = await appendAttemptEvent(this.client, this.requireBinding(), event, this.nodeId);
     if (result.status !== "created") throw new Error(`Attempt '${event.attempt_id}' already exists`);
     const warnings: string[] = [];

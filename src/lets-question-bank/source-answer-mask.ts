@@ -60,8 +60,9 @@ function answerPattern(raw: string): RegExp | undefined {
   if (!alternatives.length) return undefined;
   const token = `(?:${alternatives.map(escapeRegExp).join("|")})`;
   const separator = "(?:\\s*(?:[,\\uFF0C\\u3001/]|\\u548c|\\u53ca|and)\\s*)";
+  const joinedToken = `(?:${separator}?${token})`;
   return new RegExp(
-    `((?:\\u6b63\\u786e\\u7b54\\u6848|\\u53c2\\u8003\\u7b54\\u6848|\\u6807\\u51c6\\u7b54\\u6848|\\u7b54\\u6848|answer)\\s*(?:\\u4e3a|\\u662f|[:\\uFF1A])?\\s*)(${token}(?:${separator}${token})*)`,
+    `((?:\\u6b63\\u786e\\u7b54\\u6848|\\u53c2\\u8003\\u7b54\\u6848|\\u6807\\u51c6\\u7b54\\u6848|\\u7b54\\u6848|answer)\\s*(?:\\u4e3a|\\u662f|[:\\uFF1A])?\\s*)(${token}${joinedToken}*)`,
     "giu",
   );
 }

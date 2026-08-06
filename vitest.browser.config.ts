@@ -10,6 +10,9 @@ const executablePath = process.env.SIYUAN_DAMOPHUS_CHROME_PATH
   ?? (existsSync(bundledChrome) ? bundledChrome : undefined);
 
 export default defineConfig({
+  optimizeDeps: {
+    include: ["consola"],
+  },
   resolve: {
     alias: { "@": resolve(import.meta.dirname, "src") },
   },
