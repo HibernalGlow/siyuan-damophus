@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { sourceEmbedBlockIds, sourceEmbedSql, type SourceEmbedBlockRow } from "./source-embed-query";
+import {
+  loadSourceEmbedRows,
+  sourceEmbedBlockIds,
+  sourceEmbedSql,
+  type SourceEmbedBlockRow,
+} from "./source-embed-query";
 
 const rows: SourceEmbedBlockRow[] = [
   { id: "20260806000000-doc0001", sort: 0, type: "d" },
@@ -57,6 +62,53 @@ describe("source embed query", () => {
       "20260806005231-1gxlpdc",
       "20260806005231-7e8gnmf",
       "20260806005231-u08p9a3",
+    ]);
+  });
+
+  it("loads a real question subtree instead of relying on a truncated document query", async () => {
+    const realRows: SourceEmbedBlockRow[] = [
+      { id: "20260806005231-9llmnk4", parent_id: "20260806005231-nib2w11", type: "h", content: "145.", ial: '{: custom-qb-id="q145"}' },
+      { id: "20260806005231-p6dzb2p", parent_id: "20260806005231-9llmnk4", type: "l", content: "Question container" },
+      { id: "20260806005231-0pvujjo", parent_id: "20260806005231-p6dzb2p", type: "p", content: "Question stem" },
+      { id: "20260806005231-gxm2xl5", parent_id: "20260806005231-p6dzb2p", type: "l", content: "A. First B. Second" },
+      { id: "20260806005231-c4lr18w", parent_id: "20260806005231-9llmnk4", type: "l", content: "Answer: B", ial: '{: custom-qb-section="solution"}' },
+      { id: "20260806005231-1gxlpdc", parent_id: "20260806005231-9llmnk4", type: "l", content: "Explanation" },
+    ];
+    const children = new Map<string, { id: string }[]>([
+      ["20260806005231-9llmnk4", [
+        { id: "20260806005231-p6dzb2p" },
+        { id: "20260806005231-c4lr18w" },
+        { id: "20260806005231-1gxlpdc" },
+      ]],
+      ["20260806005231-p6dzb2p", [
+        { id: "20260806005231-0pvujjo" },
+        { id: "20260806005231-gxm2xl5" },
+      ]],
+    ]);
+    const requested: string[][] = [];
+
+    const loaded = await loadSourceEmbedRows("20260806005231-9llmnk4", {
+      loadChildren: async (blockId) => children.get(blockId) ?? [],
+      loadRows: async (blockIds) => {
+        requested.push([...blockIds]);
+        return realRows.filter((row) => blockIds.includes(row.id));
+      },
+    });
+
+    expect(requested).toEqual([[
+      "20260806005231-9llmnk4",
+      "20260806005231-p6dzb2p",
+      "20260806005231-0pvujjo",
+      "20260806005231-gxm2xl5",
+      "20260806005231-c4lr18w",
+      "20260806005231-1gxlpdc",
+    ]]);
+    expect(sourceEmbedBlockIds(loaded, "20260806005231-9llmnk4", "stem")).toEqual([
+      "20260806005231-0pvujjo",
+    ]);
+    expect(sourceEmbedBlockIds(loaded, "20260806005231-9llmnk4", "solution")).toEqual([
+      "20260806005231-c4lr18w",
+      "20260806005231-1gxlpdc",
     ]);
   });
 });

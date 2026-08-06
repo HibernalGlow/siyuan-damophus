@@ -18,6 +18,11 @@ export interface SourceEmbedBlockRow {
 
 export type SourceEmbedSection = "stem" | "solution";
 
+export interface SourceEmbedChildrenLoader {
+  loadChildren(blockId: string): Promise<readonly { id: string }[] | null | undefined>;
+  loadRows(blockIds: readonly string[]): Promise<readonly SourceEmbedBlockRow[]>;
+}
+
 function sortValue(value: number | string | undefined): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
@@ -72,6 +77,28 @@ function descendants(row: SourceEmbedBlockRow, byParent: Map<string, SourceEmbed
 
 function quote(value: string): string {
   return `'${value.replace(/'/gu, "''")}'`;
+}
+
+/** Load only the selected question subtree, preserving SiYuan's actual child order. */
+export async function loadSourceEmbedRows(
+  questionBlockId: string,
+  loader: SourceEmbedChildrenLoader,
+): Promise<SourceEmbedBlockRow[]> {
+  const orderedIds: string[] = [];
+  const visited = new Set<string>([questionBlockId]);
+  const visit = async (parentId: string): Promise<void> => {
+    for (const child of await loader.loadChildren(parentId) ?? []) {
+      if (!nodeIdPattern.test(child.id) || visited.has(child.id)) continue;
+      visited.add(child.id);
+      orderedIds.push(child.id);
+      await visit(child.id);
+    }
+  };
+  await visit(questionBlockId);
+
+  const rows = await loader.loadRows([questionBlockId, ...orderedIds]);
+  const orderById = new Map(orderedIds.map((id, order) => [id, order]));
+  return rows.map((row) => ({ ...row, order: orderById.get(row.id) }));
 }
 
 /** Resolve only the current question's stem text and solution subtree. */

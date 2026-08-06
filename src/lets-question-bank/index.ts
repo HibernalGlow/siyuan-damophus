@@ -24,6 +24,7 @@ import { SiyuanExamSessionRepository } from "./exam-session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { installSourceAnswerMask } from "./source-answer-mask";
 import {
+  loadSourceEmbedRows,
   sourceEmbedSql,
   type SourceEmbedBlockRow,
   type SourceEmbedSection,
@@ -288,46 +289,29 @@ export default class QuestionBankPlugin extends SubPluginBase {
       sessionLeases: this.sessionLeases,
       examSessionRepository: this.examSessionRepository,
     });
-    const sourceRootRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceQueryCache = new Map<string, Promise<string>>();
+    const loadRowsByIds = async (blockIds: readonly string[]): Promise<SourceEmbedBlockRow[]> => {
+      const rows: SourceEmbedBlockRow[] = [];
+      for (let offset = 0; offset < blockIds.length; offset += 48) {
+        const chunk = blockIds.slice(offset, offset + 48);
+        const quotedIds = chunk.map((id) => `'${id.replace(/'/gu, "''")}'`).join(", ");
+        rows.push(...await sql(
+          `SELECT id, root_id, parent_id, sort, path, type, subtype, content, markdown, ial FROM blocks WHERE id IN (${quotedIds}) LIMIT ${chunk.length}`,
+        ) as SourceEmbedBlockRow[]);
+      }
+      return rows;
+    };
     const loadSourceRows = (blockId: string): Promise<SourceEmbedBlockRow[]> => {
       const cached = sourceRowsCache.get(blockId);
       if (cached) return cached;
-      const loading = (async () => {
-        const escapedBlockId = blockId.replace(/'/gu, "''");
-        const roots = await sql(
-          `SELECT root_id FROM blocks WHERE id = '${escapedBlockId}' LIMIT 1`,
-        ) as Array<{ root_id?: string }>;
-        const rootId = roots[0]?.root_id;
-        if (!rootId) return [];
-        let rootRows = sourceRootRowsCache.get(rootId);
-        if (!rootRows) {
-          rootRows = sql(
-            `SELECT id, root_id, parent_id, sort, path, type, subtype, content, ial FROM blocks WHERE root_id = '${rootId.replace(/'/gu, "''")}'`,
-          ) as Promise<SourceEmbedBlockRow[]>;
-          sourceRootRowsCache.set(rootId, rootRows);
-        }
-        const rows = (await rootRows).map((row) => ({ ...row, order: undefined }));
-        const rowsById = new Map(rows.map((row) => [row.id, row]));
-        let order = 0;
-        const visitStemBranch = async (id: string): Promise<void> => {
-          const children = await getChildBlocks(id);
-          for (const child of children) {
-            const row = rowsById.get(child.id);
-            if (row) row.order = order++;
-            await visitStemBranch(child.id);
-          }
-        };
-        let solutionReached = false;
-        for (const child of await getChildBlocks(blockId)) {
-          const row = rowsById.get(child.id);
-          if (row) row.order = order++;
-          if (row?.ial?.includes('custom-qb-section="solution"')) solutionReached = true;
-          if (!solutionReached) await visitStemBranch(child.id);
-        }
-        return rows;
-      })();
+      const loading = loadSourceEmbedRows(blockId, {
+        loadChildren: (id) => getChildBlocks(id),
+        loadRows: loadRowsByIds,
+      }).catch((error) => {
+        sourceRowsCache.delete(blockId);
+        throw error;
+      });
       sourceRowsCache.set(blockId, loading);
       return loading;
     };
@@ -335,7 +319,12 @@ export default class QuestionBankPlugin extends SubPluginBase {
       const key = `${blockId}:${section}`;
       const cached = sourceQueryCache.get(key);
       if (cached) return cached;
-      const loading = loadSourceRows(blockId).then((rows) => sourceEmbedSql(rows, blockId, section));
+      const loading = loadSourceRows(blockId)
+        .then((rows) => sourceEmbedSql(rows, blockId, section))
+        .catch((error) => {
+          sourceQueryCache.delete(key);
+          throw error;
+        });
       sourceQueryCache.set(key, loading);
       return loading;
     };

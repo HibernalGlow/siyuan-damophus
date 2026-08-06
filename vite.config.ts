@@ -1,5 +1,7 @@
 import path, { resolve } from "node:path";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import minimist from "minimist";
@@ -14,6 +16,33 @@ import esbuild from "esbuild";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
+
+function buildRevision(): string {
+  try {
+    const git = (args: string[]) => execFileSync("git", args, {
+      cwd: rootDir,
+      encoding: "utf8",
+      windowsHide: true,
+    }).trim();
+    const commit = git(["rev-parse", "--short=7", "HEAD"]);
+    const buildInputs = ["src", "scripts", "vite.config.ts", "vite.dev.config.ts", "package.json", "pnpm-lock.yaml", "plugin.json"];
+    const diff = git(["diff", "--binary", "HEAD", "--", ...buildInputs]);
+    const untracked = git(["ls-files", "--others", "--exclude-standard", "--", ...buildInputs])
+      .split(/\r?\n/u)
+      .filter(Boolean);
+    if (!diff && untracked.length === 0) return commit;
+    const hash = createHash("sha256").update(diff);
+    for (const relativePath of untracked.sort()) {
+      hash.update(relativePath);
+      hash.update(fs.readFileSync(resolve(rootDir, relativePath)));
+    }
+    return `${commit}-dev.${hash.digest("hex").slice(0, 7)}`;
+  } catch {
+    return "dev-unknown";
+  }
+}
+
+const revision = buildRevision();
 
 function loadTsFile(filePath: string) {
   const result = esbuild.buildSync({
@@ -177,6 +206,7 @@ export default defineConfig({
   define: {
     "process.env.DEV_MODE": `"${isWatch}"`,
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
+    "process.env.DAMOPHUS_BUILD_REVISION": JSON.stringify(revision),
   },
 
   build: {

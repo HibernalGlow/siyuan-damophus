@@ -124,6 +124,7 @@
   export let onClose: (() => void) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
+  const buildRevision = process.env.DAMOPHUS_BUILD_REVISION ?? "dev-unknown";
   const recent = controller.getRecentScope();
   let documentId = initialDocumentId ?? recent?.documentId ?? "";
   let binding = controller.getBinding();
@@ -1128,6 +1129,7 @@
     <div>
       <h1>Damophus</h1>
       <span>{label("displayName", "Question Bank")}</span>
+      <code class="build-revision" title={buildRevision}>{buildRevision}</code>
     </div>
     <div class="header-actions">
       {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
@@ -1717,6 +1719,7 @@
   h1 { margin: 0; font-size: 20px; line-height: 1.2; }
   h2 { margin: 0; font-size: 18px; line-height: 1.45; }
   .app-header span, .status { color: var(--b3-theme-on-surface); font-size: 13px; }
+  .build-revision { color: var(--b3-theme-on-surface-light); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
   section { padding: 18px 20px; }
   .workspace-toolbar { position: relative; z-index: 2; }
