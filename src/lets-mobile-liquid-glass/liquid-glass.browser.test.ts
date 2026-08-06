@@ -3,6 +3,10 @@ import {
   MOBILE_LIQUID_GLASS_STYLE_ID,
   MobileLiquidGlass,
 } from "./liquid-glass";
+import {
+  buildMobileLiquidGlassCss,
+  normalizeMobileLiquidGlassPreset,
+} from "./liquid-glass-style";
 
 afterEach(() => {
   delete document.documentElement.dataset.frontend;
@@ -42,5 +46,29 @@ describe("mobile liquid glass", () => {
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)).not.toBeNull();
     liquidGlass.destroy();
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)).toBeNull();
+  });
+
+  it("keeps high transparency as the default and can switch to the Neo+ preset", () => {
+    expect(normalizeMobileLiquidGlassPreset(undefined)).toBe("transparent");
+    expect(normalizeMobileLiquidGlassPreset("unknown")).toBe("transparent");
+    expect(normalizeMobileLiquidGlassPreset("neo-plus")).toBe("neo-plus");
+
+    const transparent = buildMobileLiquidGlassCss("transparent");
+    const neoPlus = buildMobileLiquidGlassCss("neo-plus");
+    expect(transparent).toContain("oklch(from var(--b3-theme-background) l c h / 0.52)");
+    expect(transparent).toContain("blur(5px) saturate(1.24) contrast(1.03)");
+    expect(neoPlus).toContain("oklch(from var(--b3-theme-background) l c h / 0.64)");
+    expect(neoPlus).toContain("blur(6px) saturate(1.5) brightness(0.9)");
+  });
+
+  it("updates the mounted style without adding another style element", () => {
+    document.documentElement.dataset.frontend = "mobile";
+    const liquidGlass = new MobileLiquidGlass(document);
+    liquidGlass.start(buildMobileLiquidGlassCss("transparent"));
+    liquidGlass.start(buildMobileLiquidGlassCss("neo-plus"));
+
+    expect(document.querySelectorAll(`#${MOBILE_LIQUID_GLASS_STYLE_ID}`)).toHaveLength(1);
+    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
+      .toContain("blur(6px) saturate(1.5) brightness(0.9)");
   });
 });

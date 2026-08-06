@@ -11,10 +11,12 @@ export function isMobileFrontend(root: HTMLElement): boolean {
 
 export class MobileLiquidGlass {
   private frontendObserver?: MutationObserver;
+  private css = MOBILE_LIQUID_GLASS_CSS;
 
   constructor(private readonly targetDocument: Document = document) {}
 
-  start(): void {
+  start(css = MOBILE_LIQUID_GLASS_CSS): void {
+    this.css = css;
     if (this.mount()) return;
     if (typeof MutationObserver === "undefined") return;
     this.frontendObserver?.disconnect();
@@ -35,8 +37,11 @@ export class MobileLiquidGlass {
     if (!this.targetDocument.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)) {
       const style = this.targetDocument.createElement("style");
       style.id = MOBILE_LIQUID_GLASS_STYLE_ID;
-      style.textContent = MOBILE_LIQUID_GLASS_CSS;
+      style.textContent = this.css;
       head.append(style);
+    } else {
+      const style = this.targetDocument.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID);
+      if (style?.textContent !== this.css) style.textContent = this.css;
     }
     return true;
   }
