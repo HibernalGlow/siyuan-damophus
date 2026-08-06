@@ -24,6 +24,8 @@ type PracticeCommand = "previous" | "next" | "pause";
 export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
   private listening = false;
+  private topBarElement?: HTMLElement;
+  private dockApp?: ReturnType<typeof mount>;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
@@ -82,6 +84,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         hotkey: "",
         callback: () => this.dispatchPracticeCommand("pause"),
       });
+      this.registerDock();
     }
     if (this.listening) return;
     this.listening = true;
@@ -98,7 +101,45 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
   }
 
+  onLayoutReady(): void {
+    if (this.topBarElement) return;
+    this.topBarElement = plugin.addTopBar({
+      icon: "iconDatabase",
+      title: this.t("lets-question-bank.displayName"),
+      position: "right",
+      callback: () => this.open(),
+    });
+  }
+
+  private registerDock(): void {
+    const owner = this;
+    plugin.addDock({
+      config: {
+        position: "LeftTop",
+        size: { width: 420, height: 0 },
+        icon: "iconDatabase",
+        title: this.t("lets-question-bank.displayName"),
+        show: false,
+      },
+      data: { documentId: this.currentDocumentId() },
+      type: "damophus-question-bank-dock",
+      init() {
+        const target = this.element as HTMLElement;
+        target.innerHTML = "";
+        owner.dockApp = owner.mountQuestionBank(target, owner.currentDocumentId());
+      },
+      destroy() {
+        if (owner.dockApp) void unmount(owner.dockApp);
+        owner.dockApp = undefined;
+      },
+    });
+  }
+
   override async onunload(): Promise<void> {
+    if (this.dockApp) void unmount(this.dockApp);
+    this.dockApp = undefined;
+    this.topBarElement?.remove();
+    this.topBarElement = undefined;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);

@@ -34,17 +34,12 @@ export default class PluginLetsGo extends Plugin {
     const plugins = this.pluginRegistry.getAllPlugins();
     const hasMenu = plugins.some((plugin) => plugin.enabled && plugin.addMenuItem);
 
-    if (hasMenu) {
+    if (hasMenu && !isMobile) {
       const topBarElement = this.addTopBar({
         icon: damophusToolbarIcon,
         title: "Damophus",
         position: "right",
         callback: () => {
-          if (isMobile) {
-            this.addMenu();
-            return;
-          }
-
           const rect = topBarElement.getBoundingClientRect().width > 0
             ? topBarElement.getBoundingClientRect()
             : document.querySelector<HTMLElement>("#barMore")?.getBoundingClientRect()

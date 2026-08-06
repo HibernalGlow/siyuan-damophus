@@ -798,7 +798,7 @@ describe("question bank browser flow", () => {
     const actionRect = actions.getBoundingClientRect();
 
     expect(Math.abs(rootRect.bottom - hostRect.bottom)).toBeLessThanOrEqual(1);
-    expect(headerRect.top).toBeGreaterThanOrEqual(hostRect.top);
+    expect(headerRect.height).toBe(0);
     expect(actionRect.bottom).toBeLessThanOrEqual(hostRect.bottom);
     expect(content.scrollHeight).toBeGreaterThan(content.clientHeight);
     content.scrollTop = 240;
@@ -806,6 +806,33 @@ describe("question bank browser flow", () => {
     expect(content.scrollTop).toBeGreaterThan(0);
     expect(header.getBoundingClientRect()).toEqual(headerRect);
     expect(actions.getBoundingClientRect()).toEqual(actionRect);
+  });
+
+  it("uses the compact reference layout for mobile practice", async () => {
+    await page.viewport(390, 844);
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller);
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    const root = document.querySelector<HTMLElement>(".question-bank")!;
+    const header = document.querySelector<HTMLElement>(".app-header")!;
+    const bar = document.querySelector<HTMLElement>(".practice-bar")!;
+    const question = document.querySelector<HTMLElement>(".question")!;
+    const topic = document.querySelector<HTMLElement>(".practice-topic")!;
+    const progress = document.querySelector<HTMLElement>(".progress-copy")!;
+    const bottomTimer = document.querySelector<HTMLElement>(".question-timer")!;
+
+    expect(root.dataset.practiceActive).toBe("true");
+    expect(getComputedStyle(header).display).toBe("none");
+    expect(bar.getBoundingClientRect().height).toBeLessThanOrEqual(70);
+    expect(getComputedStyle(topic).display).not.toBe("none");
+    expect(progress.innerText.replace(/\s+/gu, " ").trim()).toBe("1 / 1");
+    expect(getComputedStyle(progress.querySelector<HTMLElement>(".submitted-copy")!).display).toBe("none");
+    expect(parseFloat(getComputedStyle(question).paddingTop)).toBeLessThanOrEqual(12);
+    expect(parseFloat(getComputedStyle(question).paddingLeft)).toBeLessThanOrEqual(12);
+    expect(getComputedStyle(bottomTimer).display).toBe("none");
   });
 
   it("keeps the desktop reveal action visible while a long question scrolls internally", async () => {

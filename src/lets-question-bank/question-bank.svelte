@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { ArrowLeft, ChevronLeft, ChevronRight, Pause, X } from "lucide-svelte";
+  import { ArrowLeft, ChevronLeft, ChevronRight, X } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Badge } from "@/components/ui/badge";
   import { Button, buttonVariants } from "@/components/ui/button";
@@ -850,7 +850,12 @@
   }
 </script>
 
-<main bind:this={rootElement} class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden" data-testid="question-bank">
+<main
+  bind:this={rootElement}
+  class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden"
+  data-testid="question-bank"
+  data-practice-active={currentQuestion ? "true" : "false"}
+>
   <header class="app-header">
     <div>
       <h1>Damophus</h1>
@@ -1244,7 +1249,11 @@
     <section class="practice min-h-0 flex-1 overflow-hidden" aria-live="polite">
       <div class="practice-bar">
         <div class="practice-status">
-          <span>{label("progress", "Progress")} {questionIndex + 1} / {queue.length} · {completedQuestionIndices.length} {label("submitted", "submitted")}</span>
+          <span class="progress-copy">
+            <span class="progress-label">{label("progress", "Progress")} </span>
+            {questionIndex + 1} / {queue.length}
+            <span class="submitted-copy"> · {completedQuestionIndices.length} {label("submitted", "submitted")}</span>
+          </span>
           {#if timingEnabled}
             <span class="timer" title={label("sessionElapsed", "Session elapsed time")}>
               <svg aria-hidden="true"><use href="#iconClock"></use></svg>
@@ -1261,12 +1270,12 @@
             <ChevronRight size={17} aria-hidden="true" />
           </Button>
           {#if reviewing}
-            <Button variant="ghost" size="icon" title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
+            <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
               <ArrowLeft size={17} aria-hidden="true" />
             </Button>
           {:else}
-            <Button variant="ghost" size="icon" disabled={submitting} title={label("pause", "Pause and return")} aria-label={label("pause", "Pause and return")} onclick={pausePractice}>
-              <Pause size={17} aria-hidden="true" />
+            <Button variant="ghost" size="icon" data-practice-return disabled={submitting} title={label("pause", "Pause and return")} aria-label={label("pause", "Pause and return")} onclick={pausePractice}>
+              <ArrowLeft size={17} aria-hidden="true" />
             </Button>
           {/if}
           <Button variant="ghost" size="icon" disabled={submitting} title={label("end", "End practice")} aria-label={label("end", "End practice")} onclick={requestEndPractice}>
@@ -1574,6 +1583,7 @@
   .completion-review :global(button) { min-width: 0; justify-content: flex-start; overflow-wrap: anywhere; white-space: normal; text-align: left; }
 
   @container (max-width: 760px) {
+    .question-bank[data-practice-active="true"] .app-header { display: none; }
     .app-header { padding-inline: 14px; }
     .app-header { align-items: flex-start; }
     .header-actions { flex-direction: column; align-items: flex-end; gap: 6px; }
@@ -1591,12 +1601,47 @@
     .unfinished-row small { grid-column: auto; }
     .session-recovery { align-items: stretch; flex-direction: column; }
     .session-recovery-actions > :global(*) { flex: 1; }
-    .practice-bar { padding-inline: 10px 8px; grid-template-columns: minmax(0, 1fr) auto 34px; gap: 5px; }
-    .practice-status { gap: 8px; }
-    .practice-topic { display: none; }
-    .answer-card-panel { top: 44px; right: 0; bottom: 58px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
+    .practice-bar {
+      min-height: 68px;
+      padding: 5px 8px 4px 10px;
+      grid-template-columns: auto minmax(0, 1fr) auto 32px;
+      grid-template-rows: 34px 20px;
+      grid-template-areas:
+        "timer spacer controls card"
+        "topic topic topic progress";
+      column-gap: 4px;
+      row-gap: 2px;
+    }
+    .practice-status { display: contents; }
+    .progress-copy { grid-area: progress; justify-self: end; align-self: center; font-variant-numeric: tabular-nums; }
+    .progress-label, .submitted-copy { display: none; }
+    .timer { grid-area: timer; align-self: center; }
+    .practice-topic { grid-area: topic; display: block; text-align: left; align-self: center; font-size: 12px; }
+    .practice-controls { grid-area: controls; gap: 1px; }
+    .practice-controls :global(button), .practice-bar > :global(.answer-card-button) { width: 32px; height: 32px; }
+    .practice-controls :global(button[data-practice-return]) { order: -1; }
+    .practice-bar > :global(.answer-card-button) { grid-area: card; }
+    .answer-card-panel { top: 68px; right: 0; bottom: 48px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
     .answer-card-grid { grid-template-columns: repeat(5, minmax(36px, 1fr)); }
-    .question, .answer { padding-inline: 14px; }
+    .question { padding: 12px 12px 6px; }
+    .question-heading { gap: 8px; }
+    .question-title { gap: 6px; }
+    .question-heading h2 { font-size: 16px; }
+    .stem { margin-top: 8px; line-height: 1.65; }
+    .stem > :global([data-node-id]),
+    .group-material .native-content > :global([data-node-id]) {
+      margin-block: 0 10px !important;
+      padding-left: 8px !important;
+      padding-right: 0 !important;
+    }
+    .group-material { margin-top: 10px; padding-block: 9px; }
+    .options { margin-top: 12px; gap: 7px; }
+    .options > :global(button.option) { padding: 7px 10px; }
+    .option-label { width: 30px; height: 30px; border-radius: 6px; }
+    .answer { margin-top: 10px; padding: 14px 12px 18px; }
+    .action-bar, .rating-bar { min-height: 48px; }
+    .action-bar { padding: 6px 10px; }
+    .action-bar .question-timer { display: none; }
     .rating-bar { grid-template-columns: 34px repeat(4, minmax(0, 1fr)); padding: 8px; gap: 5px; }
     .completion-summary { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
     .completion-summary span:nth-child(3) { border-left: 0; border-top: 1px solid var(--b3-border-color); }
