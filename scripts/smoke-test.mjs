@@ -26,6 +26,7 @@ const [
 ]);
 
 const expectedModules = [
+  "lets-animated-image-replay",
   "lets-block-attr",
   "lets-mobile-breadcrumb",
   "lets-mobile-liquid-glass",
