@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ExternalLink } from "lucide-svelte";
+  import { Edit3, ExternalLink } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@
   export let formatDuration: (milliseconds: number) => string;
   export let toggleOption: (optionId: string) => void;
   export let changeSubjectiveScore: (event: Event) => void;
+  export let correctAnswer: (() => void) | undefined = undefined;
 
   type SourceBlockMountParams = {
     blockId: string;
@@ -98,7 +99,7 @@
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-            class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
+            class="option"
             disabled={revealed || readOnlyQuestion}
             aria-pressed={selectedOptionIds.includes(option.originalId)}
             onclick={() => toggleOption(option.originalId)}
@@ -128,7 +129,7 @@
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-            class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
+            class="option"
             disabled={revealed || readOnlyQuestion}
             aria-pressed={selectedOptionIds.includes(option.originalId)}
             onclick={() => toggleOption(option.originalId)}
@@ -174,7 +175,7 @@
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-            class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
+            class="option"
             disabled={revealed || readOnlyQuestion}
             aria-pressed={selectedOptionIds.includes(option.originalId)}
             onclick={() => toggleOption(option.originalId)}
@@ -223,6 +224,12 @@
         {#if currentAttempt.duration_ms !== undefined}<span>{formatDuration(currentAttempt.duration_ms)}</span>{/if}
       </div>
     {/if}
+    {#if currentQuestion.answer && correctAnswer && !readOnlyQuestion}
+      <Button variant="outline" size="sm" class="mt-3" onclick={correctAnswer}>
+        <Edit3 size={14} aria-hidden="true" />
+        {label("correctAnswer", "Correct answer")}
+      </Button>
+    {/if}
   </section>
 {/if}
 
@@ -258,9 +265,42 @@
     padding-bottom: 0 !important;
     overflow: visible;
   }
-  .options { width: 100%; max-width: 920px; margin: 18px auto 0; display: grid; gap: 8px; }
-  .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
-  .option-content { align-self: center; width: 100%; }
+  .options { width: 100%; max-width: 1180px; margin: 18px auto 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .options > :global(button.option) {
+    min-width: 0;
+    min-height: 38px;
+    height: auto;
+    padding: 6px 10px;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: start;
+    justify-content: initial;
+    gap: 8px;
+    border: 1px solid color-mix(in srgb, var(--b3-border-color) 78%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--b3-theme-surface) 64%, var(--b3-theme-background));
+    color: var(--b3-theme-on-background);
+    text-align: left;
+    white-space: normal;
+    overflow: visible;
+  }
+  .options > :global(button.option:hover:not(:disabled)) {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 62%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 8%, var(--b3-theme-background));
+  }
+  .options > :global(button.option[aria-pressed="true"]) {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 72%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 14%, var(--b3-theme-background));
+  }
+  .options > :global(button.option:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 72%, transparent);
+    outline-offset: 1px;
+  }
+  .options > :global(button.option:disabled) { cursor: default; }
+  .option-label { width: 22px; height: 22px; margin-top: 1px; border: 1px solid color-mix(in srgb, var(--b3-border-color) 90%, transparent); border-radius: 5px; display: grid; place-items: center; color: var(--b3-theme-on-surface); font-size: 12px; font-weight: 650; line-height: 1; }
+  :global(.options > button.option[aria-pressed="true"]) .option-label { border-color: var(--b3-theme-primary); background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); }
+  .option-content { align-self: start; width: 100%; min-width: 0; line-height: 1.45; }
+  .option-content :global(p) { margin: 0 !important; }
   .answer { width: 100%; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
   .correct { color: var(--b3-theme-success); font-size: 13px; }
@@ -295,8 +335,8 @@
       padding-right: 0 !important;
     }
     .group-material { margin-top: 10px; padding-block: 9px; }
-    .options { margin-top: 12px; gap: 7px; }
-    .options > :global(button.option) { padding: 7px 10px; }
+    .options { margin-top: 12px; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .options > :global(button.option) { padding: 6px 9px; }
     .answer { margin-top: 10px; padding: 14px 14px 18px; }
   }
 
@@ -308,6 +348,17 @@
     .stem { margin-top: 8px; line-height: 1.65; }
     .group-material { margin-top: 10px; padding-block: 9px; }
     .options { margin-top: 12px; gap: 7px; }
-    .option-label { width: 30px; height: 30px; border-radius: 6px; }
+    .option-label { width: 22px; height: 22px; border-radius: 5px; }
+  }
+
+  @container (max-width: 560px) {
+    .options { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 750px) {
+    .source-block-host :global(.protyle-gutters),
+    .source-block-host :global(.protyle-scroll),
+    .native-answer-source :global(.protyle-gutters),
+    .native-answer-source :global(.protyle-scroll) { display: none !important; }
   }
 </style>
