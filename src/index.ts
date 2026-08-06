@@ -30,15 +30,25 @@ export default class PluginLetsGo extends Plugin {
     this.pluginRegistry.scanPlugins();
     this.pluginRegistry.registerModels();
     await settings.load();
-    enableLogging(settings.get("debugLogging") || false);
+    const debugLogging = settings.get("debugLogging") === true;
+    enableLogging(debugLogging);
     await settings.initData();
     this.pluginRegistry.refreshEnabledStates();
     await this.pluginRegistry.initializeEnabledPlugins();
+    log.info("plugin.loaded", {
+      debugLogging,
+      enabledModules: this.pluginRegistry.getAllPlugins()
+        .filter((plugin) => plugin.enabled)
+        .map((plugin) => plugin.name),
+    });
   }
 
   override async onLayoutReady(): Promise<void> {
     this.registerTopBar();
     const plugins = this.pluginRegistry.getAllPlugins();
+    log.info("plugin.layout.ready", {
+      enabledModules: plugins.filter((plugin) => plugin.enabled).map((plugin) => plugin.name),
+    });
 
     for (const plugin of plugins) {
       if (!plugin.enabled || !plugin.onLayoutReady) continue;
@@ -134,6 +144,7 @@ export default class PluginLetsGo extends Plugin {
   }
 
   override async onunload(): Promise<void> {
+    log.info("plugin.unloading");
     for (const plugin of this.pluginRegistry.getAllPlugins()) {
       if (!plugin.enabled) continue;
       try {

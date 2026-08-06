@@ -12,6 +12,18 @@ afterEach(() => {
 });
 
 describe("Damophus logger", () => {
+  it("emits a visible confirmation as soon as debug logging is enabled", async () => {
+    const loggerModule = await import("./logger");
+
+    loggerModule.enableLogging(true);
+
+    expect(loggerModule.getLogRecords()).toMatchObject([{
+      level: "info",
+      scope: "logging",
+      args: ["debug logging enabled", { level: "debug" }],
+    }]);
+  });
+
   it("writes scoped consola messages to the browser console when enabled", async () => {
     const loggerModule = await import("./logger");
     loggerModule.setLogLevel("info");

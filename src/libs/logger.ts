@@ -59,6 +59,9 @@ declare global {
 
 export function enableLogging(enabled: boolean): void {
   setLogLevel(enabled ? "debug" : "silent", { persist: false });
+  if (enabled) {
+    getLogger("logging").info("debug logging enabled", { level: getLogLevel() });
+  }
 }
 
 export function isLoggingEnabled(): boolean {

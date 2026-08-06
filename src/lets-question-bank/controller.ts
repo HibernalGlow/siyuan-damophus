@@ -155,6 +155,11 @@ export class QuestionBankController implements QuestionBankUiController {
     this.client = options.client ?? siyuanKernelClient;
     this.nodeId = options.nodeId ?? (() => window.Lute.NewNodeID());
     this.uuid = options.uuid ?? (() => crypto.randomUUID());
+    log.info("controller.created", {
+      pluginVersion: options.pluginVersion,
+      hasPracticeSessionRepository: Boolean(options.sessionRepository),
+      hasExamSessionRepository: Boolean(options.examSessionRepository),
+    });
   }
 
   getBinding(): QuestionBankBinding | undefined {
@@ -273,7 +278,21 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async previewSync(documentId: string): Promise<QuestionIndexPreview> {
-    return previewQuestionIndexSync(this.client, this.requireBinding(), documentId);
+    log.info("scan.started", { documentId });
+    try {
+      const preview = await previewQuestionIndexSync(this.client, this.requireBinding(), documentId);
+      log.info("scan.completed", {
+        documentId,
+        questions: preview.scan.report.document.questions.length,
+        blockers: preview.blockers.length,
+        pendingActions: preview.actions.length,
+        bindingRepairs: preview.bindingRepairs.length,
+      });
+      return preview;
+    } catch (error) {
+      log.error("scan.failed", { documentId, error });
+      throw error;
+    }
   }
 
   async confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview> {
