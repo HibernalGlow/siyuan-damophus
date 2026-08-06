@@ -29,6 +29,34 @@ html[data-frontend="browser-mobile"] > body > .toolbar {
     backdrop-filter: none;
 }
 
+/* Neo+'s mobile drawer blur composites its SVG toolbar icons as invisible
+   layers. Keep the drawer's translucent background, but let its native icons
+   render in the normal mobile compositor. */
+html[data-frontend="mobile"] > body > #sidebar,
+html[data-frontend="browser-mobile"] > body > #sidebar {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    isolation: isolate;
+}
+
+html[data-frontend="mobile"] > body > #sidebar::before,
+html[data-frontend="browser-mobile"] > body > #sidebar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: transparent;
+    -webkit-backdrop-filter: blur(6px) saturate(1.5) brightness(0.9);
+    backdrop-filter: blur(6px) saturate(1.5) brightness(0.9);
+}
+
+html[data-frontend="mobile"] > body > #sidebar > *,
+html[data-frontend="browser-mobile"] > body > #sidebar > * {
+    position: relative;
+    z-index: 1;
+}
+
 html[data-frontend="mobile"] #editor,
 html[data-frontend="browser-mobile"] #editor {
     position: relative;

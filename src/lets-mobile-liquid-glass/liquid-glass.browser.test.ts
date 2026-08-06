@@ -20,6 +20,10 @@ describe("mobile liquid glass", () => {
     const css = document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent ?? "";
     expect(css).toContain(`#editor::before`);
     expect(css).toContain(`backdrop-filter: blur(5px) saturate(1.24) contrast(1.03)`);
+    expect(css).toContain(`body > #sidebar`);
+    expect(css).toContain(`backdrop-filter: none !important`);
+    expect(css).toContain(`#sidebar::before`);
+    expect(css).toContain(`backdrop-filter: blur(6px) saturate(1.5) brightness(0.9)`);
     expect(css).not.toContain(`backdrop-filter: url(`);
     expect(css)
       .toContain(`body:has(> #sidebar[style*="translateX(0px)"]) #editor::before`);
