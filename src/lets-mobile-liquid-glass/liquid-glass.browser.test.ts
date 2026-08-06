@@ -32,16 +32,13 @@ describe("mobile liquid glass", () => {
     const map = decodeURIComponent(
       filter.querySelector("feImage")?.getAttribute("href")?.split(",", 2)[1] ?? "",
     );
-    expect(map).toContain('id="x-refraction"');
-    expect(map).toContain('id="y-refraction"');
+    expect(map).toContain('id="edge-lens"');
+    expect(map).not.toContain('id="x-refraction"');
+    expect(map).not.toContain('id="y-refraction"');
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
       .toContain(`#editor::before`);
     expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
-      .toContain(`#editor::after`);
-    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
-      .toContain(`inset: 58px 0 auto`);
-    expect(document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent)
-      .toContain(`height: 24px`);
+      .not.toContain(`#editor::after`);
   });
 
   it("waits for the mobile frontend and removes every injected node", async () => {
