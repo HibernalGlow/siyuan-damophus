@@ -1244,26 +1244,100 @@
   data-testid="question-bank"
   data-practice-active={currentQuestion ? "true" : "false"}
 >
-  <header class="app-header">
-    <div>
+  <header class="app-header" class:app-header--practice={currentQuestion !== undefined}>
+    <div class="app-brand">
       <h1>Damophus</h1>
       <span>{label("displayName", "Question Bank")}</span>
       <code class="build-revision" title={buildRevision}>{buildRevision}</code>
     </div>
-    <div class="header-actions">
-      {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
-      {#if onClose}
+    {#if currentQuestion}
+      <div class="practice-toolbar">
+        <div class="practice-status">
+          <span class="progress-copy">
+            <span class="progress-label">{label("progress", "Progress")} </span>
+            {questionIndex + 1} / {queue.length}
+            <span class="submitted-copy"> · {completedQuestionIndices.length} {label("submitted", "submitted")}</span>
+          </span>
+          {#if timingEnabled}
+            <span class="timer" title={label("sessionElapsed", "Session elapsed time")}>
+              <svg aria-hidden="true"><use href="#iconClock"></use></svg>
+              {formatDuration(sessionElapsedMs)}
+            </span>
+          {/if}
+        </div>
+        <div
+          class="practice-topic practice-breadcrumb"
+          use:practiceBreadcrumb={{
+            items: breadcrumbItems,
+            activeId: currentQuestionBlockId,
+            fallback: currentQuestion.metadata.topicPath.join(" / "),
+          }}
+          aria-label="Breadcrumb"
+        ></div>
+        <div class="practice-controls">
+          <Button variant="ghost" size="icon" disabled={questionIndex === 0 || submitting} title={label("previous", "Previous question")} aria-label={label("previous", "Previous question")} onclick={previousQuestion}>
+            <ChevronLeft size={17} aria-hidden="true" />
+          </Button>
+          <Button variant="ghost" size="icon" disabled={questionIndex >= queue.length - 1 || submitting} title={label("next", "Next question")} aria-label={label("next", "Next question")} onclick={nextQuestion}>
+            <ChevronRight size={17} aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            data-practice-timer-toggle
+            disabled={submitting || reviewing || answerTimerPaused}
+            title={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
+            aria-label={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
+            aria-pressed={timerEffectivelyPaused}
+            onclick={togglePracticeTimer}
+          >
+            {#if timerEffectivelyPaused}
+              <Play size={17} aria-hidden="true" />
+            {:else}
+              <Pause size={17} aria-hidden="true" />
+            {/if}
+          </Button>
+          {#if reviewing}
+            <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
+              <ArrowLeft size={17} aria-hidden="true" />
+            </Button>
+          {:else}
+            <Button variant="ghost" size="icon" data-practice-return disabled={submitting} title={label("pause", "Pause and return")} aria-label={label("pause", "Pause and return")} onclick={pausePractice}>
+              <ArrowLeft size={17} aria-hidden="true" />
+            </Button>
+          {/if}
+          <Button variant="ghost" size="icon" disabled={submitting} title={label("end", "End practice")} aria-label={label("end", "End practice")} onclick={requestEndPractice}>
+            <X size={17} aria-hidden="true" />
+          </Button>
+        </div>
         <Button
           variant="ghost"
-          size="icon-sm"
-          title={translations["settings.close"] ?? "Close"}
-          aria-label={translations["settings.close"] ?? "Close"}
-          onclick={onClose}
+          size="icon"
+          class="answer-card-button"
+          title={label("answerCard", "Answer card")}
+          aria-label={label("answerCard", "Answer card")}
+          aria-expanded={answerCardOpen}
+          onclick={() => answerCardOpen = !answerCardOpen}
         >
-          <X />
+          <LayoutGrid size={17} aria-hidden="true" />
         </Button>
-      {/if}
-    </div>
+      </div>
+    {:else}
+      <div class="header-actions">
+        {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
+        {#if onClose}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={translations["settings.close"] ?? "Close"}
+            aria-label={translations["settings.close"] ?? "Close"}
+            onclick={onClose}
+          >
+            <X />
+          </Button>
+        {/if}
+      </div>
+    {/if}
   </header>
 
   {#if error}
@@ -1652,77 +1726,6 @@
     </section>
   {:else if currentQuestion}
     <section class="practice min-h-0 flex-1 overflow-hidden" aria-live="polite">
-      <div class="practice-bar">
-        <div class="practice-status">
-          <span class="progress-copy">
-            <span class="progress-label">{label("progress", "Progress")} </span>
-            {questionIndex + 1} / {queue.length}
-            <span class="submitted-copy"> · {completedQuestionIndices.length} {label("submitted", "submitted")}</span>
-          </span>
-          {#if timingEnabled}
-            <span class="timer" title={label("sessionElapsed", "Session elapsed time")}>
-              <svg aria-hidden="true"><use href="#iconClock"></use></svg>
-              {formatDuration(sessionElapsedMs)}
-            </span>
-          {/if}
-        </div>
-        <div
-          class="practice-topic practice-breadcrumb"
-          use:practiceBreadcrumb={{
-            items: breadcrumbItems,
-            activeId: currentQuestionBlockId,
-            fallback: currentQuestion.metadata.topicPath.join(" / "),
-          }}
-          aria-label="Breadcrumb"
-        ></div>
-        <div class="practice-controls">
-          <Button variant="ghost" size="icon" disabled={questionIndex === 0 || submitting} title={label("previous", "Previous question")} aria-label={label("previous", "Previous question")} onclick={previousQuestion}>
-            <ChevronLeft size={17} aria-hidden="true" />
-          </Button>
-          <Button variant="ghost" size="icon" disabled={questionIndex >= queue.length - 1 || submitting} title={label("next", "Next question")} aria-label={label("next", "Next question")} onclick={nextQuestion}>
-            <ChevronRight size={17} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            data-practice-timer-toggle
-            disabled={submitting || reviewing || answerTimerPaused}
-            title={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
-            aria-label={timerEffectivelyPaused ? label("resumeTimer", "Resume timer") : label("pauseTimer", "Pause timer")}
-            aria-pressed={timerEffectivelyPaused}
-            onclick={togglePracticeTimer}
-          >
-            {#if timerEffectivelyPaused}
-              <Play size={17} aria-hidden="true" />
-            {:else}
-              <Pause size={17} aria-hidden="true" />
-            {/if}
-          </Button>
-          {#if reviewing}
-            <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
-              <ArrowLeft size={17} aria-hidden="true" />
-            </Button>
-          {:else}
-            <Button variant="ghost" size="icon" data-practice-return disabled={submitting} title={label("pause", "Pause and return")} aria-label={label("pause", "Pause and return")} onclick={pausePractice}>
-              <ArrowLeft size={17} aria-hidden="true" />
-            </Button>
-          {/if}
-          <Button variant="ghost" size="icon" disabled={submitting} title={label("end", "End practice")} aria-label={label("end", "End practice")} onclick={requestEndPractice}>
-            <X size={17} aria-hidden="true" />
-          </Button>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="answer-card-button"
-          title={label("answerCard", "Answer card")}
-          aria-label={label("answerCard", "Answer card")}
-          aria-expanded={answerCardOpen}
-          onclick={() => answerCardOpen = !answerCardOpen}
-        >
-          <LayoutGrid size={17} aria-hidden="true" />
-        </Button>
-      </div>
       {#if endConfirmation}
         <Alert.Root variant="destructive" class="mx-5 mt-3 w-auto shrink-0">
           <Alert.Title>{label("confirmEnd", "End this practice?")}</Alert.Title>
@@ -1861,13 +1864,15 @@
   :global(.question-bank .lucide) { fill: none !important; stroke: currentColor; stroke-width: 2; }
   .question-bank { color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
   .question-bank :global(button), .question-bank :global([role="button"]) { touch-action: manipulation; -webkit-tap-highlight-color: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
-  .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-  .app-header > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+  .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 16px; }
+  .app-header > div { min-width: 0; }
+  .app-brand { display: flex; align-items: baseline; gap: 12px; }
   h1 { margin: 0; font-size: 20px; line-height: 1.2; }
   h2 { margin: 0; font-size: 18px; line-height: 1.45; }
   .app-header span, .status { color: var(--b3-theme-on-surface); font-size: 13px; }
   .build-revision { color: var(--b3-theme-on-surface-light); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  .practice-toolbar { min-width: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   section { padding: 18px 20px; }
   .workspace-toolbar { position: relative; z-index: 2; }
   .document-row { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto auto; align-items: center; gap: 10px; }
@@ -1914,7 +1919,6 @@
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend { margin-bottom: 6px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice { position: relative; min-height: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-  .practice-bar { min-height: 44px; padding: 5px 14px 5px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
   .timer { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .timer svg { width: 14px; height: 14px; fill: currentColor; }
@@ -1923,8 +1927,8 @@
   .practice-breadcrumb :global(.practice-breadcrumb-separator) { width: 13px; height: 13px; flex: 0 0 13px; opacity: 0.58; }
   .practice-controls { display: flex; align-items: center; min-width: max-content; }
   .save-status { padding: 4px 20px; color: var(--b3-theme-on-surface); font-size: 11px; text-align: right; }
-  .answer-card-scrim { position: absolute; z-index: 3; inset: 44px 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
-  .answer-card-panel { position: absolute; z-index: 4; top: 52px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 122px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
+  .answer-card-scrim { position: absolute; z-index: 3; inset: 0 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
+  .answer-card-panel { position: absolute; z-index: 4; top: 8px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 74px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
   .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }
   .answer-card-panel header span { color: var(--b3-theme-on-surface); font-size: 12px; }
   .answer-card-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 8px; }
@@ -1936,9 +1940,12 @@
   .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
 
   @container (max-width: 960px) {
-    .question-bank[data-practice-active="true"] .app-header { display: none; }
     .app-header { padding-inline: 14px; }
-    .app-header { align-items: flex-start; }
+    .app-header { align-items: center; gap: 10px; }
+    .app-header--practice { min-height: 52px; padding-block: 6px; }
+    .app-header--practice .app-brand span, .app-header--practice .build-revision { display: none; }
+    .app-header--practice .app-brand { gap: 0; }
+    .app-header--practice h1 { font-size: 17px; }
     .header-actions { flex-direction: column; align-items: flex-end; gap: 6px; }
     section { padding: 14px; }
     .document-row { grid-template-columns: minmax(0, 1fr) 34px auto; }
@@ -1956,8 +1963,8 @@
     .unfinished-row small { grid-column: auto; }
     .session-recovery { align-items: stretch; flex-direction: column; }
     .session-recovery-actions > :global(*) { flex: 1; }
-    .practice-bar {
-      min-height: 68px;
+    .practice-toolbar {
+      min-height: 40px;
       padding: 5px 8px 4px 10px;
       grid-template-columns: auto minmax(0, 1fr) auto 32px;
       grid-template-rows: 34px 20px;
@@ -1973,10 +1980,10 @@
     .timer { grid-area: timer; align-self: center; }
     .practice-topic { grid-area: topic; display: block; text-align: left; align-self: center; font-size: 12px; }
     .practice-controls { grid-area: controls; gap: 1px; justify-self: end; }
-    .practice-controls :global(button), .practice-bar > :global(.answer-card-button) { width: 32px; height: 32px; }
+    .practice-controls :global(button), .practice-toolbar > :global(.answer-card-button) { width: 32px; height: 32px; }
     .practice-controls :global(button[data-practice-return]) { order: -1; }
-    .practice-bar > :global(.answer-card-button) { grid-area: card; }
-    .answer-card-panel { top: 68px; right: 0; bottom: 48px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
+    .practice-toolbar > :global(.answer-card-button) { grid-area: card; }
+    .answer-card-panel { top: 0; right: 0; bottom: 48px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
     .answer-card-grid { grid-template-columns: repeat(5, minmax(36px, 1fr)); }
     .action-bar, .rating-bar { min-height: 48px; }
     .action-bar { padding: 6px 10px; }

@@ -72,6 +72,25 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.embedBreadcrumb",
+      description: "lets-question-bank.embedBreadcrumbDescription",
+      key: "embedBreadcrumb",
+      value: false,
+    },
+    {
+      type: "select",
+      title: "lets-question-bank.embedHeadingMode",
+      description: "lets-question-bank.embedHeadingModeDescription",
+      key: "embedHeadingMode",
+      value: "0",
+      options: {
+        "0": "lets-question-bank.embedHeadingModeBoth",
+        "1": "lets-question-bank.embedHeadingModeHeading",
+        "2": "lets-question-bank.embedHeadingModeChildren",
+      },
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.timingEnabled",
       description: "lets-question-bank.timingEnabledDescription",
       key: "timingEnabled",

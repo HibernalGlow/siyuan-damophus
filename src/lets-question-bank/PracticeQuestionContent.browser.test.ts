@@ -73,7 +73,7 @@ describe("PracticeQuestionContent", () => {
     render({ questionRenderMode: "embed", mountSourceBlock, toggleOption });
     await flush();
 
-    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, true);
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, true, undefined, "embed");
     expect(document.querySelector(`[data-mounted-block="${blockId}"][contenteditable="true"]`)).not.toBeNull();
     expect(document.querySelector(".embedded-question-source")).not.toBeNull();
     expect(document.querySelector(".stem")).toBeNull();
@@ -107,21 +107,39 @@ describe("PracticeQuestionContent", () => {
     expect(mountSourceBlock).not.toHaveBeenCalled();
   });
 
-  it("mounts native mode read-only after reveal and disposes it", async () => {
+  it("mounts the editable native question before reveal and the native solution after reveal", async () => {
     const cleanup = vi.fn();
-    const mountSourceBlock = vi.fn((target: HTMLElement, sourceBlockId: string, sourceEditable: boolean) => {
-      target.innerHTML = `<div data-mounted-block="${sourceBlockId}" contenteditable="${sourceEditable}">source</div>`;
+    const mountSourceBlock = vi.fn((target: HTMLElement, sourceBlockId: string, sourceEditable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => {
+      target.innerHTML = `<div data-mounted-block="${sourceBlockId}" data-mounted-section="${section ?? "stem"}" data-render-mode="${renderMode}" contenteditable="${sourceEditable}">source</div>`;
       return cleanup;
     });
-    render({ revealed: true, questionRenderMode: "native", mountSourceBlock });
+    render({ questionRenderMode: "native", mountSourceBlock });
     await flush();
 
-    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, false);
-    expect(document.querySelector(`[data-mounted-block="${blockId}"][contenteditable="false"]`)).not.toBeNull();
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, true, "stem", "native");
+    expect(document.querySelector(`[data-mounted-block="${blockId}"][data-mounted-section="stem"][data-render-mode="native"][contenteditable="true"]`)).not.toBeNull();
+    expect(document.querySelector(".native-question-source")).not.toBeNull();
+    expect(document.querySelector(".native-answer-source")).toBeNull();
+    const question = document.querySelector<HTMLElement>(".question");
+    const host = document.querySelector<HTMLElement>(".source-block-host");
+    expect(question && getComputedStyle(question).maxWidth).not.toBe("920px");
+    expect(host && getComputedStyle(host).minHeight).toBe("0px");
 
     if (mounted) await unmount(mounted);
     mounted = undefined;
     expect(cleanup).toHaveBeenCalledOnce();
+
+    render({ revealed: true, questionRenderMode: "native", mountSourceBlock });
+    await flush();
+
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, true, "stem", "native");
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, true, "solution", "native");
+    expect(document.querySelector(`[data-mounted-section="solution"][data-render-mode="native"][contenteditable="true"]`)).not.toBeNull();
+    expect(document.querySelector<HTMLElement>(".native-answer-source") && getComputedStyle(document.querySelector<HTMLElement>(".native-answer-source")!).minHeight).toBe("0px");
+
+    if (mounted) await unmount(mounted);
+    mounted = undefined;
+    expect(cleanup).toHaveBeenCalledTimes(3);
   });
 
   it("mounts the solution embed only after the answer is revealed", async () => {
@@ -133,8 +151,8 @@ describe("PracticeQuestionContent", () => {
     await flush();
 
     expect(mountSourceBlock).toHaveBeenCalledTimes(2);
-    expect(mountSourceBlock).toHaveBeenNthCalledWith(1, expect.any(HTMLElement), blockId, true);
-    expect(mountSourceBlock).toHaveBeenNthCalledWith(2, expect.any(HTMLElement), blockId, true, "solution");
+    expect(mountSourceBlock).toHaveBeenNthCalledWith(1, expect.any(HTMLElement), blockId, true, undefined, "embed");
+    expect(mountSourceBlock).toHaveBeenNthCalledWith(2, expect.any(HTMLElement), blockId, true, "solution", "embed");
     expect(document.querySelector(".embedded-question-source")).not.toBeNull();
     expect(document.querySelector('[data-mounted-section="solution"]')).not.toBeNull();
     expect(document.querySelector(".native-answer-source")).toBeNull();

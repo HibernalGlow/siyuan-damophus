@@ -1032,7 +1032,8 @@ describe("question bank browser flow", () => {
     const actionRect = actions.getBoundingClientRect();
 
     expect(Math.abs(rootRect.bottom - hostRect.bottom)).toBeLessThanOrEqual(1);
-    expect(headerRect.height).toBe(0);
+    expect(headerRect.height).toBeGreaterThan(0);
+    expect(header.classList.contains("app-header--practice")).toBe(true);
     expect(actionRect.bottom).toBeLessThanOrEqual(hostRect.bottom);
     expect(content.scrollHeight).toBeGreaterThan(content.clientHeight);
     content.scrollTop = 240;
@@ -1052,14 +1053,16 @@ describe("question bank browser flow", () => {
 
     const root = document.querySelector<HTMLElement>(".question-bank")!;
     const header = document.querySelector<HTMLElement>(".app-header")!;
-    const bar = document.querySelector<HTMLElement>(".practice-bar")!;
+    const bar = document.querySelector<HTMLElement>(".practice-toolbar")!;
     const question = document.querySelector<HTMLElement>(".question")!;
     const topic = document.querySelector<HTMLElement>(".practice-topic")!;
     const progress = document.querySelector<HTMLElement>(".progress-copy")!;
     const bottomTimer = document.querySelector<HTMLElement>(".question-timer")!;
 
     expect(root.dataset.practiceActive).toBe("true");
-    expect(getComputedStyle(header).display).toBe("none");
+    expect(getComputedStyle(header).display).not.toBe("none");
+    expect(document.querySelector(".practice-bar")).toBeNull();
+    expect(header.querySelector(".practice-toolbar")).not.toBeNull();
     expect(bar.getBoundingClientRect().height).toBeLessThanOrEqual(70);
     expect(getComputedStyle(topic).display).not.toBe("none");
     expect(progress.innerText.replace(/\s+/gu, " ").trim()).toBe("1 / 1");
@@ -1077,7 +1080,7 @@ describe("question bank browser flow", () => {
     button("Start practice").click();
     await flush();
 
-    const bar = document.querySelector<HTMLElement>(".practice-bar")!;
+    const bar = document.querySelector<HTMLElement>(".practice-toolbar")!;
     const timer = document.querySelector<HTMLElement>(".timer")!.getBoundingClientRect();
     const controls = document.querySelector<HTMLElement>(".practice-controls")!.getBoundingClientRect();
     const overlaps = timer.left < controls.right

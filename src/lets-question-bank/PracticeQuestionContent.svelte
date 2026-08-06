@@ -13,6 +13,7 @@
     blockId: string,
     editable: boolean,
     section?: "stem" | "solution",
+    renderMode?: "native" | "embed",
   ) => (() => void) | Promise<() => void>;
 
   export let label: Label;
@@ -37,13 +38,24 @@
   export let toggleOption: (optionId: string) => void;
   export let changeSubjectiveScore: (event: Event) => void;
 
-  function mountBlock(node: HTMLElement, params: { blockId: string; editable: boolean; section?: "stem" | "solution" }) {
-    return params.section
-      ? mountSourceBlock?.(node, params.blockId, params.editable, params.section)
-      : mountSourceBlock?.(node, params.blockId, params.editable);
+  type SourceBlockMountParams = {
+    blockId: string;
+    editable: boolean;
+    section?: "stem" | "solution";
+    renderMode: "native" | "embed";
+  };
+
+  function mountBlock(node: HTMLElement, params: SourceBlockMountParams) {
+    return mountSourceBlock?.(
+      node,
+      params.blockId,
+      params.editable,
+      params.section,
+      params.renderMode,
+    );
   }
 
-  function sourceBlockMount(node: HTMLElement, params: { blockId: string; editable: boolean; section?: "stem" | "solution" }) {
+  function sourceBlockMount(node: HTMLElement, params: SourceBlockMountParams) {
     let disposed = false;
     let cleanup: (() => void) | undefined;
     Promise.resolve(mountBlock(node, params)).then((dispose) => {
@@ -51,7 +63,7 @@
       else cleanup = dispose;
     });
     return {
-      update(next: { blockId: string; editable: boolean; section?: "stem" | "solution" }) {
+      update(next: SourceBlockMountParams) {
         disposed = true;
         void cleanup?.();
         disposed = false;
@@ -68,7 +80,37 @@
   }
 </script>
 
-{#if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
+{#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
+  <article class="question native-question" data-render-mode="native">
+    {#if currentGroup}
+      <div class="group-material">
+        <strong>{label("sharedMaterial", "Shared material")}</strong>
+        <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
+      </div>
+    {/if}
+    <div class="native-question-source">
+      {#key currentQuestionBlockId}
+        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !readOnlyQuestion, section: "stem", renderMode: "native" }}></div>
+      {/key}
+    </div>
+    {#if displayedOptions.length > 0}
+      <div class="options native-options">
+        {#each displayedOptions as option (option.originalId)}
+          <Button
+            variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
+            class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
+            disabled={revealed || readOnlyQuestion}
+            aria-pressed={selectedOptionIds.includes(option.originalId)}
+            onclick={() => toggleOption(option.originalId)}
+          >
+            <span class="option-label">{option.displayLabel}</span>
+            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
+          </Button>
+        {/each}
+      </div>
+    {/if}
+  </article>
+{:else if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
   <article class="question embedded-question" data-render-mode="embed">
     {#if currentGroup}
       <div class="group-material">
@@ -78,7 +120,7 @@
     {/if}
     <div class="embedded-question-source">
       {#key currentQuestionBlockId}
-        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true }}></div>
+        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true, renderMode: "embed" }}></div>
       {/key}
     </div>
     {#if displayedOptions.length > 0}
@@ -154,18 +196,15 @@
       </strong>
     {/if}
     {#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
-      <div class="native-answer-source" data-render-mode={questionRenderMode}>
-        <div class="native-answer-source__label">
-          {label("nativeSourceBlock", "Native source block")}
-        </div>
+      <div class="native-answer-source" data-render-mode="native">
         {#key `${currentQuestionBlockId}:${questionRenderMode}`}
-          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: false }}></div>
+          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !readOnlyQuestion, section: "solution", renderMode: "native" }}></div>
         {/key}
       </div>
     {:else if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
       <div class="embedded-answer-source" data-render-mode="embed">
         {#key `${currentQuestionBlockId}:${questionRenderMode}:solution`}
-          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true, section: "solution" }}></div>
+          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true, section: "solution", renderMode: "embed" }}></div>
         {/key}
       </div>
     {:else}
@@ -188,7 +227,7 @@
 {/if}
 
 <style>
-  .question { max-width: 920px; margin: 0 auto; padding: 24px 22px 8px; }
+  .question { width: 100%; margin: 0 auto; padding: 24px 22px 8px; }
   .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .question-title { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
@@ -203,18 +242,44 @@
   .stem { margin-top: 14px; line-height: 1.75; }
   .group-material { margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
   .group-material > strong { display: block; margin-bottom: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
-  .embedded-question { padding-top: 12px; }
-  .embedded-question-source { min-height: 180px; overflow: visible; }
-  .source-block-host { min-height: 180px; }
-  .options { margin-top: 18px; display: grid; gap: 8px; }
+  .embedded-question, .native-question { padding-top: 12px; }
+  .embedded-question-source, .native-question-source, .source-block-host { min-height: 0; overflow: visible; }
+  .source-block-host :global(.damophus-native-source-block) { min-height: 0; margin: 0; overflow: visible; }
+  .source-block-host :global(.damophus-native-source-block + .damophus-native-source-block) { margin-top: 0; }
+  .source-block-host :global(.damophus-native-source-block > .protyle),
+  .source-block-host :global(.damophus-native-source-block .protyle-content) {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .source-block-host :global(.damophus-native-source-block .protyle-wysiwyg) {
+    min-height: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow: visible;
+  }
+  .options { width: 100%; max-width: 920px; margin: 18px auto 0; display: grid; gap: 8px; }
   .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
   .option-content { align-self: center; width: 100%; }
-  .answer { max-width: 920px; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
+  .answer { width: 100%; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
   .correct { color: var(--b3-theme-success); font-size: 13px; }
   .incorrect { color: var(--b3-theme-error); }
-  .native-answer-source { margin-top: 12px; min-height: 120px; border: 1px solid var(--b3-border-color); padding: 8px 12px; overflow: auto; }
-  .native-answer-source__label { margin-bottom: 6px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .native-answer-source { margin-top: 12px; min-height: 0; overflow: visible; }
+  .native-answer-source :global(.damophus-native-source-block) { min-height: 0; margin: 0; overflow: visible; }
+  .native-answer-source :global(.damophus-native-source-block + .damophus-native-source-block) { margin-top: 0; }
+  .native-answer-source :global(.damophus-native-source-block > .protyle),
+  .native-answer-source :global(.damophus-native-source-block .protyle-content) {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .native-answer-source :global(.damophus-native-source-block .protyle-wysiwyg) {
+    min-height: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow: visible;
+  }
   .attempt-metadata { margin-top: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
 
   @container (max-width: 960px) {

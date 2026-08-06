@@ -26,11 +26,13 @@ import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { installSourceAnswerMask } from "./source-answer-mask";
 import {
   loadSourceEmbedRows,
+  sourceEmbedBlockIds,
   sourceEmbedSql,
   type SourceEmbedBlockRow,
   type SourceEmbedSection,
 } from "./source-embed-query";
 import {
+  observeFocusedBlock,
   sourceBlockProtyleActions,
   sourceEmbedBlockAttributes,
 } from "./source-embed-presentation";
@@ -374,16 +376,17 @@ export default class QuestionBankPlugin extends SubPluginBase {
           blockId: string,
           editable: boolean,
           section: SourceEmbedSection = "stem",
+          renderMode: "native" | "embed" = "embed",
         ) => {
           const binding = controller.getBinding();
-          let mountedBlockId = blockId;
           let temporaryEmbedId: string | undefined;
-          if (editable && binding?.systemDocumentId) {
+          if (renderMode === "embed" && binding?.systemDocumentId) {
             let embedQuery = `SELECT * FROM blocks WHERE id = '${blockId.replace(/'/gu, "''")}'`;
             try {
               embedQuery = await loadSourceQuery(blockId, section);
             } catch (error) {
-              console.warn("[Damophus] failed to resolve question embed range; using the heading block", error);
+              console.warn("[Damophus] failed to resolve question embed range", error);
+              embedQuery = "SELECT * FROM blocks WHERE 1 = 0";
             }
             const operations = await appendBlock(
               "markdown",
@@ -392,25 +395,48 @@ export default class QuestionBankPlugin extends SubPluginBase {
             );
             temporaryEmbedId = operations[0]?.doOperations?.[0]?.id;
             if (temporaryEmbedId) {
-              await setBlockAttrs(temporaryEmbedId, sourceEmbedBlockAttributes());
-              mountedBlockId = temporaryEmbedId;
+              await setBlockAttrs(temporaryEmbedId, sourceEmbedBlockAttributes({
+                breadcrumb: this.getSetting("embedBreadcrumb") === true,
+                headingMode: this.getSetting("embedHeadingMode"),
+              }));
             }
           }
-          const editor = new Protyle(plugin.app, target, {
-            mode: editable ? "wysiwyg" : "preview",
-            action: [...sourceBlockProtyleActions],
-            blockId: mountedBlockId,
-            render: {
-              background: false,
-              title: false,
-              gutter: true,
-              scroll: false,
-              breadcrumb: false,
-            },
-          });
-          if (binding?.notebookId) editor.protyle.notebookId = binding.notebookId;
+          const mountedBlockIds = renderMode === "native"
+            ? sourceEmbedBlockIds(await loadSourceRows(blockId), blockId, section)
+            : temporaryEmbedId ? [temporaryEmbedId] : [];
+          const editors = await Promise.all(mountedBlockIds.map(async (mountedBlockId) => {
+            const host = document.createElement("div");
+            host.className = "damophus-native-source-block";
+            target.append(host);
+            let stopBlockIsolation = () => {};
+            const editor = new Protyle(plugin.app, host, {
+              mode: editable ? "wysiwyg" : "preview",
+              action: [...sourceBlockProtyleActions],
+              blockId: mountedBlockId,
+              after: (mountedEditor) => {
+                stopBlockIsolation();
+                stopBlockIsolation = observeFocusedBlock(
+                  mountedEditor.protyle.wysiwyg.element,
+                  mountedBlockId,
+                );
+              },
+              render: {
+                background: false,
+                title: false,
+                gutter: true,
+                scroll: false,
+                breadcrumb: false,
+              },
+            });
+            if (binding?.notebookId) editor.protyle.notebookId = binding.notebookId;
+            return { editor, stopBlockIsolation: () => stopBlockIsolation() };
+          }));
           return async () => {
-            editor.destroy();
+            for (const mounted of editors) {
+              mounted.stopBlockIsolation();
+              mounted.editor.destroy();
+            }
+            target.replaceChildren();
             if (temporaryEmbedId) await deleteBlock(temporaryEmbedId);
           };
         },
