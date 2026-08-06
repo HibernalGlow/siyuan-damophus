@@ -558,6 +558,7 @@ describe("question bank browser flow", () => {
     button("Start practice").click();
     await flush();
     expect(document.body.textContent).toContain("Subjective question");
+    expect(document.querySelector('[data-slot="tabs"]')).toBeNull();
     expect(saveRecentScope).toHaveBeenCalledWith({
       documentId,
       headingBlockId: "20260804120002-abcdefg",

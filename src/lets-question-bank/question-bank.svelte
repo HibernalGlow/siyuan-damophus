@@ -39,6 +39,7 @@
   import * as ScrollArea from "@/components/ui/scroll-area";
   import * as Select from "@/components/ui/select";
   import { Switch } from "@/components/ui/switch";
+  import * as Tabs from "@/components/ui/tabs";
   import * as ToggleGroup from "@/components/ui/toggle-group";
   import { gradeQuestion } from "@/question-bank/core/answer";
   import {
@@ -1191,30 +1192,22 @@
       </div>
     </section>
   {:else}
-    <div class="view-tabs mx-4 mt-3 grid shrink-0 grid-cols-2 border-b" role="tablist" aria-label={label("views", "Views")}>
-      <button
-        type="button"
-        role="tab"
-        class={`view-tab flex items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm ${view === "practice" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
-        aria-selected={view === "practice"}
-        onclick={() => selectView("practice")}
-      >
-        <BookOpenCheck size={16} aria-hidden="true" />
-        {label("practice", "练习")}
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class={`view-tab flex items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm ${view === "statistics" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
-        aria-selected={view === "statistics"}
-        onclick={() => selectView("statistics")}
-      >
-        <BarChart3 size={16} aria-hidden="true" />
-        {label("statistics", "统计")}
-      </button>
-    </div>
+    {#if !currentQuestion && !practiceRuntime && !complete && !examMode}
+      <Tabs.Root bind:value={view} class="mx-4 mt-3 shrink-0" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
+        <Tabs.List class="grid w-full grid-cols-2">
+          <Tabs.Trigger value="practice">
+            <BookOpenCheck size={16} aria-hidden="true" />
+            {label("practice", "练习")}
+          </Tabs.Trigger>
+          <Tabs.Trigger value="statistics">
+            <BarChart3 size={16} aria-hidden="true" />
+            {label("statistics", "统计")}
+          </Tabs.Trigger>
+        </Tabs.List>
+      </Tabs.Root>
+    {/if}
 
-    {#if view === "statistics"}
+    {#if view === "statistics" && !currentQuestion && !practiceRuntime && !complete && !examMode}
       <Statistics
         snapshot={statisticsSnapshot}
         loading={statisticsLoading}
