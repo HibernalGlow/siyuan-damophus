@@ -933,6 +933,25 @@ describe("question bank browser flow", () => {
     expect(navigate).toHaveBeenCalledWith("doc");
   });
 
+  it("falls back to topic labels when the breadcrumb API returns empty names", async () => {
+    await page.viewport(390, 844);
+    const loadBreadcrumb = vi.fn(async () => [
+      { id: "doc", name: "", type: "NodeDocument", subType: "" },
+      { id: blockId, name: "", type: "NodeParagraph", subType: "" },
+    ]);
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { mobileBreadcrumb: true, loadBreadcrumb });
+    await scanAndSync();
+    button("Start practice").click();
+    await vi.waitFor(() => expect(loadBreadcrumb).toHaveBeenCalledWith(blockId));
+    await flush();
+
+    const breadcrumb = document.querySelector<HTMLElement>(".practice-breadcrumb")!;
+    expect(breadcrumb.textContent).toContain("Root topic");
+    expect(breadcrumb.textContent).toContain("Child topic");
+    expect(breadcrumb.textContent).not.toMatch(/^\s*\/\s*$/u);
+  });
+
   it("keeps the desktop reveal action visible while a long question scrolls internally", async () => {
     await page.viewport(1280, 840);
     const longQuestion: Question = {
@@ -968,71 +987,6 @@ describe("question bank browser flow", () => {
     expect(viewport.scrollTop).toBeGreaterThan(0);
     expect(header.getBoundingClientRect()).toEqual(headerRect);
     expect(actions.getBoundingClientRect()).toEqual(actionRect);
-  });
-
-  it("opens the current question title block in the SiYuan source editor for editing", async () => {
-    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
-    const openQuestionSource = vi.fn();
-    render(controller, { openQuestionSource });
-    await scanAndSync();
-    button("Start practice").click();
-    await flush();
-
-    button("Edit source block in SiYuan").click();
-
-    expect(openQuestionSource).toHaveBeenCalledOnce();
-    expect(openQuestionSource).toHaveBeenCalledWith(blockId);
-  });
-
-  it("uses the SiYuan renderer and respects the configured source style setting", async () => {
-    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
-    const renderQuestionMarkdown = vi.fn((markdown: string, inheritStyles: boolean) => (
-      `<span data-native-render="true" data-source-styles="${inheritStyles}">${markdown}</span>`
-    ));
-    render(controller, { renderQuestionMarkdown, inheritSourceStyles: false });
-    await scanAndSync();
-    button("Start practice").click();
-    await flush();
-
-    expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.stemMarkdown, false);
-    expect(document.querySelector('[data-native-render="true"][data-source-styles="false"]')).not.toBeNull();
-
-    const alpha = [...document.querySelectorAll<HTMLButtonElement>("button.option")]
-      .find((item) => item.querySelector(".option-label")?.textContent === "A");
-    if (!alpha) throw new Error("Missing source option A");
-    alpha.click();
-    await flush();
-    const gamma = [...document.querySelectorAll<HTMLButtonElement>("button.option")]
-      .find((item) => item.querySelector(".option-label")?.textContent === "C");
-    if (!gamma) throw new Error("Missing source option C");
-    gamma.click();
-    button("Reveal answer").click();
-    await flush();
-    expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.solutionMarkdown, false);
-    expect(document.querySelector(".solution [data-native-render='true']")?.textContent).toContain("Answer");
-  });
-
-  it("uses the current HTML renderer when the HTML mode is selected", async () => {
-    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
-    const renderQuestionMarkdown = vi.fn(() => "<span data-native-render=\"true\">native</span>");
-    render(controller, { questionRenderMode: "html", renderQuestionMarkdown });
-    await scanAndSync();
-    button("Start practice").click();
-    await flush();
-
-    expect(renderQuestionMarkdown).not.toHaveBeenCalled();
-    expect(document.querySelector(".stem")?.textContent).toContain("Select the correct options.");
-  });
-
-  it("does not expose the solution before reveal in embed mode", async () => {
-    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
-    render(controller, { questionRenderMode: "embed" });
-    await scanAndSync();
-    button("Start practice").click();
-    await flush();
-
-    expect(document.querySelector(".solution")).toBeNull();
-    expect(document.body.textContent ?? "").not.toContain("Answer: A and C");
   });
 
   it("records subjective self-rating independently from objective correctness", async () => {

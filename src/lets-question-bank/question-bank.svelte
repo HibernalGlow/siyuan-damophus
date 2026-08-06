@@ -11,7 +11,6 @@
     Database,
     Download,
     LayoutGrid,
-    ExternalLink,
     List,
     ListOrdered,
     Pause,
@@ -32,11 +31,10 @@
   } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import * as Alert from "@/components/ui/alert";
   import { Badge } from "@/components/ui/badge";
-  import { Button, buttonVariants } from "@/components/ui/button";
+  import { Button } from "@/components/ui/button";
   import * as Collapsible from "@/components/ui/collapsible";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
-  import * as Progress from "@/components/ui/progress";
   import * as ScrollArea from "@/components/ui/scroll-area";
   import * as Select from "@/components/ui/select";
   import { Switch } from "@/components/ui/switch";
@@ -88,6 +86,9 @@
     QuestionBankInitializationPreview,
     QuestionBankRebindingPreview,
   } from "@/question-bank/adapters/siyuan";
+  import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
+  import PracticeCompletion from "./PracticeCompletion.svelte";
+  import PracticeScanSummary from "./PracticeScanSummary.svelte";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
@@ -103,6 +104,7 @@
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
+  export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean) => (() => void) | Promise<() => void>) | undefined = undefined;
   export let autoSyncIndex = false;
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let autoScanDocument = false;
@@ -907,7 +909,7 @@
     });
 
     const render = (next: typeof state): void => {
-      if (next.items.length > 0) {
+      if (next.items.length > 0 && next.items.some((item) => item.name.trim().length > 0)) {
         breadcrumbScroller?.renderMobileItems(
           next.items,
           next.activeId,
@@ -1228,168 +1230,30 @@
             </span>
           </Collapsible.Trigger>
           <Collapsible.Content class="workspace-panel-content">
-        <section class="scan-summary" aria-label={label("scanSummary", "Scan summary")}>
-          <div class="source-progress-overview">
-            {#if sourceIdentity}
-              <div class="source-identity" data-testid="source-identity">
-                <div class="source-heading">
-                  <Badge variant="outline">{sourceTypeLabel(sourceIdentity.type)}</Badge>
-                  <strong>{sourceIdentity.content}</strong>
-                </div>
-                {#if sourceIdentity.hpath}<span>{sourceIdentity.hpath}</span>{/if}
-                <code>{sourceIdentity.id}</code>
-              </div>
-            {/if}
-            <div class="completion-overview" data-testid="completion-overview">
-              <div class="completion-heading">
-                <span>{label("completion", "Completion")}</span>
-                <Badge variant={completionPercent === 100 ? "default" : attemptedQuestions > 0 ? "secondary" : "outline"}>
-                  {completionStatusLabel(attemptedQuestions, progressQuestions.length)}
-                </Badge>
-                <strong>{completionPercent}%</strong>
-              </div>
-              <Progress.Root
-                class="h-2"
-                value={completionPercent}
-                max={100}
-                aria-label={label("completionProgress", "Question completion progress")}
-              />
-              <div class="progress-stats">
-                <span><strong>{progressQuestions.length}</strong>{label("questions", "Questions")}</span>
-                <span><strong>{attemptedQuestions}</strong>{label("attempted", "Attempted")}</span>
-                <span><strong>{untouchedQuestions}</strong>{label("untouched", "Untouched")}</span>
-                <span><strong>{reviewQuestions}</strong>{label("needsReview", "Needs review")}</span>
-              </div>
-            </div>
-          </div>
-          <div class="summary-grid">
-            <span><strong>{preview.actions.filter((action) => action.kind === "add").length}</strong>{label("additions", "Additions")}</span>
-            <span><strong>{preview.actions.filter((action) => action.kind === "update").length}</strong>{label("updates", "Updates")}</span>
-            <span><strong>{preview.scan.report.inferences.length}</strong>{label("inferences", "Inferences")}</span>
-            <span><strong>{preview.scan.report.issues.length}</strong>{label("issues", "Issues")}</span>
-            <span class:danger={preview.blockers.length > 0}><strong>{preview.blockers.length}</strong>{label("blockers", "Blockers")}</span>
-          </div>
-          <Button
-            variant={pendingSync ? "default" : "outline"}
-            disabled={busy || preview.blockers.length > 0 || !pendingSync}
-            onclick={confirmSync}
-          >
-            <svg data-icon="inline-start" aria-hidden="true"><use href="#iconCheck"></use></svg>
-            {pendingSync ? label("confirmSync", "Confirm index sync") : label("indexCurrent", "Index is up to date")}
-          </Button>
-          <FormLabel class="auto-sync-toggle cursor-pointer gap-2" for="auto-sync-index-toggle">
-            <Switch
-              id="auto-sync-index-toggle"
-              size="sm"
-              checked={autoSyncIndex}
-              onCheckedChange={toggleAutoSyncIndex}
-              aria-label={label("autoSyncIndex", "Automatically sync latest index")}
-            />
-            <span>{label("autoSyncIndex", "Automatically sync latest index")}</span>
-          </FormLabel>
-          {#if pendingSync}
-            <span class="text-sm font-medium text-primary">
-              {preview.blockers.length > 0
-                ? label("syncBlocked", "Index changes detected; resolve blockers before syncing")
-                : label("syncRequired", "Index changes detected; synchronization is required")}
-            </span>
-          {:else}
-            <span class="text-sm text-muted-foreground">
-              {syncComplete ? label("synced", "Question index synchronized") : label("indexCurrent", "Index is up to date")}
-            </span>
-          {/if}
-          <Collapsible.Root bind:open={scanDetailsOpen} class="basis-full border-t border-border pt-2.5 select-text">
-            <Collapsible.Trigger class={buttonVariants({ variant: "ghost", size: "sm" })}>
-              <svg data-icon="inline-start" aria-hidden="true"><use href={scanDetailsOpen ? "#iconUp" : "#iconDown"}></use></svg>
-              {label("scanDetails", "Scan details")}
-            </Collapsible.Trigger>
-            <Collapsible.Content>
-            <div class="scan-detail-actions">
-              <span>{label("inferenceNotice", "Inferences describe detected structure and are not errors.")}</span>
-              {#if scanMessageGroups.some((group) => group.messages.length > 0)}
-                <Button variant="outline" size="sm" type="button" onclick={() => void copyText(scanLogText())}>
-                  <svg data-icon="inline-start" aria-hidden="true"><use href="#iconCopy"></use></svg>
-                  {label("copyScanLog", "Copy scan log")}
-                </Button>
-              {/if}
-            </div>
-            {#each scanMessageGroups as group}
-              {#if group.messages.length > 0}
-                <div class="report-group">
-                  <strong>{label(group.key, group.key)}</strong>
-                  <ul>
-                    {#each group.messages as message}
-                      <li class="report-message">
-                        <div class="report-message-heading">
-                          <div>
-                            <code>{message.code}</code>
-                            <span>{message.message}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            type="button"
-                            aria-label={label("copyFinding", "Copy finding")}
-                            title={label("copyFinding", "Copy finding")}
-                            onclick={() => void copyText(messageClipboardText(message))}
-                          >
-                            <svg aria-hidden="true"><use href="#iconCopy"></use></svg>
-                          </Button>
-                        </div>
-                        {#if message.title}<strong class="message-title">{label("heading", "Heading")}: {message.title}</strong>{/if}
-                        {#if messageContext(message)}<small>{messageContext(message)}</small>{/if}
-                        {#if message.sourceMarkdown}
-                            <Collapsible.Root class="message-source mt-1.5">
-                            <Collapsible.Trigger class={buttonVariants({ variant: "ghost", size: "xs" })}>
-                              {label("sourceMarkdown", "Original Markdown")}
-                            </Collapsible.Trigger>
-                            <Collapsible.Content>
-                            <pre class="mt-1.5 mb-0 max-h-45 overflow-auto rounded-md border border-border bg-background p-2 whitespace-pre-wrap break-words"><code class="text-xs select-text">{message.sourceMarkdown}</code></pre>
-                            </Collapsible.Content>
-                          </Collapsible.Root>
-                        {/if}
-                      </li>
-                    {/each}
-                  </ul>
-                </div>
-              {/if}
-            {/each}
-            {#if preview.ialWriteActions.length > 0}
-              <div class="report-group">
-                <strong>{label("ialUpdates", "IAL updates")}</strong>
-                <ul>
-                  {#each preview.ialWriteActions as action}
-                    <li>
-                      <code>{action.reason}</code>
-                      <span>{action.questionId}: {JSON.stringify(action.attributes)}</span>
-                      <small>{action.blockId}</small>
-                    </li>
-                  {/each}
-                </ul>
-              </div>
-            {/if}
-            {#if preview.bindingRepairs.length > 0}
-              <div class="report-group">
-                <strong>{label("bindingRepairs", "Database repairs")}</strong>
-                <ul>
-                  {#each preview.bindingRepairs as repair}
-                    <li>
-                      <code>{repair.database}</code>
-                      <span>{String(repair.field)} ({repair.currentType ? `${repair.currentType} -> ` : ""}{repair.type})</span>
-                    </li>
-                  {/each}
-                </ul>
-              </div>
-            {/if}
-            {#if preview.staleQuestionIds.length > 0}
-              <div class="report-group">
-                <strong>{label("staleQuestions", "Stale questions")}</strong>
-                <code>{preview.staleQuestionIds.join(", ")}</code>
-              </div>
-            {/if}
-            </Collapsible.Content>
-          </Collapsible.Root>
-        </section>
+        <PracticeScanSummary
+          {preview}
+          {sourceIdentity}
+          progressQuestionCount={progressQuestions.length}
+          {completionPercent}
+          {attemptedQuestions}
+          {untouchedQuestions}
+          {reviewQuestions}
+          {pendingSync}
+          {busy}
+          {syncComplete}
+          {autoSyncIndex}
+          bind:scanDetailsOpen
+          {scanMessageGroups}
+          {sourceTypeLabel}
+          {completionStatusLabel}
+          {messageContext}
+          {messageClipboardText}
+          {scanLogText}
+          {copyText}
+          {confirmSync}
+          {toggleAutoSyncIndex}
+          {label}
+        />
           </Collapsible.Content>
         </Collapsible.Root>
 
@@ -1639,75 +1503,29 @@
         </aside>
       {/if}
       <ScrollArea.Root class="practice-content min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
-        <article class="question">
-        <div class="question-heading">
-          <div class="question-title">
-            <Badge variant="secondary" data-question-type={currentQuestion.type}>
-              {questionTypeLabel(currentQuestion.type)}
-            </Badge>
-            <h2>{currentQuestion.title}</h2>
-          </div>
-          {#if currentQuestionBlockId && openQuestionSource}
-            <Button
-              variant="ghost"
-              size="icon"
-              class="shrink-0"
-              title={label("editSource", "Edit source block in SiYuan")}
-              aria-label={label("editSource", "Edit source block in SiYuan")}
-              onclick={() => openQuestionSource?.(currentQuestionBlockId as string)}
-            >
-              <ExternalLink aria-hidden="true" />
-            </Button>
-          {/if}
-        </div>
-        {#if currentGroup}
-          <div class="group-material">
-            <strong>{label("sharedMaterial", "Shared material")}</strong>
-            <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderedQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
-          </div>
-        {/if}
-        <div class="markdown native-content protyle-wysiwyg stem" contenteditable="false">{@html renderedQuestionContent(currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
-        {#if displayedOptions.length > 0}
-          <div class="options">
-            {#each displayedOptions as option (option.originalId)}
-              <Button
-                variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-                class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
-                disabled={revealed || readOnlyQuestion}
-                aria-pressed={selectedOptionIds.includes(option.originalId)}
-                onclick={() => toggleOption(option.originalId)}
-              >
-                <span class="option-label">{option.displayLabel}</span>
-                <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderedQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
-              </Button>
-            {/each}
-          </div>
-        {/if}
-        </article>
-
-        {#if revealed}
-          <section class="answer">
-            {#if objectiveCorrect !== null}
-              <strong class:correct={objectiveCorrect} class:incorrect={!objectiveCorrect}>
-                {objectiveCorrect ? label("correct", "Correct") : label("incorrect", "Incorrect")}
-              </strong>
-            {/if}
-            <div class="markdown native-content protyle-wysiwyg solution" contenteditable="false">{@html renderedQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
-            {#if currentQuestion.type === "subjective"}
-              <FormLabel class="mt-4 flex items-center gap-2.5">
-                <span>{label("subjectiveScore", "Self score")}</span>
-                <Input class="w-24" type="number" min="0" max="100" step="1" value={subjectiveScore ?? ""} disabled={readOnlyQuestion} oninput={changeSubjectiveScore} />
-              </FormLabel>
-            {/if}
-            {#if currentAttempt}
-              <div class="attempt-metadata">
-                <Badge variant="outline">{label(currentAttempt.mastery_rating, currentAttempt.mastery_rating)}</Badge>
-                <span>{new Date(currentAttempt.answered_at).toLocaleString()}</span>
-                {#if currentAttempt.duration_ms !== undefined}<span>{formatDuration(currentAttempt.duration_ms)}</span>{/if}
-              </div>
-            {/if}
-          </section>
-        {/if}
+        <PracticeQuestionContent
+          {currentQuestion}
+          {currentGroup}
+          {currentQuestionBlockId}
+          {displayedOptions}
+          {selectedOptionIds}
+          {revealed}
+          {readOnlyQuestion}
+          {objectiveCorrect}
+          {subjectiveScore}
+          {currentAttempt}
+          {inheritSourceStyles}
+          {questionRenderMode}
+          {openQuestionSource}
+          renderQuestionContent={renderedQuestionContent}
+          {mountSourceBlock}
+          {questionTypeLabel}
+          {optionMarkdown}
+          {formatDuration}
+          {toggleOption}
+          {changeSubjectiveScore}
+          {label}
+        />
       </ScrollArea.Root>
 
       {#if readOnlyQuestion}
@@ -1737,23 +1555,17 @@
       {/if}
     </section>
   {:else if complete}
-    <section class="completion min-h-0 flex-1 overflow-y-auto">
-      <h2>{queue.length === 0 ? label("noQuestions", "No questions match this scope and filter") : label("complete", "Practice complete")}</h2>
-      {#if queue.length > 0}
-        <div class="completion-summary">
-          <span><strong>{sessionAttempts.length}</strong>{label("submitted", "Submitted")}</span>
-          <span><strong>{completionCorrect}</strong>{label("correct", "Correct")}</span>
-          <span><strong>{formatDuration(completionDurationMs)}</strong>{label("answerTime", "Answer time")}</span>
-          <span><strong>{touchedDrafts}</strong>{label("drafts", "Drafts")}</span>
-        </div>
-        <div class="completion-review">
-          {#each queue as question, index (question.id)}
-            <Button variant="outline" onclick={() => goToQuestion(index)}>{index + 1}. {question.title}</Button>
-          {/each}
-        </div>
-      {/if}
-      <Button variant="outline" onclick={resetPractice}>{label("restart", "Back to scope")}</Button>
-    </section>
+    <PracticeCompletion
+      {queue}
+      submittedCount={sessionAttempts.length}
+      correctCount={completionCorrect}
+      {completionDurationMs}
+      {touchedDrafts}
+      {formatDuration}
+      {goToQuestion}
+      {resetPractice}
+      {label}
+    />
   {/if}
 </main>
 
@@ -1792,19 +1604,6 @@
   .setup .document-row { grid-template-columns: minmax(220px, 1fr) auto; }
   .rebind-setup { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--b3-border-color); }
   .preview-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-  .scan-summary { padding: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .source-progress-overview { flex-basis: 100%; min-width: 0; display: grid; grid-template-columns: minmax(240px, 1fr) minmax(360px, 1.15fr); gap: 24px; align-items: stretch; }
-  .source-identity, .completion-overview { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
-  .source-heading { min-width: 0; display: flex; align-items: center; gap: 8px; }
-  .source-heading strong { min-width: 0; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
-  .source-identity > span { color: var(--b3-theme-on-surface); font-size: 12px; overflow-wrap: anywhere; }
-  .source-identity > code { width: fit-content; max-width: 100%; color: var(--b3-theme-on-surface); font-size: 11px; overflow-wrap: anywhere; }
-  .completion-heading { min-width: 0; display: grid; grid-template-columns: auto auto minmax(44px, 1fr); align-items: center; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
-  .completion-heading strong { justify-self: end; color: var(--b3-theme-on-background); font-size: 18px; font-variant-numeric: tabular-nums; }
-  .progress-stats { display: grid; grid-template-columns: repeat(4, minmax(58px, 1fr)); }
-  .progress-stats span { min-width: 0; padding: 2px 9px; border-left: 1px solid var(--b3-border-color); display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 11px; }
-  .progress-stats span:first-child { padding-left: 0; border-left: 0; }
-  .progress-stats strong { color: var(--b3-theme-on-background); font-size: 15px; font-variant-numeric: tabular-nums; }
   .recovery-actions { padding: 14px 16px 0; display: flex; justify-content: flex-end; gap: 8px; }
   .unfinished-sessions { margin: 14px -20px 0; padding: 14px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
   .section-heading { display: flex; align-items: center; gap: 8px; }
@@ -1818,21 +1617,6 @@
   .import-report span { min-width: 76px; display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
   .import-report strong { color: var(--b3-theme-on-background); font-size: 17px; }
   .import-report code { flex-basis: 100%; overflow-wrap: anywhere; }
-  .summary-grid { flex: 1; display: grid; grid-template-columns: repeat(5, minmax(74px, 1fr)); gap: 1px; background: var(--b3-border-color); }
-  .summary-grid span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; flex-direction: column; justify-content: center; font-size: 12px; color: var(--b3-theme-on-surface); }
-  .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
-  .summary-grid .danger strong, .incorrect { color: var(--b3-theme-error); }
-  .scan-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--b3-theme-on-surface); font-size: 12px; }
-  .report-group { margin-top: 12px; }
-  .report-group > strong { display: block; margin-bottom: 6px; font-size: 13px; }
-  .report-group ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
-  .report-group li { min-width: 0; }
-  .report-message-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-  .report-message-heading > div { min-width: 0; }
-  .report-message-heading span { margin-left: 8px; overflow-wrap: anywhere; }
-  .message-title { display: block; margin-top: 5px; overflow-wrap: anywhere; }
-  .report-group small { display: block; margin-top: 2px; color: var(--b3-theme-on-surface); overflow-wrap: anywhere; }
-  .correct { color: var(--b3-theme-success); font-size: 13px; }
   .practice-section { margin-top: 16px; padding: 16px; border: 1px solid var(--b3-border-color); border-radius: 10px; }
   .practice-section-heading { display: flex; align-items: center; gap: 10px; }
   .practice-section-heading > :global(svg) { width: 20px; height: 20px; flex: 0 0 20px; color: var(--b3-theme-primary); }
@@ -1860,41 +1644,12 @@
   .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }
   .answer-card-panel header span { color: var(--b3-theme-on-surface); font-size: 12px; }
   .answer-card-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 8px; }
-  .question { max-width: 920px; margin: 0 auto; padding: 24px 22px 8px; }
-  .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-  .question-title { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
-  .markdown { min-width: 0; overflow-wrap: anywhere; }
-  .native-content.protyle-wysiwyg { display: block; min-height: 0; padding: 0; overflow: visible; }
-  .native-content.protyle-wysiwyg :global([data-node-id]) { max-width: 100%; }
-  .native-content.protyle-wysiwyg :global(.protyle-attr),
-  .native-content.protyle-wysiwyg :global(.protyle-action),
-  .native-content.protyle-wysiwyg :global(.protyle-icons) { display: none !important; }
-  .markdown :global(p:first-child) { margin-top: 0; }
-  .markdown :global(p:last-child) { margin-bottom: 0; }
-  .stem { margin-top: 14px; line-height: 1.75; }
-  .group-material { margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
-  .group-material > strong { display: block; margin-bottom: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
-  .options { margin-top: 18px; display: grid; gap: 8px; }
-  .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
-  .option-content { align-self: center; width: 100%; }
-  .option-content :global([data-node-id]) { margin: 0; padding: 0; min-height: 0; }
-  .answer { max-width: 920px; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
-  .solution { margin-top: 12px; line-height: 1.7; }
-  .attempt-metadata { margin-top: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .action-bar, .rating-bar { min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
   .action-bar:has(.question-timer) { justify-content: space-between; }
   .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
   :global(.damophus-question-bank-mobile-dialog .b3-dialog__header) { display: none !important; }
   :global(.damophus-question-bank-mobile-dialog .b3-dialog__container) { padding-top: 0 !important; }
   .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
-  .completion { min-height: 240px; display: grid; place-content: center; justify-items: center; gap: 16px; text-align: center; }
-  .completion-summary { width: min(680px, 100%); display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); border: 1px solid var(--b3-border-color); }
-  .completion-summary span { padding: 10px; border-left: 1px solid var(--b3-border-color); display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
-  .completion-summary span:first-child { border-left: 0; }
-  .completion-summary strong { color: var(--b3-theme-on-background); font-size: 17px; }
-  .completion-review { width: min(680px, 100%); display: grid; gap: 6px; }
-  .completion-review :global(button) { min-width: 0; justify-content: flex-start; overflow-wrap: anywhere; white-space: normal; text-align: left; }
 
   @container (max-width: 960px) {
     .question-bank[data-practice-active="true"] .app-header { display: none; }
@@ -1904,11 +1659,7 @@
     section { padding: 14px; }
     .document-row { grid-template-columns: minmax(0, 1fr) 34px auto; }
     :global(.document-id-label) { display: none; }
-    .source-progress-overview { grid-template-columns: 1fr; gap: 18px; }
     .recovery-actions { justify-content: stretch; }
-    .summary-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); flex-basis: 100%; }
-    .summary-grid span { min-height: 46px; padding: 5px 4px; text-align: center; }
-    .summary-grid strong { font-size: 15px; }
     .practice-settings {
       grid-template-columns: minmax(0, 1fr) minmax(190px, 0.75fr);
       gap: 12px;
@@ -1943,29 +1694,10 @@
     .practice-bar > :global(.answer-card-button) { grid-area: card; }
     .answer-card-panel { top: 68px; right: 0; bottom: 48px; width: 100%; max-height: none; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
     .answer-card-grid { grid-template-columns: repeat(5, minmax(36px, 1fr)); }
-    .question { padding: 12px 12px 6px; }
-    .question-heading { gap: 8px; }
-    .question-title { gap: 6px; }
-    .question-heading h2 { font-size: 16px; }
-    .stem { margin-top: 8px; line-height: 1.65; }
-    .stem > :global([data-node-id]),
-    .group-material .native-content > :global([data-node-id]) {
-      margin-block: 0 10px !important;
-      padding-left: 8px !important;
-      padding-right: 0 !important;
-    }
-    .group-material { margin-top: 10px; padding-block: 9px; }
-    .options { margin-top: 12px; gap: 7px; }
-    .options > :global(button.option) { padding: 7px 10px; }
-    .option-label { width: 30px; height: 30px; border-radius: 6px; }
-    .answer { margin-top: 10px; padding: 14px 12px 18px; }
     .action-bar, .rating-bar { min-height: 48px; }
     .action-bar { padding: 6px 10px; }
     .action-bar .question-timer { display: none; }
     .rating-bar { grid-template-columns: 34px repeat(4, minmax(0, 1fr)); padding: 8px; gap: 5px; }
-    .completion-summary { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
-    .completion-summary span:nth-child(3) { border-left: 0; border-top: 1px solid var(--b3-border-color); }
-    .completion-summary span:nth-child(4) { border-top: 1px solid var(--b3-border-color); }
   }
 
   @container (max-width: 760px) {
@@ -1986,11 +1718,6 @@
     .auto-scan-control { min-height: 44px; }
     .practice-settings :global([data-slot="toggle-group-item"]),
     .practice-settings :global(button.start) { min-height: 44px; }
-    .scan-summary { gap: 10px; }
-    .source-progress-overview { gap: 12px; }
-    .progress-stats span { padding-inline: 5px; text-align: center; }
-    .progress-stats strong { font-size: 14px; }
-    :global(.auto-sync-toggle > span) { display: none; }
     .practice-section { margin-top: 10px; padding: 12px; }
     .practice-settings { padding-top: 12px; }
   }
@@ -2000,15 +1727,6 @@
     .auto-scan-control { grid-column: 1 / -1; justify-self: end; }
     .practice-settings { grid-template-columns: 1fr; }
     .filter-control, .practice-settings :global(button.start) { grid-column: auto; }
-    .source-identity > span, .source-identity > code { display: none; }
-    .completion-overview { gap: 6px; }
-    .summary-grid span { min-height: 40px; font-size: 10px; }
-  }
-
-  @container (max-height: 620px) {
-    .source-identity > span, .source-identity > code { display: none; }
-    .completion-overview { gap: 6px; }
-    .summary-grid span { min-height: 40px; font-size: 10px; }
   }
 
   @media (prefers-reduced-motion: reduce) {

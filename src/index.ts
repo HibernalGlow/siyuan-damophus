@@ -1,4 +1,4 @@
-import { Dialog, Menu, Plugin } from "siyuan";
+import { Dialog, fetchSyncPost, Menu, Plugin, showMessage } from "siyuan";
 import { registerPlugin } from "@frostime/siyuan-plugin-kits";
 import { mount, unmount } from "svelte";
 import "@/styles/damophus.css";
@@ -87,6 +87,11 @@ export default class PluginLetsGo extends Plugin {
     }
     if (itemCount > 0) menu.addSeparator();
     menu.addItem({
+      icon: "iconRefresh",
+      label: this.i18n["settings.quickReload"] ?? "Reload Damophus",
+      click: () => void this.reloadPlugin(),
+    });
+    menu.addItem({
       icon: "iconSettings",
       label: this.i18n["settings.preferences"] ?? "设置",
       click: () => this.openSetting(),
@@ -96,6 +101,21 @@ export default class PluginLetsGo extends Plugin {
       menu.fullscreen();
     } else if (rect) {
       menu.open({ x: rect.right, y: rect.bottom, isLeft: true });
+    }
+  }
+
+  private async reloadPlugin(): Promise<void> {
+    showMessage(this.i18n["settings.reloading"] ?? "Reloading Damophus...", 2000);
+    const response = await fetchSyncPost("/api/petal/setPetalEnabled", {
+      packageName: this.name,
+      enabled: true,
+    });
+    if (response.code !== 0) {
+      showMessage(
+        response.msg || this.i18n["settings.reloadFailed"] || "Failed to reload Damophus",
+        5000,
+        "error",
+      );
     }
   }
 

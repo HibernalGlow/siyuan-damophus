@@ -1,12 +1,13 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
-import { getBlockBreadcrumb } from "@/api";
+import { appendBlock, deleteBlock, getBlockBreadcrumb } from "@/api";
 import { settings } from "@/settings";
 import {
   Dialog,
   getAllEditor,
   openMobileFileById,
   openTab,
+  Protyle,
   type IEventBusMap,
   type Menu,
 } from "siyuan";
@@ -303,6 +304,37 @@ export default class QuestionBankPlugin extends SubPluginBase {
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),
+        mountSourceBlock: async (target: HTMLElement, blockId: string, editable: boolean) => {
+          const binding = controller.getBinding();
+          let mountedBlockId = blockId;
+          let temporaryEmbedId: string | undefined;
+          if (editable && binding?.systemDocumentId) {
+            const operations = await appendBlock(
+              "markdown",
+              `{{select * from blocks where id = '${blockId}'}}`,
+              binding.systemDocumentId,
+            );
+            temporaryEmbedId = operations[0]?.doOperations?.[0]?.id;
+            if (temporaryEmbedId) mountedBlockId = temporaryEmbedId;
+          }
+          const editor = new Protyle(plugin.app, target, {
+            mode: editable ? "wysiwyg" : "preview",
+            action: ["cb-get-all"],
+            blockId: mountedBlockId,
+            render: {
+              background: false,
+              title: false,
+              gutter: true,
+              scroll: false,
+              breadcrumb: false,
+            },
+          });
+          if (binding?.notebookId) editor.protyle.notebookId = binding.notebookId;
+          return async () => {
+            editor.destroy();
+            if (temporaryEmbedId) await deleteBlock(temporaryEmbedId);
+          };
+        },
         onAutoSyncIndexChange: (value: boolean) => this.setSetting("autoSyncIndex", value),
         onAutoScanDocumentChange: (value: boolean) => this.setSetting("autoScanDocument", value),
         openQuestionSource: (blockId: string) => {
