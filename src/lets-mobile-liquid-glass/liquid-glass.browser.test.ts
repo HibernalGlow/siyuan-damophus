@@ -21,8 +21,10 @@ describe("mobile liquid glass", () => {
     const css = document.getElementById(MOBILE_LIQUID_GLASS_STYLE_ID)?.textContent ?? "";
     expect(css).toContain(`#editor > .protyle-breadcrumb::before`);
     expect(css).not.toContain(`#editor::before`);
+    expect(css).toContain(`isolation: isolate`);
     expect(css).toContain(`backdrop-filter: blur(5px) saturate(1.24) contrast(1.03)`);
     expect(css).not.toContain(`#sidebar .toolbar__icon`);
+    expect(css).not.toMatch(/(?:^|[,{])\s*(?:svg|use|symbol)\b/);
     expect(css).not.toContain(`backdrop-filter: url(`);
     expect(css).not.toContain(`#editor::after`);
     expect(document.querySelectorAll("#damophus-mobile-liquid-glass-host")).toHaveLength(0);

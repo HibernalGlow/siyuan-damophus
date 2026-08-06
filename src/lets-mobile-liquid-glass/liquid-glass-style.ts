@@ -17,6 +17,7 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb {
     inset: 40px 0 auto;
     width: 100%;
     z-index: 5;
+    isolation: isolate;
     background: transparent !important;
     border-bottom: 0;
     -webkit-backdrop-filter: none;
