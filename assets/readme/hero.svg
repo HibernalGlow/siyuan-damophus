@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+  <title id="title">Damophus personal SiYuan extensions</title>
+  <desc id="desc">Damophus combines a source-safe question bank with complete mobile breadcrumbs, title-bar actions, and a unified liquid-glass surface.</desc>
+
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#30433e" stroke-width="1" opacity="0.32"/>
+    </pattern>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#d7ad5c"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="400" rx="14" fill="#111a18"/>
+  <rect x="1" y="1" width="1198" height="398" rx="13" fill="none" stroke="#344944" stroke-width="2"/>
+  <rect x="640" width="560" height="400" fill="url(#grid)"/>
+  <path d="M640 0V400" stroke="#344944" stroke-width="2"/>
+
+  <g id="identity" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <path d="M48 46H224" stroke="#e0644d" stroke-width="4"/>
+    <path d="M48 54H140" stroke="#d7ad5c" stroke-width="2"/>
+    <text x="48" y="92" fill="#9fb2ad" font-size="18" font-weight="700">PERSONAL SIYUAN EXTENSIONS</text>
+    <text x="44" y="184" fill="#f3ede2" font-size="78" font-weight="800">DAMOPHUS</text>
+    <text x="48" y="229" fill="#d5dfdc" font-size="25" font-weight="500">可恢复题库 + 完整移动面包屑</text>
+    <text x="48" y="264" fill="#d5dfdc" font-size="25" font-weight="500">题源安全、标题栏整合与液态玻璃</text>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="700">
+      <rect x="48" y="316" width="176" height="36" rx="5" fill="#192724" stroke="#3d5550"/>
+      <circle cx="68" cy="334" r="5" fill="#e0644d"/>
+      <text x="82" y="340" fill="#d5dfdc">QUESTION BANK</text>
+
+      <rect x="236" y="316" width="150" height="36" rx="5" fill="#192724" stroke="#3d5550"/>
+      <circle cx="256" cy="334" r="5" fill="#d7ad5c"/>
+      <text x="270" y="340" fill="#d5dfdc">MOBILE UI</text>
+
+      <rect x="398" y="316" width="138" height="36" rx="5" fill="#192724" stroke="#3d5550"/>
+      <circle cx="418" cy="334" r="5" fill="#7aa69a"/>
+      <text x="432" y="340" fill="#d5dfdc">SELF-USE</text>
+    </g>
+  </g>
+
+  <g id="question-flow" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <path d="M695 304L1128 86" fill="none" stroke="#c6ad76" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
+    <circle cx="1068" cy="118" r="42" fill="#d95b47"/>
+    <path d="M1044 99a33 33 0 0 1 30-11" fill="none" stroke="#f08a6d" stroke-width="8" stroke-linecap="round"/>
+
+    <path d="M676 38V67" stroke="#e0644d" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="676" cy="78" r="8" fill="none" stroke="#e8efed" stroke-width="5"/>
+    <path d="M661 94H691L686 160L676 188L666 160Z" fill="#c6d3d0" stroke="#f3f7f6" stroke-width="2"/>
+    <path d="M650 94Q676 110 702 94" fill="none" stroke="#d7ad5c" stroke-width="7" stroke-linecap="round"/>
+
+    <path d="M760 112H856" stroke="#d7ad5c" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M934 154V226" stroke="#d7ad5c" stroke-width="3" marker-end="url(#arrow)"/>
+
+    <g transform="translate(692 80)">
+      <rect width="124" height="64" rx="7" fill="#1d2e2a" stroke="#7aa69a" stroke-width="2"/>
+      <text x="16" y="27" fill="#9fb2ad" font-size="16" font-weight="700">SOURCE</text>
+      <text x="16" y="50" fill="#f3ede2" font-size="16" font-weight="800">Markdown + IAL</text>
+    </g>
+
+    <g transform="translate(862 80)">
+      <rect width="144" height="74" rx="7" fill="#1d2e2a" stroke="#d7ad5c" stroke-width="2"/>
+      <text x="16" y="27" fill="#9fb2ad" font-size="16" font-weight="700">SCAN</text>
+      <text x="16" y="51" fill="#f3ede2" font-size="20" font-weight="800">Preview first</text>
+      <circle cx="124" cy="21" r="6" fill="#d7ad5c"/>
+    </g>
+
+    <g transform="translate(834 232)">
+      <rect width="200" height="84" rx="7" fill="#1d2e2a" stroke="#e0644d" stroke-width="2"/>
+      <text x="16" y="28" fill="#9fb2ad" font-size="16" font-weight="700">PRACTICE</text>
+      <text x="16" y="54" fill="#f3ede2" font-size="18" font-weight="800">Scope · Shuffle · Rate</text>
+      <text x="16" y="75" fill="#b9c9c5" font-size="16">resumable session snapshot</text>
+    </g>
+
+    <g transform="translate(1048 222)">
+      <rect width="116" height="94" rx="7" fill="#1d2e2a" stroke="#7aa69a" stroke-width="2"/>
+      <text x="14" y="27" fill="#9fb2ad" font-size="16" font-weight="700">EVENTS</text>
+      <path d="M16 43H100M16 57H88M16 71H96" stroke="#d5dfdc" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="96" cy="76" r="6" fill="#e0644d"/>
+    </g>
+
+    <text x="1148" y="362" fill="#9fb2ad" font-size="17" font-weight="700" text-anchor="end">SOURCE CONTENT / SESSION STATE / ATTEMPT FACTS</text>
+  </g>
+</svg>

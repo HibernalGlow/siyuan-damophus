@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Damophus question bank workflow</title>
+  <desc id="desc">Portable source content moves through a reviewed scan, SiYuan indexing, scoped practice, immutable attempt events, and Riff scheduling with explicit ownership boundaries.</desc>
+
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#30433e" stroke-width="1" opacity="0.24"/>
+    </pattern>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#d7ad5c"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="520" rx="14" fill="#111a18"/>
+  <rect x="1" y="1" width="1198" height="518" rx="13" fill="none" stroke="#344944" stroke-width="2"/>
+  <rect width="1200" height="520" rx="14" fill="url(#grid)"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="54" y="64" fill="#f3ede2" font-size="40" font-weight="800">题源、练习状态与作答事实各自归位</text>
+    <text x="1146" y="60" fill="#9fb2ad" font-size="18" font-weight="700" text-anchor="end">QUESTION BANK WORKFLOW</text>
+    <path d="M54 84H1146" stroke="#344944" stroke-width="2"/>
+
+    <path d="M222 226H252M410 226H440M598 226H628M786 226H816M974 226H1004" stroke="#d7ad5c" stroke-width="4" marker-end="url(#arrow)"/>
+
+    <g transform="translate(54 142)">
+      <rect width="168" height="168" rx="8" fill="#192724" stroke="#7aa69a" stroke-width="2"/>
+      <text x="18" y="31" fill="#9fb2ad" font-size="17" font-weight="700">01 / SOURCE</text>
+      <text x="18" y="70" fill="#f3ede2" font-size="20" font-weight="800">Markdown + IAL</text>
+      <text x="18" y="103" fill="#d5dfdc" font-size="18">题干 · 选项 · 答案</text>
+      <text x="18" y="130" fill="#d5dfdc" font-size="18">解析 · 稳定题目 ID</text>
+      <text x="18" y="154" fill="#7aa69a" font-size="16" font-weight="700">READ-ONLY CONTENT</text>
+    </g>
+
+    <g transform="translate(242 142)">
+      <rect width="168" height="168" rx="8" fill="#192724" stroke="#d7ad5c" stroke-width="2"/>
+      <text x="18" y="31" fill="#9fb2ad" font-size="17" font-weight="700">02 / REVIEW</text>
+      <text x="18" y="70" fill="#f3ede2" font-size="23" font-weight="800">扫描预览</text>
+      <text x="18" y="103" fill="#d5dfdc" font-size="18">推断 · 冲突 · 阻塞</text>
+      <text x="18" y="130" fill="#d5dfdc" font-size="18">确认后才同步</text>
+      <text x="18" y="154" fill="#d7ad5c" font-size="16" font-weight="700">PREVIEW FIRST</text>
+    </g>
+
+    <g transform="translate(430 142)">
+      <rect width="168" height="168" rx="8" fill="#192724" stroke="#7aa69a" stroke-width="2"/>
+      <text x="18" y="31" fill="#9fb2ad" font-size="17" font-weight="700">03 / INDEX</text>
+      <text x="18" y="70" fill="#f3ede2" font-size="20" font-weight="800">思源属性视图</text>
+      <text x="18" y="103" fill="#d5dfdc" font-size="18">题目索引 · 关系列</text>
+      <text x="18" y="130" fill="#d5dfdc" font-size="18">保留用户自定义列</text>
+      <text x="18" y="154" fill="#7aa69a" font-size="16" font-weight="700">SAFE BINDING</text>
+    </g>
+
+    <g transform="translate(618 142)">
+      <rect width="168" height="168" rx="8" fill="#192724" stroke="#e0644d" stroke-width="2"/>
+      <text x="18" y="31" fill="#9fb2ad" font-size="17" font-weight="700">04 / PRACTICE</text>
+      <text x="18" y="70" fill="#f3ede2" font-size="20" font-weight="800">范围化练习</text>
+      <text x="18" y="103" fill="#d5dfdc" font-size="18">专题 · 错题 · 到期</text>
+      <text x="18" y="130" fill="#d5dfdc" font-size="18">乱序 · 暂停 · 恢复</text>
+      <text x="18" y="154" fill="#e0644d" font-size="16" font-weight="700">MUTABLE SNAPSHOT</text>
+    </g>
+
+    <g transform="translate(806 142)">
+      <rect width="168" height="168" rx="8" fill="#192724" stroke="#d7ad5c" stroke-width="2"/>
+      <text x="18" y="31" fill="#9fb2ad" font-size="17" font-weight="700">05 / ATTEMPT</text>
+      <text x="18" y="70" fill="#f3ede2" font-size="19" font-weight="800">不可变作答事件</text>
+      <text x="18" y="103" fill="#d5dfdc" font-size="18">选择 · 评级 · 耗时</text>
+      <text x="18" y="130" fill="#d5dfdc" font-size="18">统计可随时重建</text>
+      <text x="18" y="154" fill="#d7ad5c" font-size="16" font-weight="700">IMMUTABLE FACT</text>
+    </g>
+
+    <g transform="translate(994 142)">
+      <rect width="152" height="168" rx="8" fill="#192724" stroke="#7aa69a" stroke-width="2"/>
+      <text x="18" y="31" fill="#9fb2ad" font-size="17" font-weight="700">06 / RIFF</text>
+      <text x="18" y="70" fill="#f3ede2" font-size="20" font-weight="800">思源调度</text>
+      <text x="18" y="103" fill="#d5dfdc" font-size="18">到期查询</text>
+      <text x="18" y="130" fill="#d5dfdc" font-size="18">评级提交</text>
+      <text x="18" y="154" fill="#7aa69a" font-size="16" font-weight="700">SCHEDULING ONLY</text>
+    </g>
+
+    <g transform="translate(54 358)">
+      <path d="M0 0H1092" stroke="#344944" stroke-width="2"/>
+      <circle cx="0" cy="0" r="7" fill="#7aa69a"/>
+      <circle cx="1092" cy="0" r="7" fill="#e0644d"/>
+      <text x="0" y="40" fill="#f3ede2" font-size="21" font-weight="800">核心规则保持纯 TypeScript，思源 API 停在适配器边界</text>
+      <text x="0" y="73" fill="#d5dfdc" font-size="19">题源不承载练习状态；会话快照可以更新；提交后的作答事件只追加、不覆盖。</text>
+      <text x="1092" y="40" fill="#9fb2ad" font-size="17" font-weight="700" text-anchor="end">PORTABLE CORE · THIN HOST ADAPTER</text>
+    </g>
+  </g>
+</svg>
