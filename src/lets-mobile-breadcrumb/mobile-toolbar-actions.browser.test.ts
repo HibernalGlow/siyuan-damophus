@@ -21,7 +21,7 @@ describe("mobile breadcrumb toolbar actions", () => {
           <button data-type="mobile-menu"></button>
           <button class="block__icon" data-type="readonly"></button>
           <button class="block__icon" data-type="doc"></button>
-          <button class="block__icon" data-type="more"></button>
+          <button class="block__icon" data-type="more"><svg><use href="#iconMore"></use></svg></button>
         </div>
       </div>
     `;
@@ -45,6 +45,7 @@ describe("mobile breadcrumb toolbar actions", () => {
     expect(getComputedStyle(doc).right).toBe("134px");
     expect(getComputedStyle(more).position).toBe("fixed");
     expect(getComputedStyle(more).right).toBe("100px");
+    expect(getComputedStyle(more.querySelector("svg")!).transform).not.toBe("none");
     expect(getComputedStyle(title).marginInlineEnd).toBe("120px");
     expect(getComputedStyle(toolbar).pointerEvents).toBe("none");
     expect(getComputedStyle(title).pointerEvents).toBe("auto");

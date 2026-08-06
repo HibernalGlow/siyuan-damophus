@@ -193,6 +193,11 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__ico
   height: 18px;
 }
 
+html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] > svg,
+html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] > svg {
+  transform: rotate(90deg);
+}
+
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"],
 html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"] {
   right: 168px;
