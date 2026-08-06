@@ -1,8 +1,10 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
-import { getAllEditor, openMobileFileById, type IEventBusMap, type IProtyle } from "siyuan";
+import { getAllEditor, openMobileFileById, type IEventBusMap } from "siyuan";
 import { MobileBreadcrumbRenderer } from "./breadcrumb-renderer";
 import { MobileFlashcardBreadcrumbController } from "./flashcard-breadcrumb";
+
+const DIAGNOSTIC_RUNTIME_ENABLED = false;
 
 export default class MobileBreadcrumbPlugin extends SubPluginBase {
   private listening = false;
@@ -37,6 +39,7 @@ export default class MobileBreadcrumbPlugin extends SubPluginBase {
   };
 
   override onload(): void {
+    if (!DIAGNOSTIC_RUNTIME_ENABLED) return;
     if (!this.listening) {
       this.listening = true;
       plugin.eventBus.on("loaded-protyle-static", this.handleLoaded);

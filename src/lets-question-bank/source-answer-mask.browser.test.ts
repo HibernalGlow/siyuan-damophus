@@ -27,8 +27,8 @@ describe("source answer masking", () => {
 
     expect(document.querySelectorAll("[data-damophus-answer-mask]")).toHaveLength(3);
     expect(document.querySelectorAll('[data-damophus-answer-mask="solid"]')).toHaveLength(3);
-    expect(document.querySelector("#solution1")?.textContent).toContain("A 选项");
-    expect(document.querySelector("#solution1")?.textContent).toContain("答案：B");
+    expect(document.querySelector('[data-node-id="solution1"]')?.textContent).toContain("A 选项");
+    expect(document.querySelector('[data-node-id="solution1"]')?.textContent).toContain("答案：B");
   });
 
   it("does not mask a question without a solution marker or answer IAL", () => {
