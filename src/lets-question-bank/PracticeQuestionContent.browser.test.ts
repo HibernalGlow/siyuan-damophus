@@ -81,8 +81,9 @@ describe("PracticeQuestionContent", () => {
     expect(document.querySelector(".native-answer-source")).toBeNull();
     expect(document.body.textContent ?? "").not.toContain("Answer: A");
 
-    const option = document.querySelector<HTMLButtonElement>('button[aria-label="A. Alpha"]');
-    if (!option) throw new Error("Missing compact embedded answer control");
+    const option = [...document.querySelectorAll<HTMLButtonElement>("button.option")]
+      .find((item) => item.textContent?.includes("Alpha"));
+    if (!option) throw new Error("Missing original embedded answer option");
     option.click();
     expect(toggleOption).toHaveBeenCalledWith("A");
   });

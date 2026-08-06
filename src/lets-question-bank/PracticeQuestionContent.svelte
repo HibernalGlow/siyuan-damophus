@@ -75,17 +75,17 @@
       {/key}
     </div>
     {#if displayedOptions.length > 0}
-      <div class="embedded-answer-controls" aria-label={label("selectAnswer", "Select an answer before revealing")}>
+      <div class="options embedded-options">
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-            class="option embedded-option"
+            class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
             disabled={revealed || readOnlyQuestion}
-            aria-label={`${option.displayLabel}. ${optionMarkdown(option)}`}
             aria-pressed={selectedOptionIds.includes(option.originalId)}
             onclick={() => toggleOption(option.originalId)}
           >
-            {option.displayLabel}
+            <span class="option-label">{option.displayLabel}</span>
+            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
           </Button>
         {/each}
       </div>
@@ -193,8 +193,6 @@
   .embedded-question { padding-top: 12px; }
   .embedded-question-source { min-height: 180px; overflow: visible; }
   .source-block-host { min-height: 180px; }
-  .embedded-answer-controls { margin-top: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .embedded-answer-controls :global(button.embedded-option) { width: 38px; height: 38px; padding: 0; font-weight: 600; }
   .options { margin-top: 18px; display: grid; gap: 8px; }
   .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
   .option-content { align-self: center; width: 100%; }
