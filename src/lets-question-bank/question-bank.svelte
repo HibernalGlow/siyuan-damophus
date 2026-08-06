@@ -89,6 +89,7 @@
   export let breadcrumbPriority: BreadcrumbOverflowPriority = "tail";
   export let breadcrumbTextDisplay: BreadcrumbTextDisplay = normalizeBreadcrumbTextDisplay("full", 16, 160);
   export let loadBreadcrumb: ((blockId: string) => Promise<BlockBreadcrumbItem[]>) | undefined = undefined;
+  export let onClose: (() => void) | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const recent = controller.getRecentScope();
@@ -947,6 +948,17 @@
     </div>
     <div class="header-actions">
       {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
+      {#if onClose}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title={translations["settings.close"] ?? "Close"}
+          aria-label={translations["settings.close"] ?? "Close"}
+          onclick={onClose}
+        >
+          <X />
+        </Button>
+      {/if}
     </div>
   </header>
 
@@ -1580,8 +1592,11 @@
 </main>
 
 <style>
-  :global(*) { box-sizing: border-box; }
-  :global(button), :global(input), :global(select) { font: inherit; letter-spacing: 0; }
+  /* Keep the reset inside the question-bank surface. A document-wide `*`
+     reset also reaches SiYuan's SVG sprite and breaks native icons in the
+     mobile WebView when a theme supplies duplicate symbol ids. */
+  :global(.question-bank), :global(.question-bank *) { box-sizing: border-box; }
+  :global(.question-bank button), :global(.question-bank input), :global(.question-bank select) { font: inherit; letter-spacing: 0; }
   .question-bank { color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
   .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .app-header > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
