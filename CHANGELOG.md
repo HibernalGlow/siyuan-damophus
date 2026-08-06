@@ -1,6 +1,6 @@
 # siyuan-damophus
 
-## 0.0.3
+## 0.0.4
 
 ### Patch Changes
 
@@ -8,6 +8,7 @@
 - Refine the mobile title bar, full breadcrumb behavior, and liquid-glass surface.
 - Add native SiYuan E2E screenshots to the README.
 - Compress the plugin icon below the SiYuan Bazaar 20 KB asset limit.
+- Replace inherited upstream description and preview artwork with Damophus-specific metadata and native question-bank imagery.
 
 ## 0.0.1
 
