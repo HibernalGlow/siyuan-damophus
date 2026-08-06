@@ -1,5 +1,5 @@
 import { AttemptEventSchema } from "./schema";
-import type { AttemptAggregate, AttemptEvent, MasteryRating, QuestionType } from "./types";
+import type { AttemptAggregate, AttemptEvent, MasteryRating, QuestionType, RatingSource, SessionMode } from "./types";
 
 export interface NewAttemptInput {
   attemptId: string;
@@ -14,11 +14,14 @@ export interface NewAttemptInput {
   masteryRating: MasteryRating;
   subjectiveScore?: number;
   durationMs?: number;
+  sessionMode?: SessionMode;
+  ratingSource?: RatingSource;
 }
 
 export function createAttemptEvent(input: NewAttemptInput): AttemptEvent {
   return AttemptEventSchema.parse({
     schema_version: 1,
+    event_kind: "question_attempt",
     attempt_id: input.attemptId,
     question_id: input.questionId,
     question_relation: input.questionRelation,
@@ -29,6 +32,8 @@ export function createAttemptEvent(input: NewAttemptInput): AttemptEvent {
     selected_option_ids: input.selectedOptionIds ?? [],
     objective_correct: input.objectiveCorrect,
     mastery_rating: input.masteryRating,
+    session_mode: input.sessionMode ?? "practice",
+    rating_source: input.ratingSource ?? "user",
     subjective_score: input.subjectiveScore,
     duration_ms: input.durationMs,
   }) as AttemptEvent;

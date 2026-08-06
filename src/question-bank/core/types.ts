@@ -7,6 +7,9 @@ export type QuestionType =
   | "group";
 
 export type MasteryRating = "again" | "hard" | "good" | "easy";
+export type SessionMode = "practice" | "exam";
+export type RatingSource = "user" | "exam-auto";
+export type EventKind = "question_attempt" | "exam_submitted" | "exam_finalized" | "exam_abandoned";
 
 export interface QuestionOption {
   id: string;
@@ -82,6 +85,7 @@ export interface QuestionScanReport {
 
 export interface AttemptEvent {
   schema_version: 1;
+  event_kind?: "question_attempt";
   attempt_id: string;
   question_id: string;
   question_relation?: string;
@@ -92,8 +96,24 @@ export interface AttemptEvent {
   selected_option_ids: string[];
   objective_correct: boolean | null;
   mastery_rating: MasteryRating;
+  session_mode?: SessionMode;
+  rating_source?: RatingSource;
   subjective_score?: number;
   duration_ms?: number;
+}
+
+export interface ExamSummaryEvent {
+  schema_version: 1;
+  event_kind: "exam_submitted" | "exam_finalized" | "exam_abandoned";
+  attempt_id: string;
+  session_id: string;
+  answered_at: string;
+  session_mode: "exam";
+  exam_status: "pending_manual_score" | "submitted" | "finalized" | "abandoned";
+  exam_score?: number;
+  exam_max_score?: number;
+  exam_duration_ms?: number;
+  exam_payload: string;
 }
 
 export interface AttemptAggregate {

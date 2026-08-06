@@ -20,6 +20,7 @@ import {
   BroadcastPracticeSessionLeaseCoordinator,
   SiyuanPracticeSessionRepository,
 } from "./session-host";
+import { SiyuanExamSessionRepository } from "./exam-session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { installSourceAnswerMask } from "./source-answer-mask";
 import {
@@ -37,6 +38,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private dockApp?: ReturnType<typeof mount>;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
+  private readonly examSessionRepository = new SiyuanExamSessionRepository(plugin);
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
   private stopSourceAnswerMask?: () => void;
@@ -284,6 +286,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       pluginVersion: pluginManifest.version,
       sessionRepository: this.sessionRepository,
       sessionLeases: this.sessionLeases,
+      examSessionRepository: this.examSessionRepository,
     });
     const sourceRootRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();

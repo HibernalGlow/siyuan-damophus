@@ -51,6 +51,11 @@ const legacyAttemptFields = [
   "duration_ms",
 ] as const;
 
+const versionTwoAttemptFields = [
+  ...legacyAttemptFields,
+  "wrong_value",
+] as const;
+
 export const questionFields = [
   "block_id",
   "question_id",
@@ -71,6 +76,7 @@ export const questionFields = [
 
 export const attemptFields = [
   "entry",
+  "event_kind",
   "schema_version",
   "attempt_id",
   "question_id",
@@ -85,6 +91,13 @@ export const attemptFields = [
   "mastery_rating",
   "subjective_score",
   "duration_ms",
+  "session_mode",
+  "rating_source",
+  "exam_status",
+  "exam_score",
+  "exam_max_score",
+  "exam_duration_ms",
+  "exam_payload",
 ] as const;
 
 export type QuestionField = typeof questionFields[number];
@@ -97,7 +110,7 @@ export interface AttributeViewBinding<Field extends string> {
 }
 
 export interface QuestionBankBinding {
-  schemaVersion: 2;
+  schemaVersion: 3;
   notebookId: string;
   systemDocumentId: string;
   questionIndex: AttributeViewBinding<QuestionField>;
@@ -113,11 +126,25 @@ const attemptKeySchema = z.object(Object.fromEntries(
 ) as Record<AttemptField, typeof nodeId>);
 
 export const QuestionBankBindingSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   notebookId: nodeId,
   systemDocumentId: nodeId,
   questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: questionKeySchema }),
   attemptLog: z.object({ avId: nodeId, blockId: nodeId, keys: attemptKeySchema }),
+});
+
+const QuestionBankBindingV2Schema = z.object({
+  schemaVersion: z.literal(2),
+  notebookId: nodeId,
+  systemDocumentId: nodeId,
+  questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: questionKeySchema }),
+  attemptLog: z.object({
+    avId: nodeId,
+    blockId: nodeId,
+    keys: z.object(Object.fromEntries(
+      versionTwoAttemptFields.map((field) => [field, nodeId]),
+    ) as Record<typeof versionTwoAttemptFields[number], typeof nodeId>),
+  }),
 });
 
 const LegacyQuestionBankBindingSchema = z.object({
@@ -168,6 +195,7 @@ const questionColumns: readonly ColumnDefinition<Exclude<QuestionField, "block_i
 ];
 
 const attemptColumns: readonly ColumnDefinition<Exclude<AttemptField, "entry">>[] = [
+  { field: "event_kind", name: "Event Kind", type: "select" },
   { field: "schema_version", name: "Schema Version", type: "number" },
   { field: "attempt_id", name: "Attempt ID", type: "text" },
   { field: "question_id", name: "Question ID", type: "text" },
@@ -182,6 +210,13 @@ const attemptColumns: readonly ColumnDefinition<Exclude<AttemptField, "entry">>[
   { field: "mastery_rating", name: "Mastery Rating", type: "select" },
   { field: "subjective_score", name: "Subjective Score", type: "number" },
   { field: "duration_ms", name: "Duration (min)", type: "number" },
+  { field: "session_mode", name: "Session Mode", type: "select" },
+  { field: "rating_source", name: "Rating Source", type: "select" },
+  { field: "exam_status", name: "Exam Status", type: "select" },
+  { field: "exam_score", name: "Exam Score", type: "number" },
+  { field: "exam_max_score", name: "Exam Max Score", type: "number" },
+  { field: "exam_duration_ms", name: "Exam Duration (min)", type: "number" },
+  { field: "exam_payload", name: "Exam Payload", type: "text" },
 ];
 
 export interface InitializeQuestionBankInput {
@@ -262,7 +297,10 @@ function hashToken(value: unknown): string {
   return (hash >>> 0).toString(36);
 }
 
-function migratedKeyId(binding: z.infer<typeof LegacyQuestionBankBindingSchema>, field: string): string {
+function migratedKeyId(
+  binding: { systemDocumentId: string; questionIndex: { avId: string }; attemptLog: { avId: string } },
+  field: string,
+): string {
   const prefix = binding.systemDocumentId.slice(0, 14);
   return `${prefix}-${hashToken(`${binding.questionIndex.avId}:${binding.attemptLog.avId}:${field}`)
     .padStart(7, "0")}`;
@@ -271,11 +309,35 @@ function migratedKeyId(binding: z.infer<typeof LegacyQuestionBankBindingSchema>,
 export function migrateQuestionBankBinding(value: unknown): QuestionBankBinding | undefined {
   const current = QuestionBankBindingSchema.safeParse(value);
   if (current.success) return current.data as QuestionBankBinding;
+  const versionTwo = QuestionBankBindingV2Schema.safeParse(value);
+  if (versionTwo.success) {
+    const binding = versionTwo.data;
+    return {
+      schemaVersion: 3,
+      notebookId: binding.notebookId,
+      systemDocumentId: binding.systemDocumentId,
+      questionIndex: binding.questionIndex,
+      attemptLog: {
+        ...binding.attemptLog,
+        keys: {
+          ...binding.attemptLog.keys,
+          event_kind: migratedKeyId(binding, "event_kind"),
+          session_mode: migratedKeyId(binding, "session_mode"),
+          rating_source: migratedKeyId(binding, "rating_source"),
+          exam_status: migratedKeyId(binding, "exam_status"),
+          exam_score: migratedKeyId(binding, "exam_score"),
+          exam_max_score: migratedKeyId(binding, "exam_max_score"),
+          exam_duration_ms: migratedKeyId(binding, "exam_duration_ms"),
+          exam_payload: migratedKeyId(binding, "exam_payload"),
+        },
+      },
+    } as QuestionBankBinding;
+  }
   const legacy = LegacyQuestionBankBindingSchema.safeParse(value);
   if (!legacy.success) return undefined;
   const binding = legacy.data;
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     notebookId: binding.notebookId,
     systemDocumentId: binding.systemDocumentId,
     questionIndex: {
@@ -293,6 +355,14 @@ export function migrateQuestionBankBinding(value: unknown): QuestionBankBinding 
       keys: {
         ...binding.attemptLog.keys,
         wrong_value: migratedKeyId(binding, "wrong_value"),
+        event_kind: migratedKeyId(binding, "event_kind"),
+        session_mode: migratedKeyId(binding, "session_mode"),
+        rating_source: migratedKeyId(binding, "rating_source"),
+        exam_status: migratedKeyId(binding, "exam_status"),
+        exam_score: migratedKeyId(binding, "exam_score"),
+        exam_max_score: migratedKeyId(binding, "exam_max_score"),
+        exam_duration_ms: migratedKeyId(binding, "exam_duration_ms"),
+        exam_payload: migratedKeyId(binding, "exam_payload"),
       },
     },
   };
@@ -412,7 +482,7 @@ export async function confirmQuestionBankInitialization(
       preview.attemptColumns,
     );
     const binding: QuestionBankBinding = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       notebookId: preview.notebookId,
       systemDocumentId,
       questionIndex: {

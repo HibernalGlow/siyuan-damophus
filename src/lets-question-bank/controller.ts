@@ -1,10 +1,12 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
 import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/core/recovery";
-import type { AttemptAggregate, AttemptEvent } from "@/question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent } from "@/question-bank/core/types";
+import type { ExamSessionSnapshot } from "@/question-bank/exam";
 import type { StatisticsQuestion } from "@/question-bank/core/statistics";
 import { getLogger } from "@/libs/logger";
 import {
   addQuickRiffCards,
+  appendExamSummaryEvent,
   appendAttemptEvent,
   confirmQuestionBankInitialization,
   confirmQuestionBankRebinding,
@@ -15,6 +17,7 @@ import {
   previewQuestionBankRebinding,
   QuestionBankBindingSchema,
   rebuildAttemptStatistics,
+  readExamSummaryEvents,
   readQuestionIndexStatistics,
   siyuanKernelClient,
   submitRiffRating,
@@ -41,6 +44,7 @@ import type {
   PracticeSessionRepository,
   StoredPracticeSession,
 } from "./session-host";
+import type { SiyuanExamSessionRepository } from "./exam-session-host";
 
 export type { SourceBlockIdentity } from "./source-identity";
 
@@ -67,6 +71,13 @@ export interface QuestionBankUiController {
   exportPracticeSessionDiagnostic(sourceKey: string): Promise<string>;
   acquirePracticeSession(sourceKey: string): Promise<boolean>;
   releasePracticeSession(sourceKey: string): Promise<void>;
+  loadExamSession?: () => Promise<ExamSessionSnapshot | undefined>;
+  saveExamSession?: (snapshot: ExamSessionSnapshot, expectedRevision?: number) => Promise<void>;
+  removeExamSession?: (examId?: string) => Promise<void>;
+  exportExamSessionDiagnostic?: () => Promise<string>;
+  loadExamEvents?: () => Promise<ExamSummaryEvent[]>;
+  submitExamEvent?: (event: ExamSummaryEvent) => Promise<"created" | "duplicate">;
+  submitExamAttempt?: (event: AttemptEvent) => Promise<"created" | "duplicate">;
   loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]>;
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
@@ -99,6 +110,7 @@ export interface QuestionBankControllerOptions {
   pluginVersion: string;
   sessionRepository?: PracticeSessionRepository;
   sessionLeases?: PracticeSessionLeaseCoordinator;
+  examSessionRepository?: SiyuanExamSessionRepository;
 }
 
 const bindingSetting = "binding";
@@ -196,6 +208,34 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async releasePracticeSession(sourceKey: string): Promise<void> {
     await this.options.sessionLeases?.release(sourceKey);
+  }
+
+  async loadExamSession(): Promise<ExamSessionSnapshot | undefined> {
+    return this.options.examSessionRepository?.load();
+  }
+
+  async saveExamSession(snapshot: ExamSessionSnapshot, expectedRevision?: number): Promise<void> {
+    await this.options.examSessionRepository?.save(snapshot, expectedRevision);
+  }
+
+  async removeExamSession(examId?: string): Promise<void> {
+    await this.options.examSessionRepository?.remove(examId);
+  }
+
+  async exportExamSessionDiagnostic(): Promise<string> {
+    return this.options.examSessionRepository?.diagnostic() ?? "{}";
+  }
+
+  async loadExamEvents(): Promise<ExamSummaryEvent[]> {
+    return (await readExamSummaryEvents(this.client, this.requireBinding())).events;
+  }
+
+  async submitExamEvent(event: ExamSummaryEvent): Promise<"created" | "duplicate"> {
+    return (await appendExamSummaryEvent(this.client, this.requireBinding(), event, this.nodeId)).status;
+  }
+
+  async submitExamAttempt(event: AttemptEvent): Promise<"created" | "duplicate"> {
+    return (await appendAttemptEvent(this.client, this.requireBinding(), event, this.nodeId)).status;
   }
 
   async loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]> {

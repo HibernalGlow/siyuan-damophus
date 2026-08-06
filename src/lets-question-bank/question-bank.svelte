@@ -91,6 +91,7 @@
   import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
   import PracticeScanSummary from "./PracticeScanSummary.svelte";
+  import ExamWorkspace from "./ExamWorkspace.svelte";
   import Statistics from "./Statistics.svelte";
   import type { RiffCard } from "@/question-bank/adapters/siyuan";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
@@ -189,11 +190,19 @@
   let statisticsLoading = false;
   let statisticsRange: StatisticsRange = 30;
   let statisticsSort: StatisticsSort = "weakness";
+  let examMode = false;
 
   const entireDocumentScope = "__damophus_entire_document__";
 
   $: questions = preview?.scan.report.document.questions ?? [];
   $: progressQuestions = questions.filter((question) => question.type !== "group");
+  $: examQuestions = createPracticeQueue({
+    questions,
+    topics,
+    rootTopicId: topicId || undefined,
+    filter: "all",
+    order: "sequential",
+  });
   $: attemptedQuestions = progressQuestions.filter(
     (question) => (aggregates.get(question.id)?.attempts ?? 0) > 0,
   ).length;
@@ -1215,6 +1224,19 @@
         onSortChange={changeStatisticsSort}
         {label}
       />
+    {:else if examMode}
+      <ExamWorkspace
+        controller={controller}
+        questions={examQuestions}
+        blockIdsByQuestionId={preview?.scan.blockIdsByQuestionId ?? new Map()}
+        sourceKey={documentId}
+        sourceLabel={sourceIdentity?.content ?? documentId}
+        {translations}
+        {uuid}
+        {random}
+        {renderQuestionMarkdown}
+        onClose={() => { examMode = false; void refreshStoredSessions(); }}
+      />
     {:else if queue.length === 0 && !complete}
     <section class="workspace min-h-0 flex-1 overflow-y-auto">
       <div class="workspace-toolbar">
@@ -1476,6 +1498,15 @@
             <BookOpenCheck data-icon="inline-start" aria-hidden="true" />
             <span>{label("start", "Start practice")}</span>
           </Button>
+          <Button
+            class="max-[760px]:w-full"
+            variant="outline"
+            disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
+            onclick={() => examMode = true}
+          >
+            <Clock3 data-icon="inline-start" aria-hidden="true" />
+            <span>{label("startExam", "Start exam")}</span>
+          </Button>
         </section>
         </section>
       {/if}
@@ -1582,7 +1613,7 @@
         <button
           class="answer-card-scrim"
           aria-label={label("closeAnswerCard", "Close answer card")}
-          on:click={() => answerCardOpen = false}
+          onclick={() => answerCardOpen = false}
         ></button>
         <aside class="answer-card-panel" aria-label={label("answerCard", "Answer card")}>
           <header>
@@ -1675,7 +1706,7 @@
       {resetPractice}
       {label}
     />
-  {/if}
+    {/if}
   {/if}
 </main>
 

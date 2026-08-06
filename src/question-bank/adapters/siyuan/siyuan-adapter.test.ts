@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createAttemptEvent } from "../../core/attempts";
-import { appendAttemptEvent, readAttemptEvents, rebuildAttemptStatistics } from "./attempt-store";
+import {
+  appendAttemptEvent,
+  appendExamSummaryEvent,
+  readAttemptEvents,
+  readExamSummaryEvents,
+  rebuildAttemptStatistics,
+} from "./attempt-store";
 import {
   confirmQuestionBankInitialization,
   confirmQuestionBankRebinding,
@@ -321,7 +327,7 @@ describe("SiYuan question bank adapter", () => {
       missingManagedKeys: [],
     });
     expect(Object.keys(binding.questionIndex.keys)).toHaveLength(15);
-    expect(Object.keys(binding.attemptLog.keys)).toHaveLength(15);
+    expect(Object.keys(binding.attemptLog.keys)).toHaveLength(23);
     const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
     expect(questionAv.keyValues.map((keyValues) => [keyValues.key.name, keyValues.key.type]))
       .toEqual([
@@ -366,6 +372,27 @@ describe("SiYuan question bank adapter", () => {
     expect(preview.systemDocumentId).toBe(binding.systemDocumentId);
   });
 
+  it("stores exam summaries in the existing attempt log without polluting attempt reads", async () => {
+    const { client, binding } = await initialized();
+    const event = {
+      schema_version: 1 as const,
+      event_kind: "exam_submitted" as const,
+      attempt_id: "exam-event:exam-1:exam_submitted",
+      session_id: "exam-1",
+      answered_at: "2026-08-06T12:00:00.000Z",
+      session_mode: "exam" as const,
+      exam_status: "submitted" as const,
+      exam_score: 120,
+      exam_max_score: 150,
+      exam_duration_ms: 5_400_000,
+      exam_payload: "{\"queue_question_ids\":[\"q-1\"]}",
+    };
+
+    expect((await appendExamSummaryEvent(client, binding, event, idGenerator(800))).status).toBe("created");
+    expect((await readAttemptEvents(client, binding)).events).toEqual([]);
+    expect((await readExamSummaryEvents(client, binding)).events).toEqual([event]);
+  });
+
   it("migrates a v1 binding to managed two-way relations and rollups", async () => {
     const { client, binding } = await initialized();
     const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
@@ -395,7 +422,7 @@ describe("SiYuan question bank adapter", () => {
     const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
     const migrated = await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
 
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(3);
     expect(preview.bindingRepairs).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "add", field: "attempts_relation", type: "relation" }),
       expect.objectContaining({ kind: "add", field: "attempt_count", type: "rollup" }),

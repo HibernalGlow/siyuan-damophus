@@ -11,6 +11,10 @@ Reference snapshot date: 2026-08-04.
 | `frostime/siyuan-plugin-kits` | `6bb8e79ab421740501412cf0b17125a1508323a1` | 可复用的思源插件工具封装 |
 | `siyuan-note/plugin-sample-vite-svelte` | `2044f582afbaf435c2b6a26f4ddff0548080d1ac` | 官方插件生命周期、Vite 和 Svelte 示例 |
 | `siyuan-note/siyuan` | `eef10568384e2e7cf547adb029ae46a72e43c287` | 官方 API、AV、Riff、块格式和移动端行为的最终依据 |
+| `nazdridoy/obsidian-cbt-exam` | `799df15647df39cd46fff76aa9b8ad0d490fdd15` | 考试会话、题号导航、标记复查、计时和结果页；MIT |
+| `nazdridoy/obsidian-flashquiz` | `65c7dfd98100855081b82a26bbb56b09cbfa1b69` | 题型解析和考试题源格式；MIT |
+| `carbon-softlab/CQuiz` | `e439a4069fc0c2d343266dedb238ffaf66eec0fb` | 跨文件题库和组卷交互参考；只读研究 |
+| `dscherdi/decks` | `9cdd7fd09cbbf232eaabbbe23996cc8524f9ccdd` | 组卷 profile、结果和复习配置参考；只读研究 |
 
 ## Dynamic API Index
 

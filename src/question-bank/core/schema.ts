@@ -10,6 +10,8 @@ export const QuestionTypeSchema = z.enum([
 ]);
 
 export const MasteryRatingSchema = z.enum(["again", "hard", "good", "easy"]);
+export const SessionModeSchema = z.enum(["practice", "exam"]);
+export const RatingSourceSchema = z.enum(["user", "exam-auto"]);
 
 export const QuestionOptionSchema = z.object({
   id: z.string().min(1),
@@ -96,6 +98,7 @@ export const QuestionSchema = z
 
 export const AttemptEventSchema = z.object({
   schema_version: z.literal(1),
+  event_kind: z.literal("question_attempt").default("question_attempt"),
   attempt_id: z.string().min(1),
   question_id: z.string().min(1),
   question_relation: z.string().optional(),
@@ -106,6 +109,8 @@ export const AttemptEventSchema = z.object({
   selected_option_ids: z.array(z.string()),
   objective_correct: z.boolean().nullable(),
   mastery_rating: MasteryRatingSchema,
+  session_mode: SessionModeSchema.default("practice"),
+  rating_source: RatingSourceSchema.default("user"),
   subjective_score: z.number().finite().min(0).max(100).optional(),
   duration_ms: z.number().int().nonnegative().optional(),
 }).superRefine((attempt, context) => {
@@ -122,6 +127,20 @@ export const AttemptEventSchema = z.object({
     && attempt.objective_correct === null) {
     context.addIssue({ code: "custom", message: "Objective attempts require an objective result" });
   }
+});
+
+export const ExamSummaryEventSchema = z.object({
+  schema_version: z.literal(1),
+  event_kind: z.enum(["exam_submitted", "exam_finalized", "exam_abandoned"]),
+  attempt_id: z.string().min(1),
+  session_id: z.string().min(1),
+  answered_at: z.iso.datetime({ offset: true }),
+  session_mode: z.literal("exam"),
+  exam_status: z.enum(["pending_manual_score", "submitted", "finalized", "abandoned"]),
+  exam_score: z.number().finite().optional(),
+  exam_max_score: z.number().finite().optional(),
+  exam_duration_ms: z.number().int().nonnegative().optional(),
+  exam_payload: z.string(),
 });
 
 export const AttemptExportSchema = z.object({

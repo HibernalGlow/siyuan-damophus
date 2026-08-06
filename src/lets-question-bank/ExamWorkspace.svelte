@@ -1,0 +1,315 @@
+<script lang="ts">
+  import { onDestroy, onMount } from "svelte";
+  import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock3, Flag, Send, X } from "lucide-svelte";
+  import { Button } from "@/components/ui/button";
+  import { Input } from "@/components/ui/input";
+  import type { Question } from "@/question-bank/core/types";
+  import {
+    buildExamSubmissionPlan,
+    buildExamSummaryEvent,
+    createExamSessionActor,
+    createExamSessionSnapshot,
+    scoreExam,
+    type ExamBlueprint,
+    type ExamSessionActor,
+    type ExamSessionSnapshot,
+  } from "@/question-bank/exam";
+  import type { QuestionBankUiController } from "./controller";
+
+  export let controller: QuestionBankUiController;
+  export let questions: Question[] = [];
+  export let blockIdsByQuestionId: ReadonlyMap<string, string> = new Map();
+  export let sourceKey = "";
+  export let sourceLabel = "";
+  export let translations: Record<string, string> = {};
+  export let uuid: () => string = () => crypto.randomUUID();
+  export let random: () => number = Math.random;
+  export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
+  export let onClose: (() => void) | undefined = undefined;
+
+  const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
+  let phase: "setup" | "active" | "result" = "setup";
+  let snapshot: ExamSessionSnapshot | undefined;
+  let actor: ExamSessionActor | undefined;
+  let actorState: ReturnType<ExamSessionActor["getSnapshot"]> | undefined;
+  let questionCount = Math.min(questions.length, 100);
+  let timeLimitMinutes = 90;
+  let strictTimeout = false;
+  let allowAnswerReveal = false;
+  let scoringMode: ExamBlueprint["scoring_mode"] = "legal-exam";
+  let order: ExamBlueprint["order"] = "sequential";
+  let questionIndex = 0;
+  let now = Date.now();
+  let clock: ReturnType<typeof setInterval> | undefined;
+  let busy = false;
+  let error = "";
+  let submittedSummary: ReturnType<typeof scoreExam> | undefined;
+  let overdue = false;
+  let unsubscribe: (() => void) | undefined;
+
+  $: currentQuestion = snapshot ? questions.find((question) => question.id === snapshot.current_question_id) : undefined;
+  $: currentDraft = currentQuestion && snapshot ? snapshot.drafts[currentQuestion.id] : undefined;
+  $: remainingMs = snapshot?.deadline_at ? Date.parse(snapshot.deadline_at) - now : undefined;
+  $: if (actorState?.value === "submitting" && !busy) void submitRows();
+
+  onMount(() => {
+    void loadStored();
+    clock = setInterval(() => {
+      now = Date.now();
+      if (!actor || !snapshot || phase !== "active") return;
+      actor.send({ type: "CHECK_DEADLINE", now });
+      syncActor();
+    }, 1000);
+  });
+
+  onDestroy(() => {
+    if (clock) clearInterval(clock);
+    unsubscribe?.();
+    actor?.stop();
+  });
+
+  async function loadStored(): Promise<void> {
+    if (!controller.loadExamSession) return;
+    const stored = await controller.loadExamSession();
+    if (!stored || stored.blueprint.source_key !== sourceKey) return;
+    snapshot = stored;
+    phase = stored.status === "active" || stored.status === "submitting" || stored.status === "submit-failed"
+      ? "active"
+      : "result";
+    questionIndex = Math.max(0, stored.queue_question_ids.indexOf(stored.current_question_id));
+    submittedSummary = phase === "result" ? scoreExam(stored, questions) : undefined;
+    startActor(stored);
+  }
+
+  function startActor(next: ExamSessionSnapshot): void {
+    unsubscribe?.();
+    actor?.stop();
+    actor = createExamSessionActor(next);
+    actorState = actor.getSnapshot();
+    const subscription = actor.subscribe((state) => {
+      actorState = state;
+      snapshot = state.context.session;
+      overdue = Boolean(snapshot.overdue_at);
+      void persist(snapshot);
+    });
+    unsubscribe = () => subscription.unsubscribe();
+    actor.start();
+  }
+
+  async function persist(next: ExamSessionSnapshot): Promise<void> {
+    if (!controller.saveExamSession) return;
+    try {
+      await controller.saveExamSession(next, next.revision === 0 ? undefined : next.revision - 1);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    }
+  }
+
+  function startExam(): void {
+    error = "";
+    if (questions.length === 0) return;
+    const selected = questions.slice(0, Math.max(1, Math.min(questionCount, questions.length)));
+    const blueprint: ExamBlueprint = {
+      schema_version: 1,
+      title: sourceLabel || "Damophus Exam",
+      source_key: sourceKey,
+      source_label: sourceLabel,
+      question_ids: selected.map((question) => question.id),
+      order,
+      time_limit_ms: Math.max(0, timeLimitMinutes) * 60_000,
+      strict_timeout: strictTimeout,
+      allow_answer_reveal: allowAnswerReveal,
+      scoring_mode: scoringMode,
+      subjective_points: 10,
+    };
+    const created = createExamSessionSnapshot({ examId: uuid(), blueprint, questions: selected, random });
+    snapshot = created;
+    phase = "active";
+    questionIndex = 0;
+    startActor(created);
+    void persist(created);
+  }
+
+  function syncActor(): void {
+    if (!actor) return;
+    actorState = actor.getSnapshot();
+    snapshot = actorState.context.session;
+    overdue = Boolean(snapshot.overdue_at);
+    if (actorState.value === "submitting" && !busy) void submitRows();
+  }
+
+  function send(event: Parameters<ExamSessionActor["send"]>[0]): void {
+    actor?.send(event);
+    syncActor();
+  }
+
+  function navigate(index: number): void {
+    if (!snapshot) return;
+    const bounded = Math.max(0, Math.min(index, snapshot.queue_question_ids.length - 1));
+    questionIndex = bounded;
+    send({ type: "NAVIGATE", questionId: snapshot.queue_question_ids[bounded], now: Date.now() });
+  }
+
+  function selectOption(optionId: string): void {
+    if (!currentQuestion || !currentDraft || currentDraft.revealed || !snapshot) return;
+    const multi = currentQuestion.type === "multiple" || currentQuestion.type === "indefinite";
+    const selected = multi
+      ? currentDraft.selected_option_ids.includes(optionId)
+        ? currentDraft.selected_option_ids.filter((id) => id !== optionId)
+        : [...currentDraft.selected_option_ids, optionId]
+      : [optionId];
+    send({ type: "ANSWER", questionId: currentQuestion.id, selectedOptionIds: selected, elapsedMs: currentDraft.elapsed_ms, now: Date.now() });
+  }
+
+  function answerText(value: string): void {
+    if (!currentQuestion || !currentDraft) return;
+    send({ type: "ANSWER", questionId: currentQuestion.id, answerText: value, elapsedMs: currentDraft.elapsed_ms, now: Date.now() });
+  }
+
+  async function submitRows(): Promise<void> {
+    if (!snapshot || !controller.submitExamEvent || !controller.submitExamAttempt || busy) return;
+    busy = true;
+    error = "";
+    try {
+      const plan = buildExamSubmissionPlan(snapshot, questions, [...blockIdsByQuestionId].map(([questionId, blockId]) => ({ questionId, blockId })));
+      for (const attempt of plan.attempts) {
+        if (snapshot.committed_question_ids.includes(attempt.question_id)) continue;
+        await controller.submitExamAttempt(attempt);
+        send({ type: "COMMIT_QUESTION", questionId: attempt.question_id, now: Date.now() });
+      }
+      const summary = buildExamSummaryEvent(snapshot, plan, "exam_submitted");
+      await controller.submitExamEvent(summary);
+      send({ type: "SUBMIT_COMPLETE", pendingManualScore: plan.pendingSubjectiveQuestionIds.length > 0, now: Date.now() });
+      submittedSummary = scoreExam(snapshot, questions);
+      phase = "result";
+      if (plan.pendingSubjectiveQuestionIds.length === 0) await controller.removeExamSession?.(snapshot.exam_id);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      error = message;
+      send({ type: "SUBMIT_FAILED", message, now: Date.now() });
+    } finally {
+      busy = false;
+    }
+  }
+
+  function setSubjectiveScore(questionId: string, value: string): void {
+    const score = Number(value);
+    if (!Number.isFinite(score) || score < 0 || score > 100) return;
+    send({ type: "SELF_SCORE", questionId, score, now: Date.now() });
+  }
+
+  async function finalizeManualScores(): Promise<void> {
+    if (!snapshot || !controller.submitExamAttempt || !controller.submitExamEvent || busy) return;
+    busy = true;
+    try {
+      const plan = buildExamSubmissionPlan(snapshot, questions, [...blockIdsByQuestionId].map(([questionId, blockId]) => ({ questionId, blockId })));
+      if (plan.pendingSubjectiveQuestionIds.length > 0) throw new Error("Every subjective question requires a score");
+      for (const attempt of plan.attempts) {
+        if (snapshot.committed_question_ids.includes(attempt.question_id)) continue;
+        await controller.submitExamAttempt(attempt);
+        send({ type: "COMMIT_QUESTION", questionId: attempt.question_id, now: Date.now() });
+      }
+      await controller.submitExamEvent(buildExamSummaryEvent(snapshot, plan, "exam_finalized"));
+      send({ type: "FINALIZE", now: Date.now() });
+      submittedSummary = plan.summary;
+      await controller.removeExamSession?.(snapshot.exam_id);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function exit(): void {
+    onClose?.();
+  }
+
+  async function abandonExam(): Promise<void> {
+    if (!snapshot || !controller.submitExamEvent) return;
+    if (!globalThis.confirm(label("confirmAbandonExam", "Abandon this exam? Answers will not enter question statistics."))) return;
+    busy = true;
+    try {
+      const plan = buildExamSubmissionPlan(snapshot, questions);
+      await controller.submitExamEvent(buildExamSummaryEvent(snapshot, plan, "exam_abandoned"));
+      send({ type: "ABANDON", now: Date.now() });
+      await controller.removeExamSession?.(snapshot.exam_id);
+      onClose?.();
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function rendered(markdown: string): string {
+    return renderQuestionMarkdown?.(markdown, true) ?? markdown;
+  }
+</script>
+
+{#if phase === "setup"}
+  <section class="exam-workspace exam-setup">
+    <header class="exam-heading"><div><strong>{label("examMode", "Exam mode")}</strong><span>{sourceLabel}</span></div><Button variant="ghost" size="icon" onclick={onClose}><X /></Button></header>
+    <div class="exam-form">
+      <label>{label("questionCount", "Question count")}<Input type="number" min="1" max={questions.length} bind:value={questionCount} /></label>
+      <label>{label("timeLimit", "Time limit (minutes)")}<Input type="number" min="0" bind:value={timeLimitMinutes} /></label>
+      <label>{label("order", "Order")}<select bind:value={order}><option value="sequential">{label("sequential", "Sequential")}</option><option value="random">{label("random", "Random")}</option></select></label>
+      <label>{label("scoringMode", "Scoring")}<select bind:value={scoringMode}><option value="legal-exam">{label("legalScoring", "Legal exam")}</option><option value="strict">{label("strictScoring", "Strict one-point")}</option></select></label>
+      <label class="exam-check"><input type="checkbox" bind:checked={allowAnswerReveal} />{label("allowAnswerReveal", "Allow answer reveal")}</label>
+      <label class="exam-check"><input type="checkbox" bind:checked={strictTimeout} />{label("strictTimeout", "Strict timeout auto-submit")}</label>
+    </div>
+    <div class="exam-actions"><Button onclick={startExam} disabled={questions.length === 0}><Send size={16} />{label("startExam", "Start exam")}</Button></div>
+  </section>
+{:else if phase === "active" && snapshot && currentQuestion && currentDraft}
+  <section class="exam-workspace exam-runner">
+    <header class="exam-heading">
+      <div><strong>{snapshot.blueprint.title}</strong><span>{questionIndex + 1} / {snapshot.queue_question_ids.length}</span></div>
+      <div class:overdue><Clock3 size={16} />{remainingMs === undefined ? label("untimed", "Untimed") : remainingMs <= 0 ? label("overdue", "Overdue") : `${Math.ceil(remainingMs / 60000)} min`}</div>
+      <Button variant="ghost" size="icon" onclick={exit} title={label("exitExam", "Exit and keep running")}><X /></Button>
+    </header>
+    <nav class="exam-question-nav" aria-label={label("questionNavigation", "Question navigation")}>
+      {#each snapshot.queue_question_ids as id, index (id)}
+        <button class:current={index === questionIndex} class:answered={snapshot.drafts[id].selected_option_ids.length > 0 || Boolean(snapshot.drafts[id].answer_text)} class:marked={snapshot.drafts[id].marked} onclick={() => navigate(index)}>{index + 1}</button>
+      {/each}
+    </nav>
+    <article class="exam-question">
+      <div class="exam-question-toolbar"><span>{currentQuestion.type}</span><button title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class:active={currentDraft.marked} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></button></div>
+      <div class="exam-stem">{@html rendered(currentQuestion.stemMarkdown)}</div>
+      {#if currentQuestion.type === "subjective"}
+        <textarea value={currentDraft.answer_text ?? ""} oninput={(event) => answerText(event.currentTarget.value)} placeholder={label("subjectiveAnswer", "Write your answer")}></textarea>
+      {:else}
+        <div class="exam-options">
+          {#each currentDraft.option_order as optionId (optionId)}
+            {@const option = currentQuestion.options.find((candidate) => candidate.id === optionId)}
+            {#if option}<button class:selected={currentDraft.selected_option_ids.includes(option.id)} onclick={() => selectOption(option.id)}>{@html rendered(option.markdown)}</button>{/if}
+          {/each}
+        </div>
+      {/if}
+      {#if currentDraft.revealed}<div class="exam-solution">{@html rendered(currentQuestion.solutionMarkdown)}</div>{/if}
+    </article>
+    <footer class="exam-footer">
+      <Button variant="destructive" onclick={abandonExam} disabled={busy}>{label("abandonExam", "Abandon")}</Button>
+      <Button variant="outline" disabled={questionIndex === 0} onclick={() => navigate(questionIndex - 1)}><ChevronLeft size={16} />{label("previous", "Previous")}</Button>
+      {#if allowAnswerReveal && !currentDraft.revealed}<Button variant="outline" onclick={() => send({ type: "REVEAL", questionId: currentQuestion.id, now: Date.now() })}>{label("reveal", "Reveal")}</Button>{/if}
+      {#if questionIndex < snapshot.queue_question_ids.length - 1}<Button variant="outline" onclick={() => navigate(questionIndex + 1)}>{label("next", "Next")}<ChevronRight size={16} /></Button>{:else}<Button onclick={() => send({ type: "SUBMIT", now: Date.now() })} disabled={busy}><Check size={16} />{label("submitExam", "Submit exam")}</Button>{/if}
+    </footer>
+    {#if overdue}<div class="exam-overdue"><AlertTriangle size={16} />{label("examOverdueContinue", "Time limit reached. You may continue until you submit.")}</div>{/if}
+    {#if error}<div class="exam-error" role="alert">{error}</div>{/if}
+  </section>
+{:else if phase === "result" && snapshot && submittedSummary}
+  <section class="exam-workspace exam-results">
+    <header class="exam-heading"><strong>{label("examResult", "Exam result")}</strong><Button variant="ghost" size="icon" onclick={onClose}><X /></Button></header>
+    <div class="exam-score"><strong>{submittedSummary.percentage.toFixed(1)}%</strong><span>{submittedSummary.score.toFixed(1)} / {submittedSummary.maxScore.toFixed(1)}</span></div>
+    <div class="exam-result-grid"><span>{label("correct", "Correct")}<strong>{submittedSummary.correctCount}</strong></span><span>{label("answered", "Answered")}<strong>{submittedSummary.answeredCount}</strong></span><span>{label("manualScorePending", "Manual score pending")}<strong>{submittedSummary.pendingManualCount}</strong></span></div>
+    {#if submittedSummary.pendingManualCount > 0}
+      <div class="exam-manual-score-list">
+        {#each snapshot.queue_question_ids as questionId (questionId)}
+          {@const question = questions.find((candidate) => candidate.id === questionId)}
+          {#if question?.type === "subjective"}
+            <label>{question.title}<Input type="number" min="0" max="100" value={snapshot.drafts[questionId].subjective_score ?? ""} oninput={(event) => setSubjectiveScore(questionId, event.currentTarget.value)} /></label>
+          {/if}
+        {/each}
+        <Button onclick={finalizeManualScores} disabled={busy}>{label("finalizeExam", "Finalize exam")}</Button>
+      </div>
+    {/if}
+  </section>
+{/if}
