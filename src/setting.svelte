@@ -247,7 +247,7 @@
   />
 
   <main class="min-w-0 flex-1 overflow-y-auto">
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
+    <div class="mx-auto box-border flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
       <header class="border-b border-border pb-4">
         <h2 class="m-0 text-lg font-semibold">{getGroupLabel(focusGroup)}</h2>
       </header>
