@@ -160,17 +160,50 @@ export interface PracticeSessionLeaseCoordinator {
   releaseAll(): Promise<void>;
 }
 
-interface HeldLease {
+interface BroadcastHeldLease {
+  kind: "broadcast";
   channel: BroadcastChannel;
   elector: LeaderElector;
 }
+
+interface WebLockHeldLease {
+  kind: "web-lock";
+  release: () => void;
+  done: Promise<void>;
+}
+
+type HeldLease = BroadcastHeldLease | WebLockHeldLease;
 
 export class BroadcastPracticeSessionLeaseCoordinator implements PracticeSessionLeaseCoordinator {
   private readonly held = new Map<string, HeldLease>();
 
   async acquire(sourceKey: string): Promise<boolean> {
     if (this.held.has(sourceKey)) return true;
-    const channel = new BroadcastChannel(`damophus-practice-${encodeURIComponent(sourceKey)}`);
+    const lockName = `damophus-practice-${encodeURIComponent(sourceKey)}`;
+    const locks = globalThis.navigator?.locks;
+    if (locks) {
+      let release!: () => void;
+      const hold = new Promise<void>((resolve) => { release = resolve; });
+      let reportAvailability!: (available: boolean) => void;
+      const availability = new Promise<boolean>((resolve) => { reportAvailability = resolve; });
+      const done = locks.request(
+        lockName,
+        { mode: "exclusive", ifAvailable: true },
+        async (lock) => {
+          reportAvailability(Boolean(lock));
+          if (lock) await hold;
+        },
+      );
+      const acquired = await availability;
+      if (!acquired) {
+        await done;
+        return false;
+      }
+      this.held.set(sourceKey, { kind: "web-lock", release, done });
+      return true;
+    }
+
+    const channel = new BroadcastChannel(lockName);
     const elector = createLeaderElection(channel, { fallbackInterval: 500, responseTime: 120 });
     const acquired = await elector.applyOnce();
     if (!acquired || !elector.isLeader) {
@@ -178,7 +211,7 @@ export class BroadcastPracticeSessionLeaseCoordinator implements PracticeSession
       await channel.close();
       return false;
     }
-    this.held.set(sourceKey, { channel, elector });
+    this.held.set(sourceKey, { kind: "broadcast", channel, elector });
     return true;
   }
 
@@ -186,6 +219,11 @@ export class BroadcastPracticeSessionLeaseCoordinator implements PracticeSession
     const lease = this.held.get(sourceKey);
     if (!lease) return;
     this.held.delete(sourceKey);
+    if (lease.kind === "web-lock") {
+      lease.release();
+      await lease.done;
+      return;
+    }
     await lease.elector.die();
     await lease.channel.close();
   }

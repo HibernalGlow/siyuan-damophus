@@ -74,6 +74,8 @@
   export let inheritSourceStyles = true;
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
   export let onInheritSourceStylesChange: ((value: boolean) => void) | undefined = undefined;
+  export let autoSyncIndex = false;
+  export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let timingEnabled = true;
   export let now: () => number = Date.now;
 
@@ -312,6 +314,10 @@
       preview = nextPreview;
       sourceIdentity = nextSourceIdentity;
       recoverableSession = stored?.status === "ok" ? stored.snapshot : undefined;
+      syncComplete = false;
+      if (autoSyncIndex && hasPendingSync(nextPreview) && nextPreview.blockers.length === 0) {
+        preview = await applyIndexSync(nextPreview);
+      }
       if (preview.bindingRepairs.length === 0) {
         [aggregates, dueCards] = await Promise.all([
           controller.loadAggregates(),
@@ -321,7 +327,6 @@
         aggregates = new Map();
         dueCards = new Map();
       }
-      syncComplete = false;
       const saved = controller.getRecentScope();
       const savedHeadingBlockId = saved?.documentId === documentId ? saved.headingBlockId : undefined;
       const savedTopicId = savedHeadingBlockId
@@ -339,12 +344,8 @@
   function confirmSync(): void {
     if (!preview) return;
     void run(async () => {
-      preview = await controller.confirmSync(documentId, preview!.token);
-      const failures = preview.results.filter((result) => result.status === "failed");
-      syncComplete = failures.length === 0;
-      if (failures.length > 0) {
-        error = failures.map((failure) => `${failure.questionId}: ${failure.message ?? "failed"}`).join("; ");
-      } else {
+      preview = await applyIndexSync(preview!);
+      if (syncComplete) {
         [aggregates, dueCards] = await Promise.all([
           controller.loadAggregates(),
           controller.loadDueCards(preview.scan.blockIdsByQuestionId),
@@ -471,6 +472,22 @@
       reviewThreshold,
       random,
     });
+  }
+
+  function hasPendingSync(target: QuestionIndexPreview): boolean {
+    return target.actions.length > 0
+      || target.bindingRepairs.length > 0
+      || target.ialWriteActions.length > 0;
+  }
+
+  async function applyIndexSync(target: QuestionIndexPreview): Promise<QuestionIndexPreview> {
+    const synced = await controller.confirmSync(documentId, target.token);
+    const failures = synced.results.filter((result) => result.status === "failed");
+    syncComplete = failures.length === 0;
+    if (failures.length > 0) {
+      error = failures.map((failure) => `${failure.questionId}: ${failure.message ?? "failed"}`).join("; ");
+    }
+    return synced;
   }
 
   function startPractice(): void {
@@ -832,6 +849,11 @@
     inheritSourceStyles = checked;
     onInheritSourceStylesChange?.(checked);
   }
+
+  function toggleAutoSyncIndex(checked: boolean): void {
+    autoSyncIndex = checked;
+    onAutoSyncIndexChange?.(checked);
+  }
 </script>
 
 <main bind:this={rootElement} class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden" data-testid="question-bank">
@@ -1033,6 +1055,16 @@
             <svg data-icon="inline-start" aria-hidden="true"><use href="#iconCheck"></use></svg>
             {pendingSync ? label("confirmSync", "Confirm index sync") : label("indexCurrent", "Index is up to date")}
           </Button>
+          <FormLabel class="auto-sync-toggle cursor-pointer gap-2" for="auto-sync-index-toggle">
+            <Switch
+              id="auto-sync-index-toggle"
+              size="sm"
+              checked={autoSyncIndex}
+              onCheckedChange={toggleAutoSyncIndex}
+              aria-label={label("autoSyncIndex", "Automatically sync latest index")}
+            />
+            <span>{label("autoSyncIndex", "Automatically sync latest index")}</span>
+          </FormLabel>
           {#if pendingSync}
             <span class="text-sm font-medium text-primary">
               {preview.blockers.length > 0

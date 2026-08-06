@@ -38,6 +38,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.autoSyncIndex",
+      description: "lets-question-bank.autoSyncIndexDescription",
+      key: "autoSyncIndex",
+      value: false,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.inheritSourceStyles",
       description: "lets-question-bank.inheritSourceStylesDescription",
       key: "inheritSourceStyles",

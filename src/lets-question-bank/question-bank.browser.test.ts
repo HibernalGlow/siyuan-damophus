@@ -327,10 +327,55 @@ describe("question bank browser flow", () => {
     await scan();
     expect(document.querySelector(".scan-summary")).not.toBeNull();
     expect(document.body.textContent).toContain("Index changes detected; synchronization is required");
+    expect(controller.confirmSync).not.toHaveBeenCalled();
     button("Confirm index sync").click();
     await flush();
     expect(document.body.textContent).toContain("Question index synchronized");
     expect(controller.confirmSync).toHaveBeenCalledWith(documentId, "preview-token");
+  });
+
+  it("automatically synchronizes a safe pending index when enabled", async () => {
+    const { controller } = mockController();
+    render(controller, { autoSyncIndex: true });
+
+    await scan();
+
+    expect(controller.confirmSync).toHaveBeenCalledWith(documentId, "preview-token");
+    expect(document.body.textContent).toContain("Question index synchronized");
+    expect(button("Start practice").disabled).toBe(false);
+  });
+
+  it("does not automatically synchronize an index with blockers", async () => {
+    const blockedPreview = makePreview([objectiveQuestion]);
+    blockedPreview.blockers = [{
+      code: "duplicate-question-id",
+      message: "Duplicate stable question ID",
+      questionId: objectiveQuestion.id,
+    }];
+    const { controller } = mockController({ preview: blockedPreview });
+    render(controller, { autoSyncIndex: true });
+
+    await scan();
+
+    expect(controller.confirmSync).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("resolve blockers before syncing");
+  });
+
+  it("reports automatic index synchronization setting changes", async () => {
+    const onAutoSyncIndexChange = vi.fn();
+    const { controller } = mockController();
+    render(controller, { onAutoSyncIndexChange });
+    await scan();
+
+    const toggle = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Automatically sync latest index"]',
+    );
+    if (!toggle) throw new Error("Missing automatic index synchronization switch");
+    toggle.click();
+    await flush();
+
+    expect(onAutoSyncIndexChange).toHaveBeenCalledWith(true);
+    expect(toggle.dataset.state).toBe("checked");
   });
 
   it("shows that the index is current when a scan has no pending writes", async () => {

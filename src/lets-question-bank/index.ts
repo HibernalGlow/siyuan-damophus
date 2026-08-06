@@ -237,11 +237,13 @@ export default class QuestionBankPlugin extends SubPluginBase {
         translations: plugin.i18n,
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
+        autoSyncIndex: this.getSetting("autoSyncIndex") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),
         onInheritSourceStylesChange: (value: boolean) => this.setSetting("inheritSourceStyles", value),
+        onAutoSyncIndexChange: (value: boolean) => this.setSetting("autoSyncIndex", value),
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
           this.openQuestionSource(blockId);
