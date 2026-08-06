@@ -55,4 +55,5 @@ describe("mobile breadcrumb toolbar actions", () => {
     expect(lockClick).toHaveBeenCalledOnce();
     expect(moreClick).toHaveBeenCalledOnce();
   });
+
 });

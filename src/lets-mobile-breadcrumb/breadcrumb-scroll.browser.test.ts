@@ -71,6 +71,24 @@ describe("scrollable mobile breadcrumb", () => {
     breadcrumb.destroy();
   });
 
+  it("vertically centers expand arrows with breadcrumb items", async () => {
+    const { element } = breadcrumbElement();
+    element.style.height = "32px";
+    const breadcrumb = new ScrollableBreadcrumb(element, { priority: "tail" });
+    breadcrumb.renderMobileItems(items, "current", "Expand");
+    await settleLayout();
+
+    const itemRect = element.querySelector<HTMLElement>(".protyle-breadcrumb__item")!
+      .getBoundingClientRect();
+    const arrowRect = element.querySelector<HTMLElement>(".protyle-breadcrumb__arrow")!
+      .getBoundingClientRect();
+    const itemCenter = itemRect.top + itemRect.height / 2;
+    const arrowCenter = arrowRect.top + arrowRect.height / 2;
+
+    expect(Math.abs(itemCenter - arrowCenter)).toBeLessThanOrEqual(1);
+    breadcrumb.destroy();
+  });
+
   it("can prioritize the head without trapping later manual scrolling", async () => {
     const { element } = breadcrumbElement();
     const breadcrumb = new ScrollableBreadcrumb(element, { priority: "tail" });

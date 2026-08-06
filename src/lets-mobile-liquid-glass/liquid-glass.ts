@@ -1,5 +1,4 @@
 export const MOBILE_LIQUID_GLASS_STYLE_ID = "damophus-mobile-liquid-glass-style";
-
 export const MOBILE_LIQUID_GLASS_CSS = `
 html[data-frontend="mobile"],
 html[data-frontend="browser-mobile"] {
@@ -32,43 +31,25 @@ html[data-frontend="browser-mobile"] > body > .toolbar {
 /* Neo+'s mobile drawer blur composites its SVG toolbar icons as invisible
    layers. Keep the drawer's translucent background, but let its native icons
    render in the normal mobile compositor. */
-html[data-frontend="mobile"] > body > #sidebar,
-html[data-frontend="browser-mobile"] > body > #sidebar {
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-    isolation: isolate;
+html[data-frontend="mobile"] #editor > .protyle-breadcrumb,
+html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb {
+    position: absolute;
+    inset: 40px 0 auto;
+    width: 100%;
+    z-index: 5;
+    background: transparent !important;
+    border-bottom: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
 }
 
-html[data-frontend="mobile"] > body > #sidebar::before,
-html[data-frontend="browser-mobile"] > body > #sidebar::before {
+html[data-frontend="mobile"] #editor > .protyle-breadcrumb::before,
+html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb::before {
     content: "";
     position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background: transparent;
-    -webkit-backdrop-filter: blur(6px) saturate(1.5) brightness(0.9);
-    backdrop-filter: blur(6px) saturate(1.5) brightness(0.9);
-}
-
-html[data-frontend="mobile"] > body > #sidebar > *,
-html[data-frontend="browser-mobile"] > body > #sidebar > * {
-    position: relative;
-    z-index: 1;
-}
-
-html[data-frontend="mobile"] #editor,
-html[data-frontend="browser-mobile"] #editor {
-    position: relative;
-}
-
-html[data-frontend="mobile"] #editor::before,
-html[data-frontend="browser-mobile"] #editor::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
+    inset: -40px 0 auto;
     height: 82px;
-    z-index: 4;
+    z-index: -1;
     pointer-events: none;
     background: linear-gradient(
         180deg,
@@ -87,25 +68,6 @@ html[data-frontend="browser-mobile"] #editor::before {
         0 2px 8px 0 var(--damophus-mobile-glass-shadow);
 }
 
-/* The mobile side panel owns the first 82px while open. Keeping the editor
-   compositor there makes its SVG toolbar icons look invisible even though
-   they remain clickable underneath the pointer-events-none glass layer. */
-html[data-frontend="mobile"] > body:has(> #sidebar[style*="translateX(0px)"]) #editor::before,
-html[data-frontend="browser-mobile"] > body:has(> #sidebar[style*="translateX(0px)"]) #editor::before {
-    display: none;
-}
-
-html[data-frontend="mobile"] #editor > .protyle-breadcrumb,
-html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb {
-    position: absolute;
-    inset: 40px 0 auto;
-    width: 100%;
-    z-index: 5;
-    background: transparent !important;
-    border-bottom: 0;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-}
 `;
 
 export function isMobileFrontend(root: HTMLElement): boolean {
@@ -118,7 +80,10 @@ export class MobileLiquidGlass {
   constructor(private readonly targetDocument: Document = document) {}
 
   start(): void {
-    if (this.mount() || typeof MutationObserver === "undefined") return;
+    if (this.mount()) {
+      return;
+    }
+    if (typeof MutationObserver === "undefined") return;
     this.frontendObserver?.disconnect();
     this.frontendObserver = new MutationObserver(() => {
       if (!this.mount()) return;

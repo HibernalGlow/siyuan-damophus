@@ -109,6 +109,7 @@
 .damophus-scrollable-breadcrumb[data-damophus-mobile-breadcrumb="true"] {
   display: flex;
   flex: 1 1 auto;
+  align-items: center;
   justify-content: flex-start;
   width: 0;
   background: transparent;
@@ -123,6 +124,22 @@
   flex-shrink: 0;
   max-width: none;
   white-space: nowrap;
+}
+
+.damophus-scrollable-breadcrumb .protyle-breadcrumb__item,
+.damophus-scrollable-breadcrumb .protyle-breadcrumb__arrow {
+  display: inline-flex;
+  align-items: center;
+}
+
+.damophus-scrollable-breadcrumb .protyle-breadcrumb__arrow {
+  align-self: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.damophus-scrollable-breadcrumb .protyle-breadcrumb__arrow > svg {
+  display: block;
 }
 
 .damophus-scrollable-breadcrumb .damophus-mobile-breadcrumb__text--width {
