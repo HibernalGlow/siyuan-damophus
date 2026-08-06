@@ -63,15 +63,28 @@ async function flush(): Promise<void> {
 }
 
 describe("PracticeQuestionContent", () => {
-  it("keeps the answer and source block hidden before reveal", async () => {
-    const mountSourceBlock = vi.fn();
-    render({ questionRenderMode: "embed", mountSourceBlock });
+  it("mounts the editable embed as the question body before reveal", async () => {
+    const cleanup = vi.fn();
+    const toggleOption = vi.fn();
+    const mountSourceBlock = vi.fn((target: HTMLElement, sourceBlockId: string, editable: boolean) => {
+      target.innerHTML = `<div data-mounted-block="${sourceBlockId}" contenteditable="${editable}">source</div>`;
+      return cleanup;
+    });
+    render({ questionRenderMode: "embed", mountSourceBlock, toggleOption });
     await flush();
 
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, true);
+    expect(document.querySelector(`[data-mounted-block="${blockId}"][contenteditable="true"]`)).not.toBeNull();
+    expect(document.querySelector(".embedded-question-source")).not.toBeNull();
+    expect(document.querySelector(".stem")).toBeNull();
     expect(document.querySelector(".solution")).toBeNull();
     expect(document.querySelector(".native-answer-source")).toBeNull();
     expect(document.body.textContent ?? "").not.toContain("Answer: A");
-    expect(mountSourceBlock).not.toHaveBeenCalled();
+
+    const option = document.querySelector<HTMLButtonElement>('button[aria-label="A. Alpha"]');
+    if (!option) throw new Error("Missing compact embedded answer control");
+    option.click();
+    expect(toggleOption).toHaveBeenCalledWith("A");
   });
 
   it("uses the HTML renderer without mounting a source block", async () => {
@@ -93,24 +106,35 @@ describe("PracticeQuestionContent", () => {
     expect(mountSourceBlock).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["embed", true],
-    ["native", false],
-  ] as const)("mounts %s mode with editable=%s and disposes it", async (questionRenderMode, editable) => {
+  it("mounts native mode read-only after reveal and disposes it", async () => {
     const cleanup = vi.fn();
     const mountSourceBlock = vi.fn((target: HTMLElement, sourceBlockId: string, sourceEditable: boolean) => {
       target.innerHTML = `<div data-mounted-block="${sourceBlockId}" contenteditable="${sourceEditable}">source</div>`;
       return cleanup;
     });
-    render({ revealed: true, questionRenderMode, mountSourceBlock });
+    render({ revealed: true, questionRenderMode: "native", mountSourceBlock });
     await flush();
 
-    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, editable);
-    expect(document.querySelector(`[data-mounted-block="${blockId}"][contenteditable="${editable}"]`)).not.toBeNull();
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, false);
+    expect(document.querySelector(`[data-mounted-block="${blockId}"][contenteditable="false"]`)).not.toBeNull();
 
     if (mounted) await unmount(mounted);
     mounted = undefined;
     expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("does not append a second source block when an embedded question is revealed", async () => {
+    const mountSourceBlock = vi.fn((target: HTMLElement) => {
+      target.innerHTML = "<div data-mounted-block>source</div>";
+      return () => target.replaceChildren();
+    });
+    render({ revealed: true, questionRenderMode: "embed", mountSourceBlock });
+    await flush();
+
+    expect(mountSourceBlock).toHaveBeenCalledOnce();
+    expect(document.querySelector(".embedded-question-source")).not.toBeNull();
+    expect(document.querySelector(".native-answer-source")).toBeNull();
+    expect(document.querySelector(".solution")?.textContent).toContain("**Answer:** A");
   });
 
   it("opens the source question block from its title action", async () => {

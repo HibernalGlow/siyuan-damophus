@@ -61,51 +61,83 @@
   }
 </script>
 
-<article class="question">
-  <div class="question-heading">
-    <div class="question-title">
-      <Badge variant="secondary" data-question-type={currentQuestion.type}>
-        {questionTypeLabel(currentQuestion.type)}
-      </Badge>
-      <h2>{currentQuestion.title}</h2>
-    </div>
-    {#if currentQuestionBlockId && openQuestionSource}
-      <Button
-        variant="ghost"
-        size="icon"
-        class="shrink-0"
-        title={label("editSource", "Edit source block in SiYuan")}
-        aria-label={label("editSource", "Edit source block in SiYuan")}
-        onclick={() => openQuestionSource?.(currentQuestionBlockId as string)}
-      >
-        <ExternalLink aria-hidden="true" />
-      </Button>
+{#if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
+  <article class="question embedded-question" data-render-mode="embed">
+    {#if currentGroup}
+      <div class="group-material">
+        <strong>{label("sharedMaterial", "Shared material")}</strong>
+        <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
+      </div>
     {/if}
-  </div>
-  {#if currentGroup}
-    <div class="group-material">
-      <strong>{label("sharedMaterial", "Shared material")}</strong>
-      <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
+    <div class="embedded-question-source">
+      {#key currentQuestionBlockId}
+        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true }}></div>
+      {/key}
     </div>
-  {/if}
-  <div class="markdown native-content protyle-wysiwyg stem" contenteditable="false">{@html renderQuestionContent(currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
-  {#if displayedOptions.length > 0}
-    <div class="options">
-      {#each displayedOptions as option (option.originalId)}
+    {#if displayedOptions.length > 0}
+      <div class="embedded-answer-controls" aria-label={label("selectAnswer", "Select an answer before revealing")}>
+        {#each displayedOptions as option (option.originalId)}
+          <Button
+            variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
+            class="option embedded-option"
+            disabled={revealed || readOnlyQuestion}
+            aria-label={`${option.displayLabel}. ${optionMarkdown(option)}`}
+            aria-pressed={selectedOptionIds.includes(option.originalId)}
+            onclick={() => toggleOption(option.originalId)}
+          >
+            {option.displayLabel}
+          </Button>
+        {/each}
+      </div>
+    {/if}
+  </article>
+{:else}
+  <article class="question">
+    <div class="question-heading">
+      <div class="question-title">
+        <Badge variant="secondary" data-question-type={currentQuestion.type}>
+          {questionTypeLabel(currentQuestion.type)}
+        </Badge>
+        <h2>{currentQuestion.title}</h2>
+      </div>
+      {#if currentQuestionBlockId && openQuestionSource}
         <Button
-          variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-          class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
-          disabled={revealed || readOnlyQuestion}
-          aria-pressed={selectedOptionIds.includes(option.originalId)}
-          onclick={() => toggleOption(option.originalId)}
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
+          title={label("editSource", "Edit source block in SiYuan")}
+          aria-label={label("editSource", "Edit source block in SiYuan")}
+          onclick={() => openQuestionSource?.(currentQuestionBlockId as string)}
         >
-          <span class="option-label">{option.displayLabel}</span>
-          <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
+          <ExternalLink aria-hidden="true" />
         </Button>
-      {/each}
+      {/if}
     </div>
-  {/if}
-</article>
+    {#if currentGroup}
+      <div class="group-material">
+        <strong>{label("sharedMaterial", "Shared material")}</strong>
+        <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
+      </div>
+    {/if}
+    <div class="markdown native-content protyle-wysiwyg stem" contenteditable="false">{@html renderQuestionContent(currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
+    {#if displayedOptions.length > 0}
+      <div class="options">
+        {#each displayedOptions as option (option.originalId)}
+          <Button
+            variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
+            class="option grid h-auto min-h-12 w-full grid-cols-[30px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal px-3 py-2 text-left"
+            disabled={revealed || readOnlyQuestion}
+            aria-pressed={selectedOptionIds.includes(option.originalId)}
+            onclick={() => toggleOption(option.originalId)}
+          >
+            <span class="option-label">{option.displayLabel}</span>
+            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
+          </Button>
+        {/each}
+      </div>
+    {/if}
+  </article>
+{/if}
 
 {#if revealed}
   <section class="answer">
@@ -114,15 +146,13 @@
         {objectiveCorrect ? label("correct", "Correct") : label("incorrect", "Incorrect")}
       </strong>
     {/if}
-    {#if questionRenderMode !== "html" && currentQuestionBlockId && mountSourceBlock}
+    {#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
       <div class="native-answer-source" data-render-mode={questionRenderMode}>
         <div class="native-answer-source__label">
-          {questionRenderMode === "embed"
-            ? label("editableSourceBlock", "Editable source block")
-            : label("nativeSourceBlock", "Native source block")}
+          {label("nativeSourceBlock", "Native source block")}
         </div>
         {#key `${currentQuestionBlockId}:${questionRenderMode}`}
-          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: questionRenderMode === "embed" }}></div>
+          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: false }}></div>
         {/key}
       </div>
     {:else}
@@ -160,6 +190,11 @@
   .stem { margin-top: 14px; line-height: 1.75; }
   .group-material { margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
   .group-material > strong { display: block; margin-bottom: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .embedded-question { padding-top: 12px; }
+  .embedded-question-source { min-height: 180px; overflow: visible; }
+  .source-block-host { min-height: 180px; }
+  .embedded-answer-controls { margin-top: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .embedded-answer-controls :global(button.embedded-option) { width: 38px; height: 38px; padding: 0; font-weight: 600; }
   .options { margin-top: 18px; display: grid; gap: 8px; }
   .option-label { width: 26px; height: 26px; border: 1px solid var(--b3-border-color); border-radius: 50%; display: grid; place-items: center; font-weight: 600; }
   .option-content { align-self: center; width: 100%; }
