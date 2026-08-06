@@ -16,6 +16,7 @@
     "dev": "vite --config vite.dev.config.ts",
     "dev:plugin": "vite build --watch",
     "build": "vite build",
+    "deploy:main": "vite build && node scripts/deploy-test-workspace.mjs --workspace D:/1STUDY/SIYUAN",
     "deploy:test": "vite build && node scripts/deploy-test-workspace.mjs",
     "check": "svelte-check --config ./svelte.config.js --tsconfig ./tsconfig.json",
     "test": "vitest run",
