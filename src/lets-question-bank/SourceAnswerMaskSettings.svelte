@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  import type { AnswerMaskStyle } from "./source-answer-mask";
+  import type { AnswerMaskStyle as MaskStyle } from "./source-answer-mask";
 
   export interface SourceAnswerMaskSettingsLabels {
     title: string;
@@ -15,7 +15,7 @@
 
   export interface SourceAnswerMaskSettingChange {
     key: "maskSourceAnswers" | "answerMaskStyle";
-    value: boolean | AnswerMaskStyle;
+    value: boolean | MaskStyle;
   }
 </script>
 
@@ -76,9 +76,9 @@
     <div class="mb-3 text-xs font-medium text-muted-foreground">{labels.preview}</div>
     <div class="rounded-md border border-border bg-background px-4 py-5 text-base text-foreground">
       {labels.answerPrefix}
-      <span class="answer-mask" data-preview-style={style} tabindex="0">A</span>
+      <span class="answer-mask" data-preview-style={style}>A</span>
       <span aria-hidden="true">, </span>
-      <span class="answer-mask" data-preview-style={style} tabindex="0">C</span>
+      <span class="answer-mask" data-preview-style={style}>C</span>
     </div>
   </div>
 </section>
