@@ -4,7 +4,7 @@ import { getAllEditor, openMobileFileById, type IEventBusMap } from "siyuan";
 import { MobileBreadcrumbRenderer } from "./breadcrumb-renderer";
 import { MobileFlashcardBreadcrumbController } from "./flashcard-breadcrumb";
 
-const DIAGNOSTIC_RUNTIME_ENABLED = false;
+const DIAGNOSTIC_RUNTIME_ENABLED = true;
 
 export default class MobileBreadcrumbPlugin extends SubPluginBase {
   private listening = false;
