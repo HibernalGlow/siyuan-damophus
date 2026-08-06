@@ -102,6 +102,7 @@ function maskTextNode(node: Text, pattern: RegExp, style: AnswerMaskStyle): void
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > lastIndex) fragment.append(document.createTextNode(text.slice(lastIndex, index)));
+    fragment.append(document.createTextNode(match[1]));
     appendMaskedSequence(fragment, match[2], token, style);
     lastIndex = index + match[0].length;
   }
