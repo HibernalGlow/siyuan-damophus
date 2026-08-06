@@ -1,6 +1,6 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
-import { appendBlock, deleteBlock, getBlockBreadcrumb } from "@/api";
+import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, sql } from "@/api";
 import { settings } from "@/settings";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import {
 } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { installSourceAnswerMask } from "./source-answer-mask";
+import { sourceEmbedSql, type SourceEmbedBlockRow } from "./source-embed-query";
 
 type PracticeCommand = "previous" | "next" | "pause";
 
@@ -309,9 +310,34 @@ export default class QuestionBankPlugin extends SubPluginBase {
           let mountedBlockId = blockId;
           let temporaryEmbedId: string | undefined;
           if (editable && binding?.systemDocumentId) {
+            let embedQuery = `SELECT * FROM blocks WHERE id = '${blockId.replace(/'/gu, "''")}'`;
+            try {
+              const roots = await sql(
+                `SELECT root_id FROM blocks WHERE id = '${blockId.replace(/'/gu, "''")}' LIMIT 1`,
+              ) as Array<{ root_id?: string }>;
+              const rootId = roots[0]?.root_id;
+              if (rootId) {
+                const rows = await sql(
+                  `SELECT id, root_id, parent_id, sort, path, type, subtype, content, ial FROM blocks WHERE root_id = '${rootId.replace(/'/gu, "''")}'`,
+                ) as SourceEmbedBlockRow[];
+                let order = 0;
+                const visit = async (id: string): Promise<void> => {
+                  const children = await getChildBlocks(id);
+                  for (const child of children) {
+                    const row = rows.find((candidate) => candidate.id === child.id);
+                    if (row) row.order = order++;
+                    await visit(child.id);
+                  }
+                };
+                await visit(blockId);
+                embedQuery = sourceEmbedSql(rows, blockId);
+              }
+            } catch (error) {
+              console.warn("[Damophus] failed to resolve question embed range; using the heading block", error);
+            }
             const operations = await appendBlock(
               "markdown",
-              `{{select * from blocks where id = '${blockId}'}}`,
+              `{{${embedQuery}}}`,
               binding.systemDocumentId,
             );
             temporaryEmbedId = operations[0]?.doOperations?.[0]?.id;
