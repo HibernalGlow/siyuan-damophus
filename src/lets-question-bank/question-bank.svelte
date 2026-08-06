@@ -1,6 +1,14 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { ArrowLeft, ChevronLeft, ChevronRight, X } from "lucide-svelte";
+  import type { BlockBreadcrumbItem } from "@/api";
+  import {
+    normalizeBreadcrumbPriority,
+    normalizeBreadcrumbTextDisplay,
+    ScrollableBreadcrumb,
+    type BreadcrumbTextDisplay,
+    type BreadcrumbOverflowPriority,
+  } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import * as Alert from "@/components/ui/alert";
   import { Badge } from "@/components/ui/badge";
   import { Button, buttonVariants } from "@/components/ui/button";
@@ -77,6 +85,10 @@
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let timingEnabled = true;
   export let now: () => number = Date.now;
+  export let mobileBreadcrumb = false;
+  export let breadcrumbPriority: BreadcrumbOverflowPriority = "tail";
+  export let breadcrumbTextDisplay: BreadcrumbTextDisplay = normalizeBreadcrumbTextDisplay("full", 16, 160);
+  export let loadBreadcrumb: ((blockId: string) => Promise<BlockBreadcrumbItem[]>) | undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const recent = controller.getRecentScope();
@@ -102,6 +114,10 @@
   let queue: Question[] = [];
   let questionIndex = 0;
   let currentQuestion: Question | undefined;
+  let breadcrumbItems: BlockBreadcrumbItem[] = [];
+  let breadcrumbBlockId = "";
+  let breadcrumbRequest = 0;
+  let breadcrumbScroller: ScrollableBreadcrumb | undefined;
   let shuffled: ShuffledQuestion | undefined;
   let displayedOptions: ShuffledOption[] = [];
   let selectedOptionIds: string[] = [];
@@ -167,6 +183,11 @@
   $: suggestedRating = revealed
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
+
+  $: if (currentQuestionBlockId && currentQuestionBlockId !== breadcrumbBlockId) {
+    breadcrumbBlockId = currentQuestionBlockId;
+    void loadPracticeBreadcrumb(currentQuestionBlockId);
+  }
   $: sessionElapsedMs = timingEnabled && practiceState
     ? practiceSessionElapsedMs(practiceState.context, timerNow)
     : 0;
@@ -781,6 +802,54 @@
     return labels[type];
   }
 
+  async function loadPracticeBreadcrumb(blockId: string): Promise<void> {
+    const request = ++breadcrumbRequest;
+    if (!loadBreadcrumb) {
+      breadcrumbItems = [];
+      return;
+    }
+    try {
+      const items = await loadBreadcrumb(blockId);
+      if (request === breadcrumbRequest) breadcrumbItems = items;
+    } catch {
+      if (request === breadcrumbRequest) breadcrumbItems = [];
+    }
+  }
+
+  function practiceBreadcrumb(node: HTMLElement, state: {
+    items: BlockBreadcrumbItem[];
+    activeId?: string;
+    fallback: string;
+  }) {
+    breadcrumbScroller = new ScrollableBreadcrumb(node, {
+      priority: mobileBreadcrumb ? normalizeBreadcrumbPriority(breadcrumbPriority) : "head",
+      onNavigate: (id) => openQuestionSource?.(id),
+    });
+
+    const render = (next: typeof state): void => {
+      if (next.items.length > 0) {
+        breadcrumbScroller?.renderMobileItems(
+          next.items,
+          next.activeId,
+          label("expand", "Expand"),
+          mobileBreadcrumb
+            ? breadcrumbTextDisplay
+            : normalizeBreadcrumbTextDisplay("full", 16, 160),
+        );
+      } else {
+        node.textContent = next.fallback;
+      }
+    };
+    render(state);
+    return {
+      update: render,
+      destroy: () => {
+        breadcrumbScroller?.destroy();
+        breadcrumbScroller = undefined;
+      },
+    };
+  }
+
   function sourceTypeLabel(type: string): string {
     const labels: Record<string, string> = {
       d: label("sourceTypeDocument", "Document"),
@@ -1261,7 +1330,15 @@
             </span>
           {/if}
         </div>
-        <span class="practice-topic">{currentQuestion.metadata.topicPath.join(" / ")}</span>
+        <div
+          class="practice-topic practice-breadcrumb"
+          use:practiceBreadcrumb={{
+            items: breadcrumbItems,
+            activeId: currentQuestionBlockId,
+            fallback: currentQuestion.metadata.topicPath.join(" / "),
+          }}
+          aria-label="Breadcrumb"
+        ></div>
         <div class="practice-controls">
           <Button variant="ghost" size="icon" disabled={questionIndex === 0 || submitting} title={label("previous", "Previous question")} aria-label={label("previous", "Previous question")} onclick={previousQuestion}>
             <ChevronLeft size={17} aria-hidden="true" />

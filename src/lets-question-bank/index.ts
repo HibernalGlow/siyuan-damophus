@@ -1,5 +1,7 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
+import { getBlockBreadcrumb } from "@/api";
+import { settings } from "@/settings";
 import {
   Dialog,
   getAllEditor,
@@ -281,6 +283,14 @@ export default class QuestionBankPlugin extends SubPluginBase {
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
         autoSyncIndex: this.getSetting("autoSyncIndex") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
+        mobileBreadcrumb: isMobile,
+        breadcrumbPriority: settings.getBySpace("mobileBreadcrumb", "overflowPriority") ?? "tail",
+        breadcrumbTextDisplay: {
+          mode: settings.getBySpace("mobileBreadcrumb", "textDisplayMode") ?? "full",
+          maxCharacters: Number(settings.getBySpace("mobileBreadcrumb", "maxCharacters")) || 16,
+          maxWidth: Number(settings.getBySpace("mobileBreadcrumb", "maxTextWidth")) || 160,
+        },
+        loadBreadcrumb: (blockId: string) => getBlockBreadcrumb(blockId),
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),

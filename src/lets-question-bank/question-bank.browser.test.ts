@@ -856,6 +856,31 @@ describe("question bank browser flow", () => {
     expect(controls.right).toBeLessThanOrEqual(bar.getBoundingClientRect().right);
   });
 
+  it("reuses the scrollable breadcrumb for the current question source", async () => {
+    await page.viewport(390, 844);
+    const navigate = vi.fn();
+    const loadBreadcrumb = vi.fn(async () => [
+      { id: "doc", name: "Question bank", type: "NodeDocument", subType: "" },
+      { id: blockId, name: "Current question", type: "NodeParagraph", subType: "" },
+    ]);
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, {
+      mobileBreadcrumb: true,
+      loadBreadcrumb,
+      openQuestionSource: navigate,
+    });
+    await scanAndSync();
+    button("Start practice").click();
+    await vi.waitFor(() => expect(loadBreadcrumb).toHaveBeenCalledWith(blockId));
+    await flush();
+
+    const breadcrumb = document.querySelector<HTMLElement>(".practice-breadcrumb")!;
+    expect(breadcrumb.dataset.damophusMobileBreadcrumb).toBe("true");
+    expect(breadcrumb.querySelectorAll(".protyle-breadcrumb__item")).toHaveLength(2);
+    breadcrumb.querySelector<HTMLElement>('[data-node-id="doc"]')!.click();
+    expect(navigate).toHaveBeenCalledWith("doc");
+  });
+
   it("keeps the desktop reveal action visible while a long question scrolls internally", async () => {
     await page.viewport(1280, 840);
     const longQuestion: Question = {
