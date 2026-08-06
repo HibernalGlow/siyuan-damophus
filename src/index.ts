@@ -14,6 +14,7 @@ const log = getLogger("index");
 
 export default class PluginLetsGo extends Plugin {
   private readonly pluginRegistry = PluginRegistry.getInstance();
+  private topBarElement?: HTMLElement;
 
   private init(): void {
     const plugin = registerPlugin(this);
@@ -23,6 +24,7 @@ export default class PluginLetsGo extends Plugin {
 
   override async onload(): Promise<void> {
     this.init();
+    this.registerTopBar();
     await settings.load();
     enableLogging(settings.get("debugLogging") || false);
     await this.pluginRegistry.scanPlugins();
@@ -32,28 +34,6 @@ export default class PluginLetsGo extends Plugin {
 
   override async onLayoutReady(): Promise<void> {
     const plugins = this.pluginRegistry.getAllPlugins();
-    const hasMenu = plugins.some((plugin) => plugin.enabled && plugin.addMenuItem);
-
-    if (hasMenu && !isMobile) {
-      const topBarElement = this.addTopBar({
-        icon: damophusToolbarIcon,
-        title: "Damophus",
-        position: "right",
-        callback: () => {
-          const rect = topBarElement.getBoundingClientRect().width > 0
-            ? topBarElement.getBoundingClientRect()
-            : document.querySelector<HTMLElement>("#barMore")?.getBoundingClientRect()
-              ?? document.querySelector<HTMLElement>("#barPlugins")?.getBoundingClientRect();
-          if (rect) this.addMenu(rect);
-        },
-      });
-      // 右键弹出快捷菜单：快速进入设置
-      topBarElement.addEventListener("contextmenu", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.addQuickMenu(event);
-      });
-    }
 
     for (const plugin of plugins) {
       if (!plugin.enabled || !plugin.onLayoutReady) continue;
@@ -63,6 +43,29 @@ export default class PluginLetsGo extends Plugin {
         log.error(`Failed to initialize layout for plugin ${plugin.name}:`, error);
       }
     }
+  }
+
+  private registerTopBar(): void {
+    if (this.topBarElement) return;
+    this.topBarElement = this.addTopBar({
+      icon: damophusToolbarIcon,
+      title: "Damophus",
+      position: "right",
+      callback: (event) => {
+        if (isMobile) {
+          this.addMenu();
+          return;
+        }
+        const target = event.currentTarget instanceof HTMLElement
+          ? event.currentTarget
+          : this.topBarElement;
+        const rect = target?.getBoundingClientRect().width
+          ? target.getBoundingClientRect()
+          : document.querySelector<HTMLElement>("#barPlugins")?.getBoundingClientRect()
+            ?? document.querySelector<HTMLElement>("#barMore")?.getBoundingClientRect();
+        if (rect) this.addMenu(rect);
+      },
+    });
   }
 
   private addMenu(rect?: DOMRect): void {
@@ -81,19 +84,6 @@ export default class PluginLetsGo extends Plugin {
     } else if (rect) {
       menu.open({ x: rect.right, y: rect.bottom, isLeft: true });
     }
-  }
-
-  /**
-   * 顶栏按钮右键菜单：快速进入设置
-   */
-  private addQuickMenu(event: MouseEvent): void {
-    const menu = new Menu("siyuan-damophus-topbar-context");
-    menu.addItem({
-      icon: "iconSettings",
-      label: this.i18n["settings.preferences"] ?? "偏好设置",
-      click: () => this.openSetting(),
-    });
-    menu.open({ x: event.clientX, y: event.clientY, isLeft: true });
   }
 
   override async onDataChanged(): Promise<void> {
@@ -119,6 +109,7 @@ export default class PluginLetsGo extends Plugin {
         log.error(`Error in onunload for plugin ${plugin.name}:`, error);
       }
     }
+    this.topBarElement = undefined;
   }
 
   openSetting(): void {
