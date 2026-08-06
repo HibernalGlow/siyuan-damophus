@@ -27,11 +27,14 @@ describe("question bank mobile dialog scrolling", () => {
     root.append(child);
     document.body.append(root);
     const hostHandler = vi.fn();
+    const scrollHandler = vi.fn();
     document.body.addEventListener("touchmove", hostHandler);
+    child.addEventListener("touchmove", scrollHandler);
     const cleanup = isolateMobileDialogGestures(root);
 
     child.dispatchEvent(new Event("touchmove", { bubbles: true }));
 
+    expect(scrollHandler).toHaveBeenCalledOnce();
     expect(hostHandler).not.toHaveBeenCalled();
     cleanup();
     document.body.removeEventListener("touchmove", hostHandler);

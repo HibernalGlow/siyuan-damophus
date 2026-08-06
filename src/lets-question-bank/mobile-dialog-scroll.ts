@@ -11,11 +11,11 @@ const MOBILE_DIALOG_GESTURE_EVENTS = [
 export function isolateMobileDialogGestures(root: HTMLElement): () => void {
   const stopPropagation = (event: Event): void => event.stopPropagation();
   for (const type of MOBILE_DIALOG_GESTURE_EVENTS) {
-    root.addEventListener(type, stopPropagation, { capture: true, passive: true });
+    root.addEventListener(type, stopPropagation, { passive: true });
   }
   return () => {
     for (const type of MOBILE_DIALOG_GESTURE_EVENTS) {
-      root.removeEventListener(type, stopPropagation, { capture: true });
+      root.removeEventListener(type, stopPropagation);
     }
   };
 }

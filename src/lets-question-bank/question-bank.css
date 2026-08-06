@@ -14,6 +14,7 @@
   .damophus-question-bank-mobile-dialog .practice-content,
   .damophus-question-bank-mobile-dialog .practice-content [data-slot="scroll-area-viewport"] {
     overscroll-behavior-y: contain;
+    touch-action: pan-y;
   }
   .question-bank button, .question-bank [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
   .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 16px; }
@@ -146,7 +147,8 @@
   }
 
   @container (max-width: 760px) {
-    .workspace { padding-top: 0; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+    .workspace { padding-top: 0; overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+    .setup { overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
     .workspace-toolbar {
       position: sticky;
       top: 0;
