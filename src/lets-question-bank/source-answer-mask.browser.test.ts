@@ -55,6 +55,17 @@ describe("source answer masking", () => {
     expect([...document.querySelectorAll<HTMLElement>("[data-damophus-answer-mask]")].map((node) => node.textContent)).toEqual(["B", "C"]);
   });
 
+  it("masks compact multi-choice attributes such as BC", () => {
+    sourceDocument(`
+      <div data-node-id="q1" custom-qb-id="q1" custom-qb-answer="BC">Question</div>
+      <div data-node-id="solution1" custom-qb-section="solution">正确答案：BC。</div>
+    `);
+
+    cleanup = installSourceAnswerMask();
+
+    expect([...document.querySelectorAll<HTMLElement>("[data-damophus-answer-mask]")].map((node) => node.textContent)).toEqual(["B", "C"]);
+  });
+
   it("handles lazy-loaded blocks, remains idempotent, and reveals on click", async () => {
     sourceDocument("");
     cleanup = installSourceAnswerMask();

@@ -52,7 +52,9 @@ function answerAlternatives(raw: string): string[] {
     .filter(Boolean);
   if (values.length === 1 && values[0] === "TRUE") return ["true", "\u6b63\u786e"];
   if (values.length === 1 && values[0] === "FALSE") return ["false", "\u9519\u8bef"];
-  return values.filter((value) => /^[A-D]$/u.test(value));
+  return values
+    .flatMap((value) => /^[A-D]+$/u.test(value) ? [...value] : [value])
+    .filter((value) => /^[A-D]$/u.test(value));
 }
 
 function answerPattern(raw: string): RegExp | undefined {
