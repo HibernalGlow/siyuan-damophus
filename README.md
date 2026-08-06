@@ -167,6 +167,31 @@ pnpm test:browser # 浏览器交互与布局测试
 pnpm build        # 生成插件与 package.zip
 ```
 
+## Native SiYuan Screenshots
+
+The following images come from the repository's `siyuan-e2e-workspace` test space. They are captured from SiYuan's native desktop and mobile renderers, without opening a personal workspace. The desktop sequence shows database, scan/import, and practice; the mobile pair shows the practice card and the integrated title bar with a full breadcrumb.
+
+### Desktop
+
+<p align="center">
+  <img src="./assets/readme/screenshots/desktop-database.png" width="100%" alt="Native SiYuan desktop Damophus database view">
+</p>
+
+<p align="center">
+  <img src="./assets/readme/screenshots/desktop-import.png" width="100%" alt="Native SiYuan desktop Damophus scan and import view">
+</p>
+
+<p align="center">
+  <img src="./assets/readme/screenshots/desktop-practice.png" width="100%" alt="Native SiYuan desktop Damophus practice view">
+</p>
+
+### Mobile
+
+<p align="center">
+  <img src="./assets/readme/screenshots/mobile-practice.png" width="360" alt="Native SiYuan mobile Damophus practice view">
+  <img src="./assets/readme/screenshots/mobile-breadcrumb.png" width="360" alt="Native SiYuan mobile title bar and full breadcrumb">
+</p>
+
 ## License
 
 [WTFPL](LICENSE)
