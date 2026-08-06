@@ -2,7 +2,7 @@
   "name": "siyuan-damophus",
   "author": "HibernalGlow",
   "url": "https://github.com/HibernalGlow/siyuan-damophus",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "minAppVersion": "3.7.0",
   "disabledInPublish": false,
   "backends": [

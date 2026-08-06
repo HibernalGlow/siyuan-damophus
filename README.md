@@ -65,16 +65,33 @@ Damophus 不是通用工具箱，也不替代思源编辑器、主题或 Riff �
 
 ## 核心能力
 
+以下界面均在仓库内置的 `siyuan-e2e-workspace` 测试空间中，由思源原生桌面端与移动端渲染，不连接个人工作区。
+
 ### 题库
 
 - 初始化或重新连接 Damophus 系统文档、题目索引与作答记录属性视图
+
+<p align="center">
+  <img src="./assets/readme/screenshots/desktop-database.png" width="100%" alt="思源桌面端 Damophus 题库数据库界面">
+</p>
+
 - 扫描当前文档，预览题型、答案、答案区、IAL 更新和数据库修复项
+
+<p align="center">
+  <img src="./assets/readme/screenshots/desktop-import.png" width="100%" alt="思源桌面端 Damophus 扫描摘要与索引确认界面">
+</p>
+
 - 按整个文档或任意标题专题递归选择练习范围
 - 使用顺序、随机、错题、连续待复习和 Riff 到期筛选
 - 支持单选、多选、不定项、判断、主观题与共用材料题组
 - 选项乱序显示，始终使用原始选项 ID 判题，揭晓后恢复题源顺序
 - 主观题自评、客观题自动判定，以及 Again、Hard、Good、Easy 掌握评级
 - 自动保存逐题草稿，支持暂停、恢复、终止、只读回看和损坏快照诊断导出
+
+<p align="center">
+  <img src="./assets/readme/screenshots/desktop-practice.png" width="100%" alt="思源桌面端 Damophus 开始做题界面">
+</p>
+
 - 版本化 JSON 作答记录导入导出、重复事件去重和孤立题目报告
 - 在思源源文档中遮罩答案，同时保持 Markdown、IAL 和块内容不变
 
@@ -85,6 +102,11 @@ Damophus 不是通用工具箱，也不替代思源编辑器、主题或 Riff �
 - 路径头部/尾部优先显示，以及完整、字符、宽度三种文字模式
 - 标题栏原生操作重新布局
 - 渐进模糊、毛玻璃和液态玻璃顶部表面
+
+<p align="center">
+  <img src="./assets/readme/screenshots/mobile-practice.png" width="360" alt="思源移动端 Damophus 题库做题界面">
+  <img src="./assets/readme/screenshots/mobile-breadcrumb.png" width="360" alt="思源移动端标题栏与完整面包屑界面">
+</p>
 
 ## 快速开始
 
@@ -166,31 +188,6 @@ pnpm test         # 核心与适配器测试
 pnpm test:browser # 浏览器交互与布局测试
 pnpm build        # 生成插件与 package.zip
 ```
-
-## Native SiYuan Screenshots
-
-The following images come from the repository's `siyuan-e2e-workspace` test space. They are captured from SiYuan's native desktop and mobile renderers, without opening a personal workspace. The desktop sequence shows database, scan/import, and practice; the mobile pair shows the practice card and the integrated title bar with a full breadcrumb.
-
-### Desktop
-
-<p align="center">
-  <img src="./assets/readme/screenshots/desktop-database.png" width="100%" alt="Native SiYuan desktop Damophus database view">
-</p>
-
-<p align="center">
-  <img src="./assets/readme/screenshots/desktop-import.png" width="100%" alt="Native SiYuan desktop Damophus scan and import view">
-</p>
-
-<p align="center">
-  <img src="./assets/readme/screenshots/desktop-practice.png" width="100%" alt="Native SiYuan desktop Damophus practice view">
-</p>
-
-### Mobile
-
-<p align="center">
-  <img src="./assets/readme/screenshots/mobile-practice.png" width="360" alt="Native SiYuan mobile Damophus practice view">
-  <img src="./assets/readme/screenshots/mobile-breadcrumb.png" width="360" alt="Native SiYuan mobile title bar and full breadcrumb">
-</p>
 
 ## License
 

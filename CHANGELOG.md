@@ -1,5 +1,13 @@
 # siyuan-damophus
 
+## 0.0.2
+
+### Patch Changes
+
+- Improve question-bank practice rendering, index status, and mobile session controls.
+- Refine the mobile title bar, full breadcrumb behavior, and liquid-glass surface.
+- Add native SiYuan E2E screenshots to the README.
+
 ## 0.0.1
 
 ### Minor Changes
