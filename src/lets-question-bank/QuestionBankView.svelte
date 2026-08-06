@@ -146,6 +146,7 @@
   export let formatDuration: any;
   export let toggleOption: any;
   export let changeSubjectiveScore: any;
+  export let correctCurrentAnswer: any;
   export let questionElapsedMs: number;
   export let resetQuestionTimer: any;
   export let endConfirmation: boolean;
@@ -360,6 +361,7 @@
       {formatDuration}
       {toggleOption}
       {changeSubjectiveScore}
+      correctAnswer={correctCurrentAnswer}
       {timingEnabled}
       {questionElapsedMs}
       {resetQuestionTimer}

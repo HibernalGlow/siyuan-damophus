@@ -17,6 +17,7 @@
     ShuffledOption,
     ShuffledQuestion,
   } from "@/question-bank/core/types";
+  import { normalizeOptionIds } from "@/question-bank/core/answer";
   import { buildStatistics, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
@@ -584,6 +585,35 @@
       : undefined;
   }
 
+  function correctCurrentAnswer(): void {
+    const question = currentQuestion;
+    const blockId = currentQuestionBlockId;
+    if (!question || !blockId || !controller.correctQuestionAnswer || !question.answer) return;
+    const current = question.answer.kind === "boolean"
+      ? String(question.answer.value)
+      : question.answer.optionIds.join(",");
+    const input = window.prompt(label("correctAnswerPrompt", "Enter the correct answer (for example A or A,C)"), current);
+    if (input === null) return;
+    const value = input.trim();
+    const answer = question.answer.kind === "boolean"
+      ? value.toLowerCase() === "true"
+        ? { kind: "boolean" as const, value: true }
+        : value.toLowerCase() === "false"
+          ? { kind: "boolean" as const, value: false }
+          : undefined
+      : { kind: "options" as const, optionIds: normalizeOptionIds(value.split(/[，,\s]+/u)) };
+    if (!answer) {
+      error = label("invalidCorrectAnswer", "Enter true or false");
+      return;
+    }
+    void run(async () => {
+      await controller.correctQuestionAnswer!(blockId, question, answer);
+      const updated = { ...question, answer };
+      queue = queue.map((item) => item.id === updated.id ? updated : item);
+      currentQuestion = updated;
+    });
+  }
+
   function scheduleSourcePreload(): void {
     if (sourcePreloadTimer) clearTimeout(sourcePreloadTimer);
     sourcePreloadTimer = undefined;
@@ -994,6 +1024,7 @@
   {objectiveCorrect} {subjectiveScore} {currentAttempt} {inheritSourceStyles} {questionRenderMode} {renderedQuestionContent}
   {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}
   {questionElapsedMs} {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
+  {correctCurrentAnswer}
   {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {sessionAttempts}
   {completionCorrect} {completionDurationMs} {touchedDrafts} {resetPractice}
 />

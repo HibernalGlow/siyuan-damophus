@@ -28,6 +28,7 @@
   export let formatDuration: (milliseconds: number) => string;
   export let toggleOption: (optionId: string) => void;
   export let changeSubjectiveScore: (event: Event) => void;
+  export let correctAnswer: (() => void) | undefined = undefined;
   export let timingEnabled = true;
   export let questionElapsedMs = 0;
   export let resetQuestionTimer: () => void;
@@ -132,6 +133,7 @@
       {formatDuration}
       {toggleOption}
       {changeSubjectiveScore}
+      {correctAnswer}
       {label}
     />
   </ScrollArea.Root>
