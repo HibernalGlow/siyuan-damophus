@@ -206,7 +206,7 @@ export default defineConfig({
   define: {
     "process.env.DEV_MODE": `"${isWatch}"`,
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
-    "process.env.DAMOPHUS_BUILD_REVISION": JSON.stringify(revision),
+    __DAMOPHUS_BUILD_REVISION__: JSON.stringify(revision),
   },
 
   build: {

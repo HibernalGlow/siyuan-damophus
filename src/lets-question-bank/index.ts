@@ -1,6 +1,6 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobile, plugin } from "@/utils";
-import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, sql } from "@/api";
+import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, setBlockAttrs, sql } from "@/api";
 import { settings } from "@/settings";
 import {
   Dialog,
@@ -30,6 +30,10 @@ import {
   type SourceEmbedBlockRow,
   type SourceEmbedSection,
 } from "./source-embed-query";
+import {
+  sourceBlockProtyleActions,
+  sourceEmbedBlockAttributes,
+} from "./source-embed-presentation";
 
 type PracticeCommand = "previous" | "next" | "pause";
 
@@ -387,11 +391,14 @@ export default class QuestionBankPlugin extends SubPluginBase {
               binding.systemDocumentId,
             );
             temporaryEmbedId = operations[0]?.doOperations?.[0]?.id;
-            if (temporaryEmbedId) mountedBlockId = temporaryEmbedId;
+            if (temporaryEmbedId) {
+              await setBlockAttrs(temporaryEmbedId, sourceEmbedBlockAttributes());
+              mountedBlockId = temporaryEmbedId;
+            }
           }
           const editor = new Protyle(plugin.app, target, {
             mode: editable ? "wysiwyg" : "preview",
-            action: ["cb-get-all"],
+            action: [...sourceBlockProtyleActions],
             blockId: mountedBlockId,
             render: {
               background: false,

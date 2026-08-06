@@ -8,6 +8,7 @@
 type DocumentId = string;
 type BlockId = string;
 type NotebookId = string;
+declare const __DAMOPHUS_BUILD_REVISION__: string;
 type PreviousID = BlockId;
 type ParentID = BlockId | DocumentId;
 
