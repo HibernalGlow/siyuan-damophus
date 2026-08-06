@@ -859,27 +859,18 @@ describe("question bank browser flow", () => {
     expect(openQuestionSource).toHaveBeenCalledWith(blockId);
   });
 
-  it("uses the SiYuan renderer for question and answer content and toggles source styles", async () => {
+  it("uses the SiYuan renderer and respects the configured source style setting", async () => {
     const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
     const renderQuestionMarkdown = vi.fn((markdown: string, inheritStyles: boolean) => (
       `<span data-native-render="true" data-source-styles="${inheritStyles}">${markdown}</span>`
     ));
-    const onInheritSourceStylesChange = vi.fn();
-    render(controller, { renderQuestionMarkdown, onInheritSourceStylesChange });
+    render(controller, { renderQuestionMarkdown, inheritSourceStyles: false });
     await scanAndSync();
     button("Start practice").click();
     await flush();
 
-    expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.stemMarkdown, true);
-    expect(document.querySelector('[data-native-render="true"][data-source-styles="true"]')).not.toBeNull();
-
-    const sourceStyleToggle = document.querySelector<HTMLButtonElement>('[data-slot="switch"]');
-    if (!sourceStyleToggle) throw new Error("Missing source style toggle");
-    expect(sourceStyleToggle.getAttribute("data-state")).toBe("checked");
-    sourceStyleToggle.click();
-    await flush();
-    expect(onInheritSourceStylesChange).toHaveBeenCalledWith(false);
     expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.stemMarkdown, false);
+    expect(document.querySelector('[data-native-render="true"][data-source-styles="false"]')).not.toBeNull();
 
     const alpha = [...document.querySelectorAll<HTMLButtonElement>("button.option")]
       .find((item) => item.querySelector(".option-label")?.textContent === "A");

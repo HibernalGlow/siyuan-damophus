@@ -73,7 +73,6 @@
   export let openQuestionSource: ((blockId: string) => void) | undefined = undefined;
   export let inheritSourceStyles = true;
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
-  export let onInheritSourceStylesChange: ((value: boolean) => void) | undefined = undefined;
   export let autoSyncIndex = false;
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let timingEnabled = true;
@@ -845,11 +844,6 @@
     return renderQuestionMarkdown?.(markdown, sourceStyles) ?? renderMarkdownHtml(markdown);
   }
 
-  function toggleSourceStyles(checked: boolean): void {
-    inheritSourceStyles = checked;
-    onInheritSourceStylesChange?.(checked);
-  }
-
   function toggleAutoSyncIndex(checked: boolean): void {
     autoSyncIndex = checked;
     onAutoSyncIndexChange?.(checked);
@@ -863,15 +857,6 @@
       <span>{label("displayName", "Question Bank")}</span>
     </div>
     <div class="header-actions">
-      <FormLabel class="cursor-pointer gap-2" for="source-style-toggle">
-        <Switch
-          id="source-style-toggle"
-          checked={inheritSourceStyles}
-          onCheckedChange={toggleSourceStyles}
-          aria-label={label("inheritSourceStyles", "Use source styles")}
-        />
-        <span>{inheritSourceStyles ? label("inheritSourceStyles", "Use source styles") : label("plainDisplay", "Plain display")}</span>
-      </FormLabel>
       {#if busy}<span class="status">{label("loading", "Working...")}</span>{/if}
     </div>
   </header>

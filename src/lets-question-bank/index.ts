@@ -242,7 +242,6 @@ export default class QuestionBankPlugin extends SubPluginBase {
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),
-        onInheritSourceStylesChange: (value: boolean) => this.setSetting("inheritSourceStyles", value),
         onAutoSyncIndexChange: (value: boolean) => this.setSetting("autoSyncIndex", value),
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
