@@ -1,6 +1,6 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
 import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/core/recovery";
-import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent } from "@/question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent, ObjectiveAnswer, Question } from "@/question-bank/core/types";
 import type { ExamSessionSnapshot } from "@/question-bank/exam";
 import type { StatisticsQuestion } from "@/question-bank/core/statistics";
 import {
@@ -99,6 +99,7 @@ export interface QuestionBankUiController {
   listQuestionSourceDocuments?(): Promise<QuestionSourceDocument[]>;
   loadQuestionCatalog?(): Promise<QuestionCatalogEntry[]>;
   hydrateQuestionSources?(questionIds: readonly string[]): Promise<HydratedQuestionSource>;
+  correctQuestionAnswer?(questionBlockId: string, question: Question, answer: ObjectiveAnswer): Promise<void>;
   listQuestionSetBlueprints?(): Promise<QuestionSetBlueprint[]>;
   saveQuestionSetBlueprint?(blueprint: QuestionSetBlueprint): Promise<void>;
   removeQuestionSetBlueprint?(blueprintId: string): Promise<void>;
@@ -317,6 +318,11 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async hydrateQuestionSources(questionIds: readonly string[]): Promise<HydratedQuestionSource> {
     return hydrateQuestionSources(this.client, await this.loadQuestionCatalog(), questionIds);
+  }
+
+  async correctQuestionAnswer(questionBlockId: string, question: Question, answer: ObjectiveAnswer): Promise<void> {
+    const { correctQuestionAnswer } = await import("@/question-bank/adapters/siyuan/answer-correction");
+    await correctQuestionAnswer(this.client, questionBlockId, question, answer);
   }
 
   async listQuestionSetBlueprints(): Promise<QuestionSetBlueprint[]> {

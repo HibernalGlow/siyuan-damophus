@@ -1,4 +1,5 @@
 export * from "./attempt-store";
+export * from "./answer-correction";
 export * from "./binding";
 export * from "./cells";
 export * from "./client";

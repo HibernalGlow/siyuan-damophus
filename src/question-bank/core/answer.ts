@@ -1,5 +1,9 @@
 import type { ObjectiveAnswer, Question } from "./types";
 
+export function serializeObjectiveAnswer(answer: ObjectiveAnswer): string {
+  return answer.kind === "boolean" ? String(answer.value) : normalizeOptionIds(answer.optionIds).join(",");
+}
+
 export function normalizeOptionIds(optionIds: readonly string[]): string[] {
   return [...new Set(optionIds.map((id) => id.trim().toUpperCase()).filter(Boolean))].sort();
 }

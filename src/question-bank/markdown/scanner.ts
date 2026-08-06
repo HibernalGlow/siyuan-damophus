@@ -584,6 +584,7 @@ function buildQuestion(
   const solutionMarkdown = stringifyNodes(solutionNodes);
 
   const explicitAnswerValue = candidate.attributes["custom-qb-answer"];
+  const manuallyCorrected = candidate.attributes["custom-qb-answer-corrected"] === "true";
   const explicitAnswer = parseAnswer(explicitAnswerValue, type, options.map((option) => option.id));
   if (explicitAnswerValue && !explicitAnswer) {
     report.issues.push({
@@ -596,7 +597,7 @@ function buildQuestion(
     return undefined;
   }
   const inferredAnswer = visibleAnswer(solutionMarkdown, type);
-  if (explicitAnswer && inferredAnswer && !answersEqual(explicitAnswer, inferredAnswer)) {
+  if (!manuallyCorrected && explicitAnswer && inferredAnswer && !answersEqual(explicitAnswer, inferredAnswer)) {
     report.conflicts.push({
       code: "answer-conflict",
       message: "custom-qb-answer conflicts with the visible solution answer",
