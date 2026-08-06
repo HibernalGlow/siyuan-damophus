@@ -531,7 +531,7 @@ describe("question bank browser flow", () => {
     expect(document.querySelectorAll('[data-slot="toggle-group"]')).toHaveLength(2);
     await selectScope("Root topic");
     button("Random").click();
-    button("all").click();
+    button("All").click();
     button("Start practice").click();
     await flush();
     expect(document.body.textContent).toContain("Subjective question");
@@ -970,7 +970,7 @@ describe("question bank browser flow", () => {
     expect(actions.getBoundingClientRect()).toEqual(actionRect);
   });
 
-  it("opens the current question title block in the SiYuan source editor", async () => {
+  it("opens the current question title block in the SiYuan source editor for editing", async () => {
     const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
     const openQuestionSource = vi.fn();
     render(controller, { openQuestionSource });
@@ -978,7 +978,7 @@ describe("question bank browser flow", () => {
     button("Start practice").click();
     await flush();
 
-    button("Open source in SiYuan").click();
+    button("Edit source block in SiYuan").click();
 
     expect(openQuestionSource).toHaveBeenCalledOnce();
     expect(openQuestionSource).toHaveBeenCalledWith(blockId);
@@ -1010,6 +1010,29 @@ describe("question bank browser flow", () => {
     await flush();
     expect(renderQuestionMarkdown).toHaveBeenCalledWith(objectiveQuestion.solutionMarkdown, false);
     expect(document.querySelector(".solution [data-native-render='true']")?.textContent).toContain("Answer");
+  });
+
+  it("uses the current HTML renderer when the HTML mode is selected", async () => {
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    const renderQuestionMarkdown = vi.fn(() => "<span data-native-render=\"true\">native</span>");
+    render(controller, { questionRenderMode: "html", renderQuestionMarkdown });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    expect(renderQuestionMarkdown).not.toHaveBeenCalled();
+    expect(document.querySelector(".stem")?.textContent).toContain("Select the correct options.");
+  });
+
+  it("does not expose the solution before reveal in embed mode", async () => {
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { questionRenderMode: "embed" });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    expect(document.querySelector(".solution")).toBeNull();
+    expect(document.body.textContent ?? "").not.toContain("Answer: A and C");
   });
 
   it("records subjective self-rating independently from objective correctness", async () => {
@@ -1185,7 +1208,7 @@ describe("question bank browser flow", () => {
     });
     render(controller);
     await scanAndSync();
-    button("due").click();
+    button("Due").click();
     button("Start practice").click();
     await flush();
     option("Alpha").click();

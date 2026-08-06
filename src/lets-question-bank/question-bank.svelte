@@ -1,6 +1,27 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { ArrowLeft, ChevronLeft, ChevronRight, Pause, Play, X } from "lucide-svelte";
+  import {
+    ArrowLeft,
+    BookOpenCheck,
+    ChevronLeft,
+    ChevronDown,
+    ChevronRight,
+    CircleX,
+    Clock3,
+    Database,
+    Download,
+    LayoutGrid,
+    ExternalLink,
+    List,
+    ListOrdered,
+    Pause,
+    Play,
+    RotateCcw,
+    ScanLine,
+    Shuffle,
+    Upload,
+    X,
+  } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import {
     normalizeBreadcrumbPriority,
@@ -80,9 +101,12 @@
   export let uuid: () => string = () => crypto.randomUUID();
   export let openQuestionSource: ((blockId: string) => void) | undefined = undefined;
   export let inheritSourceStyles = true;
+  export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
   export let autoSyncIndex = false;
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
+  export let autoScanDocument = false;
+  export let onAutoScanDocumentChange: ((value: boolean) => void) | undefined = undefined;
   export let timingEnabled = true;
   export let now: () => number = Date.now;
   export let mobileBreadcrumb = false;
@@ -129,6 +153,7 @@
   let sessionId = "";
   let timerNow = Date.now();
   let timer: ReturnType<typeof setInterval> | undefined;
+  let autoScanTimer: ReturnType<typeof setTimeout> | undefined;
   let answerCardOpen = false;
   let completedQuestionIndices: number[] = [];
   let complete = false;
@@ -142,9 +167,14 @@
   let pendingReplacement = false;
   let endConfirmation = false;
   let rootElement: HTMLElement;
+  let workspaceResizeObserver: ResizeObserver | undefined;
   let unsubscribePracticeState: (() => void) | undefined;
   let unsubscribeSaveStatus: (() => void) | undefined;
   let completionHandledSessionId = "";
+  let scanPanelOpen = false;
+  let dataPanelOpen = false;
+  let scanPanelUserControlled = false;
+  let dataPanelUserControlled = false;
   let scanDetailsOpen = false;
   let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
 
@@ -222,12 +252,23 @@
       else if (detail === "pause") void pausePractice();
     };
     host?.addEventListener("damophus-practice-command", command);
+    const updateAdaptivePanels = () => {
+      const availableHeight = rootElement.getBoundingClientRect().height || window.innerHeight;
+      if (!scanPanelUserControlled) scanPanelOpen = availableHeight >= 680;
+      if (!dataPanelUserControlled) dataPanelOpen = availableHeight >= 900;
+    };
+    updateAdaptivePanels();
+    workspaceResizeObserver = new ResizeObserver(updateAdaptivePanels);
+    workspaceResizeObserver.observe(rootElement);
     void run(refreshStoredSessions);
+    scheduleAutoScan(250);
     return () => host?.removeEventListener("damophus-practice-command", command);
   });
 
   onDestroy(() => {
     clearTimer();
+    workspaceResizeObserver?.disconnect();
+    if (autoScanTimer) clearTimeout(autoScanTimer);
     unsubscribePracticeState?.();
     unsubscribeSaveStatus?.();
     if (practiceRuntime) void practiceRuntime.dispose();
@@ -292,6 +333,22 @@
     answerCardOpen = false;
     completedQuestionIndices = [];
     recoverableSession = undefined;
+    scanPanelUserControlled = false;
+    scheduleAutoScan();
+  }
+
+  function scheduleAutoScan(delay = 450): void {
+    if (autoScanTimer) clearTimeout(autoScanTimer);
+    autoScanTimer = undefined;
+    if (!autoScanDocument || !validDocument()) return;
+    autoScanTimer = setTimeout(() => {
+      autoScanTimer = undefined;
+      if (busy) {
+        scheduleAutoScan(250);
+        return;
+      }
+      scanDocument(false);
+    }, delay);
   }
 
   function invalidateSystemDocumentTarget(): void {
@@ -326,7 +383,13 @@
     });
   }
 
-  function scanDocument(): void {
+  function scanDocument(revealScanSummary = true): void {
+    if (autoScanTimer) clearTimeout(autoScanTimer);
+    autoScanTimer = undefined;
+    if (revealScanSummary) {
+      scanPanelUserControlled = true;
+      scanPanelOpen = true;
+    }
     void run(async () => {
       const [nextPreview, nextSourceIdentity, stored] = await Promise.all([
         controller.previewSync(documentId),
@@ -334,6 +397,7 @@
         controller.loadPracticeSession(documentId),
       ]);
       preview = nextPreview;
+      if (nextPreview.blockers.length > 0) scanPanelOpen = true;
       sourceIdentity = nextSourceIdentity;
       recoverableSession = stored?.status === "ok" ? stored.snapshot : undefined;
       syncComplete = false;
@@ -766,7 +830,7 @@
   function openStoredSession(stored: StoredPracticeSession): void {
     documentId = stored.sourceKey;
     invalidateDocumentTarget();
-    scanDocument();
+    scanDocument(false);
   }
 
   function exportSessionDiagnostic(sourceKey: string): void {
@@ -852,9 +916,7 @@
             ? breadcrumbTextDisplay
             : normalizeBreadcrumbTextDisplay("full", 16, 160),
         );
-      } else {
-        node.textContent = next.fallback;
-      }
+      } else renderFallbackBreadcrumb(node, next.fallback);
     };
     render(state);
     return {
@@ -864,6 +926,32 @@
         breadcrumbScroller = undefined;
       },
     };
+  }
+
+  function renderFallbackBreadcrumb(node: HTMLElement, fallback: string): void {
+    const parts = fallback.split(/\s*\/\s*/u).filter(Boolean);
+    const fragment = document.createDocumentFragment();
+    parts.forEach((part, index) => {
+      const text = document.createElement("span");
+      text.className = "practice-breadcrumb-fallback-item";
+      text.textContent = part;
+      fragment.append(text);
+      if (index >= parts.length - 1) return;
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("fill", "none");
+      icon.setAttribute("stroke", "currentColor");
+      icon.setAttribute("stroke-width", "2");
+      icon.setAttribute("stroke-linecap", "round");
+      icon.setAttribute("stroke-linejoin", "round");
+      icon.setAttribute("aria-hidden", "true");
+      icon.classList.add("practice-breadcrumb-separator");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", "m9 18 6-6-6-6");
+      icon.append(path);
+      fragment.append(icon);
+    });
+    node.replaceChildren(fragment);
   }
 
   function sourceTypeLabel(type: string): string {
@@ -926,12 +1014,20 @@
   }
 
   function renderedQuestionContent(markdown: string, sourceStyles: boolean): string {
+    if (questionRenderMode === "html") return renderMarkdownHtml(markdown);
     return renderQuestionMarkdown?.(markdown, sourceStyles) ?? renderMarkdownHtml(markdown);
   }
 
   function toggleAutoSyncIndex(checked: boolean): void {
     autoSyncIndex = checked;
     onAutoSyncIndexChange?.(checked);
+  }
+
+  function toggleAutoScanDocument(checked: boolean): void {
+    autoScanDocument = checked;
+    onAutoScanDocumentChange?.(checked);
+    if (checked) scheduleAutoScan(0);
+    else if (autoScanTimer) clearTimeout(autoScanTimer);
   }
 </script>
 
@@ -990,7 +1086,7 @@
       <div class="rebind-setup">
         <FormLabel class="mb-2" for="system-document-id">{label("systemDocumentId", "Existing Damophus system document ID")}</FormLabel>
         <div class="document-row">
-          <Input id="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" oninput={invalidateSystemDocumentTarget} />
+          <Input id="system-document-id" name="system-document-id" bind:value={systemDocumentId} autocomplete="off" spellcheck="false" oninput={invalidateSystemDocumentTarget} />
           <Button variant="outline" disabled={!/^\d{14}-[a-z0-9]{7}$/u.test(systemDocumentId) || busy} onclick={previewRebinding}>
             {label("previewRebinding", "Preview reconnection")}
           </Button>
@@ -1010,26 +1106,26 @@
     </section>
   {:else if queue.length === 0 && !complete}
     <section class="workspace min-h-0 flex-1 overflow-y-auto">
-      <div class="document-row">
-        <FormLabel class="max-[760px]:col-span-full" for="document-id">{label("documentId", "Document ID")}</FormLabel>
-        <Input id="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" oninput={invalidateDocumentTarget} />
-        <Button variant="outline" size="icon" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} onclick={scanDocument}>
-          <svg aria-hidden="true"><use href="#iconRefresh"></use></svg>
-        </Button>
+      <div class="workspace-toolbar">
+        <div class="document-row">
+          <FormLabel class="document-id-label" for="document-id">{label("documentId", "Document ID")}</FormLabel>
+          <Input id="document-id" name="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" oninput={invalidateDocumentTarget} />
+          <Button variant="outline" size="icon" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} onclick={() => scanDocument(true)}>
+            <ScanLine aria-hidden="true" />
+          </Button>
+          <label class="auto-scan-control" for="auto-scan-document" title={label("autoScanDocument", "Automatically scan document")}>
+            <Switch
+              id="auto-scan-document"
+              size="sm"
+              checked={autoScanDocument}
+              onCheckedChange={toggleAutoScanDocument}
+              aria-label={label("autoScanDocument", "Automatically scan document")}
+            />
+            <span>{label("autoScanDocument", "Auto scan")}</span>
+          </label>
+        </div>
       </div>
-      <div class="recovery-actions">
-        <Button class="max-[760px]:flex-1" variant="outline" disabled={busy} onclick={exportAttempts}>
-          <svg data-icon="inline-start" aria-hidden="true"><use href="#iconDownload"></use></svg>
-          {label("exportAttempts", "Export attempts")}
-        </Button>
-        <Button class="max-[760px]:flex-1" variant="outline" disabled={busy} onclick={() => fileInput?.click()}>
-          <svg data-icon="inline-start" aria-hidden="true"><use href="#iconUpload"></use></svg>
-          {label("importAttempts", "Import attempts")}
-        </Button>
-        <Input data-import-file class="hidden" bind:ref={fileInput} type="file" accept="application/json,.json" onchange={selectImportFile} />
-      </div>
-
-      {#if storedSessions.length > 0}
+        {#if storedSessions.length > 0}
         <section class="unfinished-sessions" aria-label={label("unfinishedSessions", "Unfinished sessions")}>
           <div class="section-heading">
             <strong>{label("unfinishedSessions", "Unfinished sessions")}</strong>
@@ -1062,8 +1158,31 @@
             {/each}
           </div>
         </section>
-      {/if}
+        {/if}
 
+      <Collapsible.Root bind:open={dataPanelOpen} class="workspace-panel data-panel">
+        <Collapsible.Trigger class="workspace-panel-trigger" onclick={() => dataPanelUserControlled = true}>
+          <span class="workspace-panel-heading">
+            <Database aria-hidden="true" />
+            <span>
+              <strong>{label("attemptData", "Attempt data")}</strong>
+              <small>{label("exportAttempts", "Export attempts")} · {label("importAttempts", "Import attempts")}</small>
+            </span>
+          </span>
+          <ChevronDown class={dataPanelOpen ? "open" : ""} aria-hidden="true" />
+        </Collapsible.Trigger>
+        <Collapsible.Content class="workspace-panel-content">
+          <div class="recovery-actions">
+            <Button variant="outline" disabled={busy} onclick={exportAttempts}>
+              <Download data-icon="inline-start" aria-hidden="true" />
+              {label("exportAttempts", "Export attempts")}
+            </Button>
+            <Button variant="outline" disabled={busy} onclick={() => fileInput?.click()}>
+              <Upload data-icon="inline-start" aria-hidden="true" />
+              {label("importAttempts", "Import attempts")}
+            </Button>
+            <Input data-import-file class="hidden" bind:ref={fileInput} type="file" accept="application/json,.json" onchange={selectImportFile} />
+          </div>
       {#if importPreview}
         <section class="import-report" aria-label={label("importPreview", "Import preview")}>
           <span><strong>{importPreview.importable}</strong>{label("importable", "Importable")}</span>
@@ -1090,8 +1209,25 @@
           {/if}
         </section>
       {/if}
+        </Collapsible.Content>
+      </Collapsible.Root>
 
       {#if preview}
+        <Collapsible.Root bind:open={scanPanelOpen} class="workspace-panel scan-panel">
+          <Collapsible.Trigger class="workspace-panel-trigger" onclick={() => scanPanelUserControlled = true}>
+            <span class="workspace-panel-heading">
+              <ScanLine aria-hidden="true" />
+              <span>
+                <strong>{label("scanSummary", "Scan summary")}</strong>
+                <small>{progressQuestions.length} {label("questions", "questions")} · {preview.scan.report.issues.length} {label("issues", "issues")}</small>
+              </span>
+            </span>
+            <span class="workspace-panel-meta">
+              {#if preview.blockers.length > 0}<Badge variant="destructive">{preview.blockers.length}</Badge>{/if}
+              <ChevronDown class={scanPanelOpen ? "open" : ""} aria-hidden="true" />
+            </span>
+          </Collapsible.Trigger>
+          <Collapsible.Content class="workspace-panel-content">
         <section class="scan-summary" aria-label={label("scanSummary", "Scan summary")}>
           <div class="source-progress-overview">
             {#if sourceIdentity}
@@ -1254,7 +1390,17 @@
             </Collapsible.Content>
           </Collapsible.Root>
         </section>
+          </Collapsible.Content>
+        </Collapsible.Root>
 
+        <section class="practice-section" aria-labelledby="practice-settings-heading">
+          <div class="practice-section-heading">
+            <BookOpenCheck aria-hidden="true" />
+            <div>
+              <h2 id="practice-settings-heading">{label("practice", "Practice")}</h2>
+              <span>{label("scope", "Scope")} · {label("order", "Order")} · {label("filter", "Filter")}</span>
+            </div>
+          </div>
         <section class="practice-settings">
           {#if recoverableSession}
             <div class="session-recovery">
@@ -1280,7 +1426,7 @@
             </Alert.Root>
           {/if}
 
-          <div class="grid gap-2">
+          <div class="scope-control grid gap-2">
             <FormLabel>{label("scope", "Scope")}</FormLabel>
             <Select.Root
               type="single"
@@ -1301,7 +1447,7 @@
             </Select.Root>
           </div>
 
-          <fieldset>
+          <fieldset class="order-control">
             <legend>{label("order", "Order")}</legend>
             <ToggleGroup.Root
               type="single"
@@ -1310,12 +1456,18 @@
               value={order}
               onValueChange={(value) => { if (value) order = value as PracticeOrder; }}
             >
-              <ToggleGroup.Item value="sequential">{label("sequential", "Sequential")}</ToggleGroup.Item>
-              <ToggleGroup.Item value="random">{label("random", "Random")}</ToggleGroup.Item>
+              <ToggleGroup.Item value="sequential" title={label("sequential", "Sequential")} aria-label={label("sequential", "Sequential")}>
+                <ListOrdered aria-hidden="true" />
+                <span class="control-copy">{label("sequential", "Sequential")}</span>
+              </ToggleGroup.Item>
+              <ToggleGroup.Item value="random" title={label("random", "Random")} aria-label={label("random", "Random")}>
+                <Shuffle aria-hidden="true" />
+                <span class="control-copy">{label("random", "Random")}</span>
+              </ToggleGroup.Item>
             </ToggleGroup.Root>
           </fieldset>
 
-          <fieldset>
+          <fieldset class="filter-control">
             <legend>{label("filter", "Filter")}</legend>
             <ToggleGroup.Root
               type="single"
@@ -1324,9 +1476,22 @@
               value={filter}
               onValueChange={(value) => { if (value) filter = value as PracticeFilter; }}
             >
-              {#each ["all", "wrong", "review", "due"] as value}
-                <ToggleGroup.Item value={value}>{label(value, value)}</ToggleGroup.Item>
-              {/each}
+              <ToggleGroup.Item value="all" title={label("all", "All")} aria-label={label("all", "All")}>
+                <List aria-hidden="true" />
+                <span class="control-copy">{label("all", "All")}</span>
+              </ToggleGroup.Item>
+              <ToggleGroup.Item value="wrong" title={label("wrong", "Wrong")} aria-label={label("wrong", "Wrong")}>
+                <CircleX aria-hidden="true" />
+                <span class="control-copy">{label("wrong", "Wrong")}</span>
+              </ToggleGroup.Item>
+              <ToggleGroup.Item value="review" title={label("review", "Review")} aria-label={label("review", "Review")}>
+                <RotateCcw aria-hidden="true" />
+                <span class="control-copy">{label("review", "Review")}</span>
+              </ToggleGroup.Item>
+              <ToggleGroup.Item value="due" title={label("due", "Due")} aria-label={label("due", "Due")}>
+                <Clock3 aria-hidden="true" />
+                <span class="control-copy">{label("due", "Due")}</span>
+              </ToggleGroup.Item>
             </ToggleGroup.Root>
           </fieldset>
 
@@ -1335,9 +1500,10 @@
             disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
             onclick={startPractice}
           >
-            <svg data-icon="inline-start" aria-hidden="true"><use href="#iconPlay"></use></svg>
-            {label("start", "Start practice")}
+            <BookOpenCheck data-icon="inline-start" aria-hidden="true" />
+            <span>{label("start", "Start practice")}</span>
           </Button>
+        </section>
         </section>
       {/if}
     </section>
@@ -1411,7 +1577,7 @@
           aria-expanded={answerCardOpen}
           onclick={() => answerCardOpen = !answerCardOpen}
         >
-          <svg aria-hidden="true"><use href="#iconGrid"></use></svg>
+          <LayoutGrid size={17} aria-hidden="true" />
         </Button>
       </div>
       {#if endConfirmation}
@@ -1486,11 +1652,11 @@
               variant="ghost"
               size="icon"
               class="shrink-0"
-              title={label("openSource", "Open source in SiYuan")}
-              aria-label={label("openSource", "Open source in SiYuan")}
+              title={label("editSource", "Edit source block in SiYuan")}
+              aria-label={label("editSource", "Edit source block in SiYuan")}
               onclick={() => openQuestionSource?.(currentQuestionBlockId as string)}
             >
-              <svg aria-hidden="true"><use href="#iconFocus"></use></svg>
+              <ExternalLink aria-hidden="true" />
             </Button>
           {/if}
         </div>
@@ -1597,7 +1763,9 @@
      mobile WebView when a theme supplies duplicate symbol ids. */
   :global(.question-bank), :global(.question-bank *) { box-sizing: border-box; }
   :global(.question-bank button), :global(.question-bank input), :global(.question-bank select) { font: inherit; letter-spacing: 0; }
+  :global(.question-bank .lucide) { fill: none !important; stroke: currentColor; stroke-width: 2; }
   .question-bank { color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; }
+  .question-bank :global(button), .question-bank :global([role="button"]) { touch-action: manipulation; -webkit-tap-highlight-color: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
   .app-header { min-height: 64px; padding: 12px 20px; border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .app-header > div { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
   h1 { margin: 0; font-size: 20px; line-height: 1.2; }
@@ -1605,12 +1773,26 @@
   .app-header span, .status { color: var(--b3-theme-on-surface); font-size: 13px; }
   .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
   section { padding: 18px 20px; }
-  .document-row { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto; align-items: center; gap: 10px; }
+  .workspace-toolbar { position: relative; z-index: 2; }
+  .document-row { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto auto; align-items: center; gap: 10px; }
+  .auto-scan-control { min-width: max-content; display: inline-flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface); font-size: 12px; cursor: pointer; }
+  :global(.workspace-panel) { margin-top: 12px; border: 1px solid var(--b3-border-color); border-radius: 10px; background: var(--b3-theme-surface); overflow: hidden; }
+  :global(.workspace-panel-trigger) { width: 100%; min-height: 58px; padding: 10px 14px; border: 0; background: transparent; color: inherit; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; cursor: pointer; }
+  :global(.workspace-panel-trigger:hover) { background: var(--b3-list-hover); }
+  :global(.workspace-panel-trigger:focus-visible) { outline: 2px solid var(--b3-theme-primary); outline-offset: -2px; }
+  .workspace-panel-heading, .workspace-panel-meta { min-width: 0; display: flex; align-items: center; gap: 10px; }
+  .workspace-panel-heading > :global(svg) { width: 19px; height: 19px; flex: 0 0 19px; color: var(--b3-theme-primary); }
+  .workspace-panel-heading > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .workspace-panel-heading strong { font-size: 14px; }
+  .workspace-panel-heading small { color: var(--b3-theme-on-surface); font-size: 11px; overflow-wrap: anywhere; }
+  .workspace-panel-meta > :global(svg), :global(.workspace-panel-trigger > svg) { width: 17px; height: 17px; flex: 0 0 17px; color: var(--b3-theme-on-surface); transition: transform 160ms ease; }
+  .workspace-panel-meta > :global(svg.open), :global(.workspace-panel-trigger > svg.open) { transform: rotate(180deg); }
+  :global(.workspace-panel-content) { border-top: 1px solid var(--b3-border-color); }
   .setup { max-width: 760px; }
   .setup .document-row { grid-template-columns: minmax(220px, 1fr) auto; }
   .rebind-setup { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--b3-border-color); }
   .preview-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-  .scan-summary { margin: 18px -20px 0; padding: 16px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .scan-summary { padding: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .source-progress-overview { flex-basis: 100%; min-width: 0; display: grid; grid-template-columns: minmax(240px, 1fr) minmax(360px, 1.15fr); gap: 24px; align-items: stretch; }
   .source-identity, .completion-overview { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
   .source-heading { min-width: 0; display: flex; align-items: center; gap: 8px; }
@@ -1623,7 +1805,7 @@
   .progress-stats span { min-width: 0; padding: 2px 9px; border-left: 1px solid var(--b3-border-color); display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 11px; }
   .progress-stats span:first-child { padding-left: 0; border-left: 0; }
   .progress-stats strong { color: var(--b3-theme-on-background); font-size: 15px; font-variant-numeric: tabular-nums; }
-  .recovery-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+  .recovery-actions { padding: 14px 16px 0; display: flex; justify-content: flex-end; gap: 8px; }
   .unfinished-sessions { margin: 14px -20px 0; padding: 14px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
   .section-heading { display: flex; align-items: center; gap: 8px; }
   .unfinished-list { margin-top: 10px; display: grid; gap: 1px; background: var(--b3-border-color); }
@@ -1632,7 +1814,7 @@
   .unfinished-row strong { overflow-wrap: anywhere; }
   .unfinished-row span, .unfinished-row small { color: var(--b3-theme-on-surface); font-size: 12px; }
   .unfinished-row small { grid-column: 1 / -1; }
-  .import-report { margin: 14px -20px 0; padding: 12px 20px; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+  .import-report { margin-top: 12px; padding: 12px 16px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
   .import-report span { min-width: 76px; display: flex; flex-direction: column; color: var(--b3-theme-on-surface); font-size: 12px; }
   .import-report strong { color: var(--b3-theme-on-background); font-size: 17px; }
   .import-report code { flex-basis: 100%; overflow-wrap: anywhere; }
@@ -1651,7 +1833,12 @@
   .message-title { display: block; margin-top: 5px; overflow-wrap: anywhere; }
   .report-group small { display: block; margin-top: 2px; color: var(--b3-theme-on-surface); overflow-wrap: anywhere; }
   .correct { color: var(--b3-theme-success); font-size: 13px; }
-  .practice-settings { padding: 20px 0 0; display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1fr) minmax(250px, 1.5fr) auto; gap: 16px; align-items: end; }
+  .practice-section { margin-top: 16px; padding: 16px; border: 1px solid var(--b3-border-color); border-radius: 10px; }
+  .practice-section-heading { display: flex; align-items: center; gap: 10px; }
+  .practice-section-heading > :global(svg) { width: 20px; height: 20px; flex: 0 0 20px; color: var(--b3-theme-primary); }
+  .practice-section-heading h2 { font-size: 16px; text-wrap: balance; }
+  .practice-section-heading span { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .practice-settings { padding: 16px 0 0; display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(190px, 0.9fr) minmax(320px, 1.6fr) auto; gap: 14px; align-items: end; }
   .session-recovery { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .session-recovery > div:first-child { display: flex; align-items: baseline; gap: 10px; }
   .session-recovery span { color: var(--b3-theme-on-surface); font-size: 12px; }
@@ -1664,6 +1851,8 @@
   .timer { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .timer svg { width: 14px; height: 14px; fill: currentColor; }
   .practice-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+  .practice-breadcrumb :global(.practice-breadcrumb-fallback-item) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .practice-breadcrumb :global(.practice-breadcrumb-separator) { width: 13px; height: 13px; flex: 0 0 13px; opacity: 0.58; }
   .practice-controls { display: flex; align-items: center; min-width: max-content; }
   .save-status { padding: 4px 20px; color: var(--b3-theme-on-surface); font-size: 11px; text-align: right; }
   .answer-card-scrim { position: absolute; z-index: 3; inset: 44px 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
@@ -1713,13 +1902,19 @@
     .app-header { align-items: flex-start; }
     .header-actions { flex-direction: column; align-items: flex-end; gap: 6px; }
     section { padding: 14px; }
-    .document-row { grid-template-columns: 1fr 34px; }
-    .scan-summary { margin-inline: -14px; padding-inline: 14px; }
+    .document-row { grid-template-columns: minmax(0, 1fr) 34px auto; }
+    :global(.document-id-label) { display: none; }
     .source-progress-overview { grid-template-columns: 1fr; gap: 18px; }
     .recovery-actions { justify-content: stretch; }
-    .import-report { margin-inline: -14px; padding-inline: 14px; }
-    .summary-grid { grid-template-columns: repeat(3, 1fr); flex-basis: 100%; }
-    .practice-settings { grid-template-columns: 1fr; gap: 13px; }
+    .summary-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); flex-basis: 100%; }
+    .summary-grid span { min-height: 46px; padding: 5px 4px; text-align: center; }
+    .summary-grid strong { font-size: 15px; }
+    .practice-settings {
+      grid-template-columns: minmax(0, 1fr) minmax(190px, 0.75fr);
+      gap: 12px;
+    }
+    .filter-control, .practice-settings :global(button.start) { grid-column: 1 / -1; }
+    .practice-settings :global(button.start) { width: 100%; }
     .unfinished-sessions { margin-inline: -14px; padding-inline: 14px; }
     .unfinished-row { align-items: flex-start; }
     .unfinished-row > div { grid-template-columns: 1fr; }
@@ -1771,5 +1966,52 @@
     .completion-summary { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
     .completion-summary span:nth-child(3) { border-left: 0; border-top: 1px solid var(--b3-border-color); }
     .completion-summary span:nth-child(4) { border-top: 1px solid var(--b3-border-color); }
+  }
+
+  @container (max-width: 760px) {
+    .workspace { padding-top: 0; }
+    .workspace-toolbar {
+      position: sticky;
+      top: 0;
+      margin: -14px -14px 0;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid var(--b3-border-color);
+      background: color-mix(in srgb, var(--b3-theme-background) 94%, transparent);
+      backdrop-filter: blur(14px);
+    }
+    :global(.workspace-panel) { margin-top: 10px; }
+    :global(.workspace-panel-trigger) { min-height: 54px; padding: 9px 12px; }
+    .recovery-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .document-row :global(button) { width: 44px; height: 44px; }
+    .auto-scan-control { min-height: 44px; }
+    .practice-settings :global([data-slot="toggle-group-item"]),
+    .practice-settings :global(button.start) { min-height: 44px; }
+    .scan-summary { gap: 10px; }
+    .source-progress-overview { gap: 12px; }
+    .progress-stats span { padding-inline: 5px; text-align: center; }
+    .progress-stats strong { font-size: 14px; }
+    :global(.auto-sync-toggle > span) { display: none; }
+    .practice-section { margin-top: 10px; padding: 12px; }
+    .practice-settings { padding-top: 12px; }
+  }
+
+  @container (max-width: 430px) {
+    .document-row { grid-template-columns: minmax(0, 1fr) 44px; }
+    .auto-scan-control { grid-column: 1 / -1; justify-self: end; }
+    .practice-settings { grid-template-columns: 1fr; }
+    .filter-control, .practice-settings :global(button.start) { grid-column: auto; }
+    .source-identity > span, .source-identity > code { display: none; }
+    .completion-overview { gap: 6px; }
+    .summary-grid span { min-height: 40px; font-size: 10px; }
+  }
+
+  @container (max-height: 620px) {
+    .source-identity > span, .source-identity > code { display: none; }
+    .completion-overview { gap: 6px; }
+    .summary-grid span { min-height: 40px; font-size: 10px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-panel-meta > :global(svg), :global(.workspace-panel-trigger > svg) { transition: none; }
   }
 </style>

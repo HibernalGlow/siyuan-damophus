@@ -281,7 +281,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
         translations: plugin.i18n,
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
+        questionRenderMode: this.getSetting("questionRenderMode") ?? "native",
         autoSyncIndex: this.getSetting("autoSyncIndex") === true,
+        autoScanDocument: this.getSetting("autoScanDocument") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
         mobileBreadcrumb: isMobile,
         breadcrumbPriority: settings.getBySpace("mobileBreadcrumb", "overflowPriority") ?? "tail",
@@ -296,6 +298,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
           this.questionRenderer(markdown, inheritSourceStyles)
         ),
         onAutoSyncIndexChange: (value: boolean) => this.setSetting("autoSyncIndex", value),
+        onAutoScanDocumentChange: (value: boolean) => this.setSetting("autoScanDocument", value),
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
           this.openQuestionSource(blockId);

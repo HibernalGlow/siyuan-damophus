@@ -46,10 +46,29 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.autoScanDocument",
+      description: "lets-question-bank.autoScanDocumentDescription",
+      key: "autoScanDocument",
+      value: false,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.inheritSourceStyles",
       description: "lets-question-bank.inheritSourceStylesDescription",
       key: "inheritSourceStyles",
       value: true,
+    },
+    {
+      type: "select",
+      title: "lets-question-bank.questionRenderMode",
+      description: "lets-question-bank.questionRenderModeDescription",
+      key: "questionRenderMode",
+      value: "native",
+      options: {
+        html: "lets-question-bank.questionRenderModeHtml",
+        native: "lets-question-bank.questionRenderModeNative",
+        embed: "lets-question-bank.questionRenderModeEmbed",
+      },
     },
     {
       type: "checkbox",
