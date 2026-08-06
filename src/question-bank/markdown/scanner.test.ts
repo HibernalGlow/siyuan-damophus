@@ -7,6 +7,20 @@ function fixture(name: string): string {
 }
 
 describe("question Markdown scanner", () => {
+  it("treats a manually corrected answer attribute as authoritative", () => {
+    const report = scanQuestionMarkdown(`##### 1. （单）
+{: custom-qb-id="corrected-1" custom-qb-type="single" custom-qb-answer="B" custom-qb-answer-corrected="true"}
+
+- stem
+  - [ ] A. one
+  - [ ] B. two
+
+正确答案为 A。`);
+
+    expect(report.conflicts).toEqual([]);
+    expect(report.document.questions[0]?.answer).toEqual({ kind: "options", optionIds: ["B"] });
+  });
+
   it("parses a normalized single-choice question and removes choices from the stem", () => {
     const report = scanQuestionMarkdown(fixture("single-choice"));
     const question = report.document.questions[0];
