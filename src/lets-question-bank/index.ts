@@ -22,7 +22,11 @@ import {
 } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { installSourceAnswerMask } from "./source-answer-mask";
-import { sourceEmbedSql, type SourceEmbedBlockRow } from "./source-embed-query";
+import {
+  sourceEmbedSql,
+  type SourceEmbedBlockRow,
+  type SourceEmbedSection,
+} from "./source-embed-query";
 
 type PracticeCommand = "previous" | "next" | "pause";
 
@@ -281,6 +285,57 @@ export default class QuestionBankPlugin extends SubPluginBase {
       sessionRepository: this.sessionRepository,
       sessionLeases: this.sessionLeases,
     });
+    const sourceRootRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
+    const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
+    const sourceQueryCache = new Map<string, Promise<string>>();
+    const loadSourceRows = (blockId: string): Promise<SourceEmbedBlockRow[]> => {
+      const cached = sourceRowsCache.get(blockId);
+      if (cached) return cached;
+      const loading = (async () => {
+        const escapedBlockId = blockId.replace(/'/gu, "''");
+        const roots = await sql(
+          `SELECT root_id FROM blocks WHERE id = '${escapedBlockId}' LIMIT 1`,
+        ) as Array<{ root_id?: string }>;
+        const rootId = roots[0]?.root_id;
+        if (!rootId) return [];
+        let rootRows = sourceRootRowsCache.get(rootId);
+        if (!rootRows) {
+          rootRows = sql(
+            `SELECT id, root_id, parent_id, sort, path, type, subtype, content, ial FROM blocks WHERE root_id = '${rootId.replace(/'/gu, "''")}'`,
+          ) as Promise<SourceEmbedBlockRow[]>;
+          sourceRootRowsCache.set(rootId, rootRows);
+        }
+        const rows = (await rootRows).map((row) => ({ ...row, order: undefined }));
+        const rowsById = new Map(rows.map((row) => [row.id, row]));
+        let order = 0;
+        const visitStemBranch = async (id: string): Promise<void> => {
+          const children = await getChildBlocks(id);
+          for (const child of children) {
+            const row = rowsById.get(child.id);
+            if (row) row.order = order++;
+            await visitStemBranch(child.id);
+          }
+        };
+        let solutionReached = false;
+        for (const child of await getChildBlocks(blockId)) {
+          const row = rowsById.get(child.id);
+          if (row) row.order = order++;
+          if (row?.ial?.includes('custom-qb-section="solution"')) solutionReached = true;
+          if (!solutionReached) await visitStemBranch(child.id);
+        }
+        return rows;
+      })();
+      sourceRowsCache.set(blockId, loading);
+      return loading;
+    };
+    const loadSourceQuery = (blockId: string, section: SourceEmbedSection): Promise<string> => {
+      const key = `${blockId}:${section}`;
+      const cached = sourceQueryCache.get(key);
+      if (cached) return cached;
+      const loading = loadSourceRows(blockId).then((rows) => sourceEmbedSql(rows, blockId, section));
+      sourceQueryCache.set(key, loading);
+      return loading;
+    };
     return mount(QuestionBank, {
       target,
       props: {
@@ -305,33 +360,25 @@ export default class QuestionBankPlugin extends SubPluginBase {
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),
-        mountSourceBlock: async (target: HTMLElement, blockId: string, editable: boolean) => {
+        prepareSourceBlock: async (blockId: string) => {
+          await Promise.all([
+            loadSourceQuery(blockId, "stem"),
+            loadSourceQuery(blockId, "solution"),
+          ]);
+        },
+        mountSourceBlock: async (
+          target: HTMLElement,
+          blockId: string,
+          editable: boolean,
+          section: SourceEmbedSection = "stem",
+        ) => {
           const binding = controller.getBinding();
           let mountedBlockId = blockId;
           let temporaryEmbedId: string | undefined;
           if (editable && binding?.systemDocumentId) {
             let embedQuery = `SELECT * FROM blocks WHERE id = '${blockId.replace(/'/gu, "''")}'`;
             try {
-              const roots = await sql(
-                `SELECT root_id FROM blocks WHERE id = '${blockId.replace(/'/gu, "''")}' LIMIT 1`,
-              ) as Array<{ root_id?: string }>;
-              const rootId = roots[0]?.root_id;
-              if (rootId) {
-                const rows = await sql(
-                  `SELECT id, root_id, parent_id, sort, path, type, subtype, content, ial FROM blocks WHERE root_id = '${rootId.replace(/'/gu, "''")}'`,
-                ) as SourceEmbedBlockRow[];
-                let order = 0;
-                const visit = async (id: string): Promise<void> => {
-                  const children = await getChildBlocks(id);
-                  for (const child of children) {
-                    const row = rows.find((candidate) => candidate.id === child.id);
-                    if (row) row.order = order++;
-                    await visit(child.id);
-                  }
-                };
-                await visit(blockId);
-                embedQuery = sourceEmbedSql(rows, blockId);
-              }
+              embedQuery = await loadSourceQuery(blockId, section);
             } catch (error) {
               console.warn("[Damophus] failed to resolve question embed range; using the heading block", error);
             }

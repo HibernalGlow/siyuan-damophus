@@ -124,18 +124,21 @@ describe("PracticeQuestionContent", () => {
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
-  it("does not append a second source block when an embedded question is revealed", async () => {
-    const mountSourceBlock = vi.fn((target: HTMLElement) => {
-      target.innerHTML = "<div data-mounted-block>source</div>";
+  it("mounts the solution embed only after the answer is revealed", async () => {
+    const mountSourceBlock = vi.fn((target: HTMLElement, _sourceBlockId: string, _editable: boolean, section?: "stem" | "solution") => {
+      target.innerHTML = `<div data-mounted-section="${section ?? "stem"}">source</div>`;
       return () => target.replaceChildren();
     });
     render({ revealed: true, questionRenderMode: "embed", mountSourceBlock });
     await flush();
 
-    expect(mountSourceBlock).toHaveBeenCalledOnce();
+    expect(mountSourceBlock).toHaveBeenCalledTimes(2);
+    expect(mountSourceBlock).toHaveBeenNthCalledWith(1, expect.any(HTMLElement), blockId, true);
+    expect(mountSourceBlock).toHaveBeenNthCalledWith(2, expect.any(HTMLElement), blockId, true, "solution");
     expect(document.querySelector(".embedded-question-source")).not.toBeNull();
+    expect(document.querySelector('[data-mounted-section="solution"]')).not.toBeNull();
     expect(document.querySelector(".native-answer-source")).toBeNull();
-    expect(document.querySelector(".solution")?.textContent).toContain("**Answer:** A");
+    expect(document.querySelector(".solution")).toBeNull();
   });
 
   it("opens the source question block from its title action", async () => {

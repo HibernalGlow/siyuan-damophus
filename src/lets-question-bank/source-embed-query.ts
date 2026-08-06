@@ -16,6 +16,8 @@ export interface SourceEmbedBlockRow {
   order?: number;
 }
 
+export type SourceEmbedSection = "stem" | "solution";
+
 function sortValue(value: number | string | undefined): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
@@ -76,6 +78,7 @@ function quote(value: string): string {
 export function sourceEmbedBlockIds(
   rows: readonly SourceEmbedBlockRow[],
   questionBlockId: string,
+  section: SourceEmbedSection = "stem",
 ): string[] {
   if (!nodeIdPattern.test(questionBlockId)) return [questionBlockId];
   const byParent = buildChildren(rows);
@@ -101,20 +104,27 @@ export function sourceEmbedBlockIds(
   }
 
   const selected: string[] = [];
+  if (section === "solution" && solutionIndex < 0) return [];
+  if (section === "solution" && solutionIndex >= 0) {
+    for (const row of subtree.slice(solutionIndex)) {
+      if (row.parent_id === questionBlockId) selected.push(row.id);
+    }
+    return selected.length > 0 ? selected : [questionBlockId];
+  }
   for (const row of stemRows) {
     if (optionIds.has(row.id) || optionAncestors.has(row.id)) continue;
     if ((byParent.get(row.id)?.length ?? 0) === 0) selected.push(row.id);
   }
-  if (solutionIndex >= 0) {
-    for (const row of subtree.slice(solutionIndex)) {
-      if (row.parent_id === questionBlockId) selected.push(row.id);
-    }
-  }
   return selected.length > 0 ? selected : [questionBlockId];
 }
 
-export function sourceEmbedSql(rows: readonly SourceEmbedBlockRow[], questionBlockId: string): string {
-  const ids = sourceEmbedBlockIds(rows, questionBlockId);
+export function sourceEmbedSql(
+  rows: readonly SourceEmbedBlockRow[],
+  questionBlockId: string,
+  section: SourceEmbedSection = "stem",
+): string {
+  const ids = sourceEmbedBlockIds(rows, questionBlockId, section);
+  if (ids.length === 0) return "SELECT * FROM blocks WHERE 1 = 0";
   const ordering = ids.map((id, index) => `WHEN ${quote(id)} THEN ${index}`).join(" ");
   return `SELECT * FROM blocks WHERE id IN (${ids.map(quote).join(", ")}) ORDER BY CASE id ${ordering} ELSE ${ids.length} END`;
 }

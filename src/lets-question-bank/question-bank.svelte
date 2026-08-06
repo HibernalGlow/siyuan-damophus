@@ -104,7 +104,8 @@
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
-  export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean) => (() => void) | Promise<() => void>) | undefined = undefined;
+  export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution") => (() => void) | Promise<() => void>) | undefined = undefined;
+  export let prepareSourceBlock: ((blockId: string) => Promise<void>) | undefined = undefined;
   export let autoSyncIndex = false;
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let autoScanDocument = false;
@@ -156,6 +157,7 @@
   let timerNow = Date.now();
   let timer: ReturnType<typeof setInterval> | undefined;
   let autoScanTimer: ReturnType<typeof setTimeout> | undefined;
+  let sourcePreloadTimer: ReturnType<typeof setTimeout> | undefined;
   let answerCardOpen = false;
   let completedQuestionIndices: number[] = [];
   let complete = false;
@@ -271,6 +273,7 @@
     clearTimer();
     workspaceResizeObserver?.disconnect();
     if (autoScanTimer) clearTimeout(autoScanTimer);
+    if (sourcePreloadTimer) clearTimeout(sourcePreloadTimer);
     unsubscribePracticeState?.();
     unsubscribeSaveStatus?.();
     if (practiceRuntime) void practiceRuntime.dispose();
@@ -514,6 +517,24 @@
     objectiveCorrect = attempt?.objective_correct ?? draft?.objective_correct ?? null;
     subjectiveScore = attempt?.subjective_score ?? draft?.subjective_score;
     displayedOptions = revealed ? restoreQuestionOptions(currentQuestion, shuffled) : shuffled.options;
+    scheduleSourcePreload();
+  }
+
+  function sourceBlockId(question: Question | undefined): string | undefined {
+    return question ? preview?.scan.blockIdsByQuestionId.get(question.id) : undefined;
+  }
+
+  function scheduleSourcePreload(): void {
+    if (sourcePreloadTimer) clearTimeout(sourcePreloadTimer);
+    sourcePreloadTimer = undefined;
+    if (questionRenderMode !== "embed" || !prepareSourceBlock) return;
+    const currentBlockId = sourceBlockId(currentQuestion);
+    if (currentBlockId) void prepareSourceBlock(currentBlockId);
+    const nextBlockId = sourceBlockId(queue[questionIndex + 1]);
+    if (!nextBlockId) return;
+    sourcePreloadTimer = setTimeout(() => {
+      void prepareSourceBlock?.(nextBlockId);
+    }, 350);
   }
 
   async function activateRuntime(activation: PracticeSessionActivation): Promise<void> {
@@ -598,6 +619,12 @@
 
   async function beginNewPractice(nextQueue = practiceQueue()): Promise<void> {
     if (!preview || nextQueue.length === 0) return;
+    if (questionRenderMode === "embed" && prepareSourceBlock) {
+      const initialBlockIds = nextQueue.slice(0, 2)
+        .map((question) => sourceBlockId(question))
+        .filter((blockId): blockId is string => Boolean(blockId));
+      await Promise.allSettled(initialBlockIds.map((blockId) => prepareSourceBlock!(blockId)));
+    }
     await startPracticeSession({
       host: controller,
       sourceKey: documentId,

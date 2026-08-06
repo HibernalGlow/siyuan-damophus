@@ -541,6 +541,47 @@ describe("question bank browser flow", () => {
     });
   });
 
+  it("preloads initial and upcoming embed sources without revealing the solution", async () => {
+    const thirdQuestion: Question = {
+      ...subjectiveQuestion,
+      id: "q-third",
+      title: "Third question",
+    };
+    const preview = makePreview([objectiveQuestion, subjectiveQuestion, thirdQuestion]);
+    const sourceIds = [
+      "20260804120011-abcdefg",
+      "20260804120012-abcdefg",
+      "20260804120013-abcdefg",
+    ];
+    preview.scan.blockIdsByQuestionId = new Map([
+      [objectiveQuestion.id, sourceIds[0]],
+      [subjectiveQuestion.id, sourceIds[1]],
+      [thirdQuestion.id, sourceIds[2]],
+    ]);
+    const { controller } = mockController({ preview });
+    const prepareSourceBlock = vi.fn(async () => {});
+    const mountSourceBlock = vi.fn((target: HTMLElement) => {
+      target.innerHTML = "<div data-mounted-source>stem</div>";
+      return () => target.replaceChildren();
+    });
+    render(controller, {
+      questionRenderMode: "embed",
+      prepareSourceBlock,
+      mountSourceBlock,
+    });
+    await scanAndSync();
+    button("Start practice").click();
+    await vi.waitFor(() => expect(prepareSourceBlock).toHaveBeenCalledWith(sourceIds[0]));
+    expect(prepareSourceBlock).toHaveBeenCalledWith(sourceIds[1]);
+    expect(prepareSourceBlock).not.toHaveBeenCalledWith(sourceIds[2]);
+    await vi.waitFor(() => expect(mountSourceBlock).toHaveBeenCalledOnce());
+    expect(document.querySelector(".embedded-answer-source")).toBeNull();
+
+    button("Next question").click();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    await vi.waitFor(() => expect(prepareSourceBlock).toHaveBeenCalledWith(sourceIds[2]));
+  });
+
   it("restores source option order, undoes without writing, and submits once", async () => {
     const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });
     const values = [0, 0];

@@ -12,6 +12,7 @@
     target: HTMLElement,
     blockId: string,
     editable: boolean,
+    section?: "stem" | "solution",
   ) => (() => void) | Promise<() => void>;
 
   export let label: Label;
@@ -36,19 +37,25 @@
   export let toggleOption: (optionId: string) => void;
   export let changeSubjectiveScore: (event: Event) => void;
 
-  function sourceBlockMount(node: HTMLElement, params: { blockId: string; editable: boolean }) {
+  function mountBlock(node: HTMLElement, params: { blockId: string; editable: boolean; section?: "stem" | "solution" }) {
+    return params.section
+      ? mountSourceBlock?.(node, params.blockId, params.editable, params.section)
+      : mountSourceBlock?.(node, params.blockId, params.editable);
+  }
+
+  function sourceBlockMount(node: HTMLElement, params: { blockId: string; editable: boolean; section?: "stem" | "solution" }) {
     let disposed = false;
     let cleanup: (() => void) | undefined;
-    Promise.resolve(mountSourceBlock?.(node, params.blockId, params.editable)).then((dispose) => {
+    Promise.resolve(mountBlock(node, params)).then((dispose) => {
       if (disposed) void dispose?.();
       else cleanup = dispose;
     });
     return {
-      update(next: { blockId: string; editable: boolean }) {
+      update(next: { blockId: string; editable: boolean; section?: "stem" | "solution" }) {
         disposed = true;
         void cleanup?.();
         disposed = false;
-        Promise.resolve(mountSourceBlock?.(node, next.blockId, next.editable)).then((dispose) => {
+        Promise.resolve(mountBlock(node, next)).then((dispose) => {
           if (disposed) void dispose?.();
           else cleanup = dispose;
         });
@@ -153,6 +160,12 @@
         </div>
         {#key `${currentQuestionBlockId}:${questionRenderMode}`}
           <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: false }}></div>
+        {/key}
+      </div>
+    {:else if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
+      <div class="embedded-answer-source" data-render-mode="embed">
+        {#key `${currentQuestionBlockId}:${questionRenderMode}:solution`}
+          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true, section: "solution" }}></div>
         {/key}
       </div>
     {:else}
