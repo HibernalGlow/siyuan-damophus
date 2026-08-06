@@ -140,6 +140,9 @@
 
 .damophus-scrollable-breadcrumb .protyle-breadcrumb__arrow > svg {
   display: block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
 }
 
 .damophus-scrollable-breadcrumb .damophus-mobile-breadcrumb__text--width {
