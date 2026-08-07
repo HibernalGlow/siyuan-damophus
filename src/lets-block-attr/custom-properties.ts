@@ -24,6 +24,8 @@ export interface DisplayedCustomProperty {
   label: string;
 }
 
+export const BLOCK_ATTRIBUTE_MARKER_CLASS = "damophus-block-attr-marker";
+
 const CUSTOM_ATTRIBUTE_PATTERN = /^custom-[a-z0-9][a-z0-9_-]*$/u;
 const BLOCK_TYPE_PATTERN = /^Node[A-Z][A-Za-z0-9]*$/u;
 const HIDDEN_CUSTOM_ATTRIBUTES = new Set(["custom-qb-answer"]);
@@ -148,6 +150,53 @@ function targetSelector(blockType: string): string {
   return `.protyle-wysiwyg [data-node-id][data-type="${blockType}"]`;
 }
 
+export function customPropertyTargetSelector(customPropertyBlockTypes: string): string {
+  return parseCustomPropertyBlockTypes(customPropertyBlockTypes)
+    .map(targetSelector)
+    .join(",");
+}
+
+export function customPropertyMarkerText(
+  element: Element,
+  properties: readonly DisplayedCustomProperty[],
+): string {
+  return properties.flatMap(({ key, label }) => {
+    const value = element.getAttribute(key);
+    if (!value) return [];
+    return [label ? `${label}\u00a0${value}` : value];
+  }).join("  \u00b7  ");
+}
+
+export function syncCustomPropertyMarkers(
+  root: ParentNode,
+  selector: string,
+  properties: readonly DisplayedCustomProperty[],
+): void {
+  const targets = new Set(root.querySelectorAll<HTMLElement>(selector));
+  root.querySelectorAll<HTMLElement>(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`).forEach((marker) => {
+    if (!marker.parentElement || !targets.has(marker.parentElement)) marker.remove();
+  });
+  targets.forEach((target) => {
+    const text = customPropertyMarkerText(target, properties);
+    const existing = Array.from(target.children).find(
+      (child) => child.classList.contains(BLOCK_ATTRIBUTE_MARKER_CLASS),
+    ) as HTMLElement | undefined;
+    if (!text) {
+      existing?.remove();
+      return;
+    }
+    const marker = existing ?? document.createElement("div");
+    if (!existing) {
+      marker.className = BLOCK_ATTRIBUTE_MARKER_CLASS;
+      marker.contentEditable = "false";
+      marker.setAttribute("aria-hidden", "true");
+      const nativeAttr = Array.from(target.children).find((child) => child.classList.contains("protyle-attr"));
+      target.insertBefore(marker, nativeAttr ?? null);
+    }
+    if (marker.textContent !== text) marker.textContent = text;
+  });
+}
+
 interface PropertyTarget {
   selector: string;
   pseudoElement: "::before" | "::after";
@@ -216,18 +265,61 @@ function buildCustomPropertiesCssForTargets(
 }`;
 }
 
+function buildLiveMarkerCss(
+  customStyle: string,
+  themeVariables: ThemeVariables,
+): string {
+  const safeCustomStyle = sanitizeCustomPropertyStyle(customStyle);
+  const customDeclarations = safeCustomStyle
+    ? `\n  ${safeCustomStyle.replace(/\n/gu, "\n  ")}`
+    : "";
+  const markerVariables = [
+    ["--damophus-marker-primary", themeVariables.primary],
+    ["--damophus-marker-border", themeVariables.border],
+    ["--damophus-marker-foreground", themeVariables.foreground],
+    ["--damophus-marker-radius", themeVariables.radius],
+    ["--damophus-marker-shadow", themeVariables.shadow],
+  ].flatMap(([name, value]) => value ? [`  ${name}: ${value};`] : []).join("\n");
+
+  return `.${BLOCK_ATTRIBUTE_MARKER_CLASS} {
+${markerVariables}
+  display: block;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  margin: 3px 0 2px;
+  padding: 1px 0 1px 8px;
+  border: 0;
+  border-left: 2px solid var(--damophus-marker-primary, var(--b3-theme-primary, #3573f0));
+  border-radius: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--damophus-marker-foreground, var(--b3-theme-on-surface, #202124)) 82%, var(--damophus-marker-primary, var(--b3-theme-primary, #3573f0)));
+  box-shadow: none;
+  font-family: var(--b3-font-family-code, ui-monospace, monospace);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  float: none !important;
+  pointer-events: none;${customDeclarations}
+}`;
+}
+
 export function buildCustomPropertiesCss(
   customProperties: string,
   customPropertyBlockTypes: string,
   customStyle = DEFAULT_CUSTOM_PROPERTY_STYLE,
   themeVariables: ThemeVariables = {},
 ): string {
+  const properties = parseCustomProperties(customProperties);
   const blockTypes = parseCustomPropertyBlockTypes(customPropertyBlockTypes);
-  const targets = blockTypes.map((blockType): PropertyTarget => ({
-    selector: targetSelector(blockType),
-    pseudoElement: blockType === "NodeDocument" ? "::before" : "::after",
-  }));
-  return buildCustomPropertiesCssForTargets(customProperties, targets, customStyle, themeVariables);
+  if (properties.length === 0 || blockTypes.length === 0) return "";
+  return buildLiveMarkerCss(customStyle, themeVariables);
 }
 
 export function buildCustomPropertiesPreviewCss(

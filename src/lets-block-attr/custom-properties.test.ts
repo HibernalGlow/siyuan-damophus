@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCustomPropertiesCss,
+  customPropertyMarkerText,
+  customPropertyTargetSelector,
   DEFAULT_CUSTOM_PROPERTIES,
   DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
   LEGACY_DEFAULT_CUSTOM_PROPERTIES,
@@ -38,17 +40,14 @@ describe("custom property display", () => {
     expect(blockTypes).not.toContain("NodeTable");
   });
 
-  it("builds selectors for document and block attributes without the bookmark class", () => {
-    const css = buildCustomPropertiesCss(
-      "custom-qb-id|ID\ncustom-qb-section|section",
-      "NodeDocument\nNodeHeading\nNodeParagraph",
-    );
+  it("builds selectors for document and block targets without pseudo-elements", () => {
+    const selector = customPropertyTargetSelector("NodeDocument\nNodeHeading\nNodeParagraph");
 
-    expect(css).toContain(".protyle-wysiwyg[custom-qb-id]::before");
-    expect(css).toContain('[data-node-id][data-type="NodeHeading"][custom-qb-id]::after');
-    expect(css).toContain('[data-node-id][data-type="NodeParagraph"][custom-qb-section]::after');
-    expect(css).not.toContain("protyle-wysiwyg--attr");
-    expect(css).not.toContain("NodeTable");
+    expect(selector).toContain(".protyle-wysiwyg");
+    expect(selector).toContain('[data-node-id][data-type="NodeHeading"]');
+    expect(selector).toContain('[data-node-id][data-type="NodeParagraph"]');
+    expect(selector).not.toContain("::after");
+    expect(selector).not.toContain("NodeTable");
   });
 
   it("renders the default identity fields on one wrapping line", () => {
@@ -57,27 +56,27 @@ describe("custom property display", () => {
       "NodeHeading",
     );
 
-    expect(css).toContain('"qb-id\\00a0" attr(custom-qb-id)');
-    expect(css).toContain('"qb-type\\00a0" attr(custom-qb-type)');
-    expect(css).toContain('"  \\00b7  "');
+    expect(css).toContain(".damophus-block-attr-marker");
     expect(css).toContain("width: fit-content");
     expect(css).toContain("white-space: normal");
     expect(css).toContain("position: static !important;");
     expect(css).toContain("inset: auto !important;");
     expect(css).toContain("transform: none !important;");
-    expect(css).not.toContain("\\A");
+    expect(css).not.toContain("::after");
     expect(css).not.toContain("custom-qb-answer");
   });
 
   it("lets each property omit its visible label", () => {
-    const css = buildCustomPropertiesCss(
-      "custom-qb-id\ncustom-qb-type|type",
-      "NodeHeading",
-    );
+    const values: Record<string, string> = {
+      "custom-qb-id": "question-1",
+      "custom-qb-type": "single",
+    };
+    const element = { getAttribute: (key: string) => values[key] ?? null } as Element;
 
-    expect(css).toContain("attr(custom-qb-id)");
-    expect(css).not.toContain('"qb-id\\00a0"');
-    expect(css).toContain('"type\\00a0" attr(custom-qb-type)');
+    expect(customPropertyMarkerText(
+      element,
+      parseCustomProperties("custom-qb-id\ncustom-qb-type|type"),
+    )).toBe("question-1  \u00b7  type\u00a0single");
   });
 
   it("accepts scoped visual declarations while rejecting content and remote URLs", () => {

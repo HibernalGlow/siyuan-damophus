@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  BLOCK_ATTRIBUTE_MARKER_CLASS,
   buildCustomPropertiesCss,
+  customPropertyTargetSelector,
   DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
+  parseCustomProperties,
+  syncCustomPropertyMarkers,
 } from "./custom-properties";
 
 afterEach(() => {
@@ -9,7 +13,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("custom property display CSS", () => {
+describe("custom property markers", () => {
   it("reacts to configured attributes only on enabled block types", () => {
     const style = document.createElement("style");
     style.id = "custom-properties-test-style";
@@ -28,18 +32,22 @@ describe("custom property display CSS", () => {
     const heading = document.querySelector<HTMLElement>("#heading");
     const table = document.querySelector<HTMLElement>("#table");
     if (!heading || !table) throw new Error("Missing test blocks");
+    const properties = parseCustomProperties("custom-qb-id|ID");
+    const selector = customPropertyTargetSelector(DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES);
 
-    expect(getComputedStyle(heading, "::after").content).toBe("none");
+    syncCustomPropertyMarkers(document, selector, properties);
+    expect(heading.querySelector(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`)).toBeNull();
     heading.setAttribute("custom-qb-id", "civil-question-1");
-    expect(getComputedStyle(heading, "::after").display).toBe("block");
-    expect(getComputedStyle(heading, "::after").content).not.toBe("none");
-    expect(getComputedStyle(table, "::after").content).toBe("none");
+    syncCustomPropertyMarkers(document, selector, properties);
+    expect(heading.querySelector(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`)?.textContent).toBe("ID\u00a0civil-question-1");
+    expect(table.querySelector(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`)).toBeNull();
 
     heading.removeAttribute("custom-qb-id");
-    expect(getComputedStyle(heading, "::after").content).toBe("none");
+    syncCustomPropertyMarkers(document, selector, properties);
+    expect(heading.querySelector(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`)).toBeNull();
   });
 
-  it("keeps identity values horizontal and applies safe custom styling", () => {
+  it("uses a real child marker that is independent from the host hover pseudo-element", () => {
     const style = document.createElement("style");
     style.id = "custom-properties-test-style";
     style.textContent = buildCustomPropertiesCss(
@@ -47,6 +55,7 @@ describe("custom property display CSS", () => {
       "NodeHeading",
       "border-radius: 11px; content: attr(custom-qb-answer);",
     );
+    style.textContent += `#question:hover::after { content: "host hover"; position: absolute; inset: 0; transform: translateX(100px); }`;
     document.head.appendChild(style);
     document.body.innerHTML = `
       <div class="protyle-wysiwyg">
@@ -57,13 +66,22 @@ describe("custom property display CSS", () => {
 
     const question = document.querySelector<HTMLElement>("#question");
     if (!question) throw new Error("Missing question block");
-    const marker = getComputedStyle(question, "::after");
+    syncCustomPropertyMarkers(
+      document,
+      customPropertyTargetSelector("NodeHeading"),
+      parseCustomProperties("custom-qb-id|qb-id\ncustom-qb-type|qb-type"),
+    );
+    const marker = question.querySelector<HTMLElement>(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`);
+    if (!marker) throw new Error("Missing real marker");
+    const markerStyle = getComputedStyle(marker);
 
-    expect(marker.display).toBe("block");
-    expect(marker.whiteSpace).toBe("normal");
-    expect(marker.borderRadius).toBe("11px");
-    expect(marker.content).toContain("civil-question-1");
-    expect(marker.content).toContain("single");
-    expect(marker.content).not.toContain("custom-qb-answer");
+    expect(marker.parentElement).toBe(question);
+    expect(marker.contentEditable).toBe("false");
+    expect(marker.textContent).toBe("qb-id\u00a0civil-question-1  \u00b7  qb-type\u00a0single");
+    expect(markerStyle.display).toBe("block");
+    expect(markerStyle.position).toBe("static");
+    expect(markerStyle.whiteSpace).toBe("normal");
+    expect(markerStyle.borderRadius).toBe("11px");
+    expect(marker.textContent).not.toContain("custom-qb-answer");
   });
 });
