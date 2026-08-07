@@ -26,6 +26,7 @@
     "test:core": "vitest run src/question-bank",
     "test:smoke": "node scripts/smoke-test.mjs",
     "test:package": "node scripts/validate-package.mjs",
+    "migrate:tinybase": "node --experimental-specifier-resolution=node --loader ts-node/esm scripts/migrate-av-to-tinybase.ts",
     "release": "bash ./update-version.sh"
   },
   "devDependencies": {

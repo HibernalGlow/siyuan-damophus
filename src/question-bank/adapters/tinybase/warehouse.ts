@@ -3,6 +3,7 @@ import { EventShardSchema } from "./shard-router";
 import {
   DAMOPHUS_STORE_ROOT,
   readStoreEnvelope,
+  serializeStoreEnvelope,
   storeFilePath,
   writeStoreEnvelope,
   type StoreFileIO,
@@ -141,7 +142,7 @@ export class TinyBaseWarehouse {
   async mergeAfterSync(): Promise<WarehouseReadView> {
     await this.initializeLocal();
     this.diagnostics = [];
-    const deviceNames = await this.io.list(`${DAMOPHUS_STORE_ROOT}/devices`);
+    const deviceNames = await this.io.list(`${DAMOPHUS_STORE_ROOT}/devices`).catch(() => []);
     const next = new Map<string, DeviceContribution>();
     for (const rawName of deviceNames) {
       const deviceId = rawName.replace(/\\/g, "/").split("/").filter(Boolean).at(-1);
@@ -149,6 +150,8 @@ export class TinyBaseWarehouse {
       try {
         next.set(deviceId, await this.loadDevice(deviceId, false));
       } catch (error) {
+        const lastGood = this.remoteContributions.get(deviceId);
+        if (lastGood) next.set(deviceId, lastGood);
         this.diagnostics.push({
           path: `${DAMOPHUS_STORE_ROOT}/devices/${deviceId}`,
           message: error instanceof Error ? error.message : String(error),
@@ -192,6 +195,15 @@ export class TinyBaseWarehouse {
     const merged = view.events.get(shardId) ?? createDamophusStore(`read:events:${shardId}`);
     merged.merge(cloneStore(store, `local:events:${shardId}:publish`));
     view.events.set(shardId, merged);
+  }
+
+  async eventShardBytes(shardId: string): Promise<number> {
+    EventShardSchema.parse(shardId);
+    const local = this.getLocalContribution();
+    const store = local.events.get(shardId);
+    if (!store) return 0;
+    const raw = await serializeStoreEnvelope({deviceId: this.deviceId, storeKind: "events", shardId}, store);
+    return new TextEncoder().encode(raw).byteLength;
   }
 
   ensureLocalEventShard(shardId: string): MergeableStore {

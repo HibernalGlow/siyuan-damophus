@@ -191,7 +191,7 @@ describe("TinyBase warehouse", () => {
     expect(warehouse.getReadView().core.hasRow(TABLE.questions, "question-b")).toBe(true);
     files.files.set(storeFilePath(remoteLocation), "{broken");
     const next = await warehouse.mergeAfterSync();
-    expect(next.core.hasRow(TABLE.questions, "question-b")).toBe(false);
+    expect(next.core.hasRow(TABLE.questions, "question-b")).toBe(true);
     expect(warehouse.getDiagnostics().length).toBeGreaterThan(0);
   });
 });

@@ -183,6 +183,9 @@ export class TinyBaseCoreCatalogRepository implements CoreCatalogRepository {
   }
 
   async markDocumentUnavailable(documentId: string): Promise<void> {
+    if (this.coreStore.hasRow(TABLE.sourceDocuments, documentId)) {
+      this.coreStore.setCell(TABLE.sourceDocuments, documentId, "scan_status", "unavailable");
+    }
     for (const [rowId, row] of rows(this.coreStore, TABLE.questions)) {
       if (row.document_id === documentId) this.coreStore.setCell(TABLE.questions, rowId, "available", false);
     }
