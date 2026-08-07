@@ -218,6 +218,8 @@ export function mockController(options: {
       [objectiveQuestion.id, {
         questionId: objectiveQuestion.id,
         attempts: 1,
+        timedAttempts: 0,
+        totalDurationMs: 0,
         objectiveAttempts: 1,
         objectiveCorrect: 0,
         objectiveIncorrect: 1,

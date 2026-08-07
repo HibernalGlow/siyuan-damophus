@@ -4,6 +4,7 @@
   import { Button } from "@/components/ui/button";
   import * as ScrollArea from "@/components/ui/scroll-area";
   import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
+  import type { AttemptDurationComparison } from "./attempt-duration-comparison";
   import type { AttemptEvent, Question, QuestionGroup, ShuffledOption, MasteryRating } from "@/question-bank/core/types";
   import type { Label } from "./question-bank-display";
 
@@ -18,6 +19,7 @@
   export let objectiveCorrect: boolean | null = null;
   export let subjectiveScore: number | undefined;
   export let currentAttempt: AttemptEvent | undefined;
+  export let durationComparisons: AttemptDurationComparison[] = [];
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let openQuestionSource: ((blockId: string) => void) | undefined;
@@ -123,6 +125,7 @@
       {objectiveCorrect}
       {subjectiveScore}
       {currentAttempt}
+      {durationComparisons}
       {inheritSourceStyles}
       {questionRenderMode}
       {openQuestionSource}

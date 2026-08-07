@@ -137,6 +137,7 @@
   export let objectiveCorrect: boolean | null;
   export let subjectiveScore: number | undefined;
   export let currentAttempt: any;
+  export let durationComparisons: any[];
   export let inheritSourceStyles: boolean;
   export let questionRenderMode: any;
   export let renderedQuestionContent: any;
@@ -351,6 +352,7 @@
       {objectiveCorrect}
       {subjectiveScore}
       {currentAttempt}
+      {durationComparisons}
       {inheritSourceStyles}
       {questionRenderMode}
       {openQuestionSource}

@@ -159,6 +159,55 @@ describe("PracticeQuestionContent", () => {
     expect(document.querySelector(".solution")).toBeNull();
   });
 
+  it("shows faster previous and average comparisons after reveal", async () => {
+    render({
+      revealed: true,
+      durationComparisons: [
+        {
+          benchmark: "previous",
+          direction: "faster",
+          currentDurationMs: 20_000,
+          referenceDurationMs: 30_000,
+          deltaMs: 10_000,
+        },
+        {
+          benchmark: "average",
+          direction: "faster",
+          currentDurationMs: 20_000,
+          referenceDurationMs: 35_000,
+          deltaMs: 15_000,
+        },
+      ],
+    });
+    await flush();
+
+    const previous = document.querySelector<HTMLElement>('[data-benchmark="previous"]');
+    const average = document.querySelector<HTMLElement>('[data-benchmark="average"]');
+    expect(previous?.classList.contains("faster")).toBe(true);
+    expect(previous?.textContent).toContain("Faster than last time by 10000 ms");
+    expect(average?.classList.contains("faster")).toBe(true);
+    expect(average?.textContent).toContain("Faster than historical average by 15000 ms");
+  });
+
+  it("shows slower comparisons in the error style and hides missing history", async () => {
+    render({
+      revealed: true,
+      durationComparisons: [{
+        benchmark: "previous",
+        direction: "slower",
+        currentDurationMs: 40_000,
+        referenceDurationMs: 30_000,
+        deltaMs: 10_000,
+      }],
+    });
+    await flush();
+
+    const previous = document.querySelector<HTMLElement>('[data-benchmark="previous"]');
+    expect(previous?.classList.contains("slower")).toBe(true);
+    expect(previous?.textContent).toContain("Slower than last time by 10000 ms");
+    expect(document.querySelector('[data-benchmark="average"]')).toBeNull();
+  });
+
   it("opens the source question block from its title action", async () => {
     const openQuestionSource = vi.fn();
     render({ openQuestionSource });

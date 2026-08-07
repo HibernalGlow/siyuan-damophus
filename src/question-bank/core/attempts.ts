@@ -46,6 +46,8 @@ export function aggregateAttemptEvents(events: readonly AttemptEvent[]): Map<str
     const aggregate = result.get(event.question_id) ?? {
       questionId: event.question_id,
       attempts: 0,
+      timedAttempts: 0,
+      totalDurationMs: 0,
       objectiveAttempts: 0,
       objectiveCorrect: 0,
       objectiveIncorrect: 0,
@@ -70,6 +72,13 @@ export function aggregateAttemptEvents(events: readonly AttemptEvent[]): Map<str
       : 0;
     aggregate.latestRating = event.mastery_rating;
     aggregate.lastAnsweredAt = event.answered_at;
+    aggregate.previousDurationMs = aggregate.lastDurationMs;
+    aggregate.lastAttemptId = event.attempt_id;
+    aggregate.lastDurationMs = event.duration_ms;
+    if (event.duration_ms !== undefined) {
+      aggregate.timedAttempts = (aggregate.timedAttempts ?? 0) + 1;
+      aggregate.totalDurationMs = (aggregate.totalDurationMs ?? 0) + event.duration_ms;
+    }
     result.set(event.question_id, aggregate);
   }
   return result;

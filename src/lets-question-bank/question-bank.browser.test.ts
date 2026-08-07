@@ -654,6 +654,45 @@ describe("question bank browser flow", () => {
     expect(submitAttempt.mock.calls[0][0].durationMs).toBe(3_000);
   });
 
+  it("compares reveal time with the previous attempt and historical average", async () => {
+    let currentNow = 1_000;
+    const { controller } = mockController({
+      preview: makePreview([objectiveQuestion]),
+      aggregates: new Map([[objectiveQuestion.id, {
+        questionId: objectiveQuestion.id,
+        attempts: 2,
+        timedAttempts: 2,
+        totalDurationMs: 70_000,
+        objectiveAttempts: 2,
+        objectiveCorrect: 1,
+        objectiveIncorrect: 1,
+        consecutiveReviewCount: 0,
+        consecutiveAgainCount: 0,
+        consecutiveHardCount: 0,
+        lastAttemptId: "previous-attempt",
+        lastDurationMs: 30_000,
+        previousDurationMs: 40_000,
+      }]]),
+    });
+    render(controller, { now: () => currentNow, random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    currentNow = 21_000;
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+
+    const previous = document.querySelector<HTMLElement>('[data-benchmark="previous"]');
+    const average = document.querySelector<HTMLElement>('[data-benchmark="average"]');
+    expect(previous?.classList.contains("faster")).toBe(true);
+    expect(previous?.textContent).toContain("Faster than last time by 00:10");
+    expect(average?.classList.contains("faster")).toBe(true);
+    expect(average?.textContent).toContain("Faster than historical average by 00:15");
+  });
+
   it("resets the current question timer without resetting session time", async () => {
     let currentNow = 1_000;
     const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });

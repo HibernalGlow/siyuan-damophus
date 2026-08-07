@@ -108,6 +108,7 @@ describe("portable question core", () => {
       selectedOptionIds: ["A"],
       objectiveCorrect: false,
       masteryRating: "again",
+      durationMs: 40_000,
     });
     const second = createAttemptEvent({
       attemptId: "a2",
@@ -119,11 +120,14 @@ describe("portable question core", () => {
       selectedOptionIds: ["A", "C"],
       objectiveCorrect: true,
       masteryRating: "hard",
+      durationMs: 25_000,
     });
     const aggregate = aggregateAttemptEvents([second, first]).get("q1");
 
     expect(aggregate).toMatchObject({
       attempts: 2,
+      timedAttempts: 2,
+      totalDurationMs: 65_000,
       objectiveCorrect: 1,
       objectiveIncorrect: 1,
       consecutiveReviewCount: 2,
@@ -131,6 +135,9 @@ describe("portable question core", () => {
       consecutiveHardCount: 1,
       latestRating: "hard",
       lastAnsweredAt: "2026-08-04T10:01:00.000Z",
+      lastAttemptId: "a2",
+      lastDurationMs: 25_000,
+      previousDurationMs: 40_000,
     });
   });
 

@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { Edit3, ExternalLink } from "lucide-svelte";
+  import { ArrowDown, ArrowUp, Edit3, ExternalLink, Minus } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
   import type { AttemptEvent, Question, QuestionGroup, QuestionType, ShuffledOption } from "@/question-bank/core/types";
+  import type { AttemptDurationComparison } from "./attempt-duration-comparison";
 
   type Label = (key: string, fallback: string) => string;
   type RenderMarkdown = (markdown: string, inheritStyles: boolean) => string;
@@ -27,6 +28,7 @@
   export let objectiveCorrect: boolean | null = null;
   export let subjectiveScore: number | undefined = undefined;
   export let currentAttempt: AttemptEvent | undefined = undefined;
+  export let durationComparisons: AttemptDurationComparison[] = [];
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let openQuestionSource: ((blockId: string) => void) | undefined = undefined;
@@ -78,6 +80,17 @@
         void cleanup?.();
       },
     };
+  }
+
+  function durationComparisonText(item: AttemptDurationComparison): string {
+    if (item.benchmark === "previous") {
+      if (item.direction === "faster") return `${label("fasterThanPrevious", "Faster than last time by")} ${formatDuration(item.deltaMs)}`;
+      if (item.direction === "slower") return `${label("slowerThanPrevious", "Slower than last time by")} ${formatDuration(item.deltaMs)}`;
+      return label("sameAsPrevious", "Same time as last attempt");
+    }
+    if (item.direction === "faster") return `${label("fasterThanAverage", "Faster than historical average by")} ${formatDuration(item.deltaMs)}`;
+    if (item.direction === "slower") return `${label("slowerThanAverage", "Slower than historical average by")} ${formatDuration(item.deltaMs)}`;
+    return label("sameAsAverage", "Same as historical average");
   }
 </script>
 
@@ -196,6 +209,22 @@
         {objectiveCorrect ? label("correct", "Correct") : label("incorrect", "Incorrect")}
       </strong>
     {/if}
+    {#if durationComparisons.length > 0}
+      <div class="duration-comparisons" aria-label={label("durationComparison", "Answer time comparison")}>
+        {#each durationComparisons as item (item.benchmark)}
+          <span class="duration-comparison" class:faster={item.direction === "faster"} class:slower={item.direction === "slower"} class:same={item.direction === "same"} data-benchmark={item.benchmark}>
+            {#if item.direction === "faster"}
+              <ArrowDown size={14} aria-hidden="true" />
+            {:else if item.direction === "slower"}
+              <ArrowUp size={14} aria-hidden="true" />
+            {:else}
+              <Minus size={14} aria-hidden="true" />
+            {/if}
+            {durationComparisonText(item)}
+          </span>
+        {/each}
+      </div>
+    {/if}
     {#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
       <div class="native-answer-source" data-render-mode="native">
         {#key `${currentQuestionBlockId}:${questionRenderMode}`}
@@ -305,6 +334,10 @@
   .solution { margin-top: 12px; line-height: 1.7; }
   .correct { color: var(--b3-theme-success); font-size: 13px; }
   .incorrect { color: var(--b3-theme-error); }
+  .duration-comparisons { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 7px; }
+  .duration-comparison { min-height: 26px; padding: 4px 7px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--b3-border-color); border-radius: 5px; color: var(--b3-theme-on-surface); font-size: 12px; font-weight: 600; line-height: 1.25; }
+  .duration-comparison.faster { border-color: color-mix(in srgb, var(--b3-theme-success) 42%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-success) 10%, transparent); color: var(--b3-theme-success); }
+  .duration-comparison.slower { border-color: color-mix(in srgb, var(--b3-theme-error) 42%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-error) 9%, transparent); color: var(--b3-theme-error); }
   .native-answer-source { margin-top: 12px; min-height: 0; overflow: visible; }
   .native-answer-source :global(.damophus-native-source-block) { min-height: 0; margin: 0; overflow: visible; }
   .native-answer-source :global(.damophus-native-source-block + .damophus-native-source-block) { margin-top: 0; }

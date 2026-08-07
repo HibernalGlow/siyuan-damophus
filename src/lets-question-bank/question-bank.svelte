@@ -57,6 +57,7 @@
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
   import type { StoredPracticeSession } from "./session-host";
   import { createPracticeActions } from "./question-bank-practice-actions";
+  import { compareAttemptDuration } from "./attempt-duration-comparison";
   import {
     completionStatusLabel as getCompletionStatusLabel,
     copyText,
@@ -264,6 +265,17 @@
   $: currentAttempt = currentQuestion
     ? practiceState?.context.attemptsByQuestionId[currentQuestion.id]
     : undefined;
+  $: currentDraft = currentQuestion
+    ? practiceState?.context.session.drafts[currentQuestion.id]
+    : undefined;
+  $: revealDurationMs = timingEnabled && revealed
+    ? currentAttempt ? currentAttempt.duration_ms : currentDraft?.elapsed_ms
+    : undefined;
+  $: durationComparisons = compareAttemptDuration({
+    currentDurationMs: revealDurationMs,
+    aggregate: currentQuestion ? aggregates.get(currentQuestion.id) : undefined,
+    currentAttemptId: currentAttempt?.attempt_id,
+  });
   $: readOnlyQuestion = Boolean(currentAttempt);
   $: sessionAttempts = practiceState
     ? Object.values(practiceState.context.attemptsByQuestionId)
@@ -1021,7 +1033,7 @@
   {scanMessageGroups} {sourceTypeLabel} {completionStatusLabel} {messageContext} {messageClipboardText} {scanLogText} {copyText}
   {confirmSync} {toggleAutoSyncIndex} {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
   {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
-  {objectiveCorrect} {subjectiveScore} {currentAttempt} {inheritSourceStyles} {questionRenderMode} {renderedQuestionContent}
+  {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {inheritSourceStyles} {questionRenderMode} {renderedQuestionContent}
   {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}
   {questionElapsedMs} {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
   {correctCurrentAnswer}

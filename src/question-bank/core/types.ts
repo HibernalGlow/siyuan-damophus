@@ -119,6 +119,8 @@ export interface ExamSummaryEvent {
 export interface AttemptAggregate {
   questionId: string;
   attempts: number;
+  timedAttempts?: number;
+  totalDurationMs?: number;
   objectiveAttempts: number;
   objectiveCorrect: number;
   objectiveIncorrect: number;
@@ -127,6 +129,9 @@ export interface AttemptAggregate {
   consecutiveHardCount: number;
   latestRating?: MasteryRating;
   lastAnsweredAt?: string;
+  lastAttemptId?: string;
+  lastDurationMs?: number;
+  previousDurationMs?: number;
 }
 
 export interface ShuffledOption {
