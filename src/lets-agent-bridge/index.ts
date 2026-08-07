@@ -11,4 +11,8 @@ export default class AgentBridgePlugin extends SubPluginBase {
   override onunload(): void {
     this.worker.stop();
   }
+
+  onDataChanged(): void {
+    this.worker.start();
+  }
 }

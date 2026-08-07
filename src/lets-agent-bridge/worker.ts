@@ -12,7 +12,7 @@ import { getFrontend, type IWebSocketData } from "siyuan";
 import { getLogger } from "@/libs/logger";
 import { plugin } from "@/utils";
 import { AgentBridgeStorage } from "./storage";
-import { pasteCreate, PasteAdapterError } from "./protyle-paste";
+import { pasteCreate, pasteExisting, PasteAdapterError } from "./protyle-paste";
 
 const log = getLogger("lets-agent-bridge");
 
@@ -77,7 +77,7 @@ export class AgentBridgeWorker {
         frontend: getFrontend(),
         updatedAt: new Date().toISOString(),
         supportedCommands: ["paste"],
-        supportedPasteModes: ["create"],
+        supportedPasteModes: ["create", "append", "replace"],
       });
     } catch (error) {
       log.warn("heartbeat failed", error);
@@ -156,9 +156,6 @@ export class AgentBridgeWorker {
     }
     await this.emit(request.requestId, 0, "accepted", "Request accepted", undefined, 0, request.items.length);
     try {
-      if (request.items.some((item) => item.target.mode !== "create")) {
-        throw new AgentBridgeError("INVALID_REQUEST", "Only create mode is enabled in this first adapter slice");
-      }
       if (request.items.some((item) => hasUnsupportedLocalAsset(item.markdown))) {
         throw new AgentBridgeError("UNSUPPORTED_LOCAL_ASSET", "Relative local assets are not supported yet");
       }
@@ -170,7 +167,9 @@ export class AgentBridgeWorker {
       for (let index = 0; index < request.items.length; index += 1) {
         const item = request.items[index];
         await this.emit(request.requestId, sequence++, "pasting", `Pasting ${item.sourceName}`, item.itemId, index, request.items.length);
-        const receipt = await pasteCreate(item);
+        const receipt = item.target.mode === "create"
+          ? await pasteCreate(item)
+          : await pasteExisting(item);
         completedItems.push({ itemId: item.itemId, ...receipt });
         await this.emit(request.requestId, sequence++, "verifying", `Verified ${item.sourceName}`, item.itemId, index + 1, request.items.length);
       }

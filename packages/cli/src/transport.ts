@@ -18,7 +18,7 @@ const BRIDGE_RELATIVE_PATH = join(
   "siyuan-damophus",
   "agent-bridge",
 );
-const HEARTBEAT_MAX_AGE_MS = 5_000;
+const HEARTBEAT_MAX_AGE_MS = 30_000;
 
 export class BridgeTransportError extends Error {
   constructor(

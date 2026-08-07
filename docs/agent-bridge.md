@@ -2,7 +2,7 @@
 
 ## Scope
 
-Agent Bridge lets an external process request the same Markdown paste operation that a user performs in a SiYuan Protyle editor. The first vertical slice supports creating one document from one Markdown file. The protocol already reserves `append`, `replace`, batch receipts, approval events, and asynchronous status lookup for subsequent slices.
+Agent Bridge lets an external process request the same Markdown paste operation that a user performs in a SiYuan Protyle editor. The current vertical slice supports creating, appending to, and replacing one document from one Markdown file. The protocol already reserves batch receipts, approval events, and asynchronous status lookup for subsequent slices.
 
 The CLI is the only user-facing interface. The plugin worker is required because Protyle exists only inside the running SiYuan frontend.
 
@@ -62,7 +62,7 @@ The CLI calls `/api/system/getWorkspaceInfo` to discover the active workspace, t
 
 CLI request publication is atomic: write a sibling temporary file, flush it, then rename it into `inbox`. The plugin ignores temporary files. Result files are terminal and immutable. A completed request ID is never executed again.
 
-The heartbeat contains the protocol version, plugin version, workspace identifier, frontend kind, process timestamp, and supported operations. The CLI treats a heartbeat older than five seconds as unavailable and does not leave work queued for a future SiYuan startup.
+The heartbeat contains the protocol version, plugin version, workspace identifier, frontend kind, process timestamp, and supported operations. The plugin refreshes it every two seconds; the CLI treats a heartbeat older than thirty seconds as unavailable and does not leave work queued for a future SiYuan startup.
 
 ## Paste Transaction
 
@@ -85,7 +85,7 @@ Snapshot failure means zero document writes. Failure after the snapshot stops th
 
 `append` targets the end of a document. A document block ID is preferred; a human path is accepted only when it resolves uniquely.
 
-`replace` preserves the document root ID, path, title unless explicitly supplied, and document attributes. Only its body is replaced.
+`replace` preserves the document root ID, path, title unless explicitly supplied, and document attributes. Only its body is replaced by selecting the existing body in Protyle and dispatching one paste event.
 
 Input is pasted exactly. Damophus does not remove a leading heading, normalize whitespace, repair tables, or rewrite IAL. Remote URLs and existing `assets/...` references pass through. Relative local assets fail with `UNSUPPORTED_LOCAL_ASSET` before the snapshot.
 

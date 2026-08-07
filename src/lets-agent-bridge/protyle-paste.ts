@@ -1,5 +1,5 @@
 import { getAllEditor, openTab, type Protyle } from "siyuan";
-import { createDocWithMd, getBlockKramdown, getIDsByHPath } from "@/api";
+import { createDocWithMd, getBlockKramdown, getHPathByID, getIDsByHPath } from "@/api";
 import { plugin, sleep } from "@/utils";
 import type { PasteItem } from "@hibernalglow/damophus-agent-contract";
 
@@ -31,26 +31,31 @@ async function waitForEditor(documentId: string): Promise<Protyle> {
   throw new PasteAdapterError("PASTE_FAILED", `Document editor did not open: ${documentId}`);
 }
 
-function focusAtEnd(editor: Protyle): HTMLElement {
+function selectPasteRange(editor: Protyle, mode: "append" | "replace"): HTMLElement {
   const root = editor.protyle.wysiwyg.element;
   const blocks = Array.from(root.querySelectorAll<HTMLElement>('[data-node-id]'))
     .filter((item) => item.querySelector('[contenteditable="true"]'));
-  const block = blocks.at(-1);
-  const target = block?.querySelector<HTMLElement>('[contenteditable="true"]')
-    ?? root.querySelector<HTMLElement>('[contenteditable="true"]');
-  if (!target) throw new PasteAdapterError("PASTE_FAILED", "No editable Protyle target was found");
-  target.focus();
+  const first = blocks[0]?.querySelector<HTMLElement>('[contenteditable="true"]');
+  const last = blocks.at(-1)?.querySelector<HTMLElement>('[contenteditable="true"]');
+  if (!first || !last) throw new PasteAdapterError("PASTE_FAILED", "No editable Protyle target was found");
+
+  first.focus();
   const selection = window.getSelection();
   const range = document.createRange();
-  range.selectNodeContents(target);
-  range.collapse(false);
+  if (mode === "replace") {
+    range.setStart(first, 0);
+    range.setEnd(last, last.childNodes.length);
+  } else {
+    range.selectNodeContents(last);
+    range.collapse(false);
+  }
   selection?.removeAllRanges();
   selection?.addRange(range);
-  return target;
+  return last;
 }
 
-async function dispatchMarkdownPaste(editor: Protyle, markdown: string): Promise<void> {
-  const target = focusAtEnd(editor);
+async function dispatchMarkdownPaste(editor: Protyle, markdown: string, mode: "append" | "replace"): Promise<void> {
+  const target = selectPasteRange(editor, mode);
   const dataTransfer = new DataTransfer();
   dataTransfer.setData("text/plain", markdown);
   const event = new ClipboardEvent("paste", {
@@ -61,29 +66,31 @@ async function dispatchMarkdownPaste(editor: Protyle, markdown: string): Promise
   target.dispatchEvent(event);
 }
 
-async function waitForPersistence(documentId: string, markdown: string): Promise<void> {
+async function readKramdown(documentId: string): Promise<string> {
+  const response = await getBlockKramdown(documentId);
+  return typeof response?.kramdown === "string" ? response.kramdown : "";
+}
+
+async function waitForPersistence(documentId: string, baseline: string, allowSame = false): Promise<void> {
   const deadline = Date.now() + 30_000;
   let lastKramdown = "";
   let stableReads = 0;
   while (Date.now() < deadline) {
-    const response = await getBlockKramdown(documentId);
-    const kramdown = typeof response?.kramdown === "string" ? response.kramdown : "";
+    const kramdown = await readKramdown(documentId);
     if (kramdown && kramdown !== lastKramdown) {
       lastKramdown = kramdown;
       stableReads = 0;
     } else if (kramdown) {
       stableReads += 1;
     }
-    if (kramdown && stableReads >= 2 && (markdown.trim() === "" || kramdown.trim().length > 0)) return;
+    if (kramdown && stableReads >= 2 && (allowSame || kramdown !== baseline)) return;
     await sleep(250);
   }
   throw new PasteAdapterError("VERIFY_FAILED", `Document did not persist after paste: ${documentId}`);
 }
 
 export async function pasteCreate(item: PasteItem): Promise<{ documentId: string; targetPath: string }> {
-  if (item.target.mode !== "create") {
-    throw new PasteAdapterError("PASTE_FAILED", "The first adapter slice only accepts create targets");
-  }
+  if (item.target.mode !== "create") throw new PasteAdapterError("PASTE_FAILED", "Invalid create target");
   const existingIds = await getIDsByHPath(item.target.notebookId, item.target.path);
   if (existingIds?.length > 0) {
     throw new PasteAdapterError("TARGET_EXISTS", `Document already exists: ${item.target.path}`);
@@ -91,7 +98,36 @@ export async function pasteCreate(item: PasteItem): Promise<{ documentId: string
   const documentId = await createDocWithMd(item.target.notebookId, item.target.path, "");
   if (!documentId) throw new PasteAdapterError("PASTE_FAILED", "SiYuan did not return the new document ID");
   const editor = await waitForEditor(documentId);
-  await dispatchMarkdownPaste(editor, item.markdown);
-  await waitForPersistence(documentId, item.markdown);
+  const baseline = await readKramdown(documentId);
+  await dispatchMarkdownPaste(editor, item.markdown, "append");
+  await waitForPersistence(documentId, baseline, item.markdown.trim() === "");
   return { documentId, targetPath: item.target.path };
+}
+
+async function resolveExistingTarget(item: PasteItem): Promise<{ documentId: string; targetPath?: string }> {
+  if (item.target.mode !== "append" && item.target.mode !== "replace") {
+    throw new PasteAdapterError("PASTE_FAILED", "Invalid existing target");
+  }
+  const locator = item.target.locator;
+  if ("documentId" in locator) {
+    const targetPath = await getHPathByID(locator.documentId);
+    if (!targetPath) throw new PasteAdapterError("TARGET_NOT_FOUND", `Document not found: ${locator.documentId}`);
+    return { documentId: locator.documentId, targetPath };
+  }
+  const ids = await getIDsByHPath(locator.notebookId, locator.path);
+  if (!ids || ids.length === 0) throw new PasteAdapterError("TARGET_NOT_FOUND", `Document not found: ${locator.path}`);
+  if (ids.length > 1) throw new PasteAdapterError("TARGET_AMBIGUOUS", `Document path is ambiguous: ${locator.path}`);
+  return { documentId: ids[0], targetPath: locator.path };
+}
+
+export async function pasteExisting(item: PasteItem): Promise<{ documentId: string; targetPath?: string }> {
+  if (item.target.mode !== "append" && item.target.mode !== "replace") {
+    throw new PasteAdapterError("PASTE_FAILED", "Invalid existing target");
+  }
+  const target = await resolveExistingTarget(item);
+  const editor = await waitForEditor(target.documentId);
+  const baseline = await readKramdown(target.documentId);
+  await dispatchMarkdownPaste(editor, item.markdown, item.target.mode);
+  await waitForPersistence(target.documentId, baseline, item.target.mode === "replace" && item.markdown.trim() === "");
+  return target;
 }
