@@ -408,6 +408,14 @@ export async function readDir(path: string): Promise<IResReadDir> {
     return request(url, data);
 }
 
+export async function createWorkspaceSnapshot(memo: string) {
+    return fetchSyncPost('/api/repo/createSnapshot', { memo });
+}
+
+export async function getWorkspaceSnapshots(page = 1): Promise<any> {
+    return request('/api/repo/getRepoSnapshots', { page });
+}
+
 
 // **************************************** Export ****************************************
 

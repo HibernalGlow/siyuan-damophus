@@ -1,0 +1,34 @@
+{
+  "name": "@hibernalglow/damophus-cli",
+  "version": "0.1.0",
+  "description": "Command-line bridge for Damophus and SiYuan",
+  "type": "module",
+  "license": "WTFPL",
+  "repository": "https://github.com/HibernalGlow/siyuan-damophus",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "damophus": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clack/prompts": "1.7.0",
+    "citty": "0.2.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hibernalglow/damophus-agent-contract": "workspace:*",
+    "esbuild": "^0.28.1",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.10"
+  }
+}
