@@ -4,6 +4,7 @@ import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, setBlockA
 import { settings } from "@/settings";
 import {
   Dialog,
+  getActiveTab,
   getAllEditor,
   openMobileFileById,
   openTab,
@@ -27,6 +28,9 @@ import {
 import { SiyuanExamSessionRepository } from "./exam-session-host";
 import { QuestionSetBlueprintSettingsRepository } from "./question-set-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
+import { loadSourceBlockIdentity } from "./source-identity";
+import { QUESTION_SOURCE_ACTIONS, questionSourceOpenTarget } from "./source-navigation";
+import { normalizeDurationComparisonPosition } from "./duration-comparison-position";
 import { installSourceAnswerMask } from "./source-answer-mask";
 import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
 import {
@@ -272,18 +276,29 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
   }
 
-  private openQuestionSource(blockId: string): void {
+  private activeDocumentRootId(): string | undefined {
+    try {
+      const model = getActiveTab()?.model as { editor?: Protyle } | undefined;
+      return model?.editor?.protyle.block.rootID;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async openQuestionSource(blockId: string): Promise<void> {
     if (isMobile) {
-      openMobileFileById(plugin.app, blockId);
+      openMobileFileById(plugin.app, blockId, [...QUESTION_SOURCE_ACTIONS]);
       return;
     }
-    void openTab({
+    let sourceRootId: string | undefined;
+    try {
+      sourceRootId = (await loadSourceBlockIdentity(siyuanKernelClient, blockId)).rootId;
+    } catch (error) {
+      log.warn("question-source.root-resolution-failed", { blockId, error });
+    }
+    await openTab({
       app: plugin.app,
-      doc: {
-        id: blockId,
-        zoomIn: true,
-        action: ["cb-get-focus", "cb-get-scroll"],
-      },
+      ...questionSourceOpenTarget(blockId, sourceRootId, this.activeDocumentRootId()),
     });
   }
 
@@ -392,6 +407,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
         questionRenderMode: this.getSetting("questionRenderMode") ?? "native",
+        durationComparisonPosition: normalizeDurationComparisonPosition(this.getSetting("durationComparisonPosition")),
         autoSyncIndex: this.getSetting("autoSyncIndex") === true,
         autoScanDocument: this.getSetting("autoScanDocument") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
@@ -502,7 +518,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         onAutoScanDocumentChange: (value: boolean) => this.setSetting("autoScanDocument", value),
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
-          this.openQuestionSource(blockId);
+          void this.openQuestionSource(blockId);
         },
       },
     });

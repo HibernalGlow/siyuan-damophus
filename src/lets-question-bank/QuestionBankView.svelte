@@ -138,6 +138,7 @@
   export let subjectiveScore: number | undefined;
   export let currentAttempt: any;
   export let durationComparisons: any[];
+  export let durationComparisonPosition: any;
   export let inheritSourceStyles: boolean;
   export let questionRenderMode: any;
   export let renderedQuestionContent: any;
@@ -186,6 +187,8 @@
     completedCount={completedQuestionIndices.length}
     {timingEnabled}
     {sessionElapsedMs}
+    {durationComparisons}
+    {durationComparisonPosition}
     {breadcrumbItems}
     currentQuestionBlockId={currentQuestionBlockId}
     {mobileBreadcrumb}
@@ -353,9 +356,9 @@
       {subjectiveScore}
       {currentAttempt}
       {durationComparisons}
+      {durationComparisonPosition}
       {inheritSourceStyles}
       {questionRenderMode}
-      {openQuestionSource}
       {renderedQuestionContent}
       {mountSourceBlock}
       {questionTypeLabel}

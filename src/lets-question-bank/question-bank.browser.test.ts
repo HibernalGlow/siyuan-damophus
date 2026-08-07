@@ -890,6 +890,20 @@ describe("question bank browser flow", () => {
     expect(navigate).toHaveBeenCalledWith("doc");
   });
 
+  it("locates the current question source from the practice title bar", async () => {
+    const navigate = vi.fn();
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { openQuestionSource: navigate });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+
+    button("Open source in SiYuan").click();
+
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith(blockId);
+  });
+
   it("falls back to topic labels when the breadcrumb API returns empty names", async () => {
     await page.viewport(390, 844);
     const loadBreadcrumb = vi.fn(async () => [

@@ -26,6 +26,9 @@
   .build-revision { color: var(--b3-theme-on-surface-light); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
   .practice-toolbar { min-width: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
+  .practice-heading-details { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; overflow: hidden; }
+  .practice-heading-details .practice-topic { flex: 1 1 auto; }
+  .practice-heading-details .duration-comparisons { flex: 0 1 auto; }
   section { padding: 18px 20px; }
   .workspace-toolbar { position: relative; z-index: 2; }
   .document-row { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto auto; align-items: center; gap: 10px; }
@@ -133,7 +136,8 @@
     .progress-copy { grid-area: progress; justify-self: end; align-self: center; font-variant-numeric: tabular-nums; }
     .progress-label, .submitted-copy { display: none; }
     .timer { grid-area: timer; align-self: center; }
-    .practice-topic { grid-area: topic; display: block; text-align: left; align-self: center; font-size: 12px; }
+    .practice-heading-details { grid-area: topic; justify-content: flex-start; }
+    .practice-topic { display: block; text-align: left; align-self: center; font-size: 12px; }
     .practice-controls { grid-area: controls; gap: 1px; justify-self: end; }
     .practice-controls button, .practice-toolbar > .answer-card-button { width: 32px; height: 32px; }
     .practice-controls button[data-practice-return] { order: -1; }

@@ -162,6 +162,8 @@ describe("PracticeQuestionContent", () => {
   it("shows faster previous and average comparisons after reveal", async () => {
     render({
       revealed: true,
+      objectiveCorrect: false,
+      durationComparisonPosition: "answer",
       durationComparisons: [
         {
           benchmark: "previous",
@@ -183,6 +185,10 @@ describe("PracticeQuestionContent", () => {
 
     const previous = document.querySelector<HTMLElement>('[data-benchmark="previous"]');
     const average = document.querySelector<HTMLElement>('[data-benchmark="average"]');
+    const summary = document.querySelector<HTMLElement>(".answer-summary");
+    expect(summary?.textContent).toContain("Incorrect");
+    expect(summary && getComputedStyle(summary).display).toBe("flex");
+    expect(summary && getComputedStyle(summary).flexWrap).toBe("nowrap");
     expect(previous?.classList.contains("faster")).toBe(true);
     expect(previous?.textContent).toContain("Faster than last time by 10000 ms");
     expect(average?.classList.contains("faster")).toBe(true);
@@ -192,6 +198,7 @@ describe("PracticeQuestionContent", () => {
   it("shows slower comparisons in the error style and hides missing history", async () => {
     render({
       revealed: true,
+      durationComparisonPosition: "answer",
       durationComparisons: [{
         benchmark: "previous",
         direction: "slower",
@@ -208,15 +215,4 @@ describe("PracticeQuestionContent", () => {
     expect(document.querySelector('[data-benchmark="average"]')).toBeNull();
   });
 
-  it("opens the source question block from its title action", async () => {
-    const openQuestionSource = vi.fn();
-    render({ openQuestionSource });
-    await flush();
-
-    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Edit source block in SiYuan"]');
-    if (!button) throw new Error("Missing source edit button");
-    button.click();
-
-    expect(openQuestionSource).toHaveBeenCalledWith(blockId);
-  });
 });

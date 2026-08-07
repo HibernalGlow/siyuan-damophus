@@ -5,6 +5,8 @@
   import * as ScrollArea from "@/components/ui/scroll-area";
   import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
   import type { AttemptDurationComparison } from "./attempt-duration-comparison";
+  import type { DurationComparisonPosition } from "./duration-comparison-position";
+  import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
   import type { AttemptEvent, Question, QuestionGroup, ShuffledOption, MasteryRating } from "@/question-bank/core/types";
   import type { Label } from "./question-bank-display";
 
@@ -20,9 +22,9 @@
   export let subjectiveScore: number | undefined;
   export let currentAttempt: AttemptEvent | undefined;
   export let durationComparisons: AttemptDurationComparison[] = [];
+  export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
-  export let openQuestionSource: ((blockId: string) => void) | undefined;
   export let renderedQuestionContent: (markdown: string, sourceStyles: boolean) => string;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined;
   export let questionTypeLabel: (type: Question["type"]) => string;
@@ -126,9 +128,9 @@
       {subjectiveScore}
       {currentAttempt}
       {durationComparisons}
+      {durationComparisonPosition}
       {inheritSourceStyles}
       {questionRenderMode}
-      {openQuestionSource}
       renderQuestionContent={renderedQuestionContent}
       {mountSourceBlock}
       {questionTypeLabel}
@@ -160,6 +162,11 @@
       </Button>
     </div>
   {:else}
+    {#if durationComparisonPosition === "rating" && durationComparisons.length > 0}
+      <div class="rating-duration-row">
+        <PracticeDurationComparison comparisons={durationComparisons} {label} {formatDuration} />
+      </div>
+    {/if}
     <div class="rating-bar">
       <Button variant="outline" size="icon" class="mr-1" title={label("retry", "Undo and retry")} aria-label={label("retry", "Undo and retry")} disabled={submitting} onclick={retry}>
         <svg aria-hidden="true"><use href="#iconUndo"></use></svg>
@@ -170,3 +177,10 @@
     </div>
   {/if}
 </section>
+
+<style>
+  .rating-duration-row { min-height: 30px; padding: 4px 20px 3px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); }
+  @media (max-width: 750px) {
+    .rating-duration-row { padding-inline: 8px; }
+  }
+</style>

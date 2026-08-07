@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, ChevronLeft, ChevronRight, LayoutGrid, Pause, Play, X } from "lucide-svelte";
+  import { ArrowLeft, ChevronLeft, ChevronRight, LayoutGrid, LocateFixed, Pause, Play, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import { Button } from "@/components/ui/button";
   import {
@@ -9,6 +9,9 @@
   } from "./question-bank-display";
   import type { BreadcrumbOverflowPriority, BreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import type { Question } from "@/question-bank/core/types";
+  import type { AttemptDurationComparison } from "./attempt-duration-comparison";
+  import type { DurationComparisonPosition } from "./duration-comparison-position";
+  import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
 
   export let currentQuestion: Question | undefined;
   export let buildRevision: string;
@@ -21,6 +24,8 @@
   export let completedCount = 0;
   export let timingEnabled = true;
   export let sessionElapsedMs = 0;
+  export let durationComparisons: AttemptDurationComparison[] = [];
+  export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let breadcrumbItems: BlockBreadcrumbItem[] = [];
   export let currentQuestionBlockId: string | undefined;
   export let mobileBreadcrumb = false;
@@ -70,15 +75,20 @@
           </span>
         {/if}
       </div>
-      <div
-        class="practice-topic practice-breadcrumb"
-        use:practiceBreadcrumb={{
-          items: breadcrumbItems,
-          activeId: currentQuestionBlockId,
-          fallback: currentQuestion.metadata.topicPath.join(" / "),
-        }}
-        aria-label="Breadcrumb"
-      ></div>
+      <div class="practice-heading-details">
+        <div
+          class="practice-topic practice-breadcrumb"
+          use:practiceBreadcrumb={{
+            items: breadcrumbItems,
+            activeId: currentQuestionBlockId,
+            fallback: currentQuestion.metadata.topicPath.join(" / "),
+          }}
+          aria-label="Breadcrumb"
+        ></div>
+        {#if durationComparisonPosition === "header" && durationComparisons.length > 0}
+          <PracticeDurationComparison comparisons={durationComparisons} {label} {formatDuration} />
+        {/if}
+      </div>
       <div class="practice-controls">
         <Button variant="ghost" size="icon" disabled={questionIndex === 0 || submitting} title={label("previous", "Previous question")} aria-label={label("previous", "Previous question")} onclick={previousQuestion}>
           <ChevronLeft size={17} aria-hidden="true" />
@@ -98,6 +108,18 @@
         >
           {#if timerEffectivelyPaused}<Play size={17} aria-hidden="true" />{:else}<Pause size={17} aria-hidden="true" />{/if}
         </Button>
+        {#if currentQuestionBlockId && openQuestionSource}
+          <Button
+            variant="ghost"
+            size="icon"
+            data-open-question-source
+            title={label("openSource", "Open source in SiYuan")}
+            aria-label={label("openSource", "Open source in SiYuan")}
+            onclick={() => openQuestionSource?.(currentQuestionBlockId as string)}
+          >
+            <LocateFixed size={17} aria-hidden="true" />
+          </Button>
+        {/if}
         {#if reviewing}
           <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
             <ArrowLeft size={17} aria-hidden="true" />

@@ -86,6 +86,18 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "select",
+      title: "lets-question-bank.durationComparisonPosition",
+      description: "lets-question-bank.durationComparisonPositionDescription",
+      key: "durationComparisonPosition",
+      value: "rating",
+      options: {
+        answer: "lets-question-bank.durationComparisonPositionAnswer",
+        rating: "lets-question-bank.durationComparisonPositionRating",
+        header: "lets-question-bank.durationComparisonPositionHeader",
+      },
+    },
+    {
+      type: "select",
       title: "lets-question-bank.embedHeadingMode",
       description: "lets-question-bank.embedHeadingModeDescription",
       key: "embedHeadingMode",
