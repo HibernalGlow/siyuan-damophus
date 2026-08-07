@@ -40,7 +40,7 @@
     </div>
     {#if rebindingPreview}
       <div class="preview-line">
-        <span>{label("rebindingReady", "Question index and attempt log are ready to reconnect")}</span>
+        <span>{label("rebindingReady", "Question index, topic index, and attempt log are ready to reconnect")}</span>
         {#if rebindingPreview.bindingRepairs.length > 0}<span>{rebindingPreview.bindingRepairs.length} {label("bindingRepairs", "Database repairs")}</span>{/if}
         <Button disabled={busy} onclick={confirmRebinding}>{label("confirmRebinding", "Reconnect")}</Button>
       </div>

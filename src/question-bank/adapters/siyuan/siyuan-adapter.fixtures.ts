@@ -50,6 +50,12 @@ export class MockKernelClient implements SiyuanKernelClient {
       if (kramdown === undefined) throw new Error(`Block not found: ${payload.id}`);
       return { id: payload.id, kramdown } as T;
     }
+    if (endpoint === "/api/block/appendBlock") {
+      const current = this.documents.get(payload.parentID);
+      if (current === undefined) throw new Error(`Block not found: ${payload.parentID}`);
+      this.documents.set(payload.parentID, `${current}\n\n${payload.data}`);
+      return [{ doOperations: [] }] as T;
+    }
     if (endpoint === "/api/query/sql") {
       const ids = [...String(payload.stmt).matchAll(/'(\d{14}-[a-z0-9]{7})'/gu)]
         .map((match) => match[1]);

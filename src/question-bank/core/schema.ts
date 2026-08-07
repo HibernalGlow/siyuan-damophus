@@ -30,6 +30,7 @@ export const QuestionMetadataSchema = z.object({
   collection: z.string().optional(),
   source: z.string().optional(),
   topicId: z.string().optional(),
+  topicIds: z.array(z.string().min(1)).optional(),
   scopeTopicId: z.string().optional(),
   topicPath: z.array(z.string()),
   parentId: z.string().optional(),

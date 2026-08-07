@@ -346,7 +346,7 @@ describe("question bank browser flow", () => {
     await flush();
     button("Preview reconnection").click();
     await flush();
-    expect(document.body.textContent).toContain("Question index and attempt log are ready to reconnect");
+    expect(document.body.textContent).toContain("Question index, topic index, and attempt log are ready to reconnect");
     button("Reconnect").click();
     await flush();
     expect(controller.confirmRebinding).toHaveBeenCalledWith(systemDocumentId, "rebind-token");

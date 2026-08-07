@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   dateCell,
   durationMinutesFromMilliseconds,
@@ -20,9 +21,11 @@ import { questionRowIdentityMaps } from "./row-identity";
 import {
   attemptColumns,
   QuestionBankBindingSchema,
+  QuestionBankBindingV3Schema,
   QuestionBankBindingV2Schema,
   LegacyQuestionBankBindingSchema,
   questionColumns,
+  topicColumns,
   type AttemptField,
   type ColumnDefinition,
   type InitializeQuestionBankInput,
@@ -30,12 +33,14 @@ import {
   type QuestionBankBinding,
   type QuestionBankInitializationPreview,
   type QuestionField,
+  type TopicField,
 } from "./binding-schema";
 import { databaseMarkdown, hashToken, migratedKeyId, primaryKeyId } from "./binding-utils";
 
 export {
   QuestionBankBindingSchema,
   questionFields,
+  topicFields,
   attemptFields,
 } from "./binding-schema";
 export type {
@@ -46,6 +51,7 @@ export type {
   QuestionBankBinding,
   QuestionBankInitializationPreview,
   QuestionField,
+  TopicField,
 } from "./binding-schema";
 
 async function getAttributeView(client: SiyuanKernelClient, avId: string): Promise<RawAttributeView> {
@@ -88,13 +94,42 @@ async function initializeAttributeView<Field extends string>(
   return keys;
 }
 
+type VersionThreeBinding = z.infer<typeof QuestionBankBindingV3Schema>;
+
+function upgradeVersionThreeBinding(binding: VersionThreeBinding): QuestionBankBinding {
+  const topicKeys = Object.fromEntries([
+    "entry",
+    ...topicColumns.map((column) => column.field),
+  ].map((field) => [field, migratedKeyId(binding, `topic-index:${field}`)])) as Record<TopicField, string>;
+  return {
+    schemaVersion: 4,
+    notebookId: binding.notebookId,
+    systemDocumentId: binding.systemDocumentId,
+    questionIndex: {
+      ...binding.questionIndex,
+      keys: {
+        ...binding.questionIndex.keys,
+        topics_relation: migratedKeyId(binding, "topics_relation"),
+      },
+    },
+    topicIndex: {
+      blockId: migratedKeyId(binding, "topic-index:block"),
+      avId: migratedKeyId(binding, "topic-index:av"),
+      keys: topicKeys,
+    },
+    attemptLog: binding.attemptLog,
+  };
+}
+
 export function migrateQuestionBankBinding(value: unknown): QuestionBankBinding | undefined {
   const current = QuestionBankBindingSchema.safeParse(value);
   if (current.success) return current.data as QuestionBankBinding;
+  const versionThree = QuestionBankBindingV3Schema.safeParse(value);
+  if (versionThree.success) return upgradeVersionThreeBinding(versionThree.data);
   const versionTwo = QuestionBankBindingV2Schema.safeParse(value);
   if (versionTwo.success) {
     const binding = versionTwo.data;
-    return {
+    return upgradeVersionThreeBinding({
       schemaVersion: 3,
       notebookId: binding.notebookId,
       systemDocumentId: binding.systemDocumentId,
@@ -113,12 +148,12 @@ export function migrateQuestionBankBinding(value: unknown): QuestionBankBinding 
           exam_payload: migratedKeyId(binding, "exam_payload"),
         },
       },
-    } as QuestionBankBinding;
+    } as VersionThreeBinding);
   }
   const legacy = LegacyQuestionBankBindingSchema.safeParse(value);
   if (!legacy.success) return undefined;
   const binding = legacy.data;
-  return {
+  return upgradeVersionThreeBinding({
     schemaVersion: 3,
     notebookId: binding.notebookId,
     systemDocumentId: binding.systemDocumentId,
@@ -147,7 +182,7 @@ export function migrateQuestionBankBinding(value: unknown): QuestionBankBinding 
         exam_payload: migratedKeyId(binding, "exam_payload"),
       },
     },
-  };
+  } as VersionThreeBinding);
 }
 
 function initializationToken(preview: Omit<QuestionBankInitializationPreview, "token">): string {
@@ -194,6 +229,8 @@ export function previewQuestionBankInitialization(
 ): QuestionBankInitializationPreview {
   const questionBlockId = input.idGenerator();
   const questionAvId = input.idGenerator();
+  const topicBlockId = input.idGenerator();
+  const topicAvId = input.idGenerator();
   const attemptBlockId = input.idGenerator();
   const attemptAvId = input.idGenerator();
   const preview = {
@@ -201,9 +238,12 @@ export function previewQuestionBankInitialization(
     path: input.path,
     questionBlockId,
     questionAvId,
+    topicBlockId,
+    topicAvId,
     attemptBlockId,
     attemptAvId,
     questionColumns: questionColumns.map((column) => ({ ...column, keyId: input.idGenerator() })),
+    topicColumns: topicColumns.map((column) => ({ ...column, keyId: input.idGenerator() })),
     attemptColumns: attemptColumns.map((column) => ({ ...column, keyId: input.idGenerator() })),
   };
   return { ...preview, token: initializationToken(preview) };
@@ -231,6 +271,9 @@ export async function confirmQuestionBankInitialization(
     "## Question Index",
     databaseMarkdown(preview.questionBlockId, preview.questionAvId),
     "",
+    "## Topic Index",
+    databaseMarkdown(preview.topicBlockId, preview.topicAvId),
+    "",
     "## Attempt Log",
     databaseMarkdown(preview.attemptBlockId, preview.attemptAvId),
   ].join("\n");
@@ -244,6 +287,8 @@ export async function confirmQuestionBankInitialization(
   });
   if (!createdDocument.kramdown.includes(preview.questionBlockId)
     || !createdDocument.kramdown.includes(preview.questionAvId)
+    || !createdDocument.kramdown.includes(preview.topicBlockId)
+    || !createdDocument.kramdown.includes(preview.topicAvId)
     || !createdDocument.kramdown.includes(preview.attemptBlockId)
     || !createdDocument.kramdown.includes(preview.attemptAvId)) {
     throw new Error("The /Damophus path was occupied during initialization; reconnect the existing document");
@@ -263,8 +308,15 @@ export async function confirmQuestionBankInitialization(
       "entry" as AttemptField,
       preview.attemptColumns,
     );
+    const topicKeys = await initializeAttributeView(
+      client,
+      preview.topicAvId,
+      preview.topicBlockId,
+      "entry" as TopicField,
+      preview.topicColumns,
+    );
     const binding: QuestionBankBinding = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       notebookId: preview.notebookId,
       systemDocumentId,
       questionIndex: {
@@ -272,10 +324,13 @@ export async function confirmQuestionBankInitialization(
         blockId: preview.questionBlockId,
         keys: questionKeys,
       },
+      topicIndex: { avId: preview.topicAvId, blockId: preview.topicBlockId, keys: topicKeys },
       attemptLog: { avId: preview.attemptAvId, blockId: preview.attemptBlockId, keys: attemptKeys },
     };
     await configureQuestionRelation(client, binding);
+    await configureTopicRelation(client, binding);
     await configureQuestionRollups(client, binding);
+    await configureTopicRollups(client, binding);
     const verification = await verifyQuestionBankBinding(client, binding);
     if (!verification.ok) {
       throw new Error(`Question bank initialization verification failed: ${verification.errors.join("; ")}`);
@@ -361,13 +416,36 @@ export interface BindingVerification {
 
 export interface ManagedKeyRepair {
   kind: "add" | "changeType" | "normalizeValues" | "configureRelation" | "configureRollup"
-    | "convertDurationUnit";
-  database: "questionIndex" | "attemptLog";
-  field: QuestionField | AttemptField;
+    | "createDatabase" | "convertDurationUnit";
+  database: "questionIndex" | "topicIndex" | "attemptLog";
+  field: QuestionField | TopicField | AttemptField;
   keyId: string;
   name: string;
   type: AttributeViewKeyType;
   currentType?: AttributeViewKeyType;
+}
+
+async function configureTopicRelation(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<void> {
+  await client.request("/api/transactions", {
+    session: "siyuan-damophus",
+    app: "siyuan-damophus",
+    reqId: Date.now(),
+    transactions: [{
+      doOperations: [{
+        action: "updateAttrViewColRelation",
+        avID: binding.questionIndex.avId,
+        keyID: binding.questionIndex.keys.topics_relation,
+        id: binding.topicIndex.avId,
+        backRelationKeyID: binding.topicIndex.keys.questions_relation,
+        isTwoWay: true,
+        name: "Questions",
+        format: "Topics",
+      }],
+    }],
+  });
 }
 
 function pushRepair(repairs: ManagedKeyRepair[], repair: ManagedKeyRepair): void {
@@ -396,6 +474,10 @@ const rollupDefinitions = [
   { field: "total_duration_ms", target: "duration_ms", operator: "Sum" },
 ] as const;
 
+const topicRollupDefinitions = [
+  { field: "question_count", target: "question_id", operator: "Count all" },
+] as const;
+
 async function configureQuestionRollups(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
@@ -411,6 +493,27 @@ async function configureQuestionRollups(
         avID: binding.questionIndex.avId,
         parentID: binding.questionIndex.keys.attempts_relation,
         keyID: binding.attemptLog.keys[definition.target],
+        data: { calc: { operator: definition.operator } },
+      })),
+    }],
+  });
+}
+
+async function configureTopicRollups(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<void> {
+  await client.request("/api/transactions", {
+    session: "siyuan-damophus",
+    app: "siyuan-damophus",
+    reqId: Date.now(),
+    transactions: [{
+      doOperations: topicRollupDefinitions.map((definition) => ({
+        action: "updateAttrViewColRollup",
+        id: binding.topicIndex.keys[definition.field],
+        avID: binding.topicIndex.avId,
+        parentID: binding.topicIndex.keys.questions_relation,
+        keyID: binding.questionIndex.keys[definition.target],
         data: { calc: { operator: definition.operator } },
       })),
     }],
@@ -435,7 +538,7 @@ function verifyKeys<Field extends string>(
       pushRepair(missingManagedKeys, {
         kind: "add",
         database,
-        field: column.field as QuestionField | AttemptField,
+        field: column.field as QuestionField | TopicField | AttemptField,
         keyId: expected[column.field as Field],
         name: column.name,
         type: column.type,
@@ -445,7 +548,7 @@ function verifyKeys<Field extends string>(
       pushRepair(missingManagedKeys, {
         kind: "changeType",
         database,
-        field: column.field as QuestionField | AttemptField,
+        field: column.field as QuestionField | TopicField | AttemptField,
         keyId: expected[column.field as Field],
         name: key.name,
         type: column.type,
@@ -462,7 +565,7 @@ function verifyKeys<Field extends string>(
         pushRepair(missingManagedKeys, {
           kind: "normalizeValues",
           database,
-          field: column.field as QuestionField | AttemptField,
+          field: column.field as QuestionField | TopicField | AttemptField,
           keyId: key.id,
           name: key.name,
           type: column.type,
@@ -527,10 +630,37 @@ export async function verifyQuestionBankBinding(
         fatalErrors.push(`System document no longer contains AV block ${database.blockId}`);
       }
     }
+    const topicDatabasePresent = document.kramdown.includes(binding.topicIndex.blockId)
+      && document.kramdown.includes(binding.topicIndex.avId);
+    if (!topicDatabasePresent) {
+      pushRepair(missingManagedKeys, {
+        kind: "createDatabase",
+        database: "topicIndex",
+        field: "entry",
+        keyId: binding.topicIndex.avId,
+        name: "Topic Index",
+        type: "block",
+      });
+    }
     const [questionAv, attemptAv] = await Promise.all([
       getAttributeView(client, binding.questionIndex.avId),
       getAttributeView(client, binding.attemptLog.avId),
     ]);
+    let topicAv: RawAttributeView | undefined;
+    if (topicDatabasePresent) {
+      try {
+        topicAv = await getAttributeView(client, binding.topicIndex.avId);
+      } catch {
+        pushRepair(missingManagedKeys, {
+          kind: "createDatabase",
+          database: "topicIndex",
+          field: "entry",
+          keyId: binding.topicIndex.avId,
+          name: "Topic Index",
+          type: "block",
+        });
+      }
+    }
     verifyKeys(
       questionAv,
       binding.questionIndex.keys,
@@ -575,6 +705,17 @@ export async function verifyQuestionBankBinding(
       fatalErrors,
       missingManagedKeys,
     );
+    if (topicAv) {
+      verifyKeys(
+        topicAv,
+        binding.topicIndex.keys,
+        topicColumns,
+        "entry",
+        "topicIndex",
+        fatalErrors,
+        missingManagedKeys,
+      );
+    }
     const relationKey = attemptAv.keyValues.find(
       (value) => value.key.id === binding.attemptLog.keys.question_relation,
     )?.key;
@@ -604,6 +745,28 @@ export async function verifyQuestionBankBinding(
         field: "question_relation",
         keyId: binding.attemptLog.keys.question_relation,
         name: relationKey.name,
+        type: "relation",
+      });
+    }
+    const topicRelationKey = questionAv.keyValues.find(
+      (value) => value.key.id === binding.questionIndex.keys.topics_relation,
+    )?.key;
+    const topicBackRelationKey = topicAv?.keyValues.find(
+      (value) => value.key.id === binding.topicIndex.keys.questions_relation,
+    )?.key;
+    if (topicRelationKey && topicBackRelationKey
+      && (topicRelationKey.relation?.avID !== binding.topicIndex.avId
+        || topicRelationKey.relation.isTwoWay !== true
+        || topicRelationKey.relation.backKeyID !== binding.topicIndex.keys.questions_relation
+        || topicBackRelationKey.relation?.avID !== binding.questionIndex.avId
+        || topicBackRelationKey.relation.isTwoWay !== true
+        || topicBackRelationKey.relation.backKeyID !== binding.questionIndex.keys.topics_relation)) {
+      pushRepair(missingManagedKeys, {
+        kind: "configureRelation",
+        database: "questionIndex",
+        field: "topics_relation",
+        keyId: binding.questionIndex.keys.topics_relation,
+        name: topicRelationKey.name,
         type: "relation",
       });
     }
@@ -642,6 +805,26 @@ export async function verifyQuestionBankBinding(
         });
       }
     }
+    if (topicAv) {
+      for (const definition of topicRollupDefinitions) {
+        const key = topicAv.keyValues.find(
+          (value) => value.key.id === binding.topicIndex.keys[definition.field],
+        )?.key;
+        if (!key) continue;
+        if (key.rollup?.relationKeyID !== binding.topicIndex.keys.questions_relation
+          || key.rollup.keyID !== binding.questionIndex.keys[definition.target]
+          || key.rollup.calc?.operator !== definition.operator) {
+          pushRepair(missingManagedKeys, {
+            kind: "configureRollup",
+            database: "topicIndex",
+            field: definition.field,
+            keyId: key.id,
+            name: key.name,
+            type: "rollup",
+          });
+        }
+      }
+    }
   } catch (error) {
     fatalErrors.push(error instanceof Error ? error.message : String(error));
   }
@@ -663,6 +846,38 @@ export async function verifyQuestionBankBinding(
 
 function repairIdentity(repair: ManagedKeyRepair): string {
   return `${repair.kind}:${repair.database}:${String(repair.field)}:${repair.keyId}:${repair.currentType ?? ""}->${repair.type}`;
+}
+
+async function createMissingTopicIndex(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  repairs: readonly ManagedKeyRepair[],
+): Promise<void> {
+  if (!repairs.some((repair) => repair.kind === "createDatabase" && repair.database === "topicIndex")) return;
+  const document = await client.request<{ kramdown: string }>("/api/block/getBlockKramdown", {
+    id: binding.systemDocumentId,
+  });
+  if (!document.kramdown.includes(binding.topicIndex.blockId)
+    || !document.kramdown.includes(binding.topicIndex.avId)) {
+    await client.request("/api/block/appendBlock", {
+      dataType: "markdown",
+      data: [
+        "## Topic Index",
+        databaseMarkdown(binding.topicIndex.blockId, binding.topicIndex.avId),
+      ].join("\n"),
+      parentID: binding.systemDocumentId,
+    });
+  }
+  binding.topicIndex.keys = await initializeAttributeView(
+    client,
+    binding.topicIndex.avId,
+    binding.topicIndex.blockId,
+    "entry" as TopicField,
+    topicColumns.map((column) => ({
+      ...column,
+      keyId: binding.topicIndex.keys[column.field],
+    })),
+  );
 }
 
 async function addMissingManagedKeys(
@@ -773,17 +988,18 @@ function normalizedCell(
   value: AttributeViewValue,
   convertDurationUnit: boolean,
 ): AttributeViewCellInput | undefined {
-  if (["question_type", "year", "subject", "category", "collection", "source", "objective_correct", "mastery_rating"]
+  if (["question_type", "year", "subject", "category", "collection", "source", "status", "objective_correct", "mastery_rating"]
     .includes(field)) {
     const content = field === "year" && value.number?.content !== undefined
       ? String(value.number.content)
       : valueText(value);
     return selectCell(content, content ? selectColor(field, content) : "1");
   }
-  if (field === "option_order" || field === "selected_option_ids") {
+  if (["option_order", "selected_option_ids", "laws", "categories"].includes(field)) {
     return multiSelectCell(valueArray(value), "8");
   }
-  if (["schema_version", "subjective_score", "duration_ms"].includes(field)) {
+  if (["schema_version", "subjective_score", "duration_ms", "attempt_count", "wrong_count", "wrong_rate"]
+    .includes(field)) {
     const content = valueNumber(value);
     return numberCell(field === "duration_ms" && convertDurationUnit
       ? durationMinutesFromMilliseconds(content)
@@ -802,9 +1018,13 @@ async function normalizeManagedValues(
     getAttributeView(client, binding.questionIndex.avId),
     getAttributeView(client, binding.attemptLog.avId),
   ]);
-  for (const database of ["questionIndex", "attemptLog"] as const) {
+  for (const database of ["questionIndex", "topicIndex", "attemptLog"] as const) {
     const target = binding[database];
-    const av = database === "questionIndex" ? questionAv : attemptAv;
+    const av = database === "questionIndex"
+      ? questionAv
+      : database === "topicIndex"
+        ? await getAttributeView(client, binding.topicIndex.avId)
+        : attemptAv;
     const fields = new Set(repairs
       .filter((repair) => repair.database === database
         && ["add", "changeType", "normalizeValues", "convertDurationUnit"].includes(repair.kind))
@@ -870,7 +1090,7 @@ async function updateDurationUnitLabels(
   binding: QuestionBankBinding,
   repairs: readonly ManagedKeyRepair[],
 ): Promise<void> {
-  for (const database of ["questionIndex", "attemptLog"] as const) {
+  for (const database of ["questionIndex", "topicIndex", "attemptLog"] as const) {
     const databaseRepairs = repairs.filter(
       (repair) => repair.database === database && repair.kind === "convertDurationUnit",
     );
@@ -907,9 +1127,12 @@ export async function repairQuestionBankBinding(
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error("Question bank binding repair preview is stale; scan again before confirming");
   }
+  await createMissingTopicIndex(client, binding, verification.missingManagedKeys);
   await addMissingManagedKeys(client, binding, "questionIndex", verification.missingManagedKeys);
+  await addMissingManagedKeys(client, binding, "topicIndex", verification.missingManagedKeys);
   await addMissingManagedKeys(client, binding, "attemptLog", verification.missingManagedKeys);
   await changeManagedKeyTypes(client, binding, "questionIndex", verification.missingManagedKeys);
+  await changeManagedKeyTypes(client, binding, "topicIndex", verification.missingManagedKeys);
   await changeManagedKeyTypes(client, binding, "attemptLog", verification.missingManagedKeys);
   await normalizeManagedValues(client, binding, verification.missingManagedKeys);
   await updateDurationUnitLabels(client, binding, verification.missingManagedKeys);
@@ -917,9 +1140,19 @@ export async function repairQuestionBankBinding(
     || repair.field === "attempts_relation")) {
     await configureQuestionRelation(client, binding);
   }
+  if (verification.missingManagedKeys.some((repair) => repair.kind === "createDatabase"
+    || repair.kind === "configureRelation" && repair.field === "topics_relation"
+    || repair.field === "topics_relation" || repair.field === "questions_relation")) {
+    await configureTopicRelation(client, binding);
+  }
   if (verification.missingManagedKeys.some((repair) => repair.kind === "configureRollup"
     || rollupDefinitions.some((definition) => definition.field === repair.field))) {
     await configureQuestionRollups(client, binding);
+  }
+  if (verification.missingManagedKeys.some((repair) => repair.kind === "createDatabase"
+    || repair.kind === "configureRollup" && repair.database === "topicIndex"
+    || topicRollupDefinitions.some((definition) => definition.field === repair.field))) {
+    await configureTopicRollups(client, binding);
   }
   await persistQuestionBankBinding(client, binding);
   const repaired = await verifyQuestionBankBinding(client, binding);

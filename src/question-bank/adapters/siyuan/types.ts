@@ -49,6 +49,7 @@ export interface AttributeViewValue {
   number?: { content?: number; isNotEmpty?: boolean };
   date?: { content?: number; isNotEmpty?: boolean };
   mSelect?: Array<{ content: string; color: string }>;
+  mAsset?: Array<{ content: string; name: string; type: "file" | "image" }>;
   checkbox?: { checked?: boolean };
   relation?: { blockIDs: string[]; contents?: AttributeViewValue[] };
 }

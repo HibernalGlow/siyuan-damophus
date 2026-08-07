@@ -10,11 +10,11 @@ Open a SiYuan document, then choose **Question Bank** from the Damophus top-bar 
 2. Choose **Preview initialization**.
 3. Review the planned `/Damophus` system document and confirm creation.
 
-Damophus creates one question index and one attempt log. Their immutable IDs and managed column key IDs are stored in plugin settings. If that binding becomes invalid, Damophus stops writes instead of creating another database.
+Damophus creates a Question Index, a Topic Index, and an Attempt Log. Their immutable IDs and managed column key IDs are stored in plugin settings. If that binding becomes invalid, Damophus stops writes instead of creating another database.
 
 ### Reconnect An Existing System Document
 
-Damophus also records its verified binding on the system document. If plugin settings are reset, enter the existing `/Damophus` document ID under **Existing Damophus system document ID**, preview the reconnection, and confirm it. Damophus verifies the document, both databases, every managed key ID, and the question relation before restoring the setting.
+Damophus also records its verified binding on the system document. If plugin settings are reset, enter the existing `/Damophus` document ID under **Existing Damophus system document ID**, preview the reconnection, and confirm it. Damophus verifies the document, all three databases, every managed key ID, and both two-way relations before restoring the setting.
 
 Initialization refuses to create another `/Damophus` document in the same notebook. Reconnect the existing document instead.
 
@@ -30,6 +30,16 @@ Synchronization indexes question title blocks. It does not rewrite stems, option
 Expand **Scan details** to inspect every inference, source issue, conflict, planned IAL update, and managed database-column repair. Confirmation writes only safely inferred `custom-qb-type`, `custom-qb-answer`, and `custom-qb-section` attributes before updating the question index. Invalid explicit metadata is never replaced by an inference, and a stale preview must be scanned again.
 
 If a managed database column was deleted, Damophus previews its restoration using the immutable key ID recorded in the binding. Unknown user columns and their relative order are preserved. Wrong column types, missing primary keys, and relation columns targeting the wrong database remain blockers rather than being changed automatically.
+
+## Topic Index
+
+Question Index contains one multi-value **Topics** relation targeting Topic Index. Add or remove topic relations there during normal SiYuan use. A topic can relate to any number of questions, laws, and categories. Set its status to `archived` instead of deleting a topic that still has relations or history.
+
+Portable Markdown may include `custom-qb-topic-ids="topic-a,topic-b"`. Damophus treats that attribute as an import/export mirror. A `merge` preview only adds missing relations; a `diff` preview shows additions and removals before replacing the current set. Unknown IDs are reported and never create hidden topic rows.
+
+The Topic Index **Resource** column accepts SiYuan assets. During practice, related images, animations, and videos appear in a plugin-owned resource panel. This is a runtime projection: it does not insert a block, change Markdown, or alter references. Persisted embeds require a separate explicit action and are not created by the virtual projection.
+
+Topic attempt count, wrong count, and wrong rate are rebuilt from immutable Attempt Log events using the question's current topic relations. Reclassifying a question therefore moves its historical attempts to the newly related topics without rewriting the events.
 
 ## Hide Answers In The Source Document
 

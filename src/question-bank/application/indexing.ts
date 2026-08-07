@@ -20,6 +20,7 @@ import {
 } from "../adapters/siyuan/document";
 import type { AttributeViewValue, SiyuanKernelClient } from "../adapters/siyuan/types";
 import { questionRowIdentityMaps } from "../adapters/siyuan/row-identity";
+import { rebuildTopicStatistics } from "../adapters/siyuan/topic-index";
 
 export interface QuestionIndexAction {
   kind: "add" | "update";
@@ -76,6 +77,7 @@ export interface StableQuestionIdMetadata {
 export interface QuestionIndexMaintenanceResult {
   bindingRepairs: number;
   updatedRows: number;
+  rebuiltTopics: number;
 }
 
 export interface QuestionIndexMaintenancePreview {
@@ -420,9 +422,14 @@ export async function maintainQuestionIndex(
       update.type === "text" ? textCell(update.value) : selectCell(update.value),
     );
   }
+  const topicStatistics = await rebuildTopicStatistics(client, binding);
+  if (topicStatistics.issues.length > 0) {
+    throw new Error(`Topic Index statistics remain incomplete: ${topicStatistics.issues.map((issue) => issue.message).join("; ")}`);
+  }
   return {
     bindingRepairs: plan.bindingRepairs.length,
     updatedRows: new Set(plan.updates.map((update) => update.itemId)).size,
+    rebuiltTopics: topicStatistics.results.filter((result) => result.status === "synced").length,
   };
 }
 

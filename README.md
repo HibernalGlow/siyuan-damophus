@@ -65,7 +65,8 @@ Damophus 不是通用工具箱，也不替代思源编辑器、主题或 Riff �
 
 ### 题库
 
-- 初始化或重新连接 Damophus 系统文档、题目索引与作答记录属性视图
+- 初始化或重新连接 Damophus 系统文档、题目索引、考点索引与作答记录属性视图
+- 通过题目索引的多值关联维护考点，并在练习中虚拟展示考点动图、图片和视频，不写入题源块
 
 <p align="center">
   <img src="./assets/readme/screenshots/desktop-database.png" width="100%" alt="思源桌面端 Damophus 题库数据库界面">
@@ -101,7 +102,6 @@ Damophus 不是通用工具箱，也不替代思源编辑器、主题或 Riff �
 
 <p align="center">
   <img src="./assets/readme/screenshots/mobile-practice.png" width="360" alt="思源移动端 Damophus 题库做题界面">
-  <img src="./assets/readme/screenshots/mobile-breadcrumb.png" width="360" alt="思源移动端标题栏与完整面包屑界面">
 </p>
 
 ## 快速开始

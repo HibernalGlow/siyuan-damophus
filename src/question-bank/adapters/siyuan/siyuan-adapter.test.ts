@@ -117,7 +117,7 @@ describe("SiYuan question bank adapter", () => {
     expect(year).toMatchObject({ type: "select", mSelect: [{ content: "2015" }] });
   });
 
-  it("initializes two AVs and records managed columns by immutable key ID", async () => {
+  it("initializes three AVs and records managed columns by immutable key ID", async () => {
     const { client, binding } = await initialized();
     const verification = await verifyQuestionBankBinding(client, binding);
 
@@ -127,7 +127,8 @@ describe("SiYuan question bank adapter", () => {
       fatalErrors: [],
       missingManagedKeys: [],
     });
-    expect(Object.keys(binding.questionIndex.keys)).toHaveLength(15);
+    expect(Object.keys(binding.questionIndex.keys)).toHaveLength(16);
+    expect(Object.keys(binding.topicIndex.keys)).toHaveLength(13);
     expect(Object.keys(binding.attemptLog.keys)).toHaveLength(23);
     const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
     expect(questionAv.keyValues.map((keyValues) => [keyValues.key.name, keyValues.key.type]))
@@ -143,11 +144,29 @@ describe("SiYuan question bank adapter", () => {
         ["Topic ID", "text"],
         ["Parent ID", "text"],
         ["Last Scanned", "date"],
+        ["Topics", "relation"],
         ["Attempts", "relation"],
         ["Attempt Count", "rollup"],
         ["Wrong Count", "rollup"],
         ["Total Duration (min)", "rollup"],
       ]);
+    expect(client.attributeViews.get(binding.topicIndex.avId)!.keyValues.map(
+      (keyValues) => [keyValues.key.name, keyValues.key.type],
+    )).toEqual([
+      ["Primary", "block"],
+      ["Topic ID", "text"],
+      ["Name", "text"],
+      ["Subject", "select"],
+      ["Laws", "mSelect"],
+      ["Categories", "mSelect"],
+      ["Resource", "mAsset"],
+      ["Status", "select"],
+      ["Questions", "relation"],
+      ["Question Count", "rollup"],
+      ["Attempt Count", "number"],
+      ["Wrong Count", "number"],
+      ["Wrong Rate", "number"],
+    ]);
     expect(client.attributeViews.get(binding.attemptLog.avId)!.keyValues.find(
       (keyValues) => keyValues.key.id === binding.attemptLog.keys.duration_ms,
     )?.key.name).toBe("Duration (min)");
@@ -158,7 +177,7 @@ describe("SiYuan question bank adapter", () => {
       backKeyID: binding.attemptLog.keys.question_relation,
       isTwoWay: true,
     });
-    expect(client.requests.filter((request) => request.endpoint === "/api/av/renderAttributeView")).toHaveLength(2);
+    expect(client.requests.filter((request) => request.endpoint === "/api/av/renderAttributeView")).toHaveLength(3);
     expect(client.requests.find((request) => request.endpoint === "/api/transactions")?.payload.reqId)
       .toEqual(expect.any(Number));
   });
@@ -223,8 +242,10 @@ describe("SiYuan question bank adapter", () => {
     const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
     const migrated = await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
 
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
     expect(preview.bindingRepairs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "createDatabase", database: "topicIndex" }),
+      expect.objectContaining({ kind: "add", field: "topics_relation", type: "relation" }),
       expect.objectContaining({ kind: "add", field: "attempts_relation", type: "relation" }),
       expect.objectContaining({ kind: "add", field: "attempt_count", type: "rollup" }),
       expect.objectContaining({ kind: "add", field: "wrong_value", type: "number" }),

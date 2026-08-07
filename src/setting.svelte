@@ -209,7 +209,7 @@
         const result = await maintainQuestionIndex(siyuanKernelClient, binding);
         settingItems = initData();
         showMessage(
-          `${t("lets-question-bank.indexMaintenanceComplete", "Question Index maintenance completed")}: ${result.updatedRows}`,
+          `${t("lets-question-bank.indexMaintenanceComplete", "Question Index and topic statistics maintenance completed")}: ${result.updatedRows} / ${result.rebuiltTopics}`,
           5000,
         );
       } catch (error) {

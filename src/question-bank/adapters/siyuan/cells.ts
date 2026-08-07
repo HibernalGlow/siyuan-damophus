@@ -6,6 +6,7 @@ export interface AttributeViewCellInput {
   number?: { content?: number; isNotEmpty: boolean };
   date?: { content?: number; isNotEmpty: boolean; isNotTime?: boolean };
   mSelect?: Array<{ content: string; color: string }>;
+  mAsset?: Array<{ content: string; name: string; type: "file" | "image" }>;
   relation?: { blockIDs: string[] };
 }
 
@@ -59,10 +60,14 @@ export function dateCell(content: number | undefined): AttributeViewCellInput {
 }
 
 export function relationCell(blockId: string | undefined): AttributeViewCellInput {
+  return relationCells(blockId ? [blockId] : []);
+}
+
+export function relationCells(blockIds: readonly string[]): AttributeViewCellInput {
   return {
     type: "relation",
     text: null,
-    relation: { blockIDs: blockId ? [blockId] : [] },
+    relation: { blockIDs: [...blockIds] },
   };
 }
 

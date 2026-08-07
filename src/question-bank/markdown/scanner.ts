@@ -35,7 +35,7 @@ interface IalToken {
 interface TopicState {
   node: TopicNode;
   attributes: IalAttributes;
-  metadata: Omit<QuestionMetadata, "topicPath" | "topicId" | "parentId">;
+  metadata: Omit<QuestionMetadata, "topicPath" | "topicId" | "topicIds" | "parentId">;
 }
 
 interface QuestionCandidate {
@@ -424,7 +424,19 @@ function stringifyNodes(nodes: readonly RootContent[]): string {
   return String(markdownWriter.stringify({ type: "root", children: [...nodes] })).trim();
 }
 
-function metadataForQuestion(topics: readonly TopicState[], attributes: IalAttributes): QuestionMetadata {
+function portableTopicIds(attributes: IalAttributes): { ids: string[]; invalid: string[] } {
+  const source = attributes["custom-qb-topic-ids"];
+  if (!source) return { ids: [], invalid: [] };
+  const values = source.split(/[,，\s]+/u).map((value) => value.trim()).filter(Boolean);
+  const invalid = values.filter((value) => !stableTopicIdPattern.test(value));
+  return { ids: [...new Set(values)], invalid };
+}
+
+function metadataForQuestion(
+  topics: readonly TopicState[],
+  attributes: IalAttributes,
+  topicIds: readonly string[],
+): QuestionMetadata {
   const inherited = topics.reduce<TopicState["metadata"]>(
     (metadata, topic) => mergeDefined(metadata, topic.metadata),
     {},
@@ -435,6 +447,7 @@ function metadataForQuestion(topics: readonly TopicState[], attributes: IalAttri
   return {
     ...mergeDefined(inherited, own),
     topicId: closestStableTopic?.node.id,
+    topicIds: topicIds.length > 0 ? [...topicIds] : undefined,
     scopeTopicId: closestTopic?.node.id,
     topicPath: topics.map((topic) => topic.node.title),
     parentId: attributes["custom-qb-parent-id"],
@@ -625,6 +638,18 @@ function buildQuestion(
     );
   }
 
+  const portableTopics = portableTopicIds(candidate.attributes);
+  if (portableTopics.invalid.length > 0) {
+    report.conflicts.push({
+      code: "invalid-portable-topic-id",
+      message: `Topic IDs must use lowercase ASCII kebab-case: ${portableTopics.invalid.join(", ")}`,
+      questionId: id,
+      line: candidate.heading.position?.start.line,
+      ...headingContext,
+    });
+    return undefined;
+  }
+
   const parsed = QuestionSchema.safeParse({
     id,
     type,
@@ -633,7 +658,7 @@ function buildQuestion(
     options,
     answer,
     solutionMarkdown,
-    metadata: metadataForQuestion(candidate.topics, candidate.attributes),
+    metadata: metadataForQuestion(candidate.topics, candidate.attributes, portableTopics.ids),
   });
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {

@@ -28,6 +28,8 @@ export interface QuestionMetadata {
   source?: string;
   /** Stable topic identity from explicit portable IAL. */
   topicId?: string;
+  /** Optional portable mirror of Topic Index relations. */
+  topicIds?: string[];
   /** Scan-local heading scope used when no stable topic identity exists. */
   scopeTopicId?: string;
   topicPath: string[];

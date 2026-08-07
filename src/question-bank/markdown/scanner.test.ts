@@ -396,4 +396,33 @@ C. 第三项。
 
     expect(report.conflicts.map((conflict) => conflict.code)).toContain("invalid-topic-id");
   });
+
+  it("parses a deduplicated portable Topic Index relation mirror", () => {
+    const report = scanQuestionMarkdown(`##### 1. 主观题
+{: custom-qb-id="portable-topic-question" custom-qb-type="subjective" custom-qb-topic-ids="civil-security-flow-clause, civil-guarantee-contract, civil-security-flow-clause"}
+
+题干。
+
+参考答案：答案。
+{: custom-qb-section="solution"}`);
+
+    expect(report.conflicts).toEqual([]);
+    expect(report.document.questions[0].metadata.topicIds).toEqual([
+      "civil-security-flow-clause",
+      "civil-guarantee-contract",
+    ]);
+  });
+
+  it("blocks invalid IDs in the portable Topic Index relation mirror", () => {
+    const report = scanQuestionMarkdown(`##### 1. 主观题
+{: custom-qb-id="invalid-portable-topic-question" custom-qb-type="subjective" custom-qb-topic-ids="valid-topic, Invalid Topic"}
+
+题干。
+
+参考答案：答案。
+{: custom-qb-section="solution"}`);
+
+    expect(report.document.questions).toEqual([]);
+    expect(report.conflicts.map((conflict) => conflict.code)).toContain("invalid-portable-topic-id");
+  });
 });

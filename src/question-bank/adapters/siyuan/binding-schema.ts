@@ -49,10 +49,27 @@ export const questionFields = [
   "topic_id",
   "parent_id",
   "last_scanned_at",
+  "topics_relation",
   "attempts_relation",
   "attempt_count",
   "wrong_count",
   "total_duration_ms",
+] as const;
+
+export const topicFields = [
+  "entry",
+  "topic_id",
+  "name",
+  "subject",
+  "laws",
+  "categories",
+  "resource",
+  "status",
+  "questions_relation",
+  "question_count",
+  "attempt_count",
+  "wrong_count",
+  "wrong_rate",
 ] as const;
 
 export const attemptFields = [
@@ -83,6 +100,7 @@ export const attemptFields = [
 
 export type QuestionField = typeof questionFields[number];
 export type AttemptField = typeof attemptFields[number];
+export type TopicField = typeof topicFields[number];
 
 export interface AttributeViewBinding<Field extends string> {
   avId: string;
@@ -91,10 +109,11 @@ export interface AttributeViewBinding<Field extends string> {
 }
 
 export interface QuestionBankBinding {
-  schemaVersion: 3;
+  schemaVersion: 4;
   notebookId: string;
   systemDocumentId: string;
   questionIndex: AttributeViewBinding<QuestionField>;
+  topicIndex: AttributeViewBinding<TopicField>;
   attemptLog: AttributeViewBinding<AttemptField>;
 }
 
@@ -102,15 +121,37 @@ const nodeId = z.string().regex(/^\d{14}-[a-z0-9]{7}$/u);
 const questionKeySchema = z.object(Object.fromEntries(
   questionFields.map((field) => [field, nodeId]),
 ) as Record<QuestionField, typeof nodeId>);
+const versionThreeQuestionFields = questionFields.filter(
+  (field): field is Exclude<QuestionField, "topics_relation"> => field !== "topics_relation",
+);
+const versionThreeQuestionKeySchema = z.object(Object.fromEntries(
+  versionThreeQuestionFields.map((field) => [field, nodeId]),
+) as Record<Exclude<QuestionField, "topics_relation">, typeof nodeId>);
 const attemptKeySchema = z.object(Object.fromEntries(
   attemptFields.map((field) => [field, nodeId]),
 ) as Record<AttemptField, typeof nodeId>);
+const topicKeySchema = z.object(Object.fromEntries(
+  topicFields.map((field) => [field, nodeId]),
+) as Record<TopicField, typeof nodeId>);
 
 export const QuestionBankBindingSchema = z.object({
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   notebookId: nodeId,
   systemDocumentId: nodeId,
   questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: questionKeySchema }),
+  topicIndex: z.object({ avId: nodeId, blockId: nodeId, keys: topicKeySchema }),
+  attemptLog: z.object({ avId: nodeId, blockId: nodeId, keys: attemptKeySchema }),
+});
+
+export const QuestionBankBindingV3Schema = z.object({
+  schemaVersion: z.literal(3),
+  notebookId: nodeId,
+  systemDocumentId: nodeId,
+  questionIndex: z.object({
+    avId: nodeId,
+    blockId: nodeId,
+    keys: versionThreeQuestionKeySchema,
+  }),
   attemptLog: z.object({ avId: nodeId, blockId: nodeId, keys: attemptKeySchema }),
 });
 
@@ -118,7 +159,7 @@ export const QuestionBankBindingV2Schema = z.object({
   schemaVersion: z.literal(2),
   notebookId: nodeId,
   systemDocumentId: nodeId,
-  questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: questionKeySchema }),
+  questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: versionThreeQuestionKeySchema }),
   attemptLog: z.object({
     avId: nodeId,
     blockId: nodeId,
@@ -169,10 +210,26 @@ export const questionColumns: readonly ColumnDefinition<Exclude<QuestionField, "
   { field: "topic_id", name: "Topic ID", type: "text" },
   { field: "parent_id", name: "Parent ID", type: "text" },
   { field: "last_scanned_at", name: "Last Scanned", type: "date" },
+  { field: "topics_relation", name: "Topics", type: "relation" },
   { field: "attempts_relation", name: "Attempts", type: "relation" },
   { field: "attempt_count", name: "Attempt Count", type: "rollup" },
   { field: "wrong_count", name: "Wrong Count", type: "rollup" },
   { field: "total_duration_ms", name: "Total Duration (min)", type: "rollup" },
+];
+
+export const topicColumns: readonly ColumnDefinition<Exclude<TopicField, "entry">>[] = [
+  { field: "topic_id", name: "Topic ID", type: "text" },
+  { field: "name", name: "Name", type: "text" },
+  { field: "subject", name: "Subject", type: "select" },
+  { field: "laws", name: "Laws", type: "mSelect" },
+  { field: "categories", name: "Categories", type: "mSelect" },
+  { field: "resource", name: "Resource", type: "mAsset" },
+  { field: "status", name: "Status", type: "select" },
+  { field: "questions_relation", name: "Questions", type: "relation" },
+  { field: "question_count", name: "Question Count", type: "rollup" },
+  { field: "attempt_count", name: "Attempt Count", type: "number" },
+  { field: "wrong_count", name: "Wrong Count", type: "number" },
+  { field: "wrong_rate", name: "Wrong Rate", type: "number" },
 ];
 
 export const attemptColumns: readonly ColumnDefinition<Exclude<AttemptField, "entry">>[] = [
@@ -212,8 +269,11 @@ export interface QuestionBankInitializationPreview {
   path: string;
   questionBlockId: string;
   questionAvId: string;
+  topicBlockId: string;
+  topicAvId: string;
   attemptBlockId: string;
   attemptAvId: string;
   questionColumns: PlannedColumn<Exclude<QuestionField, "block_id">>[];
+  topicColumns: PlannedColumn<Exclude<TopicField, "entry">>[];
   attemptColumns: PlannedColumn<Exclude<AttemptField, "entry">>[];
 }

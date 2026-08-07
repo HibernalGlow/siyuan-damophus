@@ -14,6 +14,8 @@ Upgrading does not scan or modify documents automatically. Open Damophus, previe
 
 New Damophus system documents store a recoverable binding manifest on the document itself. If plugin settings are lost later, use the reconnection flow rather than creating a second system document.
 
+Bindings created before Topic Index use schema version 3 or earlier. Reconnection previews the schema version 4 upgrade, adds the Topic Index and the Question Index `Topics` relation only after confirmation, preserves existing Question Index and Attempt Log rows, and keeps unknown user columns unchanged.
+
 Existing question content must follow [Question Bank Contract](question-bank-contract.md). A permanent `custom-qb-id` is required for indexed questions. SiYuan block IDs, visible question numbers, and database row IDs are not substitutes.
 
 Safe structural inferences are listed during scan and persisted only after confirmation. Existing explicit metadata is authoritative: invalid values stop that question from being indexed instead of being silently replaced.

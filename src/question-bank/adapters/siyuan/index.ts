@@ -6,5 +6,6 @@ export * from "./client";
 export * from "./document";
 export * from "./question-index";
 export * from "./source-catalog";
+export * from "./topic-index";
 export * from "./riff";
 export * from "./types";

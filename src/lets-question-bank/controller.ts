@@ -12,6 +12,7 @@ import {
 import { getLogger } from "@/libs/logger";
 import {
   addQuickRiffCards,
+  correctQuestionAnswer as persistCorrectQuestionAnswer,
   appendExamSummaryEvent,
   appendAttemptEvent,
   confirmQuestionBankInitialization,
@@ -21,10 +22,14 @@ import {
   migrateQuestionBankBinding,
   previewQuestionBankInitialization,
   previewQuestionBankRebinding,
+  previewTopicRelationSync,
   QuestionBankBindingSchema,
   rebuildAttemptStatistics,
+  rebuildTopicStatistics,
   readExamSummaryEvents,
   readQuestionIndexStatistics,
+  resolveQuestionTopicResources,
+  confirmTopicRelationSync,
   hydrateQuestionSources,
   listQuestionSourceDocuments,
   readQuestionSourceCatalog,
@@ -35,6 +40,10 @@ import {
   type QuestionBankRebindingPreview,
   type RiffCard,
   type SiyuanKernelClient,
+  type TopicResourceProjection,
+  type QuestionTopicAssignment,
+  type TopicRelationPreview,
+  type TopicRelationSyncMode,
 } from "@/question-bank/adapters/siyuan";
 import {
   confirmQuestionIndexBatch,
@@ -100,6 +109,16 @@ export interface QuestionBankUiController {
   loadQuestionCatalog?(): Promise<QuestionCatalogEntry[]>;
   hydrateQuestionSources?(questionIds: readonly string[]): Promise<HydratedQuestionSource>;
   correctQuestionAnswer?(questionBlockId: string, question: Question, answer: ObjectiveAnswer): Promise<void>;
+  loadQuestionTopicResources?(questionId: string): Promise<TopicResourceProjection[]>;
+  previewTopicRelationSync?(
+    assignments: readonly QuestionTopicAssignment[],
+    mode: TopicRelationSyncMode,
+  ): Promise<TopicRelationPreview>;
+  confirmTopicRelationSync?(
+    assignments: readonly QuestionTopicAssignment[],
+    mode: TopicRelationSyncMode,
+    token: string,
+  ): Promise<TopicRelationPreview>;
   listQuestionSetBlueprints?(): Promise<QuestionSetBlueprint[]>;
   saveQuestionSetBlueprint?(blueprint: QuestionSetBlueprint): Promise<void>;
   removeQuestionSetBlueprint?(blueprintId: string): Promise<void>;
@@ -146,6 +165,13 @@ export interface QuestionBankControllerOptions {
 const bindingSetting = "binding";
 const recentScopeSetting = "recentScope";
 const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
+
+function topicStatisticsWarning(
+  result: Awaited<ReturnType<typeof rebuildTopicStatistics>>,
+): string | undefined {
+  if (result.issues.length === 0) return undefined;
+  return result.issues.map((issue) => issue.message).join("; ");
+}
 
 export class QuestionBankController implements QuestionBankUiController {
   private readonly client: SiyuanKernelClient;
@@ -270,7 +296,17 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async submitExamAttempt(event: AttemptEvent): Promise<"created" | "duplicate"> {
-    return (await appendAttemptEvent(this.client, this.requireBinding(), event, this.nodeId)).status;
+    const binding = this.requireBinding();
+    const result = await appendAttemptEvent(this.client, binding, event, this.nodeId);
+    if (result.status === "created") {
+      try {
+        const warning = topicStatisticsWarning(await rebuildTopicStatistics(this.client, binding));
+        if (warning) log.warn("topic-statistics.rebuild-incomplete", { questionId: event.question_id, warning });
+      } catch (error) {
+        log.warn("topic-statistics.rebuild-failed", { questionId: event.question_id, error });
+      }
+    }
+    return result.status;
   }
 
   async loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]> {
@@ -321,8 +357,30 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async correctQuestionAnswer(questionBlockId: string, question: Question, answer: ObjectiveAnswer): Promise<void> {
-    const { correctQuestionAnswer } = await import("@/question-bank/adapters/siyuan/answer-correction");
-    await correctQuestionAnswer(this.client, questionBlockId, question, answer);
+    await persistCorrectQuestionAnswer(this.client, questionBlockId, question, answer);
+  }
+
+  async loadQuestionTopicResources(questionId: string): Promise<TopicResourceProjection[]> {
+    const result = await resolveQuestionTopicResources(this.client, this.requireBinding(), questionId);
+    if (result.issues.length > 0) {
+      log.warn("topic-resources.issues", { questionId, issues: result.issues });
+    }
+    return result.resources;
+  }
+
+  async previewTopicRelationSync(
+    assignments: readonly QuestionTopicAssignment[],
+    mode: TopicRelationSyncMode,
+  ): Promise<TopicRelationPreview> {
+    return previewTopicRelationSync(this.client, this.requireBinding(), assignments, mode);
+  }
+
+  async confirmTopicRelationSync(
+    assignments: readonly QuestionTopicAssignment[],
+    mode: TopicRelationSyncMode,
+    token: string,
+  ): Promise<TopicRelationPreview> {
+    return confirmTopicRelationSync(this.client, this.requireBinding(), assignments, mode, token);
   }
 
   async listQuestionSetBlueprints(): Promise<QuestionSetBlueprint[]> {
@@ -379,13 +437,21 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async confirmImport(source: string, token: string): Promise<AttemptImportResult> {
-    return confirmAttemptImport(
+    const binding = this.requireBinding();
+    const result = await confirmAttemptImport(
       this.client,
-      this.requireBinding(),
+      binding,
       source,
       token,
       this.nodeId,
     );
+    try {
+      const warning = topicStatisticsWarning(await rebuildTopicStatistics(this.client, binding));
+      if (warning) log.warn("topic-statistics.import-rebuild-incomplete", { warning });
+    } catch (error) {
+      log.warn("topic-statistics.import-rebuild-failed", error);
+    }
+    return result;
   }
 
   async submitAttempt(
@@ -400,9 +466,22 @@ export class QuestionBankController implements QuestionBankUiController {
       objectiveCorrect: event.objective_correct,
       masteryRating: event.mastery_rating,
     });
-    const result = await appendAttemptEvent(this.client, this.requireBinding(), event, this.nodeId);
+    const binding = this.requireBinding();
+    const result = await appendAttemptEvent(this.client, binding, event, this.nodeId);
     if (result.status !== "created") throw new Error(`Attempt '${event.attempt_id}' already exists`);
     const warnings: string[] = [];
+    try {
+      const topicWarning = topicStatisticsWarning(await rebuildTopicStatistics(this.client, binding));
+      if (topicWarning) {
+        const message = `Attempt saved, but Topic Index statistics remain incomplete: ${topicWarning}`;
+        warnings.push(message);
+        log.warn(message);
+      }
+    } catch (error) {
+      const message = `Attempt saved, but Topic Index statistics failed to rebuild: ${error instanceof Error ? error.message : String(error)}`;
+      warnings.push(message);
+      log.warn(message);
+    }
     if (dueCard) {
       try {
         await submitRiffRating(this.client, dueCard, event.mastery_rating);

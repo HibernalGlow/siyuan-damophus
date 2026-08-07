@@ -106,9 +106,12 @@ function initializationPreview(): QuestionBankInitializationPreview {
     path: "/Damophus",
     questionBlockId: "20260804110001-abcdefg",
     questionAvId: "20260804110002-abcdefg",
-    attemptBlockId: "20260804110003-abcdefg",
-    attemptAvId: "20260804110004-abcdefg",
+    topicBlockId: "20260804110003-abcdefg",
+    topicAvId: "20260804110004-abcdefg",
+    attemptBlockId: "20260804110005-abcdefg",
+    attemptAvId: "20260804110006-abcdefg",
     questionColumns: [],
+    topicColumns: [],
     attemptColumns: [],
   };
 }
