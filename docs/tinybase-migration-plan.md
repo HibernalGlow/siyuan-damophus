@@ -6,6 +6,8 @@ Completion evidence: runtime cutover, worker-backed synchronization, and the dev
 
 Validation completed with 46 Node test files / 239 tests, 30 Browser Mode files / 139 tests, Svelte/TypeScript checks, production build, smoke checks, and package validation. The three real workspace envelopes passed content-hash verification; their business row counts match the inventory and report.
 
+The completed build was atomically deployed to `D:/1STUDY/SIYUAN` and reloaded in the running SiYuan 3.8.0-alpha.3 process. The live petal response contains the TinyBase store path and Worker asset reference, the Worker asset returns HTTP 200, and the kernel log confirms `siyuan-damophus` in the reloaded desktop petal set.
+
 This plan replaces the Damophus attribute-view data model with a file-synchronized TinyBase data warehouse. It is a one-way development migration: after cutover, Question Index, Topic Index, and Attempt Log are legacy input only and the user removes them manually after verifying the result.
 
 ## Goals
