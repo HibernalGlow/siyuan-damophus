@@ -67,14 +67,14 @@ function render(events: Record<string, (event: any) => void> = {}) {
   document.body.appendChild(target);
   mounted.push(mount(QuestionBankSettings, {
     target,
-    props: { group: "lets-question-bank.displayName", settingItems, labels },
+    props: { group: "lets-question-bank.displayName", title: "题库", settingItems, labels },
     events,
   }));
   return target;
 }
 
 describe("question bank settings navigation", () => {
-  it("starts with a compact overview and opens only one group", async () => {
+  it("starts with every settings group expanded and allows independent collapsing", async () => {
     const target = render();
     await tick();
 
@@ -83,20 +83,37 @@ describe("question bank settings navigation", () => {
     const reviewTrigger = target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-review"]');
     const displayTrigger = target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-display"]');
     if (!reviewTrigger || !displayTrigger) throw new Error("Missing settings panel trigger");
-    expect(reviewTrigger.getAttribute("aria-expanded")).toBe("false");
-    expect(displayTrigger.getAttribute("aria-expanded")).toBe("false");
+    expect(reviewTrigger.getAttribute("aria-expanded")).toBe("true");
+    expect(displayTrigger.getAttribute("aria-expanded")).toBe("true");
 
     displayTrigger.click();
     await tick();
 
-    expect(displayTrigger.getAttribute("aria-expanded")).toBe("true");
-    expect(reviewTrigger.getAttribute("aria-expanded")).toBe("false");
+    expect(displayTrigger.getAttribute("aria-expanded")).toBe("false");
+    expect(reviewTrigger.getAttribute("aria-expanded")).toBe("true");
+  });
 
-    reviewTrigger.click();
+  it("uses the header navigation to reveal and scroll to a settings group", async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => undefined);
+    const target = render();
     await tick();
 
-    expect(reviewTrigger.getAttribute("aria-expanded")).toBe("true");
+    const displayTrigger = target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-display"]');
+    const displayNavigation = target.querySelector<HTMLButtonElement>('[data-settings-section-target="display"]');
+    if (!displayTrigger || !displayNavigation) throw new Error("Missing display settings navigation");
+
+    displayTrigger.click();
+    await tick();
     expect(displayTrigger.getAttribute("aria-expanded")).toBe("false");
+
+    displayNavigation.click();
+    await tick();
+
+    expect(displayTrigger.getAttribute("aria-expanded")).toBe("true");
+    expect(displayNavigation.getAttribute("aria-current")).toBe("location");
+    await vi.waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+    });
   });
 
   it("keeps actions on the existing settings event contract", async () => {
@@ -104,8 +121,6 @@ describe("question bank settings navigation", () => {
     const target = render({ click: clicked });
     await tick();
 
-    target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-index"]')?.click();
-    await tick();
     [...target.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent?.includes("立即维护"))
       ?.click();
@@ -115,12 +130,24 @@ describe("question bank settings navigation", () => {
     }));
   });
 
-  it("stays within the mobile page and avoids theme-sensitive headings", async () => {
-    await page.viewport(390, 760);
+  it("adapts navigation labels to the available width without overflowing", async () => {
+    await page.viewport(900, 760);
     const target = render();
     await tick();
 
+    const reviewNavigationLabel = target.querySelector<HTMLElement>(
+      '[data-settings-section-target="review"] .question-bank-settings-navigation-label',
+    );
+    if (!reviewNavigationLabel) throw new Error("Missing review navigation label");
+    expect(getComputedStyle(reviewNavigationLabel).display).not.toBe("none");
+
+    await page.viewport(390, 760);
+    await vi.waitFor(() => {
+      expect(getComputedStyle(reviewNavigationLabel).display).toBe("none");
+    });
+
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+    expect(target.querySelectorAll("[data-settings-section-target]")).toHaveLength(5);
     expect(target.querySelectorAll("h2, h3")).toHaveLength(0);
   });
 

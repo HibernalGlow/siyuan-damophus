@@ -282,9 +282,11 @@
 
   <main class="min-w-0 flex-1 overflow-y-auto">
     <div class="mx-auto box-border flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
-      <header class="border-b border-border pb-4">
-        <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
-      </header>
+      {#if !showQuestionBankSettings}
+        <header class="border-b border-border pb-4">
+          <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
+        </header>
+      {/if}
 
       <!-- Damophus theme settings are temporarily hidden; the panel follows SiYuan's theme. -->
       {#if showBlockAttributeSettings}
@@ -301,6 +303,7 @@
       {:else if showQuestionBankSettings}
         <QuestionBankSettings
           group={focusGroup}
+          title={getGroupLabel(focusGroup)}
           settingItems={settingItems[focusGroup] ?? []}
           labels={questionBankSettingsLabels()}
           on:changed={onChanged}
