@@ -9,7 +9,6 @@ import {
   openMobileFileById,
   openTab,
   Protyle,
-  showMessage,
   type IEventBusMap,
   type Menu,
 } from "siyuan";
@@ -18,15 +17,9 @@ import pluginManifest from "../../plugin.json";
 import QuestionBank from "./question-bank.svelte";
 import { QuestionBankController } from "./controller";
 import { getLogger } from "@/libs/logger";
-import { migrateQuestionBankBinding, siyuanKernelClient } from "@/question-bank/adapters/siyuan";
-import { previewQuestionIndexMaintenance } from "@/question-bank/application";
+import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
 import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
-import {
-  BroadcastPracticeSessionLeaseCoordinator,
-  SiyuanPracticeSessionRepository,
-} from "./session-host";
-import { SiyuanExamSessionRepository } from "./exam-session-host";
-import { QuestionSetBlueprintSettingsRepository } from "./question-set-host";
+import { BroadcastPracticeSessionLeaseCoordinator } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { loadSourceBlockIdentity } from "./source-identity";
 import { QUESTION_SOURCE_ACTIONS, questionSourceOpenTarget } from "./source-navigation";
@@ -47,9 +40,24 @@ import {
   sourceBlockProtyleActions,
   sourceEmbedBlockAttributes,
 } from "./source-embed-presentation";
+import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyuan-file-io";
+import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
+import { TinyBaseRuntime } from "./tinybase-runtime";
+import { StoreSyncCoordinator } from "./sync-coordinator";
+import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 
 type PracticeCommand = "previous" | "next" | "pause";
 const log = getLogger("lets-question-bank");
+
+function currentDeviceId(): string {
+  const id = (window as Window & {
+    siyuan?: {config?: {system?: {id?: unknown}}};
+  }).siyuan?.config?.system?.id;
+  if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(id)) {
+    throw new Error("SiYuan device identity is unavailable");
+  }
+  return id;
+}
 
 export default class QuestionBankPlugin extends SubPluginBase {
   private tabRegistered = false;
@@ -58,16 +66,12 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private dockApp?: ReturnType<typeof mount>;
   private removeDockGestureIsolation?: () => void;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
-  private readonly sessionRepository = new SiyuanPracticeSessionRepository(plugin);
-  private readonly examSessionRepository = new SiyuanExamSessionRepository(plugin);
-  private readonly questionSetRepository = new QuestionSetBlueprintSettingsRepository(
-    (key) => this.getSetting(key),
-    (key, value) => this.setSetting(key, value),
-  );
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
+  private tinybaseRuntime?: TinyBaseRuntime;
+  private tinybaseCatalogRuntime?: TinyBaseSiyuanCatalogRuntime;
+  private storeSyncCoordinator?: StoreSyncCoordinator;
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
   private stopSourceAnswerMask?: () => void;
-  private startupMaintenanceCheckStarted = false;
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
@@ -83,6 +87,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
   ): void => {
     if (event.detail.type === "notebook") return;
     this.addLaunchMenuItem(event.detail.menu, launchBlockIdFromElements(event.detail.elements));
+  };
+  private readonly handleWsMain = (event: CustomEvent<IEventBusMap["ws-main"]>): void => {
+    this.storeSyncCoordinator?.handle(event.detail);
   };
 
   override registerModels(): void {
@@ -106,6 +113,13 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   override onload(): void {
+    this.storeSyncCoordinator ??= new StoreSyncCoordinator(
+      {run: () => this.getTinyBaseRuntime().mergeAfterSync()},
+      {
+        onSuccess: (result) => log.info("tinybase.post-sync-merge-completed", result),
+        onFailure: (error) => log.warn("tinybase.post-sync-merge-failed", error),
+      },
+    );
     this.stopSourceAnswerMask?.();
     this.stopSourceAnswerMask = undefined;
     if (settings.getBySpace("questionBank", "maskSourceAnswers") === true) {
@@ -141,28 +155,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
-    this.checkQuestionIndexMaintenance();
-  }
-
-  private checkQuestionIndexMaintenance(): void {
-    if (this.startupMaintenanceCheckStarted) return;
-    const binding = migrateQuestionBankBinding(this.getSetting("binding"));
-    if (!binding) return;
-    this.startupMaintenanceCheckStarted = true;
-    void previewQuestionIndexMaintenance(siyuanKernelClient, binding)
-      .then((preview) => {
-        log.info("question-index.maintenance-check", preview);
-        if (preview.needsMaintenance) {
-          showMessage(
-            this.t("lets-question-bank.indexMaintenanceRequired"),
-            10000,
-            "info",
-          );
-        }
-      })
-      .catch((error) => {
-        log.warn("question-index.maintenance-check-failed", error);
-      });
+    plugin.eventBus.on("ws-main", this.handleWsMain);
   }
 
   addMenuItem(menu: Menu): void {
@@ -210,11 +203,29 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
+    plugin.eventBus.off("ws-main", this.handleWsMain);
     this.listening = false;
     for (const app of this.mountedTabs.values()) void unmount(app);
     this.mountedTabs.clear();
-    this.startupMaintenanceCheckStarted = false;
     await this.sessionLeases.releaseAll();
+    this.storeSyncCoordinator?.close();
+    this.storeSyncCoordinator = undefined;
+  }
+
+  private getTinyBaseRuntime(): TinyBaseRuntime {
+    this.tinybaseRuntime ??= new TinyBaseRuntime(new TinyBaseWarehouse(
+      new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
+      currentDeviceId(),
+    ));
+    return this.tinybaseRuntime;
+  }
+
+  private getTinyBaseCatalogRuntime(): TinyBaseSiyuanCatalogRuntime {
+    this.tinybaseCatalogRuntime ??= new TinyBaseSiyuanCatalogRuntime(
+      this.getTinyBaseRuntime(),
+      siyuanKernelClient,
+    );
+    return this.tinybaseCatalogRuntime;
   }
 
   private dispatchPracticeCommand(command: PracticeCommand): void {
@@ -355,10 +366,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
       getSetting: (key) => this.getSetting(key),
       setSetting: (key, value) => this.setSetting(key, value),
       pluginVersion: pluginManifest.version,
-      sessionRepository: this.sessionRepository,
       sessionLeases: this.sessionLeases,
-      examSessionRepository: this.examSessionRepository,
-      questionSetRepository: this.questionSetRepository,
+      tinybaseRuntime: this.getTinyBaseRuntime(),
+      tinybaseCatalogRuntime: this.getTinyBaseCatalogRuntime(),
     });
     const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceQueryCache = new Map<string, Promise<string>>();
