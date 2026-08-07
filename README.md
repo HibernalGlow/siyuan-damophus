@@ -4,20 +4,16 @@
 
 Damophus 是一个自用的思源增强插件，集中实现现有工具没有同时覆盖、或难以直接组合的个人工作流。目前主要包含两部分：让 Markdown 题源进入扫描、索引、练习与恢复流程，以及改善移动端标题栏、面包屑和顶部玻璃表面的可用性。
 
-<p align="center">
-  <a href="https://github.com/HibernalGlow/siyuan-damophus"><img src="https://img.shields.io/badge/GitHub-HibernalGlow%2Fsiyuan--damophus-14211f?logo=github&logoColor=white" alt="GitHub repository"></a>
-  <a href="https://github.com/HibernalGlow/siyuan-damophus/commits/main"><img src="https://img.shields.io/github/last-commit/HibernalGlow/siyuan-damophus?label=Last%20commit&color=7aa69a" alt="Last commit"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-WTFPL-d7ad5c" alt="WTFPL license"></a>
-  <img src="https://img.shields.io/badge/SiYuan-%E2%89%A53.7.0-e0644d" alt="SiYuan 3.7.0 or newer">
-  <img src="https://img.shields.io/badge/Status-Self--use-7aa69a" alt="Self-use project">
-</p>
+[![GitHub repository](https://img.shields.io/badge/GitHub-HibernalGlow%2Fsiyuan--damophus-14211f?logo=github&logoColor=white)](https://github.com/HibernalGlow/siyuan-damophus)
+[![Last commit](https://img.shields.io/github/last-commit/HibernalGlow/siyuan-damophus?label=Last%20commit&color=7aa69a)](https://github.com/HibernalGlow/siyuan-damophus/commits/main)
+[![WTFPL license](https://img.shields.io/badge/License-WTFPL-d7ad5c)](./LICENSE)
+![SiYuan 3.7.0 or newer](https://img.shields.io/badge/SiYuan-%E2%89%A53.7.0-e0644d)
+![Self-use project](https://img.shields.io/badge/Status-Self--use-7aa69a)
 
-<p align="center">
-  <a href="https://svelte.dev/"><img src="https://img.shields.io/badge/Svelte-5-ff3e00?logo=svelte&logoColor=white" alt="Svelte 5"></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript&logoColor=white" alt="TypeScript 6"></a>
-  <a href="https://vite.dev/"><img src="https://img.shields.io/badge/Vite-8-646cff?logo=vite&logoColor=white" alt="Vite 8"></a>
-  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Vitest-4-6e9f18?logo=vitest&logoColor=white" alt="Vitest 4"></a>
-</p>
+[![Svelte 5](https://img.shields.io/badge/Svelte-5-ff3e00?logo=svelte&logoColor=white)](https://svelte.dev/)
+[![TypeScript 6](https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite 8](https://img.shields.io/badge/Vite-8-646cff?logo=vite&logoColor=white)](https://vite.dev/)
+[![Vitest 4](https://img.shields.io/badge/Vitest-4-6e9f18?logo=vitest&logoColor=white)](https://vitest.dev/)
 
 <p align="center">
   <a href="#它解决什么">定位</a> ·
