@@ -29,6 +29,7 @@ const expectedModules = [
   "lets-agent-bridge",
   "lets-animated-image-replay",
   "lets-block-attr",
+  "lets-kramdown-export",
   "lets-list-merge",
   "lets-mobile-breadcrumb",
   "lets-mobile-liquid-glass",
