@@ -222,7 +222,7 @@
     </Alert.Root>
   {/if}
 
-  {#if !binding}
+  {#if !binding && !controller.usesTinyBase}
     <QuestionBankSetup
       {label}
       bind:documentId
