@@ -2,6 +2,8 @@
 
 Status: accepted on 2026-08-04.
 
+> **Runtime cutover (2026-08-08).** The AV sections below are retained as a historical contract and migration reference. They are superseded by [ADR 0008](adr/0008-tinybase-synced-data-warehouse.md): normal question-bank business code reads and writes TinyBase repositories, not Question Index, Topic Index, or Attempt Log rows. AV projections are optional, one-way, disposable browse views and never feed business facts back into TinyBase.
+
 ## Ownership
 
 | Layer | Owns | Must not own |

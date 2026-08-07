@@ -1,5 +1,9 @@
 # Damophus User Guide
 
+> **Runtime note (2026-08-08).** The Question Index, Topic Index, and Attempt Log descriptions below document the legacy AV workflow for migration/reference. After TinyBase cutover, practice, exams, sessions, history, catalogs, and statistics use the local TinyBase warehouse and synchronized device contributions. AV tables are optional one-way browse projections; deleting them does not disable question-bank behavior.
+
+For the current storage model and synchronization behavior, see [ADR 0008](adr/0008-tinybase-synced-data-warehouse.md) and [TinyBase Migration Plan](tinybase-migration-plan.md). New events remain available after source-block deletion and plugin reload because they are stored as immutable TinyBase records.
+
 ## Open The Question Bank
 
 Open a SiYuan document, then choose **Question Bank** from the Damophus top-bar menu or run **Open Question Bank** from the command palette. The current document ID is selected automatically when an editor is open.

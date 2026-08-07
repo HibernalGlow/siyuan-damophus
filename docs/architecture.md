@@ -2,6 +2,8 @@
 
 Status: accepted on 2026-08-04.
 
+> **Superseded for runtime (2026-08-08).** This document describes the pre-TinyBase attribute-view architecture. ADR 0008 and [TinyBase Migration Plan](tinybase-migration-plan.md) define the current implementation. Markdown/IAL remains authoritative for question content; TinyBase repositories now own the catalog, sessions, immutable events, blueprints, and rebuildable aggregates. SiYuan SQL is retained for discovery/navigation, and AV is limited to explicitly configured one-way Question/Topic Index projections.
+
 ## Existing Shell
 
 Damophus 继续使用上游的 `PluginRegistry` 和 `SubPluginBase` 生命周期。运行时只发现 `src/lets-question-bank/` 与 `src/lets-block-attr/`；题库核心不得放进 UI 模块。

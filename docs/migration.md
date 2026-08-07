@@ -1,5 +1,18 @@
 # Migration Guide
 
+> **Current runtime (2026-08-08).** The legacy AV initialization and binding instructions in this file apply only to workspaces that have not completed the development cutover. The current plugin uses TinyBase for catalog, sessions, events, blueprints, and aggregates. Follow [TinyBase Migration Plan](tinybase-migration-plan.md) and [ADR 0008](adr/0008-tinybase-synced-data-warehouse.md) for new workspaces and post-cutover behavior. The old AV databases are migration input only; they are not dual-written or used as a fallback.
+
+## TinyBase Development Migration
+
+The one-time migration is a read-only inventory followed by an idempotent import. Run the exporter and importer from the plugin repository:
+
+```text
+pnpm export:tinybase-inventory -- --workspace D:/1STUDY/SIYUAN --output D:/path/inventory.json
+pnpm migrate:tinybase -- --input D:/path/inventory.json --workspace D:/1STUDY/SIYUAN --device-id migration-legacy
+```
+
+The importer writes device-sharded files under `data/storage/petal/siyuan-damophus/store/` and a `migration-report.json`. Re-running the same inventory is safe: identical immutable event IDs are counted as duplicates, conflicting payloads remain blockers, and `migration_version` is set to `1` only when the report has no conflicts. The verified workspace migration on 2026-08-08 imported 7 documents, 67 questions, 111 question-topic links, 43 topic anchors, and 5 attempts with no conflicts; the idempotent rerun created 0 attempts and detected 5 duplicates.
+
 ## From siyuan-hqweay-go
 
 Damophus uses the plugin ID `siyuan-damophus`, so SiYuan installs it as a separate plugin. Existing `siyuan-hqweay-go` settings are not migrated automatically.
