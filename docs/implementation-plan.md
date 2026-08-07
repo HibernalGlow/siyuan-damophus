@@ -44,9 +44,11 @@ Status: accepted on 2026-08-04.
 
 ### 6. SiYuan indexing
 
-- 初始化或重新绑定题库系统文档、题目 AV 和作答记录 AV。
+- 初始化或重新绑定题库系统文档、题目 AV、Topic Index 和作答记录 AV。
 - 实现当前文档扫描、标题树范围识别和 preview/confirm 同步。
 - 受管列按 key ID 绑定，保留用户列和顺序。
+- 为 Question Index 创建指向 Topic Index 的多值 Topics 关联列；为 Topic Index 创建法律、专题、资源和反向题目汇总列。
+- 在练习渲染器或插件自有预览面板中虚拟展示考点资源；默认不插入真实 SiYuan 块，固化嵌入必须由用户显式确认。
 - 实现 detached attempt rows 和统计重建。
 
 ### 7. Practice UI

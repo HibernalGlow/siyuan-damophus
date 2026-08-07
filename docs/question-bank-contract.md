@@ -6,7 +6,8 @@ Status: accepted on 2026-08-04.
 
 | Layer | Owns | Must not own |
 | --- | --- | --- |
-| Markdown + IAL | 题目正文、稳定 ID、题型、标准答案、专题和答案区边界 | 作答历史、派生统计、Riff 状态、数据库 key ID |
+| Markdown + IAL | 题目正文、稳定 ID、题型、标准答案、专题和答案区边界；可导出的考点 ID 镜像 | 作答历史、派生统计、Riff 状态、数据库 key ID、日常考点关联 |
+| Topic Index | 可复用考点、法律/专题分类、考点资源和题目反向关联 | 题目正文、作答事件、块 ID |
 | Damophus core | 解析、校验、选项映射、答案判定、作答聚合 | 思源 API、块 ID 和界面状态 |
 | SiYuan adapter | 块读取、IAL 写入、属性视图和 Riff 集成 | 可移植题目规则和 Markdown 正文改写 |
 | Damophus UI | 练习会话、题目展示、用户操作和筛选状态 | 题库源的事实数据 |
@@ -90,9 +91,11 @@ Status: accepted on 2026-08-04.
 
 ## Question Attribute View
 
+题库系统还包含独立的 Topic Index。Question Index 只增加一个 `Topics` 多值关联列，目标为 Topic Index；题目可以关联任意数量的考点，考点也可以关联任意数量的题目。日常维护只修改该关联列，不手工维护第二份题目级考点清单。完整的 Topic Index 字段、归档规则和非持久化动图投影见 [ADR 0006](adr/0006-topic-database-and-virtual-resource-projection.md)。
+
 题目属性视图绑定题目标题块。插件用 attribute-view key ID 识别受管列，因此用户可以重命名、重排列并添加自定义列。
 
-首版受管逻辑字段包括：题目 ID、题型、年份、科目、分类、题集、来源、专题 ID、父题 ID、块 ID 和最近扫描时间。插件不删除未知列；缺少受管列时先预览，再补建所需列。
+首版受管逻辑字段包括：题目 ID、题型、年份、科目、分类、题集、来源、专题 ID、Topics 关联、父题 ID、块 ID 和最近扫描时间。插件不删除未知列；缺少受管列时先预览，再补建所需列。
 
 受管列使用稳定的语义类型：题型、年份、科目、分类、题集和来源为单选，最近扫描时间为日期，稳定 ID 仍为文本。Question Index 还包含指向 Attempt Log 的双向 `Attempts` 关联，以及从该关联派生的作答次数、错误次数和总耗时汇总列。汇总列只展示从不可变事件计算的结果，不成为新的事实来源。Damophus 启动时只读检查现有索引；发现需要维护时提示用户，实际修复从设置页手动触发。维护优先保留显式 IAL，并可从稳定题目 ID 补全年份及来源族；`Parent ID` 只表示组合题子题所属的稳定题组 ID，普通题目保持为空。
 
