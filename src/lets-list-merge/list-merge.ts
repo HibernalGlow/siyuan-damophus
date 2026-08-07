@@ -3,6 +3,7 @@ export type ListSubtype = "o" | "u";
 export interface SelectedList {
   id: string;
   subtype: ListSubtype;
+  element?: HTMLElement;
 }
 
 export interface ListMergeSelection {
@@ -17,22 +18,26 @@ export interface ListMergePlan {
   reorderTargetItems: boolean;
 }
 
-export interface ListChildBlock {
-  id: string;
-  type: string;
-}
-
-export interface ListMergeOperations {
-  getChildBlocks(id: string): Promise<ListChildBlock[]>;
-  moveBlock(id: string, previousID?: string, parentID?: string): Promise<unknown>;
-  deleteBlock(id: string): Promise<unknown>;
-}
-
 export interface ListMergeResult {
   mergedItemCount: number;
   targetId: string;
   sourceIds: string[];
   subtype: ListSubtype;
+}
+
+export interface ListMergeOperation {
+  action: "move" | "delete" | "insert" | "update";
+  id?: string;
+  data?: string;
+  parentID?: string;
+  previousID?: string;
+  nextID?: string;
+}
+
+export interface ListMergeTransaction {
+  doOperations: ListMergeOperation[];
+  undoOperations: ListMergeOperation[];
+  result: ListMergeResult;
 }
 
 const LIST_BLOCK_TYPE = "NodeList";
@@ -77,6 +82,7 @@ export function resolveListMergeSelection(
     lists: lists.map((list) => ({
       id: list.dataset.nodeId!,
       subtype: listSubtype(list)!,
+      element: list,
     })),
   };
 }
@@ -107,52 +113,169 @@ export function createListMergePlan(
   };
 }
 
-function assertListItems(children: readonly ListChildBlock[], listId: string): void {
-  if (children.some((child) => child.type !== "i")) {
-    throw new Error(`List ${listId} contains an unsupported direct child`);
+function directListItems(list: HTMLElement): HTMLElement[] {
+  const items = Array.from(list.children).filter((child): child is HTMLElement => (
+    child instanceof HTMLElement && child.dataset.type === "NodeListItem"
+  ));
+  if (items.length === 0 || items.some((item) => !item.dataset.nodeId)) {
+    throw new Error(`List ${list.dataset.nodeId ?? "unknown"} has invalid items`);
   }
-  if (children.length === 0) throw new Error(`List ${listId} is empty`);
+  return items;
 }
 
-export async function mergeListBlocks(
+function sourceShell(list: HTMLElement): string {
+  const shell = list.cloneNode(true) as HTMLElement;
+  for (const item of directListItems(shell)) item.remove();
+  shell.classList.remove("protyle-wysiwyg--select");
+  return shell.outerHTML;
+}
+
+function siblingBlockId(element: HTMLElement, direction: "previous" | "next"): string | undefined {
+  let sibling = direction === "previous" ? element.previousElementSibling : element.nextElementSibling;
+  while (sibling) {
+    if (sibling instanceof HTMLElement && sibling.dataset.nodeId) return sibling.dataset.nodeId;
+    sibling = direction === "previous" ? sibling.previousElementSibling : sibling.nextElementSibling;
+  }
+  return undefined;
+}
+
+function insertSourceOperation(list: HTMLElement, rootId?: string): ListMergeOperation {
+  const id = list.dataset.nodeId!;
+  const nextID = siblingBlockId(list, "next");
+  if (nextID) return { action: "insert", id, data: sourceShell(list), nextID };
+  const previousID = siblingBlockId(list, "previous");
+  if (previousID) return { action: "insert", id, data: sourceShell(list), previousID };
+  const parentID = list.parentElement?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId ?? rootId;
+  if (!parentID) throw new Error(`Cannot restore list ${list.dataset.nodeId ?? "unknown"}`);
+  return { action: "insert", id, data: sourceShell(list), parentID };
+}
+
+function applyListItemSubtype(item: HTMLElement, subtype: ListSubtype, index: number): void {
+  const action = item.querySelector<HTMLElement>(":scope > .protyle-action");
+  if (!action) throw new Error(`List item ${item.dataset.nodeId ?? "unknown"} has no marker`);
+  item.dataset.subtype = subtype;
+  action.setAttribute("draggable", "true");
+  if (subtype === "o") {
+    const marker = `${index + 1}.`;
+    item.dataset.marker = marker;
+    action.className = "protyle-action protyle-action--order";
+    action.setAttribute("contenteditable", "false");
+    action.textContent = marker;
+  } else {
+    item.dataset.marker = "*";
+    action.className = "protyle-action";
+    action.removeAttribute("contenteditable");
+    action.innerHTML = '<svg><use xlink:href="#iconDot"></use></svg>';
+  }
+}
+
+function normalizedListItem(item: HTMLElement, subtype: ListSubtype, index: number): string {
+  const clone = item.cloneNode(true) as HTMLElement;
+  clone.classList.remove("protyle-wysiwyg--select");
+  applyListItemSubtype(clone, subtype, index);
+  return clone.outerHTML;
+}
+
+export function applyListMergeDom(plan: ListMergePlan, selection: ListMergeSelection): void {
+  const listsById = new Map(selection.lists.map((list) => [list.id, list.element]));
+  const lists = plan.orderedListIds.map((listId) => {
+    const element = listsById.get(listId);
+    if (!element) throw new Error(`List ${listId} is no longer available`);
+    return element;
+  });
+  const target = lists.find((list) => list.dataset.nodeId === plan.targetId)!;
+  const targetAttr = Array.from(target.children).find((child) => child.classList.contains("protyle-attr"));
+  const items = lists.flatMap(directListItems);
+  items.forEach((item, index) => {
+    target.insertBefore(item, targetAttr ?? null);
+    applyListItemSubtype(item, plan.subtype, index);
+  });
+  lists.forEach((list) => {
+    list.classList.remove("protyle-wysiwyg--select");
+    if (list !== target) list.remove();
+  });
+}
+
+export function buildListMergeTransaction(
   plan: ListMergePlan,
-  operations: ListMergeOperations,
-): Promise<ListMergeResult> {
-  const childGroups = await Promise.all(
-    plan.orderedListIds.map((listId) => operations.getChildBlocks(listId)),
-  );
-  childGroups.forEach((children, index) => assertListItems(children, plan.orderedListIds[index]));
+  selection: ListMergeSelection,
+  rootId?: string,
+): ListMergeTransaction {
+  const listsById = new Map(selection.lists.map((list) => [list.id, list.element]));
+  const lists = plan.orderedListIds.map((listId) => {
+    const element = listsById.get(listId);
+    if (!element) throw new Error(`List ${listId} is no longer available`);
+    return element;
+  });
+  const childGroups = lists.map(directListItems);
 
   const targetIndex = plan.orderedListIds.indexOf(plan.targetId);
   const targetChildren = childGroups[targetIndex];
   const mergedItemCount = childGroups.reduce((count, children) => count + children.length, 0);
+  const doOperations: ListMergeOperation[] = [];
 
   if (plan.reorderTargetItems) {
     let previousId: string | undefined;
     for (const item of childGroups.flat()) {
+      const itemId = item.dataset.nodeId!;
       if (previousId) {
-        await operations.moveBlock(item.id, previousId);
+        doOperations.push({ action: "move", id: itemId, previousID: previousId });
       } else {
-        await operations.moveBlock(item.id, undefined, plan.targetId);
+        doOperations.push({ action: "move", id: itemId, parentID: plan.targetId });
       }
-      previousId = item.id;
+      previousId = itemId;
     }
   } else {
-    let previousId = targetChildren.at(-1)!.id;
+    let previousId = targetChildren.at(-1)!.dataset.nodeId!;
     for (const [index, children] of childGroups.entries()) {
       if (index === targetIndex) continue;
       for (const item of children) {
-        await operations.moveBlock(item.id, previousId);
-        previousId = item.id;
+        const itemId = item.dataset.nodeId!;
+        doOperations.push({ action: "move", id: itemId, previousID: previousId });
+        previousId = itemId;
       }
     }
   }
 
-  for (const sourceId of plan.sourceIds) await operations.deleteBlock(sourceId);
+  childGroups.flat().forEach((item, index) => {
+    doOperations.push({
+      action: "update",
+      id: item.dataset.nodeId!,
+      data: normalizedListItem(item, plan.subtype, index),
+    });
+  });
+  plan.sourceIds.forEach((sourceId) => doOperations.push({ action: "delete", id: sourceId }));
+
+  const sourceLists = lists.filter((list) => list.dataset.nodeId !== plan.targetId);
+  const undoOperations: ListMergeOperation[] = sourceLists
+    .slice()
+    .reverse()
+    .map((list) => insertSourceOperation(list, rootId));
+  for (const [listIndex, items] of childGroups.entries()) {
+    if (listIndex === targetIndex) continue;
+    let previousID: string | undefined;
+    for (const item of items) {
+      const id = item.dataset.nodeId!;
+      undoOperations.push(previousID
+        ? { action: "move", id, previousID }
+        : { action: "move", id, parentID: plan.orderedListIds[listIndex] });
+      previousID = id;
+    }
+  }
+  childGroups.flat().forEach((item) => undoOperations.push({
+    action: "update",
+    id: item.dataset.nodeId!,
+    data: item.outerHTML,
+  }));
+
   return {
-    mergedItemCount,
-    targetId: plan.targetId,
-    sourceIds: plan.sourceIds,
-    subtype: plan.subtype,
+    doOperations,
+    undoOperations,
+    result: {
+      mergedItemCount,
+      targetId: plan.targetId,
+      sourceIds: plan.sourceIds,
+      subtype: plan.subtype,
+    },
   };
 }

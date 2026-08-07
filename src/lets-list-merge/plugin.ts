@@ -6,6 +6,19 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-list-merge.description",
   version: "1.0.0",
   enabled: true,
+  settings: [
+    {
+      type: "select",
+      title: "lets-list-merge.defaultMixedSubtypeTitle",
+      description: "lets-list-merge.defaultMixedSubtypeDescription",
+      key: "defaultMixedSubtype",
+      value: "o",
+      options: {
+        o: "lets-list-merge.defaultMixedSubtypeOrdered",
+        u: "lets-list-merge.defaultMixedSubtypeUnordered",
+      },
+    },
+  ],
 };
 
 export default pluginMetadata;
