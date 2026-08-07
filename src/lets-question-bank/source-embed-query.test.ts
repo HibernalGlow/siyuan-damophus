@@ -42,6 +42,49 @@ describe("source embed query", () => {
     );
   });
 
+  it("optionally hides semantically empty answer paragraphs, lists, and tables", () => {
+    const answerRows: SourceEmbedBlockRow[] = [
+      { id: "20260806010000-q000001", type: "h", ial: '{: custom-qb-id="empty-answer-test"}' },
+      { id: "20260806010001-sol0001", parent_id: "20260806010000-q000001", type: "p", content: "Answer: B", ial: '{: custom-qb-section="solution"}' },
+      { id: "20260806010002-empty01", parent_id: "20260806010000-q000001", type: "p", markdown: "  {: id=\"20260806010002-empty01\"}" },
+      { id: "20260806010003-empty02", parent_id: "20260806010000-q000001", type: "l", content: "" },
+      { id: "20260806010004-empty03", parent_id: "20260806010003-empty02", type: "i", markdown: "-   " },
+      { id: "20260806010005-empty04", parent_id: "20260806010000-q000001", type: "t", markdown: "| |\n| --- |\n| |" },
+      { id: "20260806010006-list001", parent_id: "20260806010000-q000001", type: "l", content: "" },
+      { id: "20260806010007-item001", parent_id: "20260806010006-list001", type: "i", content: "Explanation" },
+    ];
+
+    expect(sourceEmbedBlockIds(answerRows, "20260806010000-q000001", "solution", {
+      hideEmptySolutionBlocks: true,
+    })).toEqual([
+      "20260806010001-sol0001",
+      "20260806010006-list001",
+    ]);
+    expect(sourceEmbedBlockIds(answerRows, "20260806010000-q000001", "solution")).toEqual([
+      "20260806010001-sol0001",
+      "20260806010002-empty01",
+      "20260806010003-empty02",
+      "20260806010005-empty04",
+      "20260806010006-list001",
+    ]);
+    const query = sourceEmbedSql(answerRows, "20260806010000-q000001", "solution", {
+      hideEmptySolutionBlocks: true,
+    });
+    expect(query).not.toContain("20260806010002-empty01");
+    expect(query).not.toContain("20260806010003-empty02");
+    expect(query).not.toContain("20260806010005-empty04");
+  });
+
+  it("returns an empty SQL result when every answer block is empty and filtering is enabled", () => {
+    const emptyRows: SourceEmbedBlockRow[] = [
+      { id: "20260806020000-q000002", type: "h", ial: '{: custom-qb-id="all-empty"}' },
+      { id: "20260806020001-sol0002", parent_id: "20260806020000-q000002", type: "p", content: "", ial: '{: custom-qb-section="solution"}' },
+    ];
+    expect(sourceEmbedSql(emptyRows, "20260806020000-q000002", "solution", {
+      hideEmptySolutionBlocks: true,
+    })).toBe("SELECT * FROM blocks WHERE 1 = 0");
+  });
+
   it("matches real question 145 and does not expose its full heading subtree before reveal", () => {
     const realRows: SourceEmbedBlockRow[] = [
       { id: "20260806005231-9llmnk4", parent_id: "20260806005231-nib2w11", sort: 5, type: "h", content: "145.", ial: '{: custom-qb-id="civil-procedure-gold-2015-3-48"}' },

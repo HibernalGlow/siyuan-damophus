@@ -115,7 +115,9 @@ export function getLogger(scope: string): DamophusLogger {
 }
 
 function writeDiagnostic(scope: string, level: Exclude<DamophusLogLevel, "silent">, ...args: unknown[]): void {
-  getLogger(scope)[level](...args);
+  const logger = getLogger(scope);
+  const write = logger[level].bind(logger) as (...values: unknown[]) => void;
+  write(...args);
 }
 
 function applyLevels(): void {

@@ -1,6 +1,7 @@
 import { parseIal } from "../question-bank/markdown/ial";
 
 const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
+export const EMPTY_SOURCE_EMBED_SQL = "SELECT * FROM blocks WHERE 1 = 0";
 
 export interface SourceEmbedBlockRow {
   id: string;
@@ -18,6 +19,10 @@ export interface SourceEmbedBlockRow {
 
 export type SourceEmbedSection = "stem" | "solution";
 
+export interface SourceEmbedSelectionOptions {
+  hideEmptySolutionBlocks?: boolean;
+}
+
 export interface SourceEmbedChildrenLoader {
   loadChildren(blockId: string): Promise<readonly { id: string }[] | null | undefined>;
   loadRows(blockIds: readonly string[]): Promise<readonly SourceEmbedBlockRow[]>;
@@ -34,6 +39,31 @@ function attributes(row: SourceEmbedBlockRow): Record<string, string> {
 
 function blockText(row: SourceEmbedBlockRow): string {
   return (row.markdown ?? row.content ?? "").replace(/\s+/gu, " ").trim();
+}
+
+const emptyFilterTypes = new Set(["p", "l", "i", "t"]);
+
+function hasVisibleBlockContent(row: SourceEmbedBlockRow): boolean {
+  const source = row.markdown ?? row.content ?? "";
+  if (/!\[[^\]]*\]\(|<(?:audio|canvas|iframe|img|video)\b|\$\$|```/iu.test(source)) return true;
+  const normalized = source
+    .replace(/\{:\s[^}]*\}/gu, "")
+    .replace(/&nbsp;|&#160;|\u00a0|\u200b|\ufeff/giu, "")
+    .replace(/<br\s*\/?>/giu, "")
+    .replace(/<[^>]+>/gu, "")
+    .replace(/^\s*(?:[-+*]|\d+[.)])\s*/gmu, "")
+    .replace(/[|:\-[\]()]/gu, "")
+    .trim();
+  return normalized.length > 0;
+}
+
+function isEmptyDisplayBlock(
+  row: SourceEmbedBlockRow,
+  byParent: Map<string, SourceEmbedBlockRow[]>,
+): boolean {
+  if (!emptyFilterTypes.has(row.type ?? "")) return false;
+  if (hasVisibleBlockContent(row)) return false;
+  return (byParent.get(row.id) ?? []).every((child) => isEmptyDisplayBlock(child, byParent));
 }
 
 function looksLikeOption(row: SourceEmbedBlockRow): boolean {
@@ -106,6 +136,7 @@ export function sourceEmbedBlockIds(
   rows: readonly SourceEmbedBlockRow[],
   questionBlockId: string,
   section: SourceEmbedSection = "stem",
+  options: SourceEmbedSelectionOptions = {},
 ): string[] {
   if (!nodeIdPattern.test(questionBlockId)) return [questionBlockId];
   const byParent = buildChildren(rows);
@@ -134,8 +165,11 @@ export function sourceEmbedBlockIds(
   if (section === "solution" && solutionIndex < 0) return [];
   if (section === "solution" && solutionIndex >= 0) {
     for (const row of subtree.slice(solutionIndex)) {
-      if (row.parent_id === questionBlockId) selected.push(row.id);
+      if (row.parent_id !== questionBlockId) continue;
+      if (options.hideEmptySolutionBlocks && isEmptyDisplayBlock(row, byParent)) continue;
+      selected.push(row.id);
     }
+    if (options.hideEmptySolutionBlocks) return selected;
     return selected.length > 0 ? selected : [questionBlockId];
   }
   for (const row of stemRows) {
@@ -149,9 +183,10 @@ export function sourceEmbedSql(
   rows: readonly SourceEmbedBlockRow[],
   questionBlockId: string,
   section: SourceEmbedSection = "stem",
+  options: SourceEmbedSelectionOptions = {},
 ): string {
-  const ids = sourceEmbedBlockIds(rows, questionBlockId, section);
-  if (ids.length === 0) return "SELECT * FROM blocks WHERE 1 = 0";
+  const ids = sourceEmbedBlockIds(rows, questionBlockId, section, options);
+  if (ids.length === 0) return EMPTY_SOURCE_EMBED_SQL;
   const ordering = ids.map((id, index) => `WHEN ${quote(id)} THEN ${index}`).join(" ");
   return `SELECT * FROM blocks WHERE id IN (${ids.map(quote).join(", ")}) ORDER BY CASE id ${ordering} ELSE ${ids.length} END`;
 }
