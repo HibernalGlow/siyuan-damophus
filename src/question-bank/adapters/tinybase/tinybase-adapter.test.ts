@@ -20,6 +20,7 @@ import {
   TinyBasePracticeSessionRepository,
 } from "./repositories";
 import { TinyBaseWarehouse } from "./warehouse";
+import { TinyBaseRuntime } from "../../../lets-question-bank/tinybase-runtime";
 
 class MemoryFiles implements StoreFileIO {
   readonly files = new Map<string, string>();
@@ -146,6 +147,48 @@ describe("TinyBase repositories", () => {
     await repository.rebuild();
     const aggregate = await repository.get("question-1");
     expect(aggregate).toMatchObject({attempts: 2, objective_correct: 1, objective_incorrect: 1});
+  });
+
+  it("keeps attempts and aggregates after the source document becomes unavailable and the plugin reloads", async () => {
+    const files = new MemoryFiles();
+    const firstWarehouse = new TinyBaseWarehouse(files, "device-a");
+    const firstRuntime = new TinyBaseRuntime(firstWarehouse);
+    await firstRuntime.ensureReady();
+
+    const catalog = new TinyBaseCoreCatalogRepository(firstWarehouse.getLocalContribution().core);
+    await catalog.upsertDocument("doc-1", {
+      notebook_id: "box-1",
+      title: "Source document",
+      scan_status: "valid",
+      issue_count: 0,
+    });
+    await catalog.upsertQuestion("question-1", {
+      block_id: "block-1",
+      document_id: "doc-1",
+      notebook_id: "box-1",
+      question_type: "single",
+      title: "Question",
+      available: true,
+    });
+    await firstWarehouse.persistCore();
+
+    await expect(firstRuntime.appendAttempt(attempt())).resolves.toBe("created");
+    await catalog.markDocumentUnavailable("doc-1");
+    await firstWarehouse.persistCore();
+
+    const reloadedWarehouse = new TinyBaseWarehouse(files, "device-a");
+    const reloadedRuntime = new TinyBaseRuntime(reloadedWarehouse);
+    await reloadedRuntime.ensureReady();
+    const reloadedCatalog = new TinyBaseCoreCatalogRepository(reloadedWarehouse.getReadView().core);
+
+    expect((await reloadedCatalog.listQuestions())[0]).toMatchObject({
+      document_id: "doc-1",
+      available: false,
+    });
+    expect((await reloadedRuntime.listAttemptEvents()).map((event) => event.attempt_id)).toEqual(["attempt-1"]);
+    expect(await reloadedRuntime.loadAggregates()).toEqual(new Map([
+      ["question-1", expect.objectContaining({attempts: 1, objectiveCorrect: 1})],
+    ]));
   });
 });
 
