@@ -62,6 +62,9 @@ describe("custom property display", () => {
     expect(css).toContain('"  \\00b7  "');
     expect(css).toContain("width: fit-content");
     expect(css).toContain("white-space: normal");
+    expect(css).toContain("position: static !important;");
+    expect(css).toContain("inset: auto !important;");
+    expect(css).toContain("transform: none !important;");
     expect(css).not.toContain("\\A");
     expect(css).not.toContain("custom-qb-answer");
   });

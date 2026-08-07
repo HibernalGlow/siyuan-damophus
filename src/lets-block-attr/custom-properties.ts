@@ -207,6 +207,11 @@ function buildCustomPropertiesCssForTargets(
   letter-spacing: 0;
   overflow-wrap: anywhere;
   white-space: normal;
+  /* SiYuan uses block ::after for hover affordances; keep our marker in flow. */
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  float: none !important;
   pointer-events: none;${customDeclarations}
 }`;
 }
