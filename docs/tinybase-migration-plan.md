@@ -13,6 +13,7 @@ This plan replaces the Damophus attribute-view data model with a file-synchroniz
 5. Keep plugin startup free of cross-device loading and merging work.
 6. Build cross-document discovery directly on TinyBase instead of adding another AV-backed implementation.
 7. Make migration repeatable, auditable, and safe to rerun until cutover succeeds.
+8. Offer independent, optional Question Index and Topic Index AV projections for personal browse and filter workflows.
 
 ## Non-goals
 
@@ -20,7 +21,7 @@ This plan replaces the Damophus attribute-view data model with a file-synchroniz
 - Replacing SiYuan block, attribute, file, or Riff APIs.
 - Copying question bodies, answers, or solutions into TinyBase as authoritative content.
 - Shipping a topic-management UI.
-- Maintaining AV display projections after cutover.
+- Maintaining AV projections as business storage after cutover.
 - Providing rollback to AV after TinyBase accepts new writes.
 - Migrating the empty legacy Topic Index resource columns.
 
@@ -37,6 +38,8 @@ This plan replaces the Damophus attribute-view data model with a file-synchroniz
 | Practice and exam progress | TinyBase session store | Whole-snapshot conflict units with revision validation. |
 | Reusable question-set blueprints | TinyBase core store | Migrated from plugin settings. |
 | Counts, accuracy, review streaks, duration | TinyBase aggregate cache | Always rebuildable from events. |
+| Personal question browse/filter view | Question Index Projection | TinyBase -> selected AV only; disposable and never read by business logic. |
+| Personal topic browse/filter view | Topic Index Projection | TinyBase -> selected AV only; disposable and never read by business logic. |
 | Scheduling | SiYuan Riff | Existing adapter and behavior remain unchanged. |
 | Ordinary plugin preferences | Plugin settings | Theme and UI preferences are not business data. |
 
@@ -212,7 +215,29 @@ src/lets-question-bank/store-worker.ts     post-sync merge worker entry
 scripts/migrate-av-to-tinybase.ts          development-only legacy migration
 ```
 
-Only the legacy migration script may import AV readers after cutover.
+Only the legacy migration script and the optional Question/Topic Index projection adapters may import AV readers after cutover. Projection reads are limited to validating each selected target and its managed key IDs; they must never feed application repositories.
+
+## Website reuse
+
+The domain schemas, Markdown/IAL parser, repository contracts, TinyBase table definitions, event model, aggregate rebuilds, question-set logic, and migration-safe export envelopes are host-portable. A future website can use them without importing `siyuan`, Svelte plugin lifecycle types, block IDs as business identities, or AV adapters.
+
+The website supplies different host adapters:
+
+```text
+Portable Damophus core and TinyBase repositories
+├─ SiYuan host
+│  ├─ SQL and block discovery
+│  ├─ storage/petal persistence
+│  ├─ sync-end coordination
+│  └─ Riff scheduling
+└─ Website host
+   ├─ Markdown source loader
+   ├─ IndexedDB, OPFS, or server persistence
+   ├─ HTTP or CRDT synchronization
+   └─ website navigation and scheduling
+```
+
+The website adapter is outside this migration's implementation scope, but the migration must not place SiYuan IDs or file paths in repository primary keys. Stable question, topic, attempt, exam, and blueprint IDs remain the interchange contract. Website import/export can consume the same validated domain events even when its physical persistence differs from SiYuan's device-sharded files.
 
 ## Runtime flows
 
@@ -236,6 +261,26 @@ Only the legacy migration script may import AV readers after cutover.
 10. Keep the merged state as a read view. Persist only local contribution changes; never rewrite every device file or copy remote contributions into the local file.
 
 On `sync-fail`, retain the last validated state and do nothing. A corrupt shard produces a visible diagnostic but does not block new local immutable events.
+
+### Optional Resource AV Projections
+
+The two projections are configured independently when the user wants SiYuan tables for personal selection and filtering. Neither is initialized by default and neither affects question-bank correctness or availability.
+
+1. User independently selects a Question Index target block and/or a Topic Index target block.
+2. Damophus resolves the selected NodeAttributeView block to its AV ID, records stable managed key IDs, and initializes missing managed columns after confirmation.
+3. Each profile lets the user select which supported fields are projected.
+4. Damophus previews projected row count, additions, updates, stale managed rows, and missing managed columns.
+5. **Overwrite managed projection** rewrites only the selected managed fields and removes or replaces only Damophus-managed stale rows; unknown user columns remain untouched.
+6. Question and topic profiles can refresh independently, manually or after a successful catalog refresh, but never after each attempt and never during `sync-start`/`sync-end` processing.
+7. Missing target, missing columns, or write failure marks only that profile stale and leaves all TinyBase repositories usable.
+
+Projection rows use real SiYuan block bindings automatically. A Question Index row binds to the question catalog entry's current source block. A Topic Index row binds to the canonical note-topic anchor chosen by the same deterministic priority rule used by topic navigation; alternate anchors remain available as projected locations. If a bound source block is deleted, SiYuan may remove the disposable row, and the next refresh either binds the replacement source block or omits the unavailable entry. Users never manually bind projection rows.
+
+Question Index Projection supports browse fields such as stable question ID, title, document location, type, year, subject, category, collection, source, topic IDs, availability, and question aggregate summaries. Topic Index Projection supports topic ID, display title candidates, anchor count and locations, question count, availability, and topic aggregate summaries. Neither profile includes Attempt Log rows, attempt events, exam payloads, AV relations, or rollups as facts. There is no reverse import from projection cells.
+
+The adapters own only explicitly configured projection columns and preserve unknown user columns. Those unknown cells are not Damophus facts and are not guaranteed to survive deletion of the projection database. Any selection or annotation that must drive question-bank behavior belongs in TinyBase, not in an ad hoc AV column.
+
+Projection display strings are intentionally localized. Database names, column names, and select/multi-select option labels may use Chinese because the adapter identifies managed structure by stored AV/key IDs and semantic field keys, never by display text. Renaming a table, column, or option does not change TinyBase data or repository behavior.
 
 ### Current-document practice
 
@@ -296,7 +341,8 @@ Legacy events without a reliable origin device are assigned to a deterministic m
 
 - Write `migration_version = 1` only after reconciliation passes.
 - Switch all runtime repositories to TinyBase.
-- Disable AV initialization, binding verification, maintenance, relation repair, projection updates, and startup snapshot refresh.
+- Disable legacy AV initialization, binding verification, maintenance, relation repair, legacy projection updates, and startup snapshot refresh.
+- Leave both AV projection profiles disabled unless the user explicitly configures either one after cutover.
 - Do not dual-write or fall back to AV.
 - After the first new TinyBase event, rollback is unsupported.
 - Produce a final report stating that the user may manually delete the old system document and databases.
@@ -313,9 +359,9 @@ The following responsibilities must disappear from normal plugin execution:
 - AV rollup and relation repair.
 - Startup AV maintenance checks and AV websocket listeners.
 
-Generic SiYuan attribute-view utilities may remain only if another retained plugin module uses them. Question-bank imports are prohibited outside the legacy migration boundary.
+Generic SiYuan attribute-view utilities may remain only if another retained plugin module uses them. Question-bank imports are prohibited outside the legacy migration and Question/Topic Index Projection boundaries. Projection code must be unable to provide data to business repositories.
 
-Static verification should fail when production question-bank modules contain AV endpoints such as:
+Static verification should fail when production business modules contain AV endpoints such as:
 
 ```text
 /api/av/getAttributeView
@@ -324,7 +370,7 @@ Static verification should fail when production question-bank modules contain AV
 /api/av/removeAttributeViewBlocks
 ```
 
-`/api/query/sql` remains allowed for host discovery and navigation.
+The only allowed runtime AV calls are inside the explicit projection adapter and its tests. `/api/query/sql` remains allowed for host discovery and navigation.
 
 ## Performance budget
 
@@ -393,12 +439,13 @@ Budgets and rules:
 - Question-bank UI becomes interactive without waiting for cross-device merge.
 - A post-sync merge updates catalog and statistics without resetting active practice.
 - Current-document scan remains preview/confirm and never writes AV.
+- Optional Question/Topic Index Projection refreshes only after explicit opt-in and never changes TinyBase facts.
 - Cross-document composer reads TinyBase catalog and hydrates current Markdown sources.
 - Vitest Browser Mode, TypeScript/Svelte checks, core tests, build, smoke, and package validation pass.
 
 ### Cutover acceptance
 
-- No production question-bank path reads or writes AV data.
+- No production question-bank business path reads or writes AV data; only the optional Question/Topic Index Projection adapters may write disposable views.
 - All attempts, exams, sessions, blueprints, catalogs, anchors, and statistics use repositories backed by TinyBase.
 - SQL is limited to SiYuan host discovery and navigation.
 - Migration reconciliation has no unresolved blockers.
@@ -414,7 +461,7 @@ Budgets and rules:
 5. Replace Question Index reads with TinyBase catalog and implement SQL-driven cross-document discovery.
 6. Implement and test the idempotent development migration script.
 7. Run migration against the current workspace and save the reconciliation report.
-8. Cut over runtime wiring and remove AV maintenance, relations, projections, and listeners.
+8. Cut over runtime wiring, remove legacy AV maintenance, relations, and listeners, and add isolated Question/Topic Index Projection adapters.
 9. Run full Node, Browser Mode, Svelte, build, smoke, package, and live-workspace validation.
 10. Update old architecture, contract, migration, and user-guide documents to mark AV sections superseded.
 
