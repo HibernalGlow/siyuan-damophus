@@ -29,8 +29,6 @@
   .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
   .app-header--practice { min-height: 48px; padding-block: 4px; }
   .app-header--practice.app-header--title-hidden { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .app-header--compact { min-height: 40px; padding: 4px 8px; grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .app-header--compact .header-actions { min-height: 32px; }
   .app-header--practice .practice-toolbar { min-height: 40px; }
   .practice-toolbar { min-width: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content 34px; align-items: center; gap: 12px; color: var(--b3-theme-on-surface); font-size: 13px; }
   .practice-heading-details { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; overflow: hidden; }
@@ -104,6 +102,7 @@
   .question-timer { color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; }
   .damophus-question-bank-mobile-dialog .b3-dialog__header { display: none !important; }
   .damophus-question-bank-mobile-dialog .b3-dialog__container { padding-top: 0 !important; }
+  .damophus-question-bank-mobile-dialog .b3-dialog__content { padding: 0 !important; background: var(--b3-theme-background) !important; }
   .rating-bar { display: grid; grid-template-columns: 34px repeat(4, minmax(76px, 112px)); }
 
   @container (max-width: 960px) {

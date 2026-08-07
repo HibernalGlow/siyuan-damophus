@@ -92,12 +92,11 @@
   });
 </script>
 
-{#if currentQuestion || showPracticeTitle || onClose}
+{#if currentQuestion || showPracticeTitle}
 <header
   class="app-header"
   class:app-header--practice={currentQuestion !== undefined}
   class:app-header--title-hidden={!showPracticeTitle}
-  class:app-header--compact={!currentQuestion && !showPracticeTitle}
 >
   {#if showPracticeTitle}
     <div class="app-brand">

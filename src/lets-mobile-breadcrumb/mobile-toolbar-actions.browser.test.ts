@@ -59,4 +59,20 @@ describe("mobile breadcrumb toolbar actions", () => {
     expect(moreClick).toHaveBeenCalledOnce();
   });
 
+  it("keeps the fullscreen plugin menu opaque without the liquid-glass module", () => {
+    document.documentElement.dataset.frontend = "mobile";
+    document.documentElement.style.setProperty("--b3-theme-background", "rgb(21, 19, 32)");
+    document.body.innerHTML = `
+      <div class="b3-menu b3-menu--fullscreen">
+        <div class="b3-menu__items"><button>Damophus</button></div>
+      </div>
+    `;
+
+    const menu = document.querySelector<HTMLElement>(".b3-menu--fullscreen")!;
+    const items = menu.querySelector<HTMLElement>(".b3-menu__items")!;
+    expect(getComputedStyle(menu).backgroundColor).toBe("rgb(21, 19, 32)");
+    expect(getComputedStyle(items).backgroundColor).toBe("rgb(21, 19, 32)");
+    expect(getComputedStyle(menu).backdropFilter).toBe("none");
+  });
+
 });

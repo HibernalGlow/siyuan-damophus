@@ -1,7 +1,8 @@
 <script lang="ts">
   import "./question-bank.css";
-  import { BarChart3, BookOpenCheck } from "lucide-svelte";
+  import { BarChart3, BookOpenCheck, X } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
+  import { Button } from "@/components/ui/button";
   import * as Tabs from "@/components/ui/tabs";
   import PracticeHeader from "./PracticeHeader.svelte";
   import QuestionBankSetup from "./QuestionBankSetup.svelte";
@@ -239,7 +240,8 @@
     />
   {:else}
     {#if !currentQuestion && !practiceRuntime && !complete && !examMode && !composerOpen}
-      <Tabs.Root bind:value={view} class="mx-4 mt-3 shrink-0" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
+      <div class="mx-4 mt-3 flex shrink-0 items-center gap-2">
+      <Tabs.Root bind:value={view} class="min-w-0 flex-1" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
         <Tabs.List class="grid w-full grid-cols-2">
           <Tabs.Trigger value="practice" class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
             <BookOpenCheck size={16} aria-hidden="true" />
@@ -251,6 +253,12 @@
           </Tabs.Trigger>
         </Tabs.List>
       </Tabs.Root>
+      {#if onClose}
+        <Button variant="ghost" size="icon" class="shrink-0" title={label("close", "Close")} aria-label={label("close", "Close")} onclick={onClose}>
+          <X size={17} aria-hidden="true" />
+        </Button>
+      {/if}
+      </div>
     {/if}
 
     {#if composerOpen}

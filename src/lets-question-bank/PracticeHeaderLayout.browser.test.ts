@@ -20,6 +20,8 @@ function props(overrides: Record<string, unknown> = {}) {
     label: (_key: string, fallback: string) => fallback,
     translations: {},
     breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
+    currentQuestionBlockId: undefined,
+    openQuestionSource: undefined,
     previousQuestion: vi.fn(),
     nextQuestion: vi.fn(),
     togglePracticeTimer: vi.fn(),
@@ -38,11 +40,9 @@ describe("PracticeHeader non-practice layout", () => {
     expect(document.querySelector(".app-header")).toBeNull();
   });
 
-  it("keeps only a compact close row in a standalone dialog", async () => {
+  it("does not reserve a separate close header in a standalone dialog", async () => {
     mounted = mount(PracticeHeader, { target: document.body, props: props({ onClose: vi.fn() }) });
     await tick();
-    const header = document.querySelector<HTMLElement>(".app-header");
-    expect(header?.classList.contains("app-header--compact")).toBe(true);
-    expect(header && getComputedStyle(header).minHeight).toBe("40px");
+    expect(document.querySelector(".app-header")).toBeNull();
   });
 });

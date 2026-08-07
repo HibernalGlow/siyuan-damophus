@@ -65,7 +65,7 @@ export default class PluginLetsGo extends Plugin {
     if (this.topBarElement) return;
     this.topBarElement = this.addTopBar({
       icon: damophusToolbarIcon,
-      title: this.i18n["settings.mobileMenuTitle"] ?? "Damophus menu",
+      title: "Damophus",
       position: "right",
       callback: (event) => {
         if (isMobile) {

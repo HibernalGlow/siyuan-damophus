@@ -168,6 +168,18 @@ html[data-frontend="browser-mobile"] > body > .toolbar > * {
   pointer-events: auto;
 }
 
+/* The fullscreen mobile menu must remain isolated even when the optional
+   liquid-glass module is disabled. Otherwise the document tree bleeds through
+   and looks like a second Damophus entry. */
+html[data-frontend="mobile"] > body > .b3-menu--fullscreen,
+html[data-frontend="browser-mobile"] > body > .b3-menu--fullscreen,
+html[data-frontend="mobile"] > body > .b3-menu--fullscreen > .b3-menu__items,
+html[data-frontend="browser-mobile"] > body > .b3-menu--fullscreen > .b3-menu__items {
+  background: var(--b3-theme-background) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"],
 html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"],
 html[data-frontend="mobile"] #editor > .protyle-breadcrumb > .block__icon[data-type="doc"],
