@@ -35,7 +35,7 @@ If a managed database column was deleted, Damophus previews its restoration usin
 
 Question Index contains one multi-value **Topics** relation targeting Topic Index. Add or remove topic relations there during normal SiYuan use. A topic can relate to any number of questions, laws, and categories. Set its status to `archived` instead of deleting a topic that still has relations or history.
 
-Portable Markdown may include `custom-qb-topic-ids="topic-a,topic-b"`. Damophus treats that attribute as an import/export mirror. A `merge` preview only adds missing relations; a `diff` preview shows additions and removals before replacing the current set. Unknown IDs are reported and never create hidden topic rows.
+Portable question Markdown uses `custom-qb-question-topic-ids="topic-a,topic-b"`. Normal notes use `custom-qb-note-topic-id="topic-a"` on a topic heading or explicit topic anchor. The first attribute references multiple topics; the second provides note material for one topic. A `merge` preview only adds missing relations; a `diff` preview shows additions and removals before replacing the current set. Unknown IDs are reported and never create hidden topic rows. Legacy topic attributes remain readable only to produce a migration warning.
 
 The Topic Index **Resource** column accepts SiYuan assets. During practice, related images, animations, and videos appear in a plugin-owned resource panel. This is a runtime projection: it does not insert a block, change Markdown, or alter references. Persisted embeds require a separate explicit action and are not created by the virtual projection.
 

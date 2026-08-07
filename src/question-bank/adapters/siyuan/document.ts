@@ -52,7 +52,7 @@ function headingIals(kramdown: string): HeadingIal[] {
       headingLine = undefined;
       continue;
     }
-    if (/^#{1,6}\s+\S/u.test(line)) {
+    if (/^#{1,6}\s+\S/u.test(line) || /^\*\*考点[：:]\s*.+?\*\*\s*$/u.test(line)) {
       headingLine = index + 1;
       continue;
     }

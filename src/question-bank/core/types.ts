@@ -26,9 +26,9 @@ export interface QuestionMetadata {
   category?: string;
   collection?: string;
   source?: string;
-  /** Stable topic identity from explicit portable IAL. */
+  /** Stable note-topic provider identity from explicit portable IAL. */
   topicId?: string;
-  /** Optional portable mirror of Topic Index relations. */
+  /** Optional question-to-topic reference mirror for Topic Index relations. */
   topicIds?: string[];
   /** Scan-local heading scope used when no stable topic identity exists. */
   scopeTopicId?: string;

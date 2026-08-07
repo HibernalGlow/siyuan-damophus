@@ -8,7 +8,7 @@ Damophus uses a third managed attribute view as the **Topic Index**. The existin
 
 The relation column is the only routine maintenance entry point for topic assignment inside SiYuan. Users add or remove topics from the question row. SiYuan maintains the inverse relation and its ordinary relation displays. Damophus does not maintain a second editable list of topic assignments in the question row.
 
-`custom-qb-topic-ids` remains an optional portable export/import representation. When emitted, it contains stable Topic Index IDs rather than attribute-view row IDs or SiYuan block IDs. It is a mirror for Markdown interchange, not a competing manual source during normal SiYuan use.
+`custom-qb-question-topic-ids` is the portable question-to-topic export/import representation. When emitted, it contains stable Topic Index IDs rather than attribute-view row IDs or SiYuan block IDs. Normal notes use the separate single-value `custom-qb-note-topic-id` provider declaration. The attribute names express direction without a role field.
 
 ## Topic Index
 
@@ -56,7 +56,7 @@ Because native rollups may not cover every multi-hop aggregate reliably, the UI 
 
 ## Synchronization modes
 
-The database relation is maintained directly in SiYuan. Import/export tooling may reconcile it with `custom-qb-topic-ids` using an explicit mode:
+The database relation is maintained directly in SiYuan. Import/export tooling may reconcile it with `custom-qb-question-topic-ids` using an explicit mode:
 
 ```text
 merge: union the two sets; add missing relations and delete nothing
@@ -96,3 +96,5 @@ Migration order:
 7. Verify that question content, `custom-qb-id`, block references, and Attempt Log events are unchanged.
 
 Every write returns per-question and per-topic results. Failed rows remain retryable; no partial success is presented as a complete migration.
+
+Legacy Markdown may still contain `custom-qb-topic-ids` or `custom-qb-role="topic"` plus `custom-qb-topic-id`. Scans accept those names only as migration inputs and report them. New writes use the direction-specific attributes.

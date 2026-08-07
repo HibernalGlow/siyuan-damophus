@@ -6,7 +6,7 @@ Status: accepted on 2026-08-04.
 
 | Layer | Owns | Must not own |
 | --- | --- | --- |
-| Markdown + IAL | 题目正文、稳定 ID、题型、标准答案、专题和答案区边界；可导出的考点 ID 镜像 | 作答历史、派生统计、Riff 状态、数据库 key ID、日常考点关联 |
+| Markdown + IAL | 题目正文、稳定 ID、题型、标准答案、答案区边界、笔记考点提供声明和题目考点引用 | 作答历史、派生统计、Riff 状态、数据库 key ID、日常考点关联 |
 | Topic Index | 可复用考点、法律/专题分类、考点资源和题目反向关联 | 题目正文、作答事件、块 ID |
 | Damophus core | 解析、校验、选项映射、答案判定、作答聚合 | 思源 API、块 ID 和界面状态 |
 | SiYuan adapter | 块读取、IAL 写入、属性视图和 Riff 集成 | 可移植题目规则和 Markdown 正文改写 |
@@ -16,11 +16,11 @@ Status: accepted on 2026-08-04.
 ## Source Structure
 
 ```markdown
-### 考点39：意定担保物权的流押流质条款
-{: custom-qb-role="topic" custom-qb-topic-id="civil-security-flow-clause" custom-qb-subject="civil" custom-qb-category="security-rights"}
+### 意定担保物权的流押流质条款
+{: custom-qb-note-topic-id="civil-security-flow-clause" custom-qb-subject="civil" custom-qb-category="security-rights"}
 
 ##### 108.
-{: custom-qb-id="civil-gold-objective-2020-2-1-14" custom-qb-type="multiple" custom-qb-year="2020" custom-qb-answer="A,B,D"}
+{: custom-qb-id="civil-gold-objective-2020-2-1-14" custom-qb-question-topic-ids="civil-security-flow-clause,civil-mortgage-registration" custom-qb-type="multiple" custom-qb-year="2020" custom-qb-answer="A,B,D"}
 
 - 题干……
   - [ ] A. 选项 A
@@ -40,8 +40,8 @@ Status: accepted on 2026-08-04.
 
 | Attribute | Required on | Meaning |
 | --- | --- | --- |
-| `custom-qb-role="topic"` | 规范化专题标题 | 声明可移植、可稳定引用的专题 |
-| `custom-qb-topic-id` | 规范化专题标题 | 稳定专题身份，使用小写 ASCII kebab-case |
+| `custom-qb-note-topic-id` | 普通笔记的标题或明确考点锚点 | 声明该块为一个考点提供材料；值为小写 ASCII kebab-case |
+| `custom-qb-question-topic-ids` | 题目标题 | 引用一个或多个 Topic Index 稳定 ID，使用英文逗号分隔 |
 | `custom-qb-id` | 题目标题 | 全库唯一、永久稳定的题目身份 |
 | `custom-qb-type` | 题目标题 | `single`、`multiple`、`indefinite`、`true-false`、`subjective` 或 `group` |
 | `custom-qb-answer` | 可机器判分题目 | 原始选项 ID 列表，判断题为 `true` 或 `false` |
@@ -54,7 +54,9 @@ Status: accepted on 2026-08-04.
 | `custom-qb-option` | 异常选项块 | 无法从文本稳定识别时的原始选项 ID |
 | `custom-qb-section="solution"` | 答案区首块 | 明确题面和答案区边界 |
 
-题目继承最近上级专题的 subject、category、collection 和 source。题目级属性只在需要覆盖继承值时出现。由 Agent 生成或已经规范化的题库源必须给专题写稳定 IAL；普通现有文档即使没有专题 IAL，也可以按标题树自动识别或由用户手动选择范围根节点。手动范围使用思源文档 ID 和标题块 ID 保存，不反向伪造稳定专题 ID。
+题目仍可继承最近上级标题的 subject、category、collection 和 source，但考点关系不靠标题继承：题目必须用 `custom-qb-question-topic-ids` 明确引用。`custom-qb-note-topic-id` 只表示普通笔记向某考点提供材料，一个块只声明一个考点；同一 ID 可以在不同精讲卷、背诵卷或复习笔记中重复。两个属性通过 Topic Index 的 `topic_id` 值关联，属性名本身表达方向，不使用额外 `role`。
+
+旧的 `custom-qb-role="topic"`、`custom-qb-topic-id` 和 `custom-qb-topic-ids` 只作为迁移输入读取。扫描器给出迁移提示；新输出和确认后的迁移结果使用两个方向属性。
 
 `custom-qb-mode` 保留为未来扩展字段，首版不得用它替代题型或专题身份。
 
@@ -83,7 +85,7 @@ Status: accepted on 2026-08-04.
 扫描分为只读预览和确认写入两个阶段：
 
 1. 显式 IAL 优先于结构推断。
-2. 旧文档可以推断专题、选项和答案区，但每项推断必须出现在预览报告中。
+2. 旧文档可以读取旧考点属性并推断标题范围、选项和答案区，但每项推断或迁移都必须出现在预览报告中。
 3. IAL 与可见答案冲突时，该题标记为冲突并停止写入。
 4. 缺失稳定 ID、题型或必要答案时，该题不得进入题目属性视图。
 5. 写入只允许增加或更新 `custom-qb-*` 属性和属性视图数据。
@@ -95,7 +97,7 @@ Status: accepted on 2026-08-04.
 
 题目属性视图绑定题目标题块。插件用 attribute-view key ID 识别受管列，因此用户可以重命名、重排列并添加自定义列。
 
-首版受管逻辑字段包括：题目 ID、题型、年份、科目、分类、题集、来源、专题 ID、Topics 关联、父题 ID、块 ID 和最近扫描时间。插件不删除未知列；缺少受管列时先预览，再补建所需列。
+首版受管逻辑字段包括：题目 ID、题型、年份、科目、分类、题集、来源、标题范围、Topics 关联、父题 ID、块 ID 和最近扫描时间。插件不删除未知列；缺少受管列时先预览，再补建所需列。
 
 受管列使用稳定的语义类型：题型、年份、科目、分类、题集和来源为单选，最近扫描时间为日期，稳定 ID 仍为文本。Question Index 还包含指向 Attempt Log 的双向 `Attempts` 关联，以及从该关联派生的作答次数、错误次数和总耗时汇总列。汇总列只展示从不可变事件计算的结果，不成为新的事实来源。Damophus 启动时只读检查现有索引；发现需要维护时提示用户，实际修复从设置页手动触发。维护优先保留显式 IAL，并可从稳定题目 ID 补全年份及来源族；`Parent ID` 只表示组合题子题所属的稳定题组 ID，普通题目保持为空。
 

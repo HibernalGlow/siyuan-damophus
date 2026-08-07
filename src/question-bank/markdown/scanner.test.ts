@@ -384,7 +384,7 @@ C. 第三项。
 
   it("blocks explicit topic IDs that are not lowercase ASCII kebab-case", () => {
     const report = scanQuestionMarkdown(`## Invalid topic
-{: custom-qb-role="topic" custom-qb-topic-id="Invalid Topic"}
+{: custom-qb-note-topic-id="Invalid Topic"}
 
 ##### 1. 主观题
 {: custom-qb-id="invalid-topic-question" custom-qb-type="subjective"}
@@ -397,9 +397,9 @@ C. 第三项。
     expect(report.conflicts.map((conflict) => conflict.code)).toContain("invalid-topic-id");
   });
 
-  it("parses a deduplicated portable Topic Index relation mirror", () => {
+  it("parses multiple question-to-topic references", () => {
     const report = scanQuestionMarkdown(`##### 1. 主观题
-{: custom-qb-id="portable-topic-question" custom-qb-type="subjective" custom-qb-topic-ids="civil-security-flow-clause, civil-guarantee-contract, civil-security-flow-clause"}
+{: custom-qb-id="portable-topic-question" custom-qb-type="subjective" custom-qb-question-topic-ids="civil-security-flow-clause,civil-guarantee-contract"}
 
 题干。
 
@@ -415,7 +415,7 @@ C. 第三项。
 
   it("blocks invalid IDs in the portable Topic Index relation mirror", () => {
     const report = scanQuestionMarkdown(`##### 1. 主观题
-{: custom-qb-id="invalid-portable-topic-question" custom-qb-type="subjective" custom-qb-topic-ids="valid-topic, Invalid Topic"}
+{: custom-qb-id="invalid-portable-topic-question" custom-qb-type="subjective" custom-qb-question-topic-ids="valid-topic, Invalid Topic"}
 
 题干。
 
@@ -424,5 +424,66 @@ C. 第三项。
 
     expect(report.document.questions).toEqual([]);
     expect(report.conflicts.map((conflict) => conflict.code)).toContain("invalid-portable-topic-id");
+  });
+
+  it("blocks duplicate question topic IDs", () => {
+    const report = scanQuestionMarkdown(`##### 1. 主观题
+{: custom-qb-id="duplicate-portable-topic-question" custom-qb-type="subjective" custom-qb-question-topic-ids="valid-topic,valid-topic"}
+
+题干。
+
+参考答案：答案。
+{: custom-qb-section="solution"}`);
+
+    expect(report.document.questions).toEqual([]);
+    expect(report.conflicts.map((conflict) => conflict.code)).toContain("duplicate-portable-topic-id");
+  });
+
+  it("accepts legacy topic attributes with migration issues", () => {
+    const report = scanQuestionMarkdown(`## Legacy topic
+{: custom-qb-role="topic" custom-qb-topic-id="legacy-topic"}
+
+##### 1. 主观题
+{: custom-qb-id="legacy-topic-question" custom-qb-type="subjective" custom-qb-topic-ids="legacy-topic"}
+
+题干。
+
+参考答案：答案。
+{: custom-qb-section="solution"}`);
+
+    expect(report.conflicts).toEqual([]);
+    expect(report.document.questions[0].metadata.topicIds).toEqual(["legacy-topic"]);
+    expect(report.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      "legacy-note-topic-attribute",
+      "legacy-question-topic-attribute",
+    ]));
+  });
+
+  it("blocks note-topic provider attributes on question blocks", () => {
+    const report = scanQuestionMarkdown(`##### 1. 主观题
+{: custom-qb-id="mixed-topic-question" custom-qb-type="subjective" custom-qb-note-topic-id="valid-topic"}
+
+题干。
+
+参考答案：答案。
+{: custom-qb-section="solution"}`);
+
+    expect(report.document.questions).toEqual([]);
+    expect(report.conflicts.map((conflict) => conflict.code)).toContain("mixed-topic-direction");
+  });
+
+  it("recognizes an explicit note-topic paragraph anchor", () => {
+    const report = scanQuestionMarkdown(`**考点：善意取得**
+{: custom-qb-note-topic-id="civil-property-good-faith-acquisition"}
+
+普通笔记正文。`);
+
+    expect(report.conflicts).toEqual([]);
+    expect(report.document.topics).toContainEqual(expect.objectContaining({
+      id: "civil-property-good-faith-acquisition",
+      title: "考点：善意取得",
+      explicit: true,
+      level: 6,
+    }));
   });
 });

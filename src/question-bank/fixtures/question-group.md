@@ -1,5 +1,5 @@
 ## 民事诉讼案例
-{: custom-qb-role="topic" custom-qb-topic-id="civil-procedure-case" custom-qb-subject="civil-procedure" custom-qb-source="fixture"}
+{: custom-qb-note-topic-id="civil-procedure-case" custom-qb-subject="civil-procedure" custom-qb-source="fixture"}
 
 #### 共同材料题组
 {: custom-qb-id="civil-procedure-fixture-group-1" custom-qb-type="group"}

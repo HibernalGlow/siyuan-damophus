@@ -1,5 +1,5 @@
 ### 考点39：意定担保物权的流押流质条款
-{: custom-qb-role="topic" custom-qb-topic-id="civil-security-flow-clause" custom-qb-subject="civil" custom-qb-category="security-rights" custom-qb-collection="gold"}
+{: custom-qb-note-topic-id="civil-security-flow-clause" custom-qb-subject="civil" custom-qb-category="security-rights" custom-qb-collection="gold"}
 
 ##### 108.
 {: custom-qb-id="civil-gold-objective-2020-2-1-14" custom-qb-type="multiple" custom-qb-year="2020" custom-qb-answer="A,B,D"}

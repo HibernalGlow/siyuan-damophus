@@ -1,5 +1,5 @@
 ### 合同效力
-{: id="20260805025807-026wvlc" updated="20260805025807" custom-qb-category="contract" custom-qb-role="topic" custom-qb-subject="civil" custom-qb-topic-id="civil-contract-validity"}
+{: id="20260805025807-026wvlc" updated="20260805025807" custom-qb-category="contract" custom-qb-subject="civil" custom-qb-note-topic-id="civil-contract-validity"}
 
 ##### 1.
 {: id="20260805025807-8iazkoi" updated="20260805025807" custom-qb-answer="B" custom-qb-id="civil-fixture-single-1" custom-qb-type="single" custom-qb-year="2025"}

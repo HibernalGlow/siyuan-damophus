@@ -424,12 +424,28 @@ function stringifyNodes(nodes: readonly RootContent[]): string {
   return String(markdownWriter.stringify({ type: "root", children: [...nodes] })).trim();
 }
 
-function portableTopicIds(attributes: IalAttributes): { ids: string[]; invalid: string[] } {
-  const source = attributes["custom-qb-topic-ids"];
-  if (!source) return { ids: [], invalid: [] };
+function portableTopicIds(attributes: IalAttributes): {
+  ids: string[];
+  invalid: string[];
+  duplicates: string[];
+  legacy: boolean;
+  conflictingSources: boolean;
+} {
+  const source = attributes["custom-qb-question-topic-ids"] ?? attributes["custom-qb-topic-ids"];
+  if (!source) return { ids: [], invalid: [], duplicates: [], legacy: false, conflictingSources: false };
   const values = source.split(/[,，\s]+/u).map((value) => value.trim()).filter(Boolean);
   const invalid = values.filter((value) => !stableTopicIdPattern.test(value));
-  return { ids: [...new Set(values)], invalid };
+  const duplicates = values.filter((value, index) => values.indexOf(value) !== index);
+  const modern = attributes["custom-qb-question-topic-ids"];
+  const legacy = attributes["custom-qb-topic-ids"];
+  const normalize = (value: string): string => value.split(/[,，\s]+/u).filter(Boolean).join(",");
+  return {
+    ids: [...new Set(values)],
+    invalid,
+    duplicates: [...new Set(duplicates)],
+    legacy: legacy !== undefined,
+    conflictingSources: modern !== undefined && legacy !== undefined && normalize(modern) !== normalize(legacy),
+  };
 }
 
 function metadataForQuestion(
@@ -639,6 +655,28 @@ function buildQuestion(
   }
 
   const portableTopics = portableTopicIds(candidate.attributes);
+  if (candidate.attributes["custom-qb-note-topic-id"] !== undefined
+    || candidate.attributes["custom-qb-topic-id"] !== undefined
+    || candidate.attributes["custom-qb-role"] === "topic") {
+    report.conflicts.push({
+      code: "mixed-topic-direction",
+      message: "Question IAL must use custom-qb-question-topic-ids, not custom-qb-note-topic-id",
+      questionId: id,
+      line: candidate.heading.position?.start.line,
+      ...headingContext,
+    });
+    return undefined;
+  }
+  if (portableTopics.conflictingSources) {
+    report.conflicts.push({
+      code: "conflicting-question-topic-attributes",
+      message: "New and legacy question-topic attributes contain different IDs",
+      questionId: id,
+      line: candidate.heading.position?.start.line,
+      ...headingContext,
+    });
+    return undefined;
+  }
   if (portableTopics.invalid.length > 0) {
     report.conflicts.push({
       code: "invalid-portable-topic-id",
@@ -648,6 +686,25 @@ function buildQuestion(
       ...headingContext,
     });
     return undefined;
+  }
+  if (portableTopics.duplicates.length > 0) {
+    report.conflicts.push({
+      code: "duplicate-portable-topic-id",
+      message: `Question topic IDs must not repeat: ${portableTopics.duplicates.join(", ")}`,
+      questionId: id,
+      line: candidate.heading.position?.start.line,
+      ...headingContext,
+    });
+    return undefined;
+  }
+  if (portableTopics.legacy) {
+    report.issues.push({
+      code: "legacy-question-topic-attribute",
+      message: "Migrate custom-qb-topic-ids to custom-qb-question-topic-ids",
+      questionId: id,
+      line: candidate.heading.position?.start.line,
+      ...headingContext,
+    });
   }
 
   const parsed = QuestionSchema.safeParse({
@@ -693,9 +750,12 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
 
   for (let blockIndex = 0; blockIndex < blocks.length; blockIndex += 1) {
     const block = blocks[blockIndex];
-    if (!isHeading(block.node)) continue;
+    const noteTopicAnchor = block.node.type === "paragraph"
+      && block.attributes["custom-qb-note-topic-id"] !== undefined
+      && /^考点[：:]\s*\S/u.test(toString(block.node).trim());
+    if (!isHeading(block.node) && !noteTopicAnchor) continue;
     const questionId = block.attributes["custom-qb-id"];
-    if (questionId) {
+    if (questionId && isHeading(block.node)) {
       questionCandidates.push({
         blockIndex,
         heading: block.node,
@@ -705,11 +765,12 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
       activeQuestionDepth = block.node.depth;
       continue;
     }
-    if (activeQuestionDepth !== undefined && block.node.depth > activeQuestionDepth) continue;
+    const blockDepth = isHeading(block.node) ? block.node.depth : 6;
+    if (activeQuestionDepth !== undefined && blockDepth > activeQuestionDepth) continue;
     activeQuestionDepth = undefined;
 
     const headingTitle = toString(block.node).trim();
-    const looksLikeQuestionHeading = block.node.depth >= 4
+    const looksLikeQuestionHeading = isHeading(block.node) && blockDepth >= 4
       && /^(?:\d+[.、]|第.{1,12}题)/u.test(headingTitle);
     if (looksLikeQuestionHeading) {
       report.issues.push({
@@ -719,15 +780,27 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
         title: headingTitle,
         sourceMarkdown: block.raw,
       });
-      activeQuestionDepth = block.node.depth;
+      activeQuestionDepth = blockDepth;
       continue;
     }
 
-    while (topics.at(-1) && topics.at(-1)!.node.level >= block.node.depth) topics.pop();
+    while (topics.at(-1) && topics.at(-1)!.node.level >= blockDepth) topics.pop();
     const title = headingTitle;
-    const explicit = block.attributes["custom-qb-role"] === "topic";
+    const modernId = block.attributes["custom-qb-note-topic-id"];
+    const legacyId = block.attributes["custom-qb-topic-id"];
+    const legacyTopic = legacyId !== undefined || block.attributes["custom-qb-role"] === "topic";
     const path = [...topics.map((topic) => topic.node.title), title];
-    const explicitId = block.attributes["custom-qb-topic-id"];
+    if (modernId && legacyId && modernId !== legacyId) {
+      report.conflicts.push({
+        code: "conflicting-note-topic-attributes",
+        message: "New and legacy note-topic attributes contain different IDs",
+        line: block.line,
+        title: headingTitle,
+        sourceMarkdown: block.raw,
+      });
+      continue;
+    }
+    const explicitId = modernId ?? legacyId;
     if (explicitId && !stableTopicIdPattern.test(explicitId)) {
       report.conflicts.push({
         code: "invalid-topic-id",
@@ -739,10 +812,19 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
       continue;
     }
     const id = explicitId || inferredTopicId(path, block.line);
-    if (explicit && !explicitId) {
+    if (block.attributes["custom-qb-role"] === "topic" && !explicitId) {
       report.issues.push({
         code: "missing-topic-id",
-        message: "Explicit topic has no custom-qb-topic-id",
+        message: "Explicit legacy topic has no stable topic ID",
+        line: block.line,
+        title: headingTitle,
+        sourceMarkdown: block.raw,
+      });
+    }
+    if (legacyTopic) {
+      report.issues.push({
+        code: "legacy-note-topic-attribute",
+        message: "Migrate custom-qb-role/custom-qb-topic-id to custom-qb-note-topic-id",
         line: block.line,
         title: headingTitle,
         sourceMarkdown: block.raw,
@@ -763,7 +845,7 @@ export function scanQuestionMarkdown(markdown: string): MarkdownQuestionScanRepo
     const node: TopicNode = {
       id,
       title,
-      level: block.node.depth,
+      level: blockDepth,
       sourceLine: block.line,
       parentId: parent?.node.id,
       childIds: [],

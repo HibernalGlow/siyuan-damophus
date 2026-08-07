@@ -1,5 +1,5 @@
 ## 刑法判断
-{: custom-qb-role="topic" custom-qb-topic-id="criminal-judgment" custom-qb-subject="criminal"}
+{: custom-qb-note-topic-id="criminal-judgment" custom-qb-subject="criminal"}
 
 ##### 2. 判断题
 {: custom-qb-id="criminal-fixture-true-false-2" custom-qb-type="true-false" custom-qb-answer="false"}

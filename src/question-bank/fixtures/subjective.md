@@ -1,5 +1,5 @@
 ## 行政法主观题
-{: custom-qb-role="topic" custom-qb-topic-id="administrative-subjective" custom-qb-subject="administrative"}
+{: custom-qb-note-topic-id="administrative-subjective" custom-qb-subject="administrative"}
 
 ##### 3. 主观题
 {: custom-qb-id="administrative-fixture-subjective-3" custom-qb-type="subjective"}

@@ -1,5 +1,5 @@
 ### 合同效力
-{: custom-qb-role="topic" custom-qb-topic-id="civil-contract-validity" custom-qb-subject="civil" custom-qb-category="contract"}
+{: custom-qb-note-topic-id="civil-contract-validity" custom-qb-subject="civil" custom-qb-category="contract"}
 
 ##### 1.
 {: custom-qb-id="civil-fixture-single-1" custom-qb-type="single" custom-qb-answer="B" custom-qb-year="2025"}
