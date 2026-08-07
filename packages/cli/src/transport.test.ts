@@ -67,4 +67,23 @@ describe("bridge transport", () => {
     const approval = JSON.parse(await readFile(join(root, "tasks", "request_1234", "approval.json"), "utf8"));
     expect(approval).toMatchObject({ requestId: "request_1234", decision: "approve" });
   });
+
+  it("reads an export result", async () => {
+    const root = await mkdtemp(join(tmpdir(), "damophus-cli-"));
+    const task = join(root, "tasks", "request_1234");
+    await mkdir(task, { recursive: true });
+    await writeFile(join(task, "result.json"), JSON.stringify({
+      protocolVersion: AGENT_PROTOCOL_VERSION,
+      requestId: "request_1234",
+      command: "export",
+      status: "completed",
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      documentId: "20260807120000-testdoc",
+      targetPath: "/Export",
+      markdown: "| A | B |\n| --- | --- |\n",
+    }));
+    const result = await waitForResult({ endpoint: "", workspace: root, root }, "request_1234");
+    expect(result.command).toBe("export");
+  });
 });

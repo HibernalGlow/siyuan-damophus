@@ -2,7 +2,7 @@
 
 ## Scope
 
-Agent Bridge lets an external process request the same Markdown paste operation that a user performs in a SiYuan Protyle editor. The current vertical slice supports creating, appending to, and replacing documents from one Markdown file or a JSON manifest. A manifest becomes one request and therefore one workspace snapshot.
+Agent Bridge lets an external process paste Markdown through a SiYuan Protyle editor or export a document as SiYuan Kramdown. Paste supports creating, appending to, and replacing documents from one Markdown file or a JSON manifest. A manifest becomes one request and therefore one workspace snapshot. Export is read-only and never creates a snapshot.
 
 The CLI is the only user-facing interface. The plugin worker is required because Protyle exists only inside the running SiYuan frontend.
 
@@ -21,6 +21,10 @@ Neither the CLI nor Agent Bridge imports the question-bank core. The CLI does no
 ```text
 damophus doctor [--endpoint <url>] [--json]
 damophus status <request-id> [--endpoint <url>] [--json]
+damophus export --document <id> [--output <file>]
+                [--ial none|portable|all]
+                [--include-ial <patterns>] [--exclude-ial <patterns>]
+damophus export --notebook <id> --path <human-path> [same options]
 damophus paste <file> --mode create --notebook <id> --path <human-path>
                [--title <title>] [--close-active ask|always|never]
                [--endpoint <url>] [--json] [--no-wait]
@@ -36,6 +40,9 @@ Defaults:
 - `--close-active=never` outside an interactive terminal.
 - Commands wait for a final receipt unless `--no-wait` is supplied.
 - A manifest has `{ "version": 1, "items": [...] }`; each item contains a Markdown `file`, `mode`, and the same target fields as the single-file command. Paths are resolved relative to the manifest file.
+- Export writes Markdown to stdout unless `--output` is supplied. Progress never shares stdout with raw Markdown.
+- Export defaults to `--ial portable`, which keeps content, inline styling, custom metadata, table-cell `rowspan`/`colspan`, `fn__none`, and table `colgroup`, while removing `id`, `update`, `updated`, and attribute-view binding properties.
+- `--ial none` removes IAL unless forced by `--include-ial`; `--ial all` keeps every property unless removed by `--exclude-ial`. Include and exclude accept comma-separated names or `*` patterns, and an explicit exclude wins.
 
 `--json` writes newline-delimited JSON events to stdout. Diagnostics go to stderr. Interactive prompts and terminal control sequences are forbidden in JSON mode.
 
@@ -96,6 +103,12 @@ When a target document is already open, `close-active=never` fails with `ACTIVE_
 
 Input is pasted exactly. Damophus does not remove a leading heading, normalize whitespace, repair tables, or rewrite IAL. Remote URLs and existing `assets/...` references pass through. Relative local assets fail with `UNSUPPORTED_LOCAL_ASSET` before the snapshot.
 
+## Kramdown Export
+
+Export accepts a document block ID or a unique notebook ID and human path. The plugin reads SiYuan's own Kramdown representation, then applies the requested IAL range without rewriting visible Markdown. The same shared exporter powers the in-app clipboard action documented in [Kramdown Export](kramdown-export.md).
+
+Native SiYuan tables remain pipe-based Markdown tables. Cell merge metadata such as `rowspan`, `colspan`, and `fn__none` stays attached as IAL. Damophus refuses a document containing an HTML `<table>` instead of silently returning a different table format. Attribute-view placeholders are not converted into ordinary tables because they do not contain a portable Markdown representation of the database rows.
+
 ## Stable Errors
 
 | Code | Meaning |
@@ -111,6 +124,7 @@ Input is pasted exactly. Damophus does not remove a leading heading, normalize w
 | `SNAPSHOT_FAILED` | The single pre-write workspace snapshot failed |
 | `PASTE_FAILED` | Protyle rejected or failed to persist the paste |
 | `VERIFY_FAILED` | Read-back verification did not observe the expected structure |
+| `EXPORT_FAILED` | Kramdown was empty or could not satisfy the Markdown-table contract |
 | `INTERNAL_ERROR` | An unexpected implementation failure occurred |
 
 ## Compatibility Rule

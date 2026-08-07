@@ -1,10 +1,10 @@
-import type { AgentEvent, PasteResult } from "@hibernalglow/damophus-agent-contract";
+import type { AgentEvent, AgentResult } from "@hibernalglow/damophus-agent-contract";
 import type { SpinnerResult } from "@clack/prompts";
 
 export interface Reporter {
   event(event: AgentEvent): Promise<void>;
   info(value: unknown): Promise<void>;
-  result(result: PasteResult): Promise<void>;
+  result(result: AgentResult): Promise<void>;
   error(error: Error): Promise<void>;
   confirmClose(message: string): Promise<boolean>;
 }
@@ -22,7 +22,7 @@ class JsonReporter implements Reporter {
     this.write({ type: "info", value });
   }
 
-  async result(result: PasteResult): Promise<void> {
+  async result(result: AgentResult): Promise<void> {
     this.write({ type: "result", value: result });
   }
 
@@ -51,7 +51,7 @@ class PlainReporter implements Reporter {
     process.stdout.write(`${typeof value === "string" ? value : JSON.stringify(value, null, 2)}\n`);
   }
 
-  async result(result: PasteResult): Promise<void> {
+  async result(result: AgentResult): Promise<void> {
     process.stdout.write(`${result.status}: ${result.requestId}\n`);
   }
 
@@ -96,9 +96,11 @@ class TtyReporter implements Reporter {
     prompts.log.info(typeof value === "string" ? value : JSON.stringify(value, null, 2));
   }
 
-  async result(result: PasteResult): Promise<void> {
+  async result(result: AgentResult): Promise<void> {
     const prompts = await this.api();
-    const message = `${result.completedItems.length} document(s), request ${result.requestId}`;
+    const message = result.command === "paste"
+      ? `${result.completedItems.length} document(s), request ${result.requestId}`
+      : `Exported ${result.targetPath ?? result.documentId ?? "document"}, request ${result.requestId}`;
     if (result.status === "completed") prompts.log.success(message);
     else prompts.log.error(result.failure?.message ?? message);
   }

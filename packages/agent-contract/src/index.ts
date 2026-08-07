@@ -14,6 +14,7 @@ export const agentErrorCodeSchema = z.enum([
   "SNAPSHOT_FAILED",
   "PASTE_FAILED",
   "VERIFY_FAILED",
+  "EXPORT_FAILED",
   "INTERNAL_ERROR",
 ]);
 
@@ -34,6 +35,8 @@ const existingTargetLocatorSchema = z.union([
   z.object({ documentId: z.string().min(1) }),
   z.object({ notebookId: z.string().min(1), path: z.string().min(1) }),
 ]);
+
+export const documentLocatorSchema = existingTargetLocatorSchema;
 
 export const appendTargetSchema = z.object({
   mode: z.literal("append"),
@@ -68,13 +71,35 @@ export const pasteRequestSchema = z.object({
   items: z.array(pasteItemSchema).min(1),
 });
 
+export const ialExportModeSchema = z.enum(["none", "portable", "all"]);
+
+export const ialExportOptionsSchema = z.object({
+  mode: ialExportModeSchema.default("portable"),
+  include: z.array(z.string().min(1)).default([]),
+  exclude: z.array(z.string().min(1)).default([]),
+});
+
+export const exportRequestSchema = z.object({
+  protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
+  requestId: requestIdSchema,
+  createdAt: timestampSchema,
+  command: z.literal("export"),
+  target: documentLocatorSchema,
+  ial: ialExportOptionsSchema.default({ mode: "portable", include: [], exclude: [] }),
+});
+
+export const agentRequestSchema = z.discriminatedUnion("command", [
+  pasteRequestSchema,
+  exportRequestSchema,
+]);
+
 export const heartbeatSchema = z.object({
   protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
   pluginVersion: z.string().min(1),
   workspace: z.string().min(1),
   frontend: z.string().min(1),
   updatedAt: timestampSchema,
-  supportedCommands: z.array(z.literal("paste")),
+  supportedCommands: z.array(z.enum(["paste", "export"])),
   supportedPasteModes: z.array(pasteModeSchema),
 });
 
@@ -85,6 +110,7 @@ export const agentEventTypeSchema = z.enum([
   "snapshotting",
   "pasting",
   "verifying",
+  "exporting",
   "completed",
   "failed",
 ]);
@@ -123,6 +149,7 @@ export const pasteItemReceiptSchema = z.object({
 });
 
 export const pasteResultSchema = z.object({
+  command: z.literal("paste").default("paste"),
   protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
   requestId: requestIdSchema,
   status: z.enum(["completed", "failed"]),
@@ -138,14 +165,46 @@ export const pasteResultSchema = z.object({
   }
 });
 
+export const exportResultSchema = z.object({
+  protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
+  requestId: requestIdSchema,
+  command: z.literal("export"),
+  status: z.enum(["completed", "failed"]),
+  startedAt: timestampSchema,
+  finishedAt: timestampSchema,
+  documentId: z.string().min(1).optional(),
+  targetPath: z.string().min(1).optional(),
+  markdown: z.string().optional(),
+  failure: agentFailureSchema.optional(),
+}).superRefine((value, context) => {
+  if (value.status === "completed" && value.markdown === undefined) {
+    context.addIssue({ code: "custom", path: ["markdown"], message: "markdown is required" });
+  }
+  if (value.status === "failed" && !value.failure) {
+    context.addIssue({ code: "custom", path: ["failure"], message: "failure is required" });
+  }
+});
+
+export const agentResultSchema = z.union([
+  pasteResultSchema,
+  exportResultSchema,
+]);
+
 export type AgentErrorCode = z.infer<typeof agentErrorCodeSchema>;
 export type AgentApproval = z.infer<typeof agentApprovalSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type AgentFailure = z.infer<typeof agentFailureSchema>;
 export type AgentHeartbeat = z.infer<typeof heartbeatSchema>;
+export type AgentRequest = z.infer<typeof agentRequestSchema>;
+export type AgentResult = z.infer<typeof agentResultSchema>;
 export type CloseActive = z.infer<typeof closeActiveSchema>;
 export type PasteItem = z.infer<typeof pasteItemSchema>;
 export type PasteMode = z.infer<typeof pasteModeSchema>;
 export type PasteRequest = z.infer<typeof pasteRequestSchema>;
 export type PasteResult = z.infer<typeof pasteResultSchema>;
 export type PasteTarget = z.infer<typeof pasteTargetSchema>;
+export type DocumentLocator = z.infer<typeof documentLocatorSchema>;
+export type ExportRequest = z.infer<typeof exportRequestSchema>;
+export type ExportResult = z.infer<typeof exportResultSchema>;
+export type IalExportMode = z.infer<typeof ialExportModeSchema>;
+export type IalExportOptions = z.infer<typeof ialExportOptionsSchema>;

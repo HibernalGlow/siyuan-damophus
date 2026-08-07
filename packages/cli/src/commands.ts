@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { basename, dirname, resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { defineCommand } from "citty";
 import { z } from "zod";
 import {
   AGENT_PROTOCOL_VERSION,
+  exportRequestSchema,
   pasteRequestSchema,
   type CloseActive,
   type PasteTarget,
@@ -56,6 +57,17 @@ function createTarget(args: Record<string, unknown>): PasteTarget {
     return { mode, locator, title: typeof args.title === "string" ? args.title : undefined };
   }
   return { mode: "append", locator };
+}
+
+function createDocumentLocator(args: Record<string, unknown>) {
+  return typeof args.document === "string"
+    ? { documentId: args.document }
+    : { notebookId: String(args.notebook ?? ""), path: String(args.path ?? "") };
+}
+
+function commaSeparated(value: unknown): string[] {
+  if (typeof value !== "string") return [];
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
 const manifestItemSchema = z.object({
@@ -214,6 +226,76 @@ export const pasteCommand = defineCommand({
       });
       await reporter.result(result);
       if (result.status === "failed") process.exitCode = 1;
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+export const exportCommand = defineCommand({
+  meta: { name: "export", description: "Export SiYuan Kramdown with configurable IAL" },
+  args: {
+    document: { type: "string", description: "Source document block ID" },
+    notebook: { type: "string", description: "Source notebook ID" },
+    path: { type: "string", description: "Source human path" },
+    output: { type: "string", description: "Write UTF-8 Markdown to this file" },
+    ial: {
+      type: "enum",
+      description: "IAL export range",
+      options: ["none", "portable", "all"],
+      default: "portable",
+    },
+    "include-ial": { type: "string", description: "Comma-separated IAL names or * patterns to force include" },
+    "exclude-ial": { type: "string", description: "Comma-separated IAL names or * patterns to exclude" },
+    "request-id": { type: "string", description: "Idempotency key" },
+    ...connectionArgs,
+  },
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const requestId = typeof args.requestId === "string" ? args.requestId : randomUUID();
+      const request = exportRequestSchema.parse({
+        protocolVersion: AGENT_PROTOCOL_VERSION,
+        requestId,
+        createdAt: new Date().toISOString(),
+        command: "export",
+        target: createDocumentLocator(args),
+        ial: {
+          mode: args.ial,
+          include: commaSeparated(args.includeIal),
+          exclude: commaSeparated(args.excludeIal),
+        },
+      });
+      const location = await discoverBridge(args.endpoint);
+      const heartbeat = await readFreshHeartbeat(location);
+      if (!heartbeat.supportedCommands.includes("export")) {
+        throw new Error("The installed Agent Bridge does not support Kramdown export");
+      }
+      await submitRequest(location, request);
+      const showEvents = args.json || typeof args.output === "string";
+      const result = await waitForResult(location, requestId, {
+        onEvent: showEvents ? (event) => reporter.event(event) : undefined,
+      });
+      if (result.command !== "export") throw new Error(`Request ${requestId} returned a non-export result`);
+      if (result.status === "failed") {
+        if (args.json || typeof args.output === "string") await reporter.result(result);
+        else await reporter.error(new Error(result.failure?.message ?? "Kramdown export failed"));
+        process.exitCode = 1;
+        return;
+      }
+      if (args.json) {
+        await reporter.result(result);
+        return;
+      }
+      if (typeof args.output === "string") {
+        const outputPath = resolve(args.output);
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, result.markdown ?? "", "utf8");
+        await reporter.result(result);
+        return;
+      }
+      process.stdout.write(result.markdown ?? "");
     } catch (error) {
       await reporter.error(error instanceof Error ? error : new Error(String(error)));
       process.exitCode = 1;

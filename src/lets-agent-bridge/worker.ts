@@ -2,10 +2,13 @@ import {
   AGENT_PROTOCOL_VERSION,
   agentApprovalSchema,
   agentEventSchema,
-  pasteRequestSchema,
+  agentRequestSchema,
+  exportResultSchema,
   pasteResultSchema,
+  type AgentRequest,
   type AgentEvent,
   type AgentFailure,
+  type ExportRequest,
   type PasteRequest,
 } from "@hibernalglow/damophus-agent-contract";
 import { createWorkspaceSnapshot, getWorkspaceSnapshots } from "@/api";
@@ -21,11 +24,15 @@ import {
   PasteAdapterError,
   type PreparedPasteItem,
 } from "./protyle-paste";
+import { exportKramdown, KramdownExportError } from "@/kramdown-export/siyuan";
 
 const log = getLogger("lets-agent-bridge");
 
 function failureFrom(error: unknown): AgentFailure {
   if (error instanceof PasteAdapterError) {
+    return { code: error.code, message: error.message };
+  }
+  if (error instanceof KramdownExportError) {
     return { code: error.code, message: error.message };
   }
   if (error instanceof Error) return { code: "INTERNAL_ERROR", message: error.message };
@@ -47,8 +54,8 @@ function hasUnsupportedLocalAsset(markdown: string): boolean {
   return references.some((reference) => !/^(?:https?:|data:|assets\/|\/assets\/)/iu.test(reference));
 }
 
-function parseRequest(value: unknown): PasteRequest {
-  return pasteRequestSchema.parse(value);
+function parseRequest(value: unknown): AgentRequest {
+  return agentRequestSchema.parse(value);
 }
 
 export class AgentBridgeWorker {
@@ -88,7 +95,7 @@ export class AgentBridgeWorker {
         workspace: this.workspace,
         frontend: getFrontend(),
         updatedAt: new Date().toISOString(),
-        supportedCommands: ["paste"],
+        supportedCommands: ["paste", "export"],
         supportedPasteModes: ["create", "append", "replace"],
       });
     } catch (error) {
@@ -169,12 +176,16 @@ export class AgentBridgeWorker {
     }
     const raw = await this.storage.readJson<unknown>(`inbox/${name}`);
     if (raw === undefined) return;
-    let request: PasteRequest;
+    let request: AgentRequest;
     try {
       request = parseRequest(raw);
     } catch (error) {
       await this.writeFailure(requestId, "INVALID_REQUEST", error instanceof Error ? error.message : String(error));
       await this.storage.remove(`inbox/${name}`);
+      return;
+    }
+    if (request.command === "export") {
+      await this.processExportRequest(name, request);
       return;
     }
     await this.emit(request.requestId, 0, "accepted", "Request accepted", undefined, 0, request.items.length);
@@ -238,6 +249,44 @@ export class AgentBridgeWorker {
         : failureFrom(error);
       await this.emit(request.requestId, 9_999, "failed", failure.message, failedItemId);
       await this.writeFailure(request.requestId, failure.code, failure.message, snapshotId, completedItems, failedItemId);
+    } finally {
+      await this.storage.remove(`inbox/${name}`);
+    }
+  }
+
+  private async processExportRequest(name: string, request: ExportRequest): Promise<void> {
+    await this.emit(request.requestId, 0, "accepted", "Request accepted");
+    try {
+      await this.emit(request.requestId, 1, "resolving-target", "Resolving export target");
+      await this.emit(request.requestId, 2, "exporting", "Exporting Kramdown with IAL");
+      const exported = await exportKramdown(request.target, request.ial);
+      const result = exportResultSchema.parse({
+        protocolVersion: AGENT_PROTOCOL_VERSION,
+        requestId: request.requestId,
+        command: "export",
+        status: "completed",
+        startedAt: request.createdAt,
+        finishedAt: new Date().toISOString(),
+        ...exported,
+      });
+      await this.emit(request.requestId, 10_000, "completed", "Kramdown export completed");
+      await this.storage.writeJson(`tasks/${request.requestId}/result.json`, result);
+      await this.storage.writeJson(`completed/${request.requestId}.json`, result);
+    } catch (error) {
+      const failure = failureFrom(error);
+      const now = new Date().toISOString();
+      await this.emit(request.requestId, 9_999, "failed", failure.message);
+      const result = exportResultSchema.parse({
+        protocolVersion: AGENT_PROTOCOL_VERSION,
+        requestId: request.requestId,
+        command: "export",
+        status: "failed",
+        startedAt: request.createdAt,
+        finishedAt: now,
+        failure,
+      });
+      await this.storage.writeJson(`tasks/${request.requestId}/result.json`, result);
+      await this.storage.writeJson(`completed/${request.requestId}.json`, result);
     } finally {
       await this.storage.remove(`inbox/${name}`);
     }

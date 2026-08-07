@@ -3,13 +3,13 @@ import { access, mkdir, open, readFile, rename, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   AGENT_PROTOCOL_VERSION,
+  agentResultSchema,
   agentEventSchema,
   heartbeatSchema,
-  pasteResultSchema,
+  type AgentRequest,
+  type AgentResult,
   type AgentEvent,
   type AgentHeartbeat,
-  type PasteRequest,
-  type PasteResult,
 } from "@hibernalglow/damophus-agent-contract";
 
 const BRIDGE_RELATIVE_PATH = join(
@@ -121,7 +121,7 @@ export async function readFreshHeartbeat(location: BridgeLocation): Promise<Agen
   return heartbeat;
 }
 
-export async function submitRequest(location: BridgeLocation, request: PasteRequest): Promise<void> {
+export async function submitRequest(location: BridgeLocation, request: AgentRequest): Promise<void> {
   const completedPath = join(location.root, "completed", `${request.requestId}.json`);
   const inboxPath = join(location.root, "inbox", `${request.requestId}.json`);
   if (await fileExists(completedPath) || await fileExists(inboxPath)) return;
@@ -140,10 +140,10 @@ export async function writeApproval(location: BridgeLocation, requestId: string,
   );
 }
 
-export async function readResult(location: BridgeLocation, requestId: string): Promise<PasteResult | undefined> {
+export async function readResult(location: BridgeLocation, requestId: string): Promise<AgentResult | undefined> {
   const path = join(location.root, "tasks", requestId, "result.json");
   if (!await fileExists(path)) return undefined;
-  return pasteResultSchema.parse(await readJson(path));
+  return agentResultSchema.parse(await readJson(path));
 }
 
 async function readEvents(location: BridgeLocation, requestId: string): Promise<AgentEvent[]> {
@@ -166,7 +166,7 @@ export async function waitForResult(
   location: BridgeLocation,
   requestId: string,
   options: WaitOptions = {},
-): Promise<PasteResult> {
+): Promise<AgentResult> {
   const timeoutMs = options.timeoutMs ?? 10 * 60_000;
   const startedAt = Date.now();
   let lastSequence = -1;
@@ -185,7 +185,7 @@ export async function waitForResult(
 
 export async function inspectTask(location: BridgeLocation, requestId: string): Promise<{
   events: AgentEvent[];
-  result?: PasteResult;
+  result?: AgentResult;
 }> {
   return {
     events: await readEvents(location, requestId),

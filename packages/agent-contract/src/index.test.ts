@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_PROTOCOL_VERSION,
   agentApprovalSchema,
+  exportRequestSchema,
+  exportResultSchema,
   heartbeatSchema,
   pasteRequestSchema,
   pasteResultSchema,
@@ -58,5 +60,28 @@ describe("agent contract", () => {
       decision: "approve",
       decidedAt: "2026-08-07T12:00:00.000Z",
     }).decision).toBe("approve");
+  });
+
+  it("defaults exports to portable IAL", () => {
+    const request = exportRequestSchema.parse({
+      protocolVersion: AGENT_PROTOCOL_VERSION,
+      requestId: "request_1234",
+      createdAt: "2026-08-07T12:00:00.000Z",
+      command: "export",
+      target: { documentId: "20260807120000-testdoc" },
+    });
+    expect(request.ial).toEqual({ mode: "portable", include: [], exclude: [] });
+  });
+
+  it("requires Markdown in a completed export", () => {
+    expect(() => exportResultSchema.parse({
+      protocolVersion: AGENT_PROTOCOL_VERSION,
+      requestId: "request_1234",
+      command: "export",
+      status: "completed",
+      startedAt: "2026-08-07T12:00:00.000Z",
+      finishedAt: "2026-08-07T12:00:01.000Z",
+      documentId: "20260807120000-testdoc",
+    })).toThrow();
   });
 });
