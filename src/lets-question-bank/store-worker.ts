@@ -1,4 +1,5 @@
 import { createDamophusStore } from "../question-bank/adapters/tinybase/tables";
+import { mergeContributionStores, type StoreMerger } from "../question-bank/adapters/tinybase/warehouse";
 import type { MergeableContent } from "tinybase";
 
 export interface StoreWorkerMergeRequest {
@@ -17,6 +18,41 @@ export interface StoreWorkerMergeResponse {
 export interface StoreWorkerScope {
   postMessage(message: StoreWorkerMergeResponse): void;
   onmessage: ((event: MessageEvent<StoreWorkerMergeRequest>) => void) | null;
+}
+
+export function createWorkerStoreMerger(): StoreMerger {
+  return (stores, uniqueId) => {
+    if (typeof Worker === "undefined") return mergeContributionStores(stores, uniqueId);
+    const worker = new Worker(new URL("./store-worker.ts", import.meta.url), {type: "module"});
+    const requestId = `${uniqueId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    return new Promise((resolve, reject) => {
+      const finish = (error?: Error, content?: MergeableContent): void => {
+        worker.onmessage = null;
+        worker.onerror = null;
+        worker.terminate();
+        if (error) reject(error);
+        else resolve(createDamophusStore(uniqueId).setMergeableContent(content));
+      };
+      worker.onmessage = (event: MessageEvent<StoreWorkerMergeResponse>) => {
+        const response = event.data;
+        if (response.request_id !== requestId) return;
+        if (response.type === "error" || !response.mergeable_content) {
+          finish(new Error(response.message ?? "TinyBase merge worker failed"));
+          return;
+        }
+        finish(undefined, response.mergeable_content);
+      };
+      worker.onerror = (event) => finish(new Error(event.message || "TinyBase merge worker failed"));
+      worker.postMessage({
+        type: "merge",
+        request_id: requestId,
+        stores: stores.map((store, index) => ({
+          store_id: `${uniqueId}:${index}`,
+          mergeable_content: store.getMergeableContent(),
+        })),
+      } satisfies StoreWorkerMergeRequest);
+    });
+  };
 }
 
 export function mergeStoreContents(

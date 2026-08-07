@@ -30,6 +30,11 @@ export interface MergeDiagnostic {
   message: string;
 }
 
+export type StoreMerger = (
+  stores: readonly MergeableStore[],
+  uniqueId: string,
+) => MergeableStore | Promise<MergeableStore>;
+
 function cloneStore(source: MergeableStore, uniqueId: string): MergeableStore {
   return createDamophusStore(uniqueId).setMergeableContent(source.getMergeableContent());
 }
@@ -61,6 +66,7 @@ export class TinyBaseWarehouse {
     private readonly io: StoreFileIO,
     readonly deviceId: string,
     private readonly now: () => Date = () => new Date(),
+    private readonly mergeStores: StoreMerger = mergeContributionStores,
   ) {}
 
   isInitialized(): boolean {
@@ -85,7 +91,7 @@ export class TinyBaseWarehouse {
     if (this.local && this.readView) return this.readView;
     this.diagnostics = [];
     this.local = await this.loadDevice(this.deviceId, true);
-    this.readView = this.buildReadView();
+    this.readView = await this.buildReadView();
     return this.readView;
   }
 
@@ -121,20 +127,20 @@ export class TinyBaseWarehouse {
     return {deviceId, core, sessions, events};
   }
 
-  private buildReadView(): WarehouseReadView {
+  private async buildReadView(): Promise<WarehouseReadView> {
     if (!this.local) throw new Error("TinyBase warehouse is not initialized");
     const contributions = [this.local, ...this.remoteContributions.values()];
     const shardIds = new Set(contributions.flatMap((item) => [...item.events.keys()]));
     return {
-      core: mergeContributionStores(contributions.map((item) => item.core), "read:core"),
-      sessions: mergeContributionStores(contributions.map((item) => item.sessions), "read:sessions"),
-      events: new Map([...shardIds].map((shardId) => [
+      core: await this.mergeStores(contributions.map((item) => item.core), "read:core"),
+      sessions: await this.mergeStores(contributions.map((item) => item.sessions), "read:sessions"),
+      events: new Map(await Promise.all([...shardIds].map(async (shardId) => [
         shardId,
-        mergeContributionStores(
+        await this.mergeStores(
           contributions.flatMap((item) => item.events.get(shardId) ? [item.events.get(shardId)!] : []),
           `read:events:${shardId}`,
         ),
-      ])),
+      ] as const))),
       mergedAt: this.now().toISOString(),
     };
   }
@@ -159,7 +165,7 @@ export class TinyBaseWarehouse {
       }
     }
     this.remoteContributions = next;
-    this.readView = this.buildReadView();
+    this.readView = await this.buildReadView();
     return this.readView;
   }
 
