@@ -107,7 +107,7 @@ Input is pasted exactly. Damophus does not remove a leading heading, normalize w
 
 Export accepts a document block ID or a unique notebook ID and human path. The plugin reads SiYuan's own Kramdown representation, then applies the requested IAL range without rewriting visible Markdown. The same shared exporter powers the in-app clipboard action documented in [Kramdown Export](kramdown-export.md).
 
-Native SiYuan tables remain pipe-based Markdown tables. Cell merge metadata such as `rowspan`, `colspan`, and `fn__none` stays attached as IAL. Damophus refuses a document containing an HTML `<table>` instead of silently returning a different table format. Attribute-view placeholders are not converted into ordinary tables because they do not contain a portable Markdown representation of the database rows.
+SiYuan's API returns native tables as rendered HTML. The exporter converts them back to pipe-based Markdown, preserving cell merge metadata such as `rowspan`, `colspan`, and `fn__none` as IAL. HTML tables inside fenced code remain untouched; any rendered table left unconverted is reported as an export error. Attribute-view placeholders are not converted into ordinary Markdown tables because they do not contain a portable copy of the database rows.
 
 ## Stable Errors
 

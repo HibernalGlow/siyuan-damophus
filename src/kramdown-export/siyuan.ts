@@ -4,6 +4,7 @@ import type {
   IalExportOptions,
 } from "@hibernalglow/damophus-agent-contract";
 import { containsHtmlTable, filterKramdownIal } from "./ial";
+import { convertHtmlTablesToMarkdown } from "./table";
 
 export class KramdownExportError extends Error {
   constructor(
@@ -28,8 +29,9 @@ async function readFilteredKramdown(blockId: string, options: IalExportOptions):
   const response = await getBlockKramdown(blockId);
   const kramdown = typeof response?.kramdown === "string" ? response.kramdown : "";
   if (!kramdown) throw new KramdownExportError("EXPORT_FAILED", `SiYuan returned no Kramdown for ${blockId}`);
-  assertMarkdownTables(kramdown);
-  return filterKramdownIal(kramdown, options);
+  const markdown = convertHtmlTablesToMarkdown(kramdown);
+  assertMarkdownTables(markdown);
+  return filterKramdownIal(markdown, options);
 }
 
 export async function exportBlocksKramdown(blockIds: readonly string[], options: IalExportOptions): Promise<string> {

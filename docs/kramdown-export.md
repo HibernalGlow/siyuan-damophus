@@ -21,7 +21,7 @@ The dialog remembers the last IAL mode and include/exclude patterns. The same de
 
 ## Tables
 
-Native SiYuan tables are copied as pipe-based Markdown tables with IAL. Damophus never changes them into HTML tables. If the source contains an actual HTML `<table>` block, copying fails instead of silently returning a different representation.
+SiYuan's API returns native tables as rendered HTML. Damophus converts those tables back to pipe-based Markdown, including merged-cell `rowspan`/`colspan` IAL and `fn__none` placeholders. HTML tables inside fenced code remain untouched; any rendered table left unconverted is reported as an export error.
 
 Attribute views remain SiYuan attribute-view placeholders. They are not converted into ordinary Markdown tables because the placeholder does not contain a portable copy of the database rows.
 

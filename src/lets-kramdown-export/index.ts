@@ -36,15 +36,32 @@ export default class KramdownExportPlugin extends SubPluginBase {
     });
   };
 
+  private readonly handleDocumentTitleMenu = (
+    event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
+  ): void => {
+    const documentId = event.detail.data.id;
+    if (!documentId) return;
+    const blockIds = selectedBlockIds(Array.from(event.detail.protyle.wysiwyg.element.querySelectorAll<HTMLElement>(
+      '.protyle-wysiwyg--select[data-node-id]',
+    )));
+    event.detail.menu.addItem({
+      icon: "iconDownload",
+      label: this.t("lets-kramdown-export.menuLabel"),
+      click: () => this.openDialog(documentId, blockIds),
+    });
+  };
+
   override onload(): void {
     if (this.listening) return;
     this.listening = true;
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
+    plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
   }
 
   override onunload(): void {
     if (!this.listening) return;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
+    plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     this.listening = false;
   }
 
