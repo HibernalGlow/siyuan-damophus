@@ -180,7 +180,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         position: "LeftTop",
         size: { width: 420, height: 0 },
         icon: "iconDatabase",
-        title: this.t("lets-question-bank.displayName"),
+        title: this.t("lets-question-bank.dockTitle"),
         show: false,
       },
       data: { documentId: this.currentDocumentId() },

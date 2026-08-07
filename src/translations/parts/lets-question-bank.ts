@@ -1,5 +1,6 @@
 export const en = {
   "lets-question-bank.displayName": "Question Bank",
+  "lets-question-bank.dockTitle": "Damophus Question Bank",
   "lets-question-bank.description": "Scan, practice, and review Markdown question banks",
   "lets-question-bank.open": "Open Question Bank",
   "lets-question-bank.openFromBlock": "Open Question Bank from This Block",
@@ -309,6 +310,7 @@ export const en = {
 
 export const zhCN: typeof en = {
   "lets-question-bank.displayName": "题库",
+  "lets-question-bank.dockTitle": "Damophus 题库",
   "lets-question-bank.description": "扫描、练习和复习 Markdown 题库",
   "lets-question-bank.open": "打开题库",
   "lets-question-bank.openFromBlock": "从此块打开题库",

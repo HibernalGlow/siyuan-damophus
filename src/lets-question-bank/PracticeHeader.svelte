@@ -92,7 +92,13 @@
   });
 </script>
 
-<header class="app-header" class:app-header--practice={currentQuestion !== undefined} class:app-header--title-hidden={!showPracticeTitle}>
+{#if currentQuestion || showPracticeTitle || onClose}
+<header
+  class="app-header"
+  class:app-header--practice={currentQuestion !== undefined}
+  class:app-header--title-hidden={!showPracticeTitle}
+  class:app-header--compact={!currentQuestion && !showPracticeTitle}
+>
   {#if showPracticeTitle}
     <div class="app-brand">
       <h1>Damophus</h1>
@@ -208,6 +214,7 @@
     </div>
   {/if}
 </header>
+{/if}
 
 {#if correctionOpen && currentQuestion?.answer}
   <button class="correction-backdrop" aria-label={label("cancel", "Cancel")} onclick={() => correctionOpen = false}></button>

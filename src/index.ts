@@ -8,6 +8,7 @@ import { enableLogging, getLogger } from "@/libs/logger";
 import { PluginRegistry } from "@/plugin-registry";
 import { settings } from "@/settings";
 import { isMobile, setPlugin } from "@/utils";
+import { reloadPetal } from "@/plugin-reload";
 import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 
 const log = getLogger("index");
@@ -64,7 +65,7 @@ export default class PluginLetsGo extends Plugin {
     if (this.topBarElement) return;
     this.topBarElement = this.addTopBar({
       icon: damophusToolbarIcon,
-      title: "Damophus",
+      title: this.i18n["settings.mobileMenuTitle"] ?? "Damophus menu",
       position: "right",
       callback: (event) => {
         if (isMobile) {
@@ -116,10 +117,10 @@ export default class PluginLetsGo extends Plugin {
 
   private async reloadPlugin(): Promise<void> {
     showMessage(this.i18n["settings.reloading"] ?? "Reloading Damophus...", 2000);
-    const response = await fetchSyncPost("/api/petal/setPetalEnabled", {
+    const response = await reloadPetal((enabled) => fetchSyncPost("/api/petal/setPetalEnabled", {
       packageName: this.name,
-      enabled: true,
-    });
+      enabled,
+    }));
     if (response.code !== 0) {
       showMessage(
         response.msg || this.i18n["settings.reloadFailed"] || "Failed to reload Damophus",
@@ -153,6 +154,7 @@ export default class PluginLetsGo extends Plugin {
         log.error(`Error in onunload for plugin ${plugin.name}:`, error);
       }
     }
+    this.topBarElement?.remove();
     this.topBarElement = undefined;
   }
 
