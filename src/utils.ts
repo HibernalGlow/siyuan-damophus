@@ -1,6 +1,6 @@
 import { Client } from "@siyuan-community/siyuan-sdk";
 import { getFrontend } from "siyuan";
-import PluginGo from ".";
+import type PluginGo from ".";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("utils");
 

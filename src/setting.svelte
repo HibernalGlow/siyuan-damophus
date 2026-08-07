@@ -12,8 +12,7 @@
   import { DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
   import SettingPanel from "./libs/setting-panel.svelte";
   import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
-  import SourceAnswerMaskSettings from "./lets-question-bank/SourceAnswerMaskSettings.svelte";
-  import type { AnswerMaskStyle } from "./lets-question-bank/source-answer-mask";
+  import QuestionBankSettings from "./lets-question-bank/QuestionBankSettings.svelte";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
     DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
@@ -27,7 +26,6 @@
   const GENERAL_GROUP = "设置";
   const BLOCK_ATTRIBUTE_PLUGIN = "quickAttr";
   const QUESTION_BANK_PLUGIN = "questionBank";
-  const QUESTION_BANK_MASK_KEYS = new Set(["maskSourceAnswers", "answerMaskStyle"]);
 
   interface ChangeEvent {
     group: string;
@@ -133,11 +131,6 @@
     return typeof value === "string" ? value : fallback;
   }
 
-  function getFocusedSettingAnyValue<T>(key: string, fallback: T): T {
-    const value = settingItems[focusGroup]?.find((item) => item.key === key)?.value;
-    return (value ?? fallback) as T;
-  }
-
   function updateLocalSetting(group: string, key: string, value: any) {
     const item = settingItems[group]?.find((candidate) => candidate.key === key);
     if (!item) return;
@@ -183,6 +176,24 @@
       blur: t("lets-question-bank.answerMaskStyleBlur", "Blur"),
       solid: t("lets-question-bank.answerMaskStyleSolid", "Solid cover"),
       underline: t("lets-question-bank.answerMaskStyleUnderline", "Underline cover"),
+    };
+  }
+
+  function questionBankSettingsLabels() {
+    return {
+      sections: {
+        navigation: t("lets-question-bank.settingsNavigation", "Question Bank setting sections"),
+        review: t("lets-question-bank.settingsReview", "Review & cards"),
+        reviewDescription: t("lets-question-bank.settingsReviewDescription", "Decide when questions need review and when quick cards are created."),
+        index: t("lets-question-bank.settingsIndex", "Index & scanning"),
+        indexDescription: t("lets-question-bank.settingsIndexDescription", "Control source scanning, index synchronization, and maintenance."),
+        display: t("lets-question-bank.settingsDisplay", "Practice display"),
+        displayDescription: t("lets-question-bank.settingsDisplayDescription", "Choose how questions, answers, and source blocks appear during practice."),
+        timing: t("lets-question-bank.settingsTiming", "Timing"),
+        timingDescription: t("lets-question-bank.settingsTimingDescription", "Configure answer timing and where comparisons appear."),
+        mask: t("lets-question-bank.settingsMask", "Source answer mask"),
+      },
+      mask: questionBankMaskLabels(),
     };
   }
 
@@ -272,7 +283,7 @@
   <main class="min-w-0 flex-1 overflow-y-auto">
     <div class="mx-auto box-border flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
       <header class="border-b border-border pb-4">
-        <h2 class="m-0 text-lg font-semibold">{getGroupLabel(focusGroup)}</h2>
+        <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
       </header>
 
       <!-- Damophus theme settings are temporarily hidden; the panel follows SiYuan's theme. -->
@@ -288,19 +299,13 @@
           on:preview={(event) => onPreview(new CustomEvent("preview", { detail: { group: focusGroup, ...event.detail } }))}
         />
       {:else if showQuestionBankSettings}
-        <SettingPanel
+        <QuestionBankSettings
           group={focusGroup}
-          settingItems={(settingItems[focusGroup] ?? []).filter((item) => !QUESTION_BANK_MASK_KEYS.has(item.key))}
+          settingItems={settingItems[focusGroup] ?? []}
+          labels={questionBankSettingsLabels()}
           on:changed={onChanged}
           on:click={onClick}
           on:preview={onPreview}
-        />
-        <SourceAnswerMaskSettings
-          enabled={getFocusedSettingAnyValue("maskSourceAnswers", false)}
-          style={getFocusedSettingValue("answerMaskStyle", "blur") as AnswerMaskStyle}
-          labels={questionBankMaskLabels()}
-          on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
-          on:preview={(event) => onPreview(new CustomEvent("preview", { detail: { group: focusGroup, ...event.detail } }))}
         />
       {:else}
         <SettingPanel

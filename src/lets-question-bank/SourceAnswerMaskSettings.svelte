@@ -27,6 +27,7 @@
   export let enabled = false;
   export let style: AnswerMaskStyle = "blur";
   export let labels: SourceAnswerMaskSettingsLabels;
+  export let showHeading = true;
 
   const dispatch = createEventDispatcher<{
     changed: SourceAnswerMaskSettingChange;
@@ -39,11 +40,13 @@
   }
 </script>
 
-<section class="border-y border-border" aria-labelledby="damophus-source-answer-mask-settings">
-  <div class="border-b border-border px-3 py-4">
-    <h3 id="damophus-source-answer-mask-settings" class="m-0 text-sm font-semibold">{labels.title}</h3>
-    <p class="mt-1 text-xs leading-5 text-muted-foreground">{labels.description}</p>
-  </div>
+<section class="border-y border-border" aria-label={labels.title}>
+  {#if showHeading}
+    <div class="border-b border-border px-3 py-4">
+      <div id="damophus-source-answer-mask-settings" class="text-sm font-semibold" role="heading" aria-level="3">{labels.title}</div>
+      <p class="mt-1 text-xs leading-5 text-muted-foreground">{labels.description}</p>
+    </div>
+  {/if}
 
   <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-5 border-b border-border px-3 py-3 max-[640px]:grid-cols-1 max-[640px]:gap-3">
     <span class="text-sm font-medium">{labels.enabled}</span>

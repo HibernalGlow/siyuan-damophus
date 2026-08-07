@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { BookOpenCheck, ChevronDown, CircleX, Clock3, Database, Download, Layers3, List, ListOrdered, RefreshCw, RotateCcw, ScanLine, Shuffle, Upload } from "lucide-svelte";
+  import { BookOpenCheck, CircleX, Clock3, Database, Download, Layers3, List, ListOrdered, RefreshCw, RotateCcw, ScanLine, Shuffle, Upload } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
-  import * as Collapsible from "@/components/ui/collapsible";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
   import * as Select from "@/components/ui/select";
@@ -15,6 +14,7 @@
   import type { SourceBlockIdentity } from "./controller";
   import type { StoredPracticeSession } from "./session-host";
   import PracticeScanSummary from "./PracticeScanSummary.svelte";
+  import QuestionBankPanel from "./QuestionBankPanel.svelte";
   import { topicLabel } from "./question-bank-display";
 
   export let label: (key: string, fallback: string) => string;
@@ -129,18 +129,14 @@
     </section>
     {/if}
 
-  <Collapsible.Root bind:open={dataPanelOpen} class="workspace-panel data-panel">
-    <Collapsible.Trigger class="workspace-panel-trigger" onclick={() => dataPanelUserControlled = true}>
-      <span class="workspace-panel-heading">
-        <Database aria-hidden="true" />
-        <span>
-          <strong>{label("attemptData", "Attempt data")}</strong>
-          <small>{label("exportAttempts", "Export attempts")} · {label("importAttempts", "Import attempts")}</small>
-        </span>
-      </span>
-      <ChevronDown class={dataPanelOpen ? "open" : ""} aria-hidden="true" />
-    </Collapsible.Trigger>
-    <Collapsible.Content class="workspace-panel-content">
+  <QuestionBankPanel
+    bind:open={dataPanelOpen}
+    Icon={Database}
+    title={label("attemptData", "Attempt data")}
+    description={`${label("exportAttempts", "Export attempts")} · ${label("importAttempts", "Import attempts")}`}
+    className="data-panel"
+    on:trigger={() => (dataPanelUserControlled = true)}
+  >
       <div class="recovery-actions">
         <Button variant="outline" disabled={busy} onclick={exportAttempts}>
           <Download data-icon="inline-start" aria-hidden="true" />
@@ -178,25 +174,20 @@
       {/if}
     </section>
   {/if}
-    </Collapsible.Content>
-  </Collapsible.Root>
+  </QuestionBankPanel>
 
   {#if preview}
-    <Collapsible.Root bind:open={scanPanelOpen} class="workspace-panel scan-panel">
-      <Collapsible.Trigger class="workspace-panel-trigger" onclick={() => scanPanelUserControlled = true}>
-        <span class="workspace-panel-heading">
-          <ScanLine aria-hidden="true" />
-          <span>
-            <strong>{label("scanSummary", "Scan summary")}</strong>
-            <small>{progressQuestions.length} {label("questions", "questions")} · {preview.scan.report.issues.length} {label("issues", "issues")}</small>
-          </span>
-        </span>
-        <span class="workspace-panel-meta">
+    <QuestionBankPanel
+      bind:open={scanPanelOpen}
+      Icon={ScanLine}
+      title={label("scanSummary", "Scan summary")}
+      description={`${progressQuestions.length} ${label("questions", "questions")} · ${preview.scan.report.issues.length} ${label("issues", "issues")}`}
+      className="scan-panel"
+      on:trigger={() => (scanPanelUserControlled = true)}
+    >
+      <svelte:fragment slot="meta">
           {#if preview.blockers.length > 0}<Badge variant="destructive">{preview.blockers.length}</Badge>{/if}
-          <ChevronDown class={scanPanelOpen ? "open" : ""} aria-hidden="true" />
-        </span>
-      </Collapsible.Trigger>
-      <Collapsible.Content class="workspace-panel-content">
+      </svelte:fragment>
     <PracticeScanSummary
       {preview}
       {sourceIdentity}
@@ -221,8 +212,7 @@
       {toggleAutoSyncIndex}
       {label}
     />
-      </Collapsible.Content>
-    </Collapsible.Root>
+    </QuestionBankPanel>
 
     <section class="practice-section" aria-labelledby="practice-settings-heading">
       <div class="practice-section-heading">
