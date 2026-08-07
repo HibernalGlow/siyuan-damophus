@@ -22,13 +22,14 @@ The CLI and plugin communicate through durable files under the current workspace
 
 Markdown content enters SiYuan by dispatching a paste event to a real Protyle editor. Damophus does not copy or reimplement SiYuan's private Markdown-to-block conversion code. A narrow compatibility adapter owns editor discovery, cursor placement, event dispatch, persistence waiting, and verification.
 
-Each mutating CLI invocation creates one workspace snapshot before its first write. Snapshot failure prevents all writes. Batch items run serially and stop after the first failure. Damophus never checks out a snapshot automatically.
+Each mutating CLI invocation creates one workspace snapshot before its first write. A JSON manifest carries multiple items in one invocation, so the batch still receives one snapshot. Snapshot failure prevents all writes. Batch items run serially and stop after the first failure. Active target tabs require `never`, `always`, or an interactive approval before the snapshot. Damophus never checks out a snapshot automatically.
 
 ## Consequences
 
 - Paste behavior tracks the installed SiYuan frontend, including native tables, IAL handling, and inline styles.
 - SiYuan must be running with Damophus enabled for writes to execute.
 - The compatibility adapter requires focused browser tests against supported SiYuan versions.
+- Multiple plugin windows coordinate request execution with the browser Web Locks API; mobile instances without a workspace path do not become the bridge worker.
 - The CLI remains independently installable and does not depend on XR, OpenTUI, Svelte, or the question-bank core.
 - File protocol compatibility is explicit and can evolve without coupling CLI releases to internal plugin classes.
 

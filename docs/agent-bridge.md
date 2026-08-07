@@ -2,7 +2,7 @@
 
 ## Scope
 
-Agent Bridge lets an external process request the same Markdown paste operation that a user performs in a SiYuan Protyle editor. The current vertical slice supports creating, appending to, and replacing one document from one Markdown file. The protocol already reserves batch receipts, approval events, and asynchronous status lookup for subsequent slices.
+Agent Bridge lets an external process request the same Markdown paste operation that a user performs in a SiYuan Protyle editor. The current vertical slice supports creating, appending to, and replacing documents from one Markdown file or a JSON manifest. A manifest becomes one request and therefore one workspace snapshot.
 
 The CLI is the only user-facing interface. The plugin worker is required because Protyle exists only inside the running SiYuan frontend.
 
@@ -24,6 +24,9 @@ damophus status <request-id> [--endpoint <url>] [--json]
 damophus paste <file> --mode create --notebook <id> --path <human-path>
                [--title <title>] [--close-active ask|always|never]
                [--endpoint <url>] [--json] [--no-wait]
+damophus paste --manifest <manifest.json>
+               [--close-active ask|always|never]
+               [--endpoint <url>] [--json] [--no-wait]
 ```
 
 Defaults:
@@ -32,6 +35,7 @@ Defaults:
 - `--close-active=ask` in an interactive terminal.
 - `--close-active=never` outside an interactive terminal.
 - Commands wait for a final receipt unless `--no-wait` is supplied.
+- A manifest has `{ "version": 1, "items": [...] }`; each item contains a Markdown `file`, `mode`, and the same target fields as the single-file command. Paths are resolved relative to the manifest file.
 
 `--json` writes newline-delimited JSON events to stdout. Diagnostics go to stderr. Interactive prompts and terminal control sequences are forbidden in JSON mode.
 
@@ -70,12 +74,13 @@ For a mutating invocation the plugin performs:
 
 1. Validate the complete request before any write.
 2. Resolve every target and reject ambiguous or existing targets.
-3. Obtain authorization to close active target tabs when required.
-4. Close target tabs and wait for editor persistence.
-5. Create one SiYuan workspace snapshot with a request memo.
-6. Execute items serially through the Protyle paste adapter.
-7. Read back the resulting document and verify structural signals.
-8. Write a receipt containing the snapshot reference and per-item results.
+3. Resolve every target and detect open target tabs.
+4. Obtain authorization to close active target tabs when required.
+5. Close target tabs and wait for editor persistence.
+6. Create one SiYuan workspace snapshot with a request memo.
+7. Execute items serially through the Protyle paste adapter.
+8. Read back the resulting document and verify structural signals.
+9. Write a receipt containing the snapshot reference and per-item results.
 
 Snapshot failure means zero document writes. Failure after the snapshot stops the batch. The receipt points to the snapshot but Damophus never performs workspace-wide checkout automatically.
 
@@ -86,6 +91,8 @@ Snapshot failure means zero document writes. Failure after the snapshot stops th
 `append` targets the end of a document. A document block ID is preferred; a human path is accepted only when it resolves uniquely.
 
 `replace` preserves the document root ID, path, title unless explicitly supplied, and document attributes. Only its body is replaced by selecting the existing body in Protyle and dispatching one paste event.
+
+When a target document is already open, `close-active=never` fails with `ACTIVE_TARGET`; `always` closes it automatically; `ask` emits an approval event and the interactive CLI writes the decision to `tasks/<request-id>/approval.json`.
 
 Input is pasted exactly. Damophus does not remove a leading heading, normalize whitespace, repair tables, or rewrite IAL. Remote URLs and existing `assets/...` references pass through. Relative local assets fail with `UNSUPPORTED_LOCAL_ASSET` before the snapshot.
 

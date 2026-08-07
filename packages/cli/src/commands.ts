@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { basename } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { defineCommand } from "citty";
+import { z } from "zod";
 import {
   AGENT_PROTOCOL_VERSION,
   pasteRequestSchema,
@@ -14,6 +15,7 @@ import {
   inspectTask,
   readFreshHeartbeat,
   submitRequest,
+  writeApproval,
   waitForResult,
 } from "./transport";
 
@@ -54,6 +56,39 @@ function createTarget(args: Record<string, unknown>): PasteTarget {
     return { mode, locator, title: typeof args.title === "string" ? args.title : undefined };
   }
   return { mode: "append", locator };
+}
+
+const manifestItemSchema = z.object({
+  file: z.string().min(1),
+  mode: z.enum(["create", "append", "replace"]),
+  notebook: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+  document: z.string().min(1).optional(),
+  title: z.string().min(1).optional(),
+});
+
+const pasteManifestSchema = z.object({
+  version: z.literal(1).default(1),
+  items: z.array(manifestItemSchema).min(1),
+});
+
+async function readPasteItems(args: Record<string, unknown>): Promise<Array<{ itemId: string; sourceName: string; markdown: string; target: PasteTarget }>> {
+  const manifestPath = typeof args.manifest === "string" ? resolve(args.manifest) : undefined;
+  if (manifestPath && args.file) throw new Error("Use either <file> or --manifest, not both");
+  if (!manifestPath && typeof args.file !== "string") throw new Error("A Markdown file or --manifest is required");
+  if (!manifestPath) {
+    const file = String(args.file);
+    return [{ itemId: "item-1", sourceName: basename(file), markdown: await readFile(file, "utf8"), target: createTarget(args) }];
+  }
+  const manifest = pasteManifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
+  return Promise.all(manifest.items.map(async (item, index) => {
+    const target = item.mode === "create"
+      ? { mode: "create" as const, notebookId: item.notebook ?? "", path: item.path ?? "", title: item.title }
+      : { mode: item.mode, locator: item.document ? { documentId: item.document } : { notebookId: item.notebook ?? "", path: item.path ?? "" }, ...(item.mode === "replace" && item.title ? { title: item.title } : {}) };
+    const parsedTarget = pasteRequestSchema.shape.items.element.shape.target.parse(target);
+    const file = resolve(dirname(manifestPath), item.file);
+    return { itemId: `item-${index + 1}`, sourceName: basename(file), markdown: await readFile(file, "utf8"), target: parsedTarget };
+  }));
 }
 
 export const doctorCommand = defineCommand({
@@ -110,8 +145,9 @@ export const pasteCommand = defineCommand({
     file: {
       type: "positional",
       description: "UTF-8 Markdown file",
-      required: true,
+      required: false,
     },
+    manifest: { type: "string", description: "JSON manifest containing multiple Markdown files" },
     mode: {
       type: "enum",
       description: "Write mode",
@@ -140,29 +176,28 @@ export const pasteCommand = defineCommand({
     const reporter = createReporter(args.json);
     try {
       const requestId = typeof args.requestId === "string" ? args.requestId : randomUUID();
-      const file = String(args.file);
-      const markdown = await readFile(file, "utf8");
+      const items = await readPasteItems(args);
+      const closeActive = resolveCloseActive(
+        typeof args.closeActive === "string" ? args.closeActive : undefined,
+        args.json,
+      );
+      if (closeActive === "ask" && (!process.stdin.isTTY || args.json || !args.wait)) {
+        throw new Error("--close-active=ask requires an interactive command that waits for completion");
+      }
       const request = pasteRequestSchema.parse({
         protocolVersion: AGENT_PROTOCOL_VERSION,
         requestId,
         createdAt: new Date().toISOString(),
         command: "paste",
-        closeActive: resolveCloseActive(
-          typeof args.closeActive === "string" ? args.closeActive : undefined,
-          args.json,
-        ),
-        items: [{
-          itemId: "item-1",
-          sourceName: basename(file),
-          markdown,
-          target: createTarget(args),
-        }],
+        closeActive,
+        items,
       });
       const location = await discoverBridge(args.endpoint);
       const heartbeat = await readFreshHeartbeat(location);
-      const mode = String(args.mode) as "create" | "append" | "replace";
-      if (!heartbeat.supportedPasteModes.includes(mode)) {
-        throw new Error(`The installed Agent Bridge does not support paste mode: ${mode}`);
+      const modes = [...new Set(items.map((item) => item.target.mode))];
+      const unsupportedMode = modes.find((mode) => !heartbeat.supportedPasteModes.includes(mode));
+      if (unsupportedMode) {
+        throw new Error(`The installed Agent Bridge does not support paste mode: ${unsupportedMode}`);
       }
       await submitRequest(location, request);
       if (!args.wait) {
@@ -170,7 +205,12 @@ export const pasteCommand = defineCommand({
         return;
       }
       const result = await waitForResult(location, requestId, {
-        onEvent: (event) => reporter.event(event),
+        onEvent: async (event) => {
+          await reporter.event(event);
+          if (event.type === "approval-required") {
+            await writeApproval(location, requestId, await reporter.confirmClose(event.message));
+          }
+        },
       });
       await reporter.result(result);
       if (result.status === "failed") process.exitCode = 1;

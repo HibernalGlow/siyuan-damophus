@@ -1,9 +1,9 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AGENT_PROTOCOL_VERSION } from "@hibernalglow/damophus-agent-contract";
-import { discoverBridge, readFreshHeartbeat, waitForResult } from "./transport";
+import { discoverBridge, readFreshHeartbeat, waitForResult, writeApproval } from "./transport";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -58,5 +58,13 @@ describe("bridge transport", () => {
     });
     expect(events).toEqual(["accepted"]);
     expect(result.status).toBe("completed");
+  });
+
+  it("writes an atomic approval response", async () => {
+    const root = await mkdtemp(join(tmpdir(), "damophus-cli-"));
+    const location = { endpoint: "", workspace: root, root };
+    await writeApproval(location, "request_1234", true);
+    const approval = JSON.parse(await readFile(join(root, "tasks", "request_1234", "approval.json"), "utf8"));
+    expect(approval).toMatchObject({ requestId: "request_1234", decision: "approve" });
   });
 });

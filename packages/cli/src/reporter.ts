@@ -6,6 +6,7 @@ export interface Reporter {
   info(value: unknown): Promise<void>;
   result(result: PasteResult): Promise<void>;
   error(error: Error): Promise<void>;
+  confirmClose(message: string): Promise<boolean>;
 }
 
 class JsonReporter implements Reporter {
@@ -35,6 +36,10 @@ class JsonReporter implements Reporter {
       },
     });
   }
+
+  async confirmClose(): Promise<boolean> {
+    return false;
+  }
 }
 
 class PlainReporter implements Reporter {
@@ -52,6 +57,10 @@ class PlainReporter implements Reporter {
 
   async error(error: Error): Promise<void> {
     process.stderr.write(`${error.message}\n`);
+  }
+
+  async confirmClose(): Promise<boolean> {
+    return false;
   }
 }
 
@@ -98,6 +107,14 @@ class TtyReporter implements Reporter {
     const prompts = await this.api();
     this.spinner?.error(error.message);
     if (!this.spinner) prompts.log.error(error.message);
+  }
+
+  async confirmClose(message: string): Promise<boolean> {
+    const prompts = await this.api();
+    this.spinner?.stop("Awaiting confirmation");
+    this.spinner = undefined;
+    const answer = await prompts.confirm({ message, initialValue: false });
+    return !prompts.isCancel(answer) && answer === true;
   }
 }
 

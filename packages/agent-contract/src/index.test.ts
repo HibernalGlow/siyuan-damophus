@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_PROTOCOL_VERSION,
+  agentApprovalSchema,
   heartbeatSchema,
   pasteRequestSchema,
   pasteResultSchema,
@@ -48,5 +49,14 @@ describe("agent contract", () => {
       supportedCommands: ["paste"],
       supportedPasteModes: ["create"],
     })).toThrow();
+  });
+
+  it("accepts a matching close approval", () => {
+    expect(agentApprovalSchema.parse({
+      protocolVersion: AGENT_PROTOCOL_VERSION,
+      requestId: "request_1234",
+      decision: "approve",
+      decidedAt: "2026-08-07T12:00:00.000Z",
+    }).decision).toBe("approve");
   });
 });

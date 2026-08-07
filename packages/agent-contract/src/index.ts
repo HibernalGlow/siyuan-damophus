@@ -101,6 +101,15 @@ export const agentEventSchema = z.object({
   total: z.number().int().positive().optional(),
 });
 
+export const approvalDecisionSchema = z.enum(["approve", "deny"]);
+
+export const agentApprovalSchema = z.object({
+  protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
+  requestId: requestIdSchema,
+  decision: approvalDecisionSchema,
+  decidedAt: timestampSchema,
+});
+
 export const agentFailureSchema = z.object({
   code: agentErrorCodeSchema,
   message: z.string().min(1),
@@ -130,6 +139,7 @@ export const pasteResultSchema = z.object({
 });
 
 export type AgentErrorCode = z.infer<typeof agentErrorCodeSchema>;
+export type AgentApproval = z.infer<typeof agentApprovalSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type AgentFailure = z.infer<typeof agentFailureSchema>;
 export type AgentHeartbeat = z.infer<typeof heartbeatSchema>;

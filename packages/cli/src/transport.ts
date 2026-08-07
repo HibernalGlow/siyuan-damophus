@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { access, mkdir, open, readFile, rename, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
+  AGENT_PROTOCOL_VERSION,
   agentEventSchema,
   heartbeatSchema,
   pasteResultSchema,
@@ -125,6 +126,18 @@ export async function submitRequest(location: BridgeLocation, request: PasteRequ
   const inboxPath = join(location.root, "inbox", `${request.requestId}.json`);
   if (await fileExists(completedPath) || await fileExists(inboxPath)) return;
   await atomicWrite(inboxPath, `${JSON.stringify(request, null, 2)}\n`);
+}
+
+export async function writeApproval(location: BridgeLocation, requestId: string, approved: boolean): Promise<void> {
+  await atomicWrite(
+    join(location.root, "tasks", requestId, "approval.json"),
+    `${JSON.stringify({
+      protocolVersion: AGENT_PROTOCOL_VERSION,
+      requestId,
+      decision: approved ? "approve" : "deny",
+      decidedAt: new Date().toISOString(),
+    }, null, 2)}\n`,
+  );
 }
 
 export async function readResult(location: BridgeLocation, requestId: string): Promise<PasteResult | undefined> {

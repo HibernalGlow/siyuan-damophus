@@ -1,16 +1,22 @@
-import { getAllEditor, openTab, type Protyle } from "siyuan";
+import { getAllEditor, getAllTabs, openTab, type Protyle } from "siyuan";
 import { createDocWithMd, getBlockKramdown, getHPathByID, getIDsByHPath } from "@/api";
 import { plugin, sleep } from "@/utils";
 import type { PasteItem } from "@hibernalglow/damophus-agent-contract";
 
 export class PasteAdapterError extends Error {
   constructor(
-    readonly code: "TARGET_EXISTS" | "TARGET_NOT_FOUND" | "TARGET_AMBIGUOUS" | "PASTE_FAILED" | "VERIFY_FAILED" | "UNSUPPORTED_LOCAL_ASSET",
+    readonly code: "TARGET_EXISTS" | "TARGET_NOT_FOUND" | "TARGET_AMBIGUOUS" | "ACTIVE_TARGET" | "PASTE_FAILED" | "VERIFY_FAILED" | "UNSUPPORTED_LOCAL_ASSET",
     message: string,
   ) {
     super(message);
     this.name = "PasteAdapterError";
   }
+}
+
+export interface PreparedPasteItem {
+  item: PasteItem;
+  documentId?: string;
+  targetPath: string;
 }
 
 async function waitForEditor(documentId: string): Promise<Protyle> {
@@ -104,7 +110,7 @@ export async function pasteCreate(item: PasteItem): Promise<{ documentId: string
   return { documentId, targetPath: item.target.path };
 }
 
-async function resolveExistingTarget(item: PasteItem): Promise<{ documentId: string; targetPath?: string }> {
+async function resolveExistingTarget(item: PasteItem): Promise<{ documentId: string; targetPath: string }> {
   if (item.target.mode !== "append" && item.target.mode !== "replace") {
     throw new PasteAdapterError("PASTE_FAILED", "Invalid existing target");
   }
@@ -130,4 +136,45 @@ export async function pasteExisting(item: PasteItem): Promise<{ documentId: stri
   await dispatchMarkdownPaste(editor, item.markdown, item.target.mode);
   await waitForPersistence(target.documentId, baseline, item.target.mode === "replace" && item.markdown.trim() === "");
   return target;
+}
+
+export async function preparePasteItem(item: PasteItem): Promise<PreparedPasteItem> {
+  if (item.target.mode === "create") {
+    const existingIds = await getIDsByHPath(item.target.notebookId, item.target.path);
+    if (existingIds?.length > 0) {
+      throw new PasteAdapterError("TARGET_EXISTS", `Document already exists: ${item.target.path}`);
+    }
+    return { item, targetPath: item.target.path };
+  }
+  const target = await resolveExistingTarget(item);
+  return { item, ...target };
+}
+
+export function findOpenTargetDocumentIds(items: PreparedPasteItem[]): string[] {
+  const targetIds = new Set(items.flatMap((item) => item.documentId ? [item.documentId] : []));
+  return [...new Set(getAllEditor()
+    .map((editor) => editor.protyle.block.rootID)
+    .filter((documentId) => targetIds.has(documentId)))];
+}
+
+export async function closeTargetDocuments(documentIds: string[]): Promise<void> {
+  if (documentIds.length === 0) return;
+  const targets = new Set(documentIds);
+  for (const tab of getAllTabs()) {
+    const editor = (tab.model as unknown as { editor?: Protyle } | undefined)?.editor;
+    if (editor && targets.has(editor.protyle.block.rootID)) tab.close();
+  }
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const remaining = getAllEditor().some((editor) => targets.has(editor.protyle.block.rootID));
+    if (!remaining) return;
+    await sleep(100);
+  }
+  throw new PasteAdapterError("ACTIVE_TARGET", "SiYuan did not close every active target tab");
+}
+
+export async function pastePrepared(item: PreparedPasteItem): Promise<{ documentId: string; targetPath?: string }> {
+  return item.item.target.mode === "create"
+    ? pasteCreate(item.item)
+    : pasteExisting(item.item);
 }
