@@ -60,6 +60,20 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.showPracticeTitle",
+      description: "lets-question-bank.showPracticeTitleDescription",
+      key: "showPracticeTitle",
+      value: false,
+    },
+    {
+      type: "checkbox",
+      title: "lets-question-bank.hideEmptyAnswerBlocks",
+      description: "lets-question-bank.hideEmptyAnswerBlocksDescription",
+      key: "hideEmptyAnswerBlocks",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.inheritSourceStyles",
       description: "lets-question-bank.inheritSourceStylesDescription",
       key: "inheritSourceStyles",
@@ -78,13 +92,6 @@ const pluginMetadata: PluginMetadata = {
       },
     },
     {
-      type: "checkbox",
-      title: "lets-question-bank.embedBreadcrumb",
-      description: "lets-question-bank.embedBreadcrumbDescription",
-      key: "embedBreadcrumb",
-      value: false,
-    },
-    {
       type: "select",
       title: "lets-question-bank.durationComparisonPosition",
       description: "lets-question-bank.durationComparisonPositionDescription",
@@ -95,6 +102,13 @@ const pluginMetadata: PluginMetadata = {
         rating: "lets-question-bank.durationComparisonPositionRating",
         header: "lets-question-bank.durationComparisonPositionHeader",
       },
+    },
+    {
+      type: "checkbox",
+      title: "lets-question-bank.embedBreadcrumb",
+      description: "lets-question-bank.embedBreadcrumbDescription",
+      key: "embedBreadcrumb",
+      value: false,
     },
     {
       type: "select",

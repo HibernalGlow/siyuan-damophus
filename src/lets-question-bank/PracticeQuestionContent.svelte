@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { Edit3 } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
   import type { AttemptEvent, Question, QuestionGroup, QuestionType, ShuffledOption } from "@/question-bank/core/types";
+  import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
   import type { AttemptDurationComparison } from "./attempt-duration-comparison";
   import type { DurationComparisonPosition } from "./duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
+  import PracticeTopicResources from "./PracticeTopicResources.svelte";
 
   type Label = (key: string, fallback: string) => string;
   type RenderMarkdown = (markdown: string, inheritStyles: boolean) => string;
@@ -30,6 +31,7 @@
   export let objectiveCorrect: boolean | null = null;
   export let subjectiveScore: number | undefined = undefined;
   export let currentAttempt: AttemptEvent | undefined = undefined;
+  export let topicResources: TopicResourceProjection[] = [];
   export let durationComparisons: AttemptDurationComparison[] = [];
   export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let inheritSourceStyles = true;
@@ -41,7 +43,6 @@
   export let formatDuration: (milliseconds: number) => string;
   export let toggleOption: (optionId: string) => void;
   export let changeSubjectiveScore: (event: Event) => void;
-  export let correctAnswer: (() => void) | undefined = undefined;
 
   type SourceBlockMountParams = {
     blockId: string;
@@ -182,6 +183,8 @@
   </article>
 {/if}
 
+<PracticeTopicResources resources={topicResources} {label} />
+
 {#if revealed}
   <section class="answer">
     {#if objectiveCorrect !== null || (durationComparisonPosition === "answer" && durationComparisons.length > 0)}
@@ -224,12 +227,6 @@
         {#if currentAttempt.duration_ms !== undefined}<span>{formatDuration(currentAttempt.duration_ms)}</span>{/if}
       </div>
     {/if}
-    {#if currentQuestion.answer && correctAnswer && !readOnlyQuestion}
-      <Button variant="outline" size="sm" class="mt-3" onclick={correctAnswer}>
-        <Edit3 size={14} aria-hidden="true" />
-        {label("correctAnswer", "Correct answer")}
-      </Button>
-    {/if}
   </section>
 {/if}
 
@@ -265,15 +262,16 @@
     padding-bottom: 0 !important;
     overflow: visible;
   }
-  .options { width: 100%; max-width: 1180px; margin: 18px auto 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .options { width: 100%; max-width: 980px; margin: 16px auto 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
   .options > :global(button.option) {
     min-width: 0;
-    min-height: 38px;
+    min-height: 36px;
     height: auto;
-    padding: 6px 10px;
+    align-self: start;
+    padding: 5px 8px;
     display: grid;
     grid-template-columns: 22px minmax(0, 1fr);
-    align-items: start;
+    align-items: center;
     justify-content: initial;
     gap: 8px;
     border: 1px solid color-mix(in srgb, var(--b3-border-color) 78%, transparent);
@@ -297,10 +295,16 @@
     outline-offset: 1px;
   }
   .options > :global(button.option:disabled) { cursor: default; }
-  .option-label { width: 22px; height: 22px; margin-top: 1px; border: 1px solid color-mix(in srgb, var(--b3-border-color) 90%, transparent); border-radius: 5px; display: grid; place-items: center; color: var(--b3-theme-on-surface); font-size: 12px; font-weight: 650; line-height: 1; }
+  .option-label { width: 22px; height: 22px; border: 1px solid color-mix(in srgb, var(--b3-border-color) 90%, transparent); border-radius: 5px; display: grid; place-items: center; color: var(--b3-theme-on-surface); font-size: 12px; font-weight: 650; line-height: 1; }
   :global(.options > button.option[aria-pressed="true"]) .option-label { border-color: var(--b3-theme-primary); background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); }
-  .option-content { align-self: start; width: 100%; min-width: 0; line-height: 1.45; }
+  .option-content { align-self: center; width: 100%; min-width: 0; line-height: 1.4; }
   .option-content :global(p) { margin: 0 !important; }
+  .option-content :global([data-node-id]) {
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.4 !important;
+  }
   .answer { width: 100%; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
   .correct { color: var(--b3-theme-success); font-size: 13px; }
@@ -339,7 +343,7 @@
     }
     .group-material { margin-top: 10px; padding-block: 9px; }
     .options { margin-top: 12px; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .options > :global(button.option) { padding: 6px 9px; }
+    .options > :global(button.option) { padding: 5px 8px; }
     .answer { margin-top: 10px; padding: 14px 14px 18px; }
   }
 
@@ -359,9 +363,18 @@
   }
 
   @media (max-width: 750px) {
-    .source-block-host :global(.protyle-gutters),
     .source-block-host :global(.protyle-scroll),
-    .native-answer-source :global(.protyle-gutters),
     .native-answer-source :global(.protyle-scroll) { display: none !important; }
+    .source-block-host :global(.damophus-native-source-block > .protyle),
+    .source-block-host :global(.damophus-native-source-block .protyle-content),
+    .source-block-host :global(.damophus-native-source-block .protyle-wysiwyg),
+    .native-answer-source :global(.damophus-native-source-block > .protyle),
+    .native-answer-source :global(.damophus-native-source-block .protyle-content),
+    .native-answer-source :global(.damophus-native-source-block .protyle-wysiwyg) {
+      width: 100% !important;
+      max-width: none !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+    }
   }
 </style>

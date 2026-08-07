@@ -107,6 +107,34 @@ describe("PracticeQuestionContent", () => {
     expect(mountSourceBlock).not.toHaveBeenCalled();
   });
 
+  it("projects Topic Index media without creating persisted document blocks", async () => {
+    render({
+      questionRenderMode: "html",
+      topicResources: [
+        {
+          topicId: "civil-security-flow-clause",
+          topicName: "Flow clause",
+          status: "active",
+          resource: { type: "image", name: "Flow", content: "assets/flow.gif" },
+        },
+        {
+          topicId: "civil-guarantee-contract",
+          topicName: "Guarantee contract",
+          status: "archived",
+          resource: { type: "file", name: "Guarantee", content: "assets/guarantee.mp4" },
+        },
+      ],
+    });
+    await flush();
+
+    expect(document.querySelector<HTMLImageElement>('.topic-resources img')?.getAttribute("src"))
+      .toBe("/assets/flow.gif");
+    expect(document.querySelector<HTMLVideoElement>('.topic-resources video')?.getAttribute("src"))
+      .toBe("/assets/guarantee.mp4");
+    expect(document.querySelector('[data-topic-status="archived"]')).not.toBeNull();
+    expect(document.querySelector('.topic-resources [data-node-id]')).toBeNull();
+  });
+
   it("mounts the editable native question before reveal and the native solution after reveal", async () => {
     const cleanup = vi.fn();
     const mountSourceBlock = vi.fn((target: HTMLElement, sourceBlockId: string, sourceEditable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => {

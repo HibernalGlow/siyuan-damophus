@@ -34,6 +34,7 @@ import { normalizeDurationComparisonPosition } from "./duration-comparison-posit
 import { installSourceAnswerMask } from "./source-answer-mask";
 import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
 import {
+  EMPTY_SOURCE_EMBED_SQL,
   loadSourceEmbedRows,
   sourceEmbedBlockIds,
   sourceEmbedSql,
@@ -390,7 +391,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
       const cached = sourceQueryCache.get(key);
       if (cached) return cached;
       const loading = loadSourceRows(blockId)
-        .then((rows) => sourceEmbedSql(rows, blockId, section))
+        .then((rows) => sourceEmbedSql(rows, blockId, section, {
+          hideEmptySolutionBlocks: section === "solution" && this.getSetting("hideEmptyAnswerBlocks") !== false,
+        }))
         .catch((error) => {
           sourceQueryCache.delete(key);
           throw error;
@@ -410,6 +413,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         durationComparisonPosition: normalizeDurationComparisonPosition(this.getSetting("durationComparisonPosition")),
         autoSyncIndex: this.getSetting("autoSyncIndex") === true,
         autoScanDocument: this.getSetting("autoScanDocument") === true,
+        showPracticeTitle: this.getSetting("showPracticeTitle") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
         pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
         mobileBreadcrumb: isMobile,
@@ -445,14 +449,16 @@ export default class QuestionBankPlugin extends SubPluginBase {
               embedQuery = await loadSourceQuery(blockId, section);
             } catch (error) {
               console.warn("[Damophus] failed to resolve question embed range", error);
-              embedQuery = "SELECT * FROM blocks WHERE 1 = 0";
+              embedQuery = EMPTY_SOURCE_EMBED_SQL;
             }
-            const operations = await appendBlock(
-              "markdown",
-              `{{${embedQuery}}}`,
-              binding.systemDocumentId,
-            );
-            temporaryEmbedId = operations[0]?.doOperations?.[0]?.id;
+            if (embedQuery !== EMPTY_SOURCE_EMBED_SQL) {
+              const operations = await appendBlock(
+                "markdown",
+                `{{${embedQuery}}}`,
+                binding.systemDocumentId,
+              );
+              temporaryEmbedId = operations[0]?.doOperations?.[0]?.id;
+            }
             if (temporaryEmbedId) {
               await setBlockAttrs(temporaryEmbedId, sourceEmbedBlockAttributes({
                 breadcrumb: this.getSetting("embedBreadcrumb") === true,
@@ -461,7 +467,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
             }
           }
           const mountedBlockIds = renderMode === "native"
-            ? sourceEmbedBlockIds(await loadSourceRows(blockId), blockId, section)
+            ? sourceEmbedBlockIds(await loadSourceRows(blockId), blockId, section, {
+                hideEmptySolutionBlocks: section === "solution" && this.getSetting("hideEmptyAnswerBlocks") !== false,
+              })
             : temporaryEmbedId ? [temporaryEmbedId] : [];
           const editors = await Promise.all(mountedBlockIds.map(async (mountedBlockId) => {
             const host = document.createElement("div");
@@ -490,7 +498,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
               render: {
                 background: false,
                 title: false,
-                gutter: !isMobile,
+                gutter: true,
                 scroll: false,
                 breadcrumb: false,
               },

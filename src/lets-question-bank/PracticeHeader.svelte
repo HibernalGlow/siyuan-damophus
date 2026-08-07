@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, ChevronLeft, ChevronRight, LayoutGrid, LocateFixed, Pause, Play, X } from "lucide-svelte";
+  import { ArrowLeft, ChevronLeft, ChevronRight, LayoutGrid, LocateFixed, Pause, Pencil, Play, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import { Button } from "@/components/ui/button";
   import {
@@ -8,13 +8,14 @@
     type Label,
   } from "./question-bank-display";
   import type { BreadcrumbOverflowPriority, BreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
-  import type { Question } from "@/question-bank/core/types";
+  import type { ObjectiveAnswer, Question } from "@/question-bank/core/types";
   import type { AttemptDurationComparison } from "./attempt-duration-comparison";
   import type { DurationComparisonPosition } from "./duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
 
   export let currentQuestion: Question | undefined;
   export let buildRevision: string;
+  export let showPracticeTitle = false;
   export let label: Label;
   export let translations: Record<string, string> = {};
   export let onClose: (() => void) | undefined = undefined;
@@ -44,6 +45,43 @@
   export let pausePractice: () => void;
   export let requestEndPractice: () => void;
   export let onAnswerCardToggle: (open: boolean) => void;
+  export let revealed = false;
+  export let onCorrectAnswer: ((answer: ObjectiveAnswer) => void) | undefined = undefined;
+
+  let correctionOpen = false;
+  let selectedCorrectionIds: string[] = [];
+  let selectedCorrectionBoolean = "";
+
+  function openCorrection(): void {
+    const answer = currentQuestion?.answer;
+    if (!answer) return;
+    selectedCorrectionIds = answer.kind === "options" ? [...answer.optionIds] : [];
+    selectedCorrectionBoolean = answer.kind === "boolean" ? String(answer.value) : "";
+    correctionOpen = true;
+  }
+
+  function toggleCorrectionOption(optionId: string): void {
+    if (currentQuestion?.type === "multiple" || currentQuestion?.type === "indefinite") {
+      selectedCorrectionIds = selectedCorrectionIds.includes(optionId)
+        ? selectedCorrectionIds.filter((id) => id !== optionId)
+        : [...selectedCorrectionIds, optionId];
+    } else {
+      selectedCorrectionIds = [optionId];
+    }
+  }
+
+  function saveCorrection(): void {
+    const answer: ObjectiveAnswer | undefined = currentQuestion?.answer?.kind === "boolean"
+      ? selectedCorrectionBoolean === "true" || selectedCorrectionBoolean === "false"
+        ? { kind: "boolean", value: selectedCorrectionBoolean === "true" }
+        : undefined
+      : selectedCorrectionIds.length > 0
+        ? { kind: "options", optionIds: selectedCorrectionIds }
+        : undefined;
+    if (!answer) return;
+    onCorrectAnswer?.(answer);
+    correctionOpen = false;
+  }
 
   const practiceBreadcrumb = (node: HTMLElement, state: { items: BlockBreadcrumbItem[]; activeId?: string; fallback: string }) => createPracticeBreadcrumbAction(node, state, {
     mobile: mobileBreadcrumb,
@@ -54,12 +92,14 @@
   });
 </script>
 
-<header class="app-header" class:app-header--practice={currentQuestion !== undefined}>
-  <div class="app-brand">
-    <h1>Damophus</h1>
-    <span>{label("displayName", "Question Bank")}</span>
-    <code class="build-revision" title={buildRevision}>{buildRevision}</code>
-  </div>
+<header class="app-header" class:app-header--practice={currentQuestion !== undefined} class:app-header--title-hidden={!showPracticeTitle}>
+  {#if showPracticeTitle}
+    <div class="app-brand">
+      <h1>Damophus</h1>
+      <span>{label("displayName", "Question Bank")}</span>
+      <code class="build-revision" title={buildRevision}>{buildRevision}</code>
+    </div>
+  {/if}
   {#if currentQuestion}
     <div class="practice-toolbar">
       <div class="practice-status">
@@ -120,6 +160,18 @@
             <LocateFixed size={17} aria-hidden="true" />
           </Button>
         {/if}
+        {#if revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}
+          <Button
+            variant="ghost"
+            size="icon"
+            data-correct-answer
+            title={label("correctAnswer", "Correct answer")}
+            aria-label={label("correctAnswer", "Correct answer")}
+            onclick={openCorrection}
+          >
+            <Pencil size={17} aria-hidden="true" />
+          </Button>
+        {/if}
         {#if reviewing}
           <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
             <ArrowLeft size={17} aria-hidden="true" />
@@ -156,3 +208,39 @@
     </div>
   {/if}
 </header>
+
+{#if correctionOpen && currentQuestion?.answer}
+  <button class="correction-backdrop" aria-label={label("cancel", "Cancel")} onclick={() => correctionOpen = false}></button>
+  <div class="correction-dialog" role="dialog" aria-modal="true" aria-label={label("correctAnswer", "Correct answer")}>
+    <header>
+      <strong>{label("correctAnswer", "Correct answer")}</strong>
+      <Button variant="ghost" size="icon" aria-label={label("cancel", "Cancel")} onclick={() => correctionOpen = false}><X size={16} /></Button>
+    </header>
+    {#if currentQuestion.answer.kind === "boolean"}
+      <div class="correction-options correction-options--boolean">
+        {#each ["true", "false"] as value}
+          <Button variant={selectedCorrectionBoolean === value ? "secondary" : "outline"} aria-pressed={selectedCorrectionBoolean === value} onclick={() => selectedCorrectionBoolean = value}>{value}</Button>
+        {/each}
+      </div>
+    {:else}
+      <div class="correction-options">
+        {#each currentQuestion.options as option (option.id)}
+          <Button variant={selectedCorrectionIds.includes(option.id) ? "secondary" : "outline"} aria-pressed={selectedCorrectionIds.includes(option.id)} onclick={() => toggleCorrectionOption(option.id)}>{option.id}</Button>
+        {/each}
+      </div>
+    {/if}
+    <div class="correction-actions">
+      <Button variant="outline" onclick={() => correctionOpen = false}>{label("cancel", "Cancel")}</Button>
+      <Button data-save-corrected-answer onclick={saveCorrection}>{label("save", "Save")}</Button>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .correction-backdrop { position: fixed; inset: 0; z-index: 9998; border: 0; background: rgb(0 0 0 / 24%); }
+  .correction-dialog { position: fixed; z-index: 9999; top: 64px; right: 16px; width: min(360px, calc(100vw - 32px)); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 8px; background: var(--b3-theme-background); color: var(--b3-theme-on-background); box-shadow: 0 12px 32px rgb(0 0 0 / 24%); }
+  .correction-dialog > header { display: flex; align-items: center; justify-content: space-between; }
+  .correction-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .correction-options--boolean { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .correction-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+</style>

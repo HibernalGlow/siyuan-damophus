@@ -8,6 +8,7 @@
   import type { DurationComparisonPosition } from "./duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
   import type { AttemptEvent, Question, QuestionGroup, ShuffledOption, MasteryRating } from "@/question-bank/core/types";
+  import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
   import type { Label } from "./question-bank-display";
 
   export let label: Label;
@@ -21,6 +22,7 @@
   export let objectiveCorrect: boolean | null = null;
   export let subjectiveScore: number | undefined;
   export let currentAttempt: AttemptEvent | undefined;
+  export let topicResources: TopicResourceProjection[] = [];
   export let durationComparisons: AttemptDurationComparison[] = [];
   export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let inheritSourceStyles = true;
@@ -32,7 +34,6 @@
   export let formatDuration: (milliseconds: number) => string;
   export let toggleOption: (optionId: string) => void;
   export let changeSubjectiveScore: (event: Event) => void;
-  export let correctAnswer: (() => void) | undefined = undefined;
   export let timingEnabled = true;
   export let questionElapsedMs = 0;
   export let resetQuestionTimer: () => void;
@@ -127,6 +128,7 @@
       {objectiveCorrect}
       {subjectiveScore}
       {currentAttempt}
+      {topicResources}
       {durationComparisons}
       {durationComparisonPosition}
       {inheritSourceStyles}
@@ -138,7 +140,6 @@
       {formatDuration}
       {toggleOption}
       {changeSubjectiveScore}
-      {correctAnswer}
       {label}
     />
   </ScrollArea.Root>

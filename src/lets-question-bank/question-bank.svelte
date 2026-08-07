@@ -16,8 +16,8 @@
     ScanMessage,
     ShuffledOption,
     ShuffledQuestion,
+    ObjectiveAnswer,
   } from "@/question-bank/core/types";
-  import { normalizeOptionIds } from "@/question-bank/core/answer";
   import { buildStatistics, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
@@ -48,6 +48,7 @@
   import type {
     QuestionBankInitializationPreview,
     QuestionBankRebindingPreview,
+    TopicResourceProjection,
   } from "@/question-bank/adapters/siyuan";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
   import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
@@ -89,6 +90,7 @@
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let autoScanDocument = false;
   export let onAutoScanDocumentChange: ((value: boolean) => void) | undefined = undefined;
+  export let showPracticeTitle = false;
   export let timingEnabled = true;
   export let pauseOnAnswerReveal = true;
   export let now: () => number = Date.now;
@@ -131,6 +133,9 @@
   let queue: Question[] = [];
   let questionIndex = 0;
   let currentQuestion: Question | undefined;
+  let topicResources: TopicResourceProjection[] = [];
+  let topicResourceQuestionId = "";
+  let topicResourceRequest = 0;
   let breadcrumbItems: BlockBreadcrumbItem[] = [];
   let breadcrumbBlockId = "";
   let shuffled: ShuffledQuestion | undefined;
@@ -257,6 +262,9 @@
     breadcrumbBlockId = currentQuestionBlockId;
     void loadPracticeBreadcrumb(currentQuestionBlockId);
   }
+  $: if ((currentQuestion?.id ?? "") !== topicResourceQuestionId) {
+    void loadTopicResources(currentQuestion?.id);
+  }
   $: sessionElapsedMs = timingEnabled && practiceState
     ? practiceSessionElapsedMs(practiceState.context, timerNow)
     : 0;
@@ -372,6 +380,19 @@
     recoverableSession = undefined;
     scanPanelUserControlled = false;
     scheduleAutoScan();
+  }
+
+  async function loadTopicResources(questionId: string | undefined): Promise<void> {
+    const request = ++topicResourceRequest;
+    topicResourceQuestionId = questionId ?? "";
+    topicResources = [];
+    if (!questionId || !controller.loadQuestionTopicResources) return;
+    try {
+      const resources = await controller.loadQuestionTopicResources(questionId);
+      if (request === topicResourceRequest && currentQuestion?.id === questionId) topicResources = resources;
+    } catch (reason) {
+      log.warn("topic-resources.failed", { questionId, reason });
+    }
   }
 
   function scheduleAutoScan(delay = 450): void {
@@ -598,27 +619,10 @@
       : undefined;
   }
 
-  function correctCurrentAnswer(): void {
+  function correctCurrentAnswer(answer: ObjectiveAnswer): void {
     const question = currentQuestion;
     const blockId = currentQuestionBlockId;
     if (!question || !blockId || !controller.correctQuestionAnswer || !question.answer) return;
-    const current = question.answer.kind === "boolean"
-      ? String(question.answer.value)
-      : question.answer.optionIds.join(",");
-    const input = window.prompt(label("correctAnswerPrompt", "Enter the correct answer (for example A or A,C)"), current);
-    if (input === null) return;
-    const value = input.trim();
-    const answer = question.answer.kind === "boolean"
-      ? value.toLowerCase() === "true"
-        ? { kind: "boolean" as const, value: true }
-        : value.toLowerCase() === "false"
-          ? { kind: "boolean" as const, value: false }
-          : undefined
-      : { kind: "options" as const, optionIds: normalizeOptionIds(value.split(/[，,\s]+/u)) };
-    if (!answer) {
-      error = label("invalidCorrectAnswer", "Enter true or false");
-      return;
-    }
     void run(async () => {
       await controller.correctQuestionAnswer!(blockId, question, answer);
       const updated = { ...question, answer };
@@ -1019,7 +1023,7 @@
   bind:view bind:composerOpen bind:examMode bind:autoScanDocument bind:dataPanelOpen bind:dataPanelUserControlled bind:fileInput
   bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:filter
   bind:endConfirmation bind:answerCardOpen
-  {currentQuestion} {buildRevision} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
+  {currentQuestion} {topicResources} {buildRevision} {showPracticeTitle} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
   {timingEnabled} {sessionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}

@@ -15,6 +15,7 @@
   export let rootElement: HTMLElement;
   export let currentQuestion: any;
   export let buildRevision: string;
+  export let showPracticeTitle = false;
   export let label: any;
   export let translations: Record<string, string>;
   export let onClose: any;
@@ -137,6 +138,7 @@
   export let objectiveCorrect: boolean | null;
   export let subjectiveScore: number | undefined;
   export let currentAttempt: any;
+  export let topicResources: any[];
   export let durationComparisons: any[];
   export let durationComparisonPosition: any;
   export let inheritSourceStyles: boolean;
@@ -178,6 +180,7 @@
   <PracticeHeader
     currentQuestion={currentQuestion}
     {buildRevision}
+    {showPracticeTitle}
     {label}
     {translations}
     {onClose}
@@ -200,6 +203,8 @@
     {answerTimerPaused}
     {timerEffectivelyPaused}
     {answerCardOpen}
+    {revealed}
+    onCorrectAnswer={correctCurrentAnswer}
     {previousQuestion}
     {nextQuestion}
     {togglePracticeTimer}
@@ -355,6 +360,7 @@
       {objectiveCorrect}
       {subjectiveScore}
       {currentAttempt}
+      {topicResources}
       {durationComparisons}
       {durationComparisonPosition}
       {inheritSourceStyles}
@@ -366,7 +372,6 @@
       {formatDuration}
       {toggleOption}
       {changeSubjectiveScore}
-      correctAnswer={correctCurrentAnswer}
       {timingEnabled}
       {questionElapsedMs}
       {resetQuestionTimer}
