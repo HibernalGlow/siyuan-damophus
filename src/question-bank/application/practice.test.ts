@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Question, TopicNode } from "../core/types";
-import { createPracticeQueue, suggestedMasteryRating } from "./practice";
+import { createPracticeOptionOrder, createPracticeQueue, suggestedMasteryRating } from "./practice";
 
 function question(id: string, topicId: string): Question {
   return {
@@ -38,6 +38,22 @@ describe("practice application service", () => {
       random: () => values.shift() ?? 0,
     });
     expect(queue.map((item) => item.id)).toEqual(["q2", "q3", "q1"]);
+  });
+
+  it("freezes source or randomized option order before practice", () => {
+    const value: Question = {
+      ...question("q1", "child"),
+      type: "multiple",
+      options: [
+        { id: "A", markdown: "Alpha" },
+        { id: "B", markdown: "Beta" },
+        { id: "C", markdown: "Gamma" },
+      ],
+      answer: { kind: "options", optionIds: ["A", "C"] },
+    };
+
+    expect(createPracticeOptionOrder(value, "source", () => 0)).toEqual(["A", "B", "C"]);
+    expect(createPracticeOptionOrder(value, "random", () => 0)).toEqual(["B", "C", "A"]);
   });
 
   it("keeps objective result independent from mastery suggestions", () => {

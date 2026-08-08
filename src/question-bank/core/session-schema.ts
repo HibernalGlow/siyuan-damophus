@@ -4,7 +4,7 @@ import type { Question, QuestionType } from "./types";
 
 export const PRACTICE_SESSION_SCHEMA_VERSION = 1 as const;
 
-export const PracticeFilterSchema = z.enum(["all", "wrong", "review", "due"]);
+export const PracticeFilterSchema = z.enum(["all", "unattempted", "wrong", "review", "due"]);
 export const PracticeOrderSchema = z.enum(["sequential", "random"]);
 
 export const PracticeDraftSchema = z.object({

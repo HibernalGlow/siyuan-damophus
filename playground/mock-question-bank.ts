@@ -18,6 +18,10 @@ import type {
   RecentScope,
   SourceBlockIdentity,
 } from "@/lets-question-bank/controller";
+import {
+  DEFAULT_PRACTICE_PREFERENCES,
+  type PracticePreferences,
+} from "@/lets-question-bank/practice-preferences";
 import type { StoredPracticeSession } from "@/lets-question-bank/session-host";
 
 const documentId = "20260805120000-damodev";
@@ -181,6 +185,7 @@ export class DevQuestionBankController implements QuestionBankUiController {
   private readonly preview = createPreview();
   private synchronized = false;
   private practiceSession: PracticeSessionSnapshot | undefined;
+  private practicePreferences = structuredClone(DEFAULT_PRACTICE_PREFERENCES);
   private readonly attempts: AttemptEvent[] = [];
 
   getBinding(): QuestionBankBinding {
@@ -255,6 +260,14 @@ export class DevQuestionBankController implements QuestionBankUiController {
   }
 
   async releasePracticeSession(): Promise<void> {}
+
+  getPracticePreferences(): PracticePreferences {
+    return structuredClone(this.practicePreferences);
+  }
+
+  savePracticePreferences(preferences: PracticePreferences): void {
+    this.practicePreferences = structuredClone(preferences);
+  }
 
   async loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]> {
     return this.attempts.filter((attempt) => attempt.session_id === sessionId);

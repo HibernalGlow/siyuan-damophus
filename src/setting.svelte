@@ -181,6 +181,8 @@
     return {
       sections: {
         navigation: t("lets-question-bank.settingsNavigation", "Question Bank setting sections"),
+        practice: t("lets-question-bank.settingsPractice", "Practice preferences"),
+        practiceDescription: t("lets-question-bank.settingsPracticeDescription", "Choose the defaults used when no previous practice selection is available."),
         review: t("lets-question-bank.settingsReview", "Review & cards"),
         reviewDescription: t("lets-question-bank.settingsReviewDescription", "Decide when questions need review and when quick cards are created."),
         index: t("lets-question-bank.settingsIndex", "Index & scanning"),

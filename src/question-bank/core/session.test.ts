@@ -70,6 +70,7 @@ describe("practice session snapshot", () => {
     expect(value.queue_question_ids).toEqual(["question-1", "question-2"]);
     expect(value.drafts["question-1"].option_order).toEqual(["B", "A"]);
     expect(parsePracticeSessionSnapshot(value).status).toBe("ok");
+    expect(parsePracticeSessionSnapshot({ ...value, filter: "unattempted" }).status).toBe("ok");
     expect(parsePracticeSessionSnapshot({ ...value, schema_version: 2 })).toEqual({
       status: "unsupported",
       schemaVersion: 2,
@@ -98,7 +99,7 @@ describe("practice session machine", () => {
     expect(practiceSessionElapsedMs(actor.getSnapshot().context, 5_000)).toBe(0);
   });
 
-  it("preserves independent drafts while navigating freely", () => {
+  it("preserves independent drafts while resetting question time on navigation", () => {
     const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000, pauseOnAnswerReveal: false } }).start();
     actor.send({
       type: "DRAFT_CHANGED",
@@ -123,7 +124,8 @@ describe("practice session machine", () => {
       objective_correct: true,
     });
     expect(context.session.drafts["question-2"].selected_option_ids).toEqual(["B"]);
-    expect(context.session.drafts["question-1"].elapsed_ms).toBe(1_500);
+    expect(context.session.drafts["question-1"].elapsed_ms).toBe(0);
+    expect(practiceQuestionElapsedMs(context, 4_500)).toBe(1_000);
     actor.stop();
   });
 
@@ -192,6 +194,26 @@ describe("practice session machine", () => {
     expect(context.session.completed_question_ids).toEqual(["question-1"]);
     expect(context.session.current_question_id).toBe("question-2");
     expect(context.attemptsByQuestionId["question-1"].mastery_rating).toBe("good");
+    actor.stop();
+  });
+
+  it("resets a previously visited question timer after automatic advance", () => {
+    const resumed = snapshot();
+    resumed.drafts["question-2"] = { ...resumed.drafts["question-2"], elapsed_ms: 6_000 };
+    const actor = createActor(practiceSessionMachine, { input: { snapshot: resumed, now: 1_000 } }).start();
+    actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: "question-1",
+      patch: { selected_option_ids: ["A"], revealed: true, objective_correct: true },
+      now: 2_000,
+    });
+    actor.send({ type: "BEGIN_SUBMIT", questionId: "question-1", now: 3_000 });
+    actor.send({ type: "SUBMIT_SUCCEEDED", attempt: attempt("question-1"), now: 4_000 });
+
+    const context = actor.getSnapshot().context;
+    expect(context.session.current_question_id).toBe("question-2");
+    expect(context.session.drafts["question-2"].elapsed_ms).toBe(0);
+    expect(practiceQuestionElapsedMs(context, 5_000)).toBe(1_000);
     actor.stop();
   });
 

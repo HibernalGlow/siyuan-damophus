@@ -1,7 +1,10 @@
 import { filterQuestions, type PracticeFilter } from "../core/scope";
+import { questionOptionIds } from "../core/session-schema";
+import { shuffleQuestionOptions } from "../core/shuffle";
 import type { AttemptAggregate, MasteryRating, Question, TopicNode } from "../core/types";
 
 export type PracticeOrder = "sequential" | "random";
+export type PracticeOptionOrder = "source" | "random";
 
 export interface CreatePracticeQueueInput {
   questions: readonly Question[];
@@ -25,6 +28,16 @@ export function createPracticeQueue(input: CreatePracticeQueueInput): Question[]
     [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
   }
   return shuffled;
+}
+
+export function createPracticeOptionOrder(
+  question: Question,
+  order: PracticeOptionOrder,
+  random: () => number = Math.random,
+): string[] {
+  return order === "source"
+    ? questionOptionIds(question)
+    : shuffleQuestionOptions(question, random).optionOrder;
 }
 
 export function suggestedMasteryRating(

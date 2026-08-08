@@ -1,6 +1,6 @@
 import type { AttemptAggregate, Question, TopicNode } from "./types";
 
-export type PracticeFilter = "all" | "wrong" | "review" | "due";
+export type PracticeFilter = "all" | "unattempted" | "wrong" | "review" | "due";
 
 export interface QuestionFilterInput {
   questions: readonly Question[];
@@ -39,6 +39,7 @@ export function filterQuestions(input: QuestionFilterInput): Question[] {
     const questionScopeId = question.metadata.scopeTopicId ?? question.metadata.topicId;
     if (topicIds && (!questionScopeId || !topicIds.has(questionScopeId))) return false;
     const aggregate = input.aggregates?.get(question.id);
+    if (filter === "unattempted") return (aggregate?.attempts ?? 0) === 0;
     if (filter === "wrong") return (aggregate?.objectiveIncorrect ?? 0) > 0;
     if (filter === "review") {
       return (aggregate?.consecutiveReviewCount ?? 0) >= (input.reviewThreshold ?? 2);

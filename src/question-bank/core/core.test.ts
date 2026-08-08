@@ -92,6 +92,7 @@ describe("portable question core", () => {
     ]);
 
     expect(filterQuestions({ questions, topics, rootTopicId: "root" }).map((item) => item.id)).toEqual(["q1"]);
+    expect(filterQuestions({ questions, topics, filter: "unattempted", aggregates }).map((item) => item.id)).toEqual(["q2"]);
     expect(filterQuestions({ questions, topics, filter: "wrong", aggregates }).map((item) => item.id)).toEqual(["q1"]);
     expect(filterQuestions({ questions, topics, filter: "review", aggregates }).map((item) => item.id)).toEqual(["q1"]);
     expect(filterQuestions({ questions, topics, filter: "due", dueQuestionIds: new Set(["q2"]) }).map((item) => item.id)).toEqual(["q2"]);

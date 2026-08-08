@@ -52,6 +52,42 @@ const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "select",
+      title: "lets-question-bank.defaultQuestionOrder",
+      description: "lets-question-bank.defaultQuestionOrderDescription",
+      key: "defaultQuestionOrder",
+      value: "sequential",
+      options: {
+        sequential: "lets-question-bank.sequentialQuestions",
+        random: "lets-question-bank.randomQuestions",
+      },
+    },
+    {
+      type: "select",
+      title: "lets-question-bank.defaultOptionOrder",
+      description: "lets-question-bank.defaultOptionOrderDescription",
+      key: "defaultOptionOrder",
+      value: "random",
+      options: {
+        source: "lets-question-bank.sourceOptions",
+        random: "lets-question-bank.randomOptions",
+      },
+    },
+    {
+      type: "select",
+      title: "lets-question-bank.defaultPracticeFilter",
+      description: "lets-question-bank.defaultPracticeFilterDescription",
+      key: "defaultPracticeFilter",
+      value: "all",
+      options: {
+        all: "lets-question-bank.all",
+        unattempted: "lets-question-bank.unattempted",
+        wrong: "lets-question-bank.wrong",
+        review: "lets-question-bank.review",
+        due: "lets-question-bank.due",
+      },
+    },
+    {
       type: "checkbox",
       title: "lets-question-bank.showPracticeTitle",
       description: "lets-question-bank.showPracticeTitleDescription",

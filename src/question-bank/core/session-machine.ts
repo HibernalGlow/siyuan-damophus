@@ -84,11 +84,15 @@ function commitSubmission(
   ])];
   const session = { ...checked.session, completed_question_ids: completedQuestionIds };
   const nextQuestionId = nextUnfinished(session, event.attempt.question_id);
+  const nextDraft = nextQuestionId ? session.drafts[nextQuestionId] : undefined;
   return {
     ...checked,
     session: {
       ...session,
       current_question_id: nextQuestionId ?? event.attempt.question_id,
+      drafts: nextDraft
+        ? { ...session.drafts, [nextQuestionId!]: { ...nextDraft, elapsed_ms: 0 } }
+        : session.drafts,
     },
     attemptsByQuestionId: {
       ...checked.attemptsByQuestionId,
@@ -175,9 +179,18 @@ const machineSetup = setup({
       const checked = checkpoint(context, event.now);
       const nextDraft = checked.session.drafts[event.questionId];
       const frozen = checked.pauseOnAnswerReveal && Boolean(nextDraft?.revealed);
+      const resetsTimer = event.type === "NAVIGATE"
+        && event.questionId !== checked.session.current_question_id
+        && !checked.session.completed_question_ids.includes(event.questionId);
       return {
         ...checked,
-        session: { ...checked.session, current_question_id: event.questionId },
+        session: {
+          ...checked.session,
+          current_question_id: event.questionId,
+          drafts: resetsTimer && nextDraft
+            ? { ...checked.session.drafts, [event.questionId]: { ...nextDraft, elapsed_ms: 0 } }
+            : checked.session.drafts,
+        },
         activeSinceMs: frozen ? undefined : checked.activeSinceMs,
         questionActiveSinceMs: frozen || checked.session.completed_question_ids.includes(event.questionId)
           ? undefined
