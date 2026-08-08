@@ -88,6 +88,14 @@ function installEditor(): void {
     </div>`;
 }
 
+function relationMarkerAfter(element: HTMLElement): HTMLElement {
+  const marker = element.nextElementSibling;
+  if (!(marker instanceof HTMLElement) || !marker.classList.contains("damophus-topic-relations")) {
+    throw new Error("Missing adjacent topic relation marker");
+  }
+  return marker;
+}
+
 describe("topic relation editor projection", () => {
   it("renders the same grouped relation contract on note and question blocks", () => {
     installEditor();
@@ -104,22 +112,49 @@ describe("topic relation editor projection", () => {
     const note = document.querySelector<HTMLElement>("#note");
     const question = document.querySelector<HTMLElement>("#question");
     if (!note || !question) throw new Error("Missing editor blocks");
-    expect(note.querySelector(".damophus-topic-relations")?.textContent).toContain("Topic note");
-    expect(note.querySelector(".damophus-topic-relations")?.textContent).toContain("Other topic notes");
-    expect(note.querySelector(".damophus-topic-relations")?.textContent).toContain("Related questions");
-    expect(note.querySelector(".damophus-topic-relations__row")?.textContent)
+    const noteMarker = relationMarkerAfter(note);
+    const questionMarker = relationMarkerAfter(question);
+    expect(noteMarker.textContent).toContain("Topic note");
+    expect(noteMarker.textContent).toContain("Other topic notes");
+    expect(noteMarker.textContent).toContain("Related questions");
+    expect(noteMarker.querySelector(".damophus-topic-relations__row")?.textContent)
       .not.toContain("Detailed topic");
-    expect(question.querySelector(".damophus-topic-relations")?.textContent).toContain("Topics");
-    expect(question.querySelectorAll('[data-type="block-ref"]')).toHaveLength(2);
-    expect(note.querySelector('[data-id="20260808000100-note001"]')).toBeNull();
+    expect(questionMarker.textContent).toContain("Topics");
+    expect(questionMarker.querySelectorAll('[data-type="block-ref"]')).toHaveLength(2);
+    expect(noteMarker.querySelector('[data-id="20260808000100-note001"]')).toBeNull();
 
-    note.querySelector<HTMLButtonElement>(".damophus-topic-relations__topic-button")?.click();
+    noteMarker.querySelector<HTMLButtonElement>(".damophus-topic-relations__topic-button")?.click();
     expect(open).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       group,
       "20260808000100-note001",
       "notes",
     );
+  });
+
+  it("keeps virtual relation HTML outside editable blocks and migrates legacy placement", () => {
+    installEditor();
+    const targets = findTopicRelationTargets(document);
+    const options = {
+      displayMode: "compact" as const,
+      nativeHover: true,
+      labels,
+      onRetry: vi.fn(),
+      onOpen: vi.fn(),
+    };
+    syncTopicRelationMarkers(document, targets, new Map([[group.topicId, group]]), options);
+
+    const note = document.querySelector<HTMLElement>("#note");
+    if (!note) throw new Error("Missing note block");
+    const safeMarker = relationMarkerAfter(note);
+    expect(note.innerHTML).not.toContain("damophus-topic-relations");
+    expect(safeMarker.dataset.topicRelationsTargetId).toBe("20260808000100-note001");
+
+    note.append(safeMarker);
+    syncTopicRelationMarkers(document, targets, new Map([[group.topicId, group]]), options);
+
+    expect(note.innerHTML).not.toContain("damophus-topic-relations");
+    expect(relationMarkerAfter(note).dataset.signature).toBeTruthy();
   });
 
   it("projects a zoomed topic-note root beneath the SiYuan document title", () => {

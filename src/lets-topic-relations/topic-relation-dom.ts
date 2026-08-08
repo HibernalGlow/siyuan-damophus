@@ -161,7 +161,33 @@ function markerSignature(
   ].join(";");
 }
 
+function isEditorBlockTarget(target: HTMLElement): boolean {
+  return target.hasAttribute("data-node-id") && Boolean(target.closest(".protyle-wysiwyg"));
+}
+
+function markerTargetId(marker: HTMLElement): string | undefined {
+  return marker.dataset.topicRelationsTargetId || marker.dataset.signature?.split(";", 1)[0];
+}
+
+function markerBelongsToTarget(
+  marker: HTMLElement,
+  target: TopicRelationTarget,
+): boolean {
+  if (markerTargetId(marker) !== target.blockId) return false;
+  return marker.parentElement === target.element || marker.previousElementSibling === target.element;
+}
+
+function markerHasSafePlacement(marker: HTMLElement, target: HTMLElement): boolean {
+  return isEditorBlockTarget(target)
+    ? marker.previousElementSibling === target
+    : marker.parentElement === target;
+}
+
 function insertMarker(target: HTMLElement, marker: HTMLElement): void {
+  if (isEditorBlockTarget(target)) {
+    target.insertAdjacentElement("afterend", marker);
+    return;
+  }
   const nativeAttribute = Array.from(target.children).find(
     (child) => child.classList.contains("protyle-attr"),
   );
@@ -316,18 +342,21 @@ export function syncTopicRelationMarkers(
   index: ReadonlyMap<string, TopicRelationGroup>,
   options: TopicRelationRenderOptions,
 ): void {
-  const targetElements = new Set(targets.map((target) => target.element));
   root.querySelectorAll<HTMLElement>(`.${TOPIC_RELATION_MARKER_CLASS}`).forEach((marker) => {
-    if (!marker.parentElement || !targetElements.has(marker.parentElement)) marker.remove();
+    if (!targets.some((target) => markerBelongsToTarget(marker, target))) marker.remove();
   });
   for (const target of targets) {
     const signature = markerSignature(target, index, options);
-    const existing = Array.from(target.element.children).find(
-      (child) => child.classList.contains(TOPIC_RELATION_MARKER_CLASS),
-    ) as HTMLElement | undefined;
-    if (existing?.dataset.signature === signature) continue;
+    const existing = Array.from(root.querySelectorAll<HTMLElement>(
+      `.${TOPIC_RELATION_MARKER_CLASS}`,
+    )).find((marker) => markerBelongsToTarget(marker, target));
+    if (
+      existing?.dataset.signature === signature
+      && markerHasSafePlacement(existing, target.element)
+    ) continue;
     const marker = renderMarker(target, index, options);
     marker.dataset.signature = signature;
+    marker.dataset.topicRelationsTargetId = target.blockId;
     existing?.remove();
     insertMarker(target.element, marker);
   }
