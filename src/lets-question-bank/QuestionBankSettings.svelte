@@ -27,7 +27,7 @@
   import { BookOpenCheck, Database, EyeOff, FileText, GraduationCap, Heading1, ListTree, Monitor, PanelsTopLeft, Rows3, TextSelect, Timer } from "lucide-svelte";
   import SettingPanel from "@/libs/setting-panel.svelte";
   import { Button } from "@/components/ui/button";
-  import * as ToggleGroup from "@/components/ui/toggle-group";
+  import * as Select from "@/components/ui/select";
   import { plugin } from "@/utils";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
   import SourceAnswerMaskSettings from "./SourceAnswerMaskSettings.svelte";
@@ -41,7 +41,7 @@
   const sectionIds = ["practice", "review", "index", "display", "timing", "mask"] as const;
   type SectionId = typeof sectionIds[number];
   type StandardSectionId = Exclude<SectionId, "mask">;
-  const directDisplaySettingKeys = new Set(["questionRenderMode", "embedHeadingMode"]);
+  const displaySelectSettingKeys = new Set(["questionRenderMode", "embedHeadingMode"]);
 
   const sectionKeys: Record<StandardSectionId, string[]> = {
     practice: ["defaultQuestionOrder", "defaultOptionOrder", "defaultPracticeFilter"],
@@ -84,20 +84,31 @@
   }
 
   function standardItemsFor(sectionId: StandardSectionId): ISettingItem[] {
-    return itemsFor(sectionId).filter((item) => !directDisplaySettingKeys.has(item.key));
+    return itemsFor(sectionId).filter((item) => !displaySelectSettingKeys.has(item.key));
   }
 
-  function directDisplayItems(): ISettingItem[] {
-    return itemsFor("display").filter((item) => directDisplaySettingKeys.has(item.key));
+  function displaySelectItems(): ISettingItem[] {
+    return itemsFor("display").filter((item) => displaySelectSettingKeys.has(item.key));
   }
 
   function localized(value: string): string {
     return plugin.i18n[value] || value;
   }
 
-  function setDirectDisplayChoice(item: ISettingItem, value: string): void {
+  function setDisplaySelectChoice(item: ISettingItem, value: string): void {
     if (!value || value === item.value) return;
     dispatch("changed", { group, key: item.key, value });
+  }
+
+  function displaySelectIcon(key: string, value: string) {
+    if (key === "questionRenderMode") {
+      if (value === "html") return TextSelect;
+      if (value === "native") return FileText;
+      return PanelsTopLeft;
+    }
+    if (value === "0") return Rows3;
+    if (value === "1") return Heading1;
+    return ListTree;
   }
 
   function setSectionOpen(sectionId: SectionId, open: boolean): void {
@@ -180,47 +191,38 @@
                 on:preview={(event) => dispatch("preview", event.detail)}
               />
               {#if section.id === "display"}
-                <div class="question-bank-direct-choices">
-                  {#each directDisplayItems() as item (item.key)}
-                    <div class="question-bank-direct-choice" data-settings-direct-choice={item.key}>
+                <div class="question-bank-display-selects">
+                  {#each displaySelectItems() as item (item.key)}
+                    <div class="question-bank-display-select" data-settings-display-select={item.key}>
                       <div class="min-w-0">
                         <div class="text-sm font-medium">{@html localized(item.title)}</div>
                         <div class="mt-1 text-xs leading-5 text-muted-foreground">{@html localized(item.description)}</div>
                       </div>
-                      <ToggleGroup.Root
+                      <Select.Root
                         type="single"
-                        size="sm"
-                        variant="outline"
                         value={String(item.value)}
-                        aria-label={localized(item.title)}
-                        onValueChange={(value) => setDirectDisplayChoice(item, value)}
+                        onValueChange={(value) => setDisplaySelectChoice(item, value)}
                       >
-                        {#each Object.entries(item.options) as [value, option] (value)}
-                          {@const label = localized(option)}
-                          <ToggleGroup.Item
-                            {value}
-                            title={label}
-                            aria-label={label}
-                            data-settings-choice-value={value}
-                          >
-                            {#if item.key === "questionRenderMode"}
-                              {#if value === "html"}
-                                <TextSelect aria-hidden="true" />
-                              {:else if value === "native"}
-                                <FileText aria-hidden="true" />
-                              {:else}
-                                <PanelsTopLeft aria-hidden="true" />
-                              {/if}
-                            {:else if value === "0"}
-                              <Rows3 aria-hidden="true" />
-                            {:else if value === "1"}
-                              <Heading1 aria-hidden="true" />
-                            {:else}
-                              <ListTree aria-hidden="true" />
-                            {/if}
-                          </ToggleGroup.Item>
-                        {/each}
-                      </ToggleGroup.Root>
+                        {@const selectedValue = String(item.value)}
+                        {@const selectedLabel = localized(item.options[selectedValue] || selectedValue)}
+                        {@const SelectedIcon = displaySelectIcon(item.key, selectedValue)}
+                        <Select.Trigger id={item.key} class="w-52 max-w-full" title={selectedLabel} aria-label={localized(item.title)}>
+                          <svelte:component this={SelectedIcon} aria-hidden="true" />
+                          <span>{selectedLabel}</span>
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Group>
+                            {#each Object.entries(item.options) as [value, option] (value)}
+                              {@const label = localized(option)}
+                              {@const Icon = displaySelectIcon(item.key, value)}
+                              <Select.Item {value} {label}>
+                                <svelte:component this={Icon} aria-hidden="true" />
+                                <span>{label}</span>
+                              </Select.Item>
+                            {/each}
+                          </Select.Group>
+                        </Select.Content>
+                      </Select.Root>
                     </div>
                   {/each}
                 </div>
@@ -321,11 +323,11 @@
     border-bottom: 0;
   }
 
-  .question-bank-direct-choices {
+  .question-bank-display-selects {
     border-top: 1px solid var(--b3-border-color);
   }
 
-  .question-bank-direct-choice {
+  .question-bank-display-select {
     display: grid;
     min-height: 64px;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -335,18 +337,14 @@
     padding: 12px;
   }
 
-  .question-bank-direct-choice :global([data-slot="toggle-group"]) {
-    max-width: 100%;
-  }
-
-  .question-bank-direct-choice :global([data-slot="toggle-group-item"][data-state="on"]) {
-    border-color: color-mix(in srgb, var(--b3-theme-primary) 46%, var(--b3-border-color));
-    background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent);
-    color: var(--b3-theme-primary);
+  .question-bank-display-select :global([data-slot="select-trigger"] > span) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   @container (max-width: 520px) {
-    .question-bank-direct-choice {
+    .question-bank-display-select {
       grid-template-columns: 1fr;
       gap: 12px;
     }

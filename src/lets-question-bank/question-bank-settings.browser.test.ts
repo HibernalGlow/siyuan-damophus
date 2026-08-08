@@ -144,22 +144,27 @@ describe("question bank settings navigation", () => {
     }));
   });
 
-  it("uses direct icon choices for display modes without opening a Select popover", async () => {
+  it("uses icon-and-label Select controls for display modes", async () => {
     const changed = vi.fn();
     const target = render({ changed });
     await tick();
 
-    const questionRenderMode = target.querySelector<HTMLElement>('[data-settings-direct-choice="questionRenderMode"]');
-    const embedHeadingMode = target.querySelector<HTMLElement>('[data-settings-direct-choice="embedHeadingMode"]');
-    if (!questionRenderMode || !embedHeadingMode) throw new Error("Missing direct display choices");
+    const questionRenderMode = target.querySelector<HTMLElement>('[data-settings-display-select="questionRenderMode"]');
+    const embedHeadingMode = target.querySelector<HTMLElement>('[data-settings-display-select="embedHeadingMode"]');
+    if (!questionRenderMode || !embedHeadingMode) throw new Error("Missing display Select controls");
 
-    expect(questionRenderMode.querySelectorAll('[data-slot="toggle-group-item"]')).toHaveLength(3);
-    expect(embedHeadingMode.querySelectorAll('[data-slot="toggle-group-item"]')).toHaveLength(3);
-    expect(questionRenderMode.querySelector('[data-slot="select-trigger"]')).toBeNull();
-    expect(embedHeadingMode.querySelector('[data-slot="select-trigger"]')).toBeNull();
+    const renderTrigger = questionRenderMode.querySelector<HTMLButtonElement>('[data-slot="select-trigger"]');
+    const headingTrigger = embedHeadingMode.querySelector<HTMLButtonElement>('[data-slot="select-trigger"]');
+    if (!renderTrigger || !headingTrigger) throw new Error("Missing display Select trigger");
+    expect(renderTrigger.textContent).toContain("原生");
+    expect(headingTrigger.textContent).toContain("全部");
+    expect(renderTrigger.querySelector("svg")).not.toBeNull();
+    expect(headingTrigger.querySelector("svg")).not.toBeNull();
 
-    questionRenderMode.querySelector<HTMLButtonElement>('[data-settings-choice-value="embed"]')?.click();
-    embedHeadingMode.querySelector<HTMLButtonElement>('[data-settings-choice-value="2"]')?.click();
+    await page.getByRole("button", { name: "题目渲染方式" }).click();
+    await page.getByRole("option", { name: "嵌入块" }).click();
+    await page.getByRole("button", { name: "标题嵌入方式" }).click();
+    await page.getByRole("option", { name: "仅下方块" }).click();
 
     expect(changed).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "questionRenderMode", value: "embed" }),
