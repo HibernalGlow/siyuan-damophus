@@ -47,6 +47,31 @@ The Topic Index **Resource** column accepts SiYuan assets. During practice, rela
 
 Topic attempt count, wrong count, and wrong rate are rebuilt from immutable Attempt Log events using the question's current topic relations. Reclassifying a question therefore moves its historical attempts to the newly related topics without rewriting the events.
 
+## Editor Topic Relations
+
+Damophus adds a virtual topic relation bar to loaded editor blocks that already
+carry topic attributes:
+
+- A question with `custom-qb-question-topic-ids` shows its topics. Opening a
+  topic lists every matching note provider and the other related questions.
+- A note heading or paragraph with `custom-qb-note-topic-id` is marked as a
+  topic note. Its relation panel separately lists other topic notes and related
+  questions.
+
+The current block is omitted from its own result group. Provider paths are
+used only for labels and configured ordering; Damophus never guesses a missing
+topic from a similar title.
+
+On desktop, hovering a concrete note or question link uses SiYuan's native
+block-reference preview, including the current SiYuan hover timing and pinning
+behavior. Clicking follows normal SiYuan block navigation. On mobile, the same
+groups open in a bottom panel before navigating.
+
+The bar is not a SiYuan block. It is not saved, synchronized, exported, or
+included when copying Markdown. Deleting and recreating a source block removes
+the old runtime link; a block that returns with the same stable topic attribute
+is resolved automatically.
+
 ## Hide Answers In The Source Document
 
 Open the **Question Bank** settings and enable **Source answer masking**. Damophus then uses the existing `custom-qb-answer` and `custom-qb-section="solution"` attributes to mask answer letters in the original SiYuan editor. It does not change Markdown, IAL, block content, or the separate practice renderer.

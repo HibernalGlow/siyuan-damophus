@@ -62,6 +62,17 @@ Status: accepted on 2026-08-04.
 
 `custom-qb-mode` 保留为未来扩展字段，首版不得用它替代题型或专题身份。
 
+## Virtual Topic Relation Bar
+
+编辑器中的考点关系展示是非持久化投影，不属于 Markdown + IAL。它同时支持两个方向：
+
+- 题目块读取 `custom-qb-question-topic-ids`，按属性顺序显示考点；每个考点可查看全部笔记提供块和其他关联题目。
+- 考点笔记块读取 `custom-qb-note-topic-id`，显示“考点笔记”身份；同一面板分组显示其他同考点笔记和全部关联题目。
+
+所有匹配必须按规范化后的稳定考点 ID 精确比较。不同来源声明同一 `custom-qb-note-topic-id` 时，它们都是有效提供块；路径优先级只决定排序，不得静默丢弃。当前宿主块从对应结果组中排除。
+
+具体题目和笔记目标使用真实思源块 ID 生成虚拟块引用，因此可以复用思源原生悬浮预览和跳转。考点 ID 自身不是思源块 ID；多来源选择、分组和缺失状态由 Damophus 处理。关系栏不得调用块写入 API、创建临时查询嵌入块或参与导出。完整运行合同见 [ADR 0009](adr/0009-virtual-topic-relation-bar.md)。
+
 ## Stable Identity
 
 稳定题目 ID 推荐格式：
