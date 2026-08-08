@@ -34,7 +34,9 @@
       <li>
         <Button
           variant={group === focusGroup ? "secondary" : "ghost"}
-          class="h-9 w-full touch-manipulation justify-start rounded-md px-3"
+          class={group === focusGroup
+            ? "h-9 w-full touch-manipulation justify-start rounded-md border-l-2 border-primary px-3 text-foreground"
+            : "h-9 w-full touch-manipulation justify-start rounded-md px-3 text-muted-foreground"}
           aria-current={group === focusGroup ? "page" : undefined}
           onclick={() => selectGroup(group)}
         >
@@ -74,7 +76,9 @@
           {#each groups as group}
             <Button
               variant={group === focusGroup ? "secondary" : "ghost"}
-              class="h-9 w-full touch-manipulation justify-between text-left"
+              class={group === focusGroup
+                ? "h-9 w-full touch-manipulation justify-between border-l-2 border-primary text-left text-foreground"
+                : "h-9 w-full touch-manipulation justify-between text-left text-muted-foreground"}
               aria-current={group === focusGroup ? "page" : undefined}
               onclick={() => selectGroup(group)}
             >
