@@ -6,9 +6,7 @@
   import * as Tabs from "@/components/ui/tabs";
   import PracticeHeader from "./PracticeHeader.svelte";
   import QuestionBankSetup from "./QuestionBankSetup.svelte";
-  import QuestionSetComposer from "./QuestionSetComposer.svelte";
   import Statistics from "./Statistics.svelte";
-  import ExamWorkspace from "./ExamWorkspace.svelte";
   import QuestionBankWorkspace from "./QuestionBankWorkspace.svelte";
   import QuestionBankPractice from "./QuestionBankPractice.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
@@ -122,6 +120,13 @@
   export let copyText: any;
   export let confirmSync: any;
   export let toggleAutoSyncIndex: any;
+  export let topicAssignmentCount: number;
+  export let topicRelationMode: any;
+  export let topicRelationPreview: any;
+  export let topicRelationReady: boolean;
+  export let setTopicRelationMode: any;
+  export let previewTopicRelations: any;
+  export let confirmTopicRelations: any;
   export let recoverableSession: any;
   export let resumePractice: any;
   export let pendingReplacement: boolean;
@@ -129,6 +134,7 @@
   export let topicId: string;
   export let topics: any[];
   export let order: any;
+  export let optionOrder: any;
   export let filter: any;
   export let startPractice: any;
   export let openQuestionSetComposer: any;
@@ -141,10 +147,15 @@
   export let subjectiveScore: number | undefined;
   export let currentAttempt: any;
   export let topicResources: any[];
+  export let persistTopicResource: any;
+  export let persistingTopicResourceIdentity: string;
+  export let persistedTopicResourceIdentities: ReadonlySet<string>;
   export let durationComparisons: any[];
   export let durationComparisonPosition: any;
   export let inheritSourceStyles: boolean;
   export let questionRenderMode: any;
+  export let sourceEditingLocked: boolean;
+  export let toggleSourceEditingLock: any;
   export let renderedQuestionContent: any;
   export let mountSourceBlock: any;
   export let questionTypeLabel: any;
@@ -207,6 +218,9 @@
     {timerEffectivelyPaused}
     {answerCardOpen}
     {revealed}
+    sourceEditingAvailable={questionRenderMode !== "html"}
+    {sourceEditingLocked}
+    {toggleSourceEditingLock}
     onCorrectAnswer={correctCurrentAnswer}
     {previousQuestion}
     {nextQuestion}
@@ -241,45 +255,33 @@
       {invalidateDocumentTarget}
     />
   {:else}
-    {#if !currentQuestion && !practiceRuntime && !complete && !examMode && !composerOpen}
-      <div class="mx-4 mt-3 flex shrink-0 items-center gap-2">
-      <Tabs.Root bind:value={view} class="min-w-0 flex-1" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
-        <Tabs.List class="grid w-full grid-cols-2">
-          <Tabs.Trigger value="practice" class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <BookOpenCheck size={16} aria-hidden="true" />
-            {label("practice", "练习")}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="statistics" class="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-            <BarChart3 size={16} aria-hidden="true" />
-            {label("statistics", "统计")}
-          </Tabs.Trigger>
-        </Tabs.List>
-      </Tabs.Root>
-      {#if onClose}
-        <Button variant="ghost" size="icon" class="shrink-0" title={label("close", "Close")} aria-label={label("close", "Close")} onclick={onClose}>
-          <X size={17} aria-hidden="true" />
-        </Button>
-      {/if}
-      </div>
+    {#if !currentQuestion && !practiceRuntime && !complete}
+      <header class="question-bank-home-header" data-testid="workspace-navigation">
+        <div class="question-bank-home-identity">
+          <strong>{label("questionBankWorkspace", "题库工作台")}</strong>
+          <span>{sourceIdentity?.content ?? label("currentDocument", "当前文档")}</span>
+        </div>
+        <Tabs.Root bind:value={view} class="question-bank-home-tabs" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
+          <Tabs.List class="question-bank-home-nav">
+            <Tabs.Trigger value="practice">
+              <BookOpenCheck size={16} aria-hidden="true" />
+              <span class="question-bank-home-nav-label">{label("answerWorkspace", "答题")}</span>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="statistics">
+              <BarChart3 size={16} aria-hidden="true" />
+              <span class="question-bank-home-nav-label">{label("learningReport", "学习报告")}</span>
+            </Tabs.Trigger>
+          </Tabs.List>
+        </Tabs.Root>
+        {#if onClose}
+          <Button variant="ghost" size="icon" class="question-bank-home-close" title={label("close", "Close")} aria-label={label("close", "Close")} onclick={onClose}>
+            <X size={17} aria-hidden="true" />
+          </Button>
+        {/if}
+      </header>
     {/if}
 
-    {#if composerOpen}
-      <QuestionSetComposer
-        catalog={questionCatalog}
-        documents={sourceDocuments}
-        blueprints={questionSetBlueprints}
-        {translations}
-        loading={busy}
-        onRefresh={() => { void run(loadQuestionSetData); }}
-        onSync={previewSourceSync}
-        onConfirmSync={confirmSourceSync}
-        onAssemble={assembleBlueprint}
-        onSave={saveBlueprint}
-        onDelete={removeBlueprint}
-        onUse={(value) => { void run(() => useFrozenPracticeSet(value)); }}
-        onClose={() => composerOpen = false}
-      />
-    {:else if view === "statistics" && !currentQuestion && !practiceRuntime && !complete && !examMode}
+    {#if view === "statistics" && !currentQuestion && !practiceRuntime && !complete}
       <Statistics
         snapshot={statisticsSnapshot}
         loading={statisticsLoading}
@@ -289,20 +291,7 @@
         onSortChange={changeStatisticsSort}
         {label}
       />
-    {:else if examMode}
-      <ExamWorkspace
-        controller={controller}
-        questions={examQuestions}
-        blockIdsByQuestionId={preview?.scan.blockIdsByQuestionId ?? new Map()}
-        sourceKey={documentId}
-        sourceLabel={sourceIdentity?.content ?? documentId}
-        {translations}
-        {uuid}
-        {random}
-        {renderQuestionMarkdown}
-        onClose={() => { examMode = false; void refreshStoredSessions(); }}
-      />
-  {:else if queue.length === 0 && !complete}
+    {:else if queue.length === 0 && !complete}
     <QuestionBankWorkspace
       {label}
       bind:documentId
@@ -345,6 +334,13 @@
       {copyText}
       {confirmSync}
       {toggleAutoSyncIndex}
+      {topicAssignmentCount}
+      {topicRelationMode}
+      {topicRelationPreview}
+      {topicRelationReady}
+      {setTopicRelationMode}
+      {previewTopicRelations}
+      {confirmTopicRelations}
       {recoverableSession}
       {resumePractice}
       bind:pendingReplacement
@@ -352,10 +348,30 @@
       bind:topicId
       {topics}
       bind:order
+      bind:optionOrder
       bind:filter
       {startPractice}
       {openQuestionSetComposer}
+      bind:composerOpen
       bind:examMode
+      {translations}
+      {questionCatalog}
+      {sourceDocuments}
+      {questionSetBlueprints}
+      {run}
+      {loadQuestionSetData}
+      {previewSourceSync}
+      {confirmSourceSync}
+      {assembleBlueprint}
+      {saveBlueprint}
+      {removeBlueprint}
+      {useFrozenPracticeSet}
+      {controller}
+      {examQuestions}
+      {uuid}
+      {random}
+      {renderQuestionMarkdown}
+      {refreshStoredSessions}
     />
   {:else if currentQuestion}
     <QuestionBankPractice
@@ -371,10 +387,14 @@
       {subjectiveScore}
       {currentAttempt}
       {topicResources}
+      {persistTopicResource}
+      {persistingTopicResourceIdentity}
+      {persistedTopicResourceIdentities}
       {durationComparisons}
       {durationComparisonPosition}
       {inheritSourceStyles}
       {questionRenderMode}
+      {sourceEditingLocked}
       {renderedQuestionContent}
       {mountSourceBlock}
       {questionTypeLabel}

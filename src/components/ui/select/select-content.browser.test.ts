@@ -24,4 +24,22 @@ describe("select content portal styling", () => {
     expect(getComputedStyle(item).boxSizing).toBe("border-box");
     expect(item.getBoundingClientRect().right).toBeLessThanOrEqual(content.getBoundingClientRect().right);
   });
+
+  it("stays opaque when a portal cannot inherit the component theme variables", () => {
+    document.documentElement.style.removeProperty("--b3-theme-background");
+    document.documentElement.style.removeProperty("--b3-theme-on-background");
+    document.body.innerHTML = `
+      <div class="damophus-select-content" style="--bits-select-anchor-width: 280px">
+        <div data-slot="select-viewport">
+          <div data-slot="select-item">整个文档</div>
+        </div>
+      </div>
+    `;
+
+    const content = document.querySelector<HTMLElement>(".damophus-select-content")!;
+    const item = content.querySelector<HTMLElement>('[data-slot="select-item"]')!;
+    expect(getComputedStyle(content).backgroundColor).toBe("rgb(255, 255, 255)");
+    expect(getComputedStyle(content).borderTopWidth).toBe("1px");
+    expect(getComputedStyle(item).backgroundColor).toBe("rgb(255, 255, 255)");
+  });
 });

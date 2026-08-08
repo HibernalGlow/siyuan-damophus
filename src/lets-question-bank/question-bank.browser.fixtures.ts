@@ -2,13 +2,17 @@ import { afterEach, vi } from "vitest";
 import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import "@/styles/damophus.css";
+import { en } from "@/translations/parts/lets-question-bank";
 import type { AttemptAggregate, AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
 import type { PracticeSessionSnapshot } from "@/question-bank/core";
+import type { PracticePreferences } from "./practice-preferences";
 import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
   QuestionBankBinding,
   QuestionBankInitializationPreview,
   QuestionBankRebindingPreview,
+  TopicRelationPreview,
+  TopicResourceProjection,
 } from "@/question-bank/adapters/siyuan";
 import { QUICK_RIFF_DECK_ID, type RiffCard } from "@/question-bank/adapters/siyuan/riff";
 import QuestionBank from "./question-bank.svelte";
@@ -149,9 +153,18 @@ export function mockController(options: {
   recent?: RecentScope;
   aggregates?: ReadonlyMap<string, AttemptAggregate>;
   sourceIdentity?: SourceBlockIdentity;
+  topicRelationPreview?: TopicRelationPreview;
+  topicRelationConfirmResult?: TopicRelationPreview;
+  topicResources?: TopicResourceProjection[];
+  practicePreferences?: PracticePreferences;
 } = {}) {
   let currentBinding = options.initialized === false ? undefined : binding();
   let recent = options.recent;
+  let practicePreferences = options.practicePreferences ?? {
+    order: "sequential" as const,
+    optionOrder: "random" as const,
+    filter: "all" as const,
+  };
   const practiceSessions = new Map<string, PracticeSessionSnapshot>();
   const sessionAttempts: AttemptEvent[] = [];
   const preview = options.preview ?? makePreview();
@@ -177,6 +190,28 @@ export function mockController(options: {
     ...(await previewImport()),
     imported: 1,
     failures: [],
+  }));
+  const previewTopicRelationSync = vi.fn(async () => options.topicRelationPreview ?? ({
+    token: "topic-relation-token",
+    generatedAt: "2026-08-07T12:00:00.000Z",
+    mode: "merge" as const,
+    assignments: [],
+    actions: [],
+    issues: [],
+    results: [],
+  }));
+  const confirmTopicRelationSync = vi.fn(async () => options.topicRelationConfirmResult ?? options.topicRelationPreview ?? ({
+    token: "topic-relation-token",
+    generatedAt: "2026-08-07T12:00:00.000Z",
+    mode: "merge" as const,
+    assignments: [],
+    actions: [],
+    issues: [],
+    results: [],
+  }));
+  const persistQuestionTopicResource = vi.fn(async (input: Parameters<NonNullable<QuestionBankUiController["persistQuestionTopicResource"]>>[0]) => ({
+    blockId: "20260807160000-persist",
+    resourceIdentity: `${input.projection.topicId}:persisted`,
   }));
   const controller: QuestionBankUiController = {
     getBinding: () => currentBinding,
@@ -217,6 +252,10 @@ export function mockController(options: {
     loadSessionAttempts: vi.fn(async (sessionId: string) => sessionAttempts.filter((event) => event.session_id === sessionId)),
     previewSync: vi.fn(async () => preview),
     confirmSync: vi.fn(async () => preview),
+    previewTopicRelationSync,
+    confirmTopicRelationSync,
+    loadQuestionTopicResources: vi.fn(async () => options.topicResources ?? []),
+    persistQuestionTopicResource,
     loadAggregates: vi.fn(async () => options.aggregates ?? new Map([
       [objectiveQuestion.id, {
         questionId: objectiveQuestion.id,
@@ -242,8 +281,22 @@ export function mockController(options: {
     }),
     getRecentScope: () => recent,
     saveRecentScope,
+    getPracticePreferences: () => practicePreferences,
+    savePracticePreferences: vi.fn((value: PracticePreferences) => { practicePreferences = value; }),
   };
-  return { controller, submitAttempt, saveRecentScope, previewImport, confirmImport, practiceSessions, sessionAttempts };
+  return {
+    controller,
+    submitAttempt,
+    saveRecentScope,
+    previewImport,
+    confirmImport,
+    previewTopicRelationSync,
+    confirmTopicRelationSync,
+    persistQuestionTopicResource,
+    savePracticePreferences: vi.mocked(controller.savePracticePreferences),
+    practiceSessions,
+    sessionAttempts,
+  };
 }
 
 let mounted: ReturnType<typeof mount> | undefined;
@@ -265,7 +318,7 @@ export function render(controller: QuestionBankUiController, props: Record<strin
     props: {
       controller,
       initialDocumentId: documentId,
-      translations: {},
+      translations: en,
       uuid: () => "session-1",
       ...props,
     },

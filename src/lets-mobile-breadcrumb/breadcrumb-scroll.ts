@@ -103,7 +103,10 @@ export class ScrollableBreadcrumb {
     this.originalHTML = element.innerHTML;
     this.priority = options.priority;
     this.onNavigate = options.onNavigate;
-    element.classList.add("damophus-scrollable-breadcrumb");
+    element.classList.add(
+      "damophus-scrollable-breadcrumb",
+      "protyle-breadcrumb__bar--nowrap",
+    );
     element.addEventListener("click", this.handleClick);
 
     if (typeof ResizeObserver !== "undefined") {
@@ -194,7 +197,10 @@ export class ScrollableBreadcrumb {
       this.element.innerHTML = this.originalHTML;
       delete this.element.dataset.damophusMobileBreadcrumb;
     }
-    this.element.classList.remove("damophus-scrollable-breadcrumb");
+    this.element.classList.remove(
+      "damophus-scrollable-breadcrumb",
+      "protyle-breadcrumb__bar--nowrap",
+    );
     this.element.scrollLeft = 0;
   }
 

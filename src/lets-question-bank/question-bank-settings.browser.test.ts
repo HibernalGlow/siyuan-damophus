@@ -16,6 +16,8 @@ afterEach(async () => {
 
 const labels = {
   sections: {
+    practice: "Practice preferences",
+    practiceDescription: "Choose default practice behavior.",
     navigation: "题库设置分组",
     review: "复习与闪卡",
     reviewDescription: "设置复习和闪卡条件。",
@@ -41,12 +43,16 @@ const labels = {
 };
 
 const settingItems: ISettingItem[] = [
+  { type: "select", title: "Default question order", description: "Used without a remembered choice", key: "defaultQuestionOrder", value: "sequential", options: { sequential: "Sequential", random: "Random" } },
+  { type: "select", title: "Default option order", description: "Used without a remembered choice", key: "defaultOptionOrder", value: "random", options: { source: "Original", random: "Random" } },
+  { type: "select", title: "Default question filter", description: "Used without a remembered choice", key: "defaultPracticeFilter", value: "all", options: { all: "All", wrong: "Wrong" } },
   { type: "number", title: "待复习阈值", description: "复习说明", key: "reviewThreshold", value: 2 },
   { type: "checkbox", title: "自动创建快速闪卡", description: "闪卡说明", key: "autoAddQuickCards", value: true },
   { type: "number", title: "Hard 阈值", description: "Hard 说明", key: "autoCardHardThreshold", value: 1 },
   { type: "number", title: "Again 阈值", description: "Again 说明", key: "autoCardAgainThreshold", value: 2 },
   { type: "checkbox", title: "自动同步索引", description: "同步说明", key: "autoSyncIndex", value: false },
   { type: "button", title: "维护索引", description: "维护说明", key: "maintainIndex", value: "立即维护" },
+  { type: "button", title: "回填历史题目考点关联", description: "回填说明", key: "migrateTopicRelations", value: "立即回填" },
   { type: "checkbox", title: "自动扫描文档", description: "扫描说明", key: "autoScanDocument", value: false },
   { type: "checkbox", title: "显示答题标题", description: "标题说明", key: "showPracticeTitle", value: false },
   { type: "checkbox", title: "隐藏空答案块", description: "空块说明", key: "hideEmptyAnswerBlocks", value: true },
@@ -79,7 +85,7 @@ describe("question bank settings navigation", () => {
     await tick();
 
     expect(target.textContent).toContain("复习与闪卡");
-    expect(target.querySelectorAll(".workspace-panel")).toHaveLength(5);
+    expect(target.querySelectorAll(".workspace-panel")).toHaveLength(6);
     const reviewTrigger = target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-review"]');
     const displayTrigger = target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-display"]');
     if (!reviewTrigger || !displayTrigger) throw new Error("Missing settings panel trigger");
@@ -127,6 +133,14 @@ describe("question bank settings navigation", () => {
 
     expect(clicked).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "maintainIndex" }),
+    }));
+
+    [...target.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes("立即回填"))
+      ?.click();
+
+    expect(clicked).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "migrateTopicRelations" }),
     }));
   });
 
@@ -187,7 +201,7 @@ describe("question bank settings navigation", () => {
     });
 
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
-    expect(target.querySelectorAll("[data-settings-section-target]")).toHaveLength(5);
+    expect(target.querySelectorAll("[data-settings-section-target]")).toHaveLength(6);
     expect(target.querySelectorAll("h2, h3")).toHaveLength(0);
   });
 

@@ -3,6 +3,8 @@
 
   export interface QuestionBankSettingsLabels {
     navigation: string;
+    practice: string;
+    practiceDescription: string;
     review: string;
     reviewDescription: string;
     index: string;
@@ -22,7 +24,7 @@
 
 <script lang="ts">
   import { createEventDispatcher, tick } from "svelte";
-  import { Database, EyeOff, FileText, GraduationCap, Heading1, ListTree, Monitor, PanelsTopLeft, Rows3, TextSelect, Timer } from "lucide-svelte";
+  import { BookOpenCheck, Database, EyeOff, FileText, GraduationCap, Heading1, ListTree, Monitor, PanelsTopLeft, Rows3, TextSelect, Timer } from "lucide-svelte";
   import SettingPanel from "@/libs/setting-panel.svelte";
   import { Button } from "@/components/ui/button";
   import * as ToggleGroup from "@/components/ui/toggle-group";
@@ -36,19 +38,20 @@
   export let settingItems: ISettingItem[] = [];
   export let labels: QuestionBankSettingsLabelsBundle;
 
-  const sectionIds = ["review", "index", "display", "timing", "mask"] as const;
+  const sectionIds = ["practice", "review", "index", "display", "timing", "mask"] as const;
   type SectionId = typeof sectionIds[number];
   type StandardSectionId = Exclude<SectionId, "mask">;
   const directDisplaySettingKeys = new Set(["questionRenderMode", "embedHeadingMode"]);
 
   const sectionKeys: Record<StandardSectionId, string[]> = {
+    practice: ["defaultQuestionOrder", "defaultOptionOrder", "defaultPracticeFilter"],
     review: [
       "reviewThreshold",
       "autoAddQuickCards",
       "autoCardHardThreshold",
       "autoCardAgainThreshold",
     ],
-    index: ["autoSyncIndex", "maintainIndex", "autoScanDocument"],
+    index: ["autoSyncIndex", "maintainIndex", "migrateTopicRelations", "autoScanDocument"],
     display: [
       "showPracticeTitle",
       "showPracticeBreadcrumb",
@@ -66,6 +69,7 @@
   let openSections = new Set<SectionId>(sectionIds);
 
   $: sections = [
+    { id: "practice" as const, Icon: BookOpenCheck, label: labels.sections.practice, description: labels.sections.practiceDescription },
     { id: "review" as const, Icon: GraduationCap, label: labels.sections.review, description: labels.sections.reviewDescription },
     { id: "index" as const, Icon: Database, label: labels.sections.index, description: labels.sections.indexDescription },
     { id: "display" as const, Icon: Monitor, label: labels.sections.display, description: labels.sections.displayDescription },

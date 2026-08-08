@@ -14,7 +14,10 @@ export default defineConfig({
     include: ["consola"],
   },
   resolve: {
-    alias: { "@": resolve(import.meta.dirname, "src") },
+    alias: {
+      "@": resolve(import.meta.dirname, "src"),
+      siyuan: resolve(import.meta.dirname, "src/test/siyuan-browser-mock.ts"),
+    },
   },
   plugins: [tailwindcss(), svelte()],
   test: {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, ChevronLeft, ChevronRight, LayoutGrid, LocateFixed, Pause, Pencil, Play, X } from "lucide-svelte";
+  import { ArrowLeft, ChevronLeft, ChevronRight, LayoutGrid, LocateFixed, LockKeyhole, Pause, Pencil, Play, UnlockKeyhole, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import { Button } from "@/components/ui/button";
   import {
@@ -47,6 +47,9 @@
   export let requestEndPractice: () => void;
   export let onAnswerCardToggle: (open: boolean) => void;
   export let revealed = false;
+  export let sourceEditingAvailable = false;
+  export let sourceEditingLocked = false;
+  export let toggleSourceEditingLock: () => void = () => {};
   export let onCorrectAnswer: ((answer: ObjectiveAnswer) => void) | undefined = undefined;
 
   let correctionOpen = false;
@@ -166,6 +169,19 @@
             onclick={() => openQuestionSource?.(currentQuestionBlockId as string)}
           >
             <LocateFixed size={17} aria-hidden="true" />
+          </Button>
+        {/if}
+        {#if sourceEditingAvailable}
+          <Button
+            variant="ghost"
+            size="icon"
+            data-source-editing-lock
+            title={sourceEditingLocked ? label("unlockSourceEditing", "Unlock source editing") : label("lockSourceEditing", "Lock source editing")}
+            aria-label={sourceEditingLocked ? label("unlockSourceEditing", "Unlock source editing") : label("lockSourceEditing", "Lock source editing")}
+            aria-pressed={sourceEditingLocked}
+            onclick={toggleSourceEditingLock}
+          >
+            {#if sourceEditingLocked}<LockKeyhole size={17} aria-hidden="true" />{:else}<UnlockKeyhole size={17} aria-hidden="true" />{/if}
           </Button>
         {/if}
         {#if revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}

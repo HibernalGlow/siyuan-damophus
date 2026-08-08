@@ -1,10 +1,18 @@
 <script lang="ts">
-  import { ExternalLink, FileText } from "lucide-svelte";
+  import { ExternalLink, FileText, Pin } from "lucide-svelte";
+  import { Button } from "@/components/ui/button";
   import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
   import type { Label } from "./question-bank-display";
 
   export let resources: TopicResourceProjection[] = [];
   export let label: Label;
+  export let persistResource: ((projection: TopicResourceProjection) => void) | undefined = undefined;
+  export let persistingIdentity = "";
+  export let persistedIdentities: ReadonlySet<string> = new Set();
+
+  function identity(projection: TopicResourceProjection): string {
+    return `${projection.topicId}:${projection.resource.type}:${projection.resource.content}`;
+  }
 
   function resourceUrl(content: string): string {
     return content.startsWith("assets/") ? `/${content}` : content;
@@ -47,7 +55,21 @@
               <ExternalLink size={14} aria-hidden="true" />
             </a>
           {/if}
-          <figcaption>{projection.resource.name || projection.topicName}</figcaption>
+          <figcaption>
+            <span>{projection.resource.name || projection.topicName}</span>
+            {#if persistResource}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={persistingIdentity === identity(projection) || persistedIdentities.has(identity(projection))}
+                title={label("persistTopicResource", "固化")}
+                onclick={() => persistResource?.(projection)}
+              >
+                <Pin size={14} aria-hidden="true" />
+                <span>{persistedIdentities.has(identity(projection)) ? label("topicResourcePersisted", "已固化") : label("persistTopicResource", "固化")}</span>
+              </Button>
+            {/if}
+          </figcaption>
         </figure>
       {/each}
     </div>
@@ -120,7 +142,12 @@
     color: var(--b3-theme-on-surface-light);
     font-size: 12px;
     overflow-wrap: anywhere;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
+  figcaption > span { min-width: 0; }
   @media (max-width: 750px) {
     .topic-resources { padding-inline: 12px; }
     .topic-resource-list { grid-template-columns: 1fr; }

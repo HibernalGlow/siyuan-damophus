@@ -32,10 +32,14 @@
   export let subjectiveScore: number | undefined = undefined;
   export let currentAttempt: AttemptEvent | undefined = undefined;
   export let topicResources: TopicResourceProjection[] = [];
+  export let persistTopicResource: ((projection: TopicResourceProjection) => void) | undefined = undefined;
+  export let persistingTopicResourceIdentity = "";
+  export let persistedTopicResourceIdentities: ReadonlySet<string> = new Set();
   export let durationComparisons: AttemptDurationComparison[] = [];
   export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
+  export let sourceEditingLocked = false;
   export let renderQuestionContent: RenderMarkdown;
   export let mountSourceBlock: MountSourceBlock | undefined = undefined;
   export let questionTypeLabel: (type: QuestionType) => string;
@@ -97,7 +101,7 @@
     {/if}
     <div class="native-question-source">
       {#key currentQuestionBlockId}
-        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !readOnlyQuestion, section: "stem", renderMode: "native" }}></div>
+        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}></div>
       {/key}
     </div>
     {#if displayedOptions.length > 0}
@@ -127,7 +131,7 @@
     {/if}
     <div class="embedded-question-source">
       {#key currentQuestionBlockId}
-        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true, renderMode: "embed" }}></div>
+        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}></div>
       {/key}
     </div>
     {#if displayedOptions.length > 0}
@@ -183,7 +187,13 @@
   </article>
 {/if}
 
-<PracticeTopicResources resources={topicResources} {label} />
+<PracticeTopicResources
+  resources={topicResources}
+  {label}
+  persistResource={persistTopicResource}
+  persistingIdentity={persistingTopicResourceIdentity}
+  persistedIdentities={persistedTopicResourceIdentities}
+/>
 
 {#if revealed}
   <section class="answer">
@@ -202,13 +212,13 @@
     {#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
       <div class="native-answer-source" data-render-mode="native">
         {#key `${currentQuestionBlockId}:${questionRenderMode}`}
-          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !readOnlyQuestion, section: "solution", renderMode: "native" }}></div>
+          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "solution", renderMode: "native" }}></div>
         {/key}
       </div>
     {:else if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
       <div class="embedded-answer-source" data-render-mode="embed">
         {#key `${currentQuestionBlockId}:${questionRenderMode}:solution`}
-          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: true, section: "solution", renderMode: "embed" }}></div>
+          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "solution", renderMode: "embed" }}></div>
         {/key}
       </div>
     {:else}
@@ -365,6 +375,7 @@
   @media (max-height: 480px) {
     .options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
+
   @container (max-width: 560px) {
     .options { grid-template-columns: 1fr; }
   }

@@ -31,6 +31,16 @@ afterEach(() => {
 });
 
 describe("scrollable mobile breadcrumb", () => {
+  it("uses SiYuan's native horizontal-scroll marker to avoid sidebar swipe handling", () => {
+    const { element } = breadcrumbElement();
+    const breadcrumb = new ScrollableBreadcrumb(element, { priority: "tail" });
+
+    expect(element.classList.contains("protyle-breadcrumb__bar--nowrap")).toBe(true);
+
+    breadcrumb.destroy();
+    expect(element.classList.contains("protyle-breadcrumb__bar--nowrap")).toBe(false);
+  });
+
   it("keeps the complete official path structure and shows the tail by default", async () => {
     const { element } = breadcrumbElement();
     const breadcrumb = new ScrollableBreadcrumb(element, { priority: "tail" });

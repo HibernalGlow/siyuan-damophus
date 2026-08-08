@@ -52,6 +52,15 @@ button {
   --toolbar-active-text: #8bcaf0;
 }
 
+body:has(.dev-shell[data-color-mode="dark"]) .damophus-select-content {
+  --b3-theme-background: #202328;
+  --b3-theme-on-background: #edf0f2;
+  --b3-border-color: #3a4048;
+  --b3-list-hover: #32373e;
+  --b3-theme-primary: #64a8ce;
+  color-scheme: dark;
+}
+
 .dev-toolbar {
   position: relative;
   z-index: 10;

@@ -29,6 +29,45 @@ const question: Question = {
 };
 
 describe("practice header answer correction", () => {
+  it("toggles the practice-local source editing lock from the header", async () => {
+    const toggleSourceEditingLock = vi.fn();
+    mounted = mount(PracticeHeader, {
+      target: document.body,
+      props: {
+        currentQuestion: question,
+        buildRevision: "test",
+        label: (_key: string, fallback: string) => fallback,
+        translations: {},
+        questionIndex: 0,
+        queueLength: 1,
+        timingEnabled: false,
+        breadcrumbItems: [],
+        currentQuestionBlockId: "20260808120000-lock001",
+        openQuestionSource: vi.fn(),
+        mobileBreadcrumb: true,
+        breadcrumbPriority: "tail",
+        breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
+        sourceEditingAvailable: true,
+        sourceEditingLocked: true,
+        toggleSourceEditingLock,
+        previousQuestion: vi.fn(),
+        nextQuestion: vi.fn(),
+        togglePracticeTimer: vi.fn(),
+        exitReview: vi.fn(),
+        pausePractice: vi.fn(),
+        requestEndPractice: vi.fn(),
+        onAnswerCardToggle: vi.fn(),
+      },
+    });
+    await tick();
+
+    const lock = document.querySelector<HTMLButtonElement>("[data-source-editing-lock]");
+    expect(lock?.getAttribute("aria-pressed")).toBe("true");
+    expect(lock?.getAttribute("aria-label")).toBe("Unlock source editing");
+    lock?.click();
+    expect(toggleSourceEditingLock).toHaveBeenCalledOnce();
+  });
+
   it("hides the Damophus title by default and keeps breadcrumb items visible and clickable", async () => {
     const openQuestionSource = vi.fn();
     const target = document.createElement("div");
@@ -84,10 +123,8 @@ describe("practice header answer correction", () => {
   });
 
   it("hides only the practice breadcrumb when its display setting is disabled", async () => {
-    const target = document.createElement("div");
-    document.body.append(target);
     mounted = mount(PracticeHeader, {
-      target,
+      target: document.body,
       props: {
         currentQuestion: question,
         buildRevision: "test",
@@ -96,20 +133,13 @@ describe("practice header answer correction", () => {
         translations: {},
         questionIndex: 0,
         queueLength: 1,
-        completedCount: 0,
         timingEnabled: false,
-        sessionElapsedMs: 0,
         breadcrumbItems: [{ id: "document", name: "Civil Procedure", type: "NodeDocument", subType: "" }],
         currentQuestionBlockId: "question",
         openQuestionSource: vi.fn(),
         mobileBreadcrumb: false,
         breadcrumbPriority: "tail",
         breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
-        submitting: false,
-        reviewing: false,
-        answerTimerPaused: false,
-        timerEffectivelyPaused: false,
-        answerCardOpen: false,
         previousQuestion: vi.fn(),
         nextQuestion: vi.fn(),
         togglePracticeTimer: vi.fn(),
@@ -121,7 +151,7 @@ describe("practice header answer correction", () => {
     });
     await tick();
 
-    expect(target.querySelector(".practice-breadcrumb")).toBeNull();
+    expect(document.querySelector(".practice-breadcrumb")).toBeNull();
   });
 
   it("opens the correction dialog from the revealed title-bar pencil and saves a changed answer", async () => {

@@ -6,7 +6,6 @@
   import {
     questionOptionsFromOrder,
     restoreQuestionOptions,
-    shuffleQuestionOptions,
   } from "@/question-bank/core/shuffle";
   import type {
     AttemptAggregate,
@@ -21,17 +20,23 @@
   import { buildStatistics, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
+    createPracticeOptionOrder,
     createPracticeQueue,
+    suggestedMasteryRating,
+    type PracticeOptionOrder,
+    type PracticeOrder,
+  } from "@/question-bank/application/practice";
+  import {
     PracticeSessionRuntime,
+    type PracticeSessionActorSnapshot,
+    type PracticeSessionSaveStatus,
+  } from "@/question-bank/application/practice-runtime";
+  import {
     replacePracticeSession,
     resumePracticeSession,
     startPracticeSession,
-    suggestedMasteryRating,
-    type PracticeOrder,
     type PracticeSessionActivation,
-    type PracticeSessionActorSnapshot,
-    type PracticeSessionSaveStatus,
-  } from "@/question-bank/application";
+  } from "@/question-bank/application/practice-lifecycle";
   import {
     createPracticeSessionSnapshot,
     practiceQuestionElapsedMs,
@@ -42,23 +47,29 @@
   import type {
     AttemptImportPreview,
     AttemptImportResult,
-    QuestionIndexBatchPreview,
-    QuestionIndexPreview,
-  } from "@/question-bank/application";
+  } from "@/question-bank/application/recovery";
+  import type { QuestionIndexPreview } from "@/question-bank/application/indexing";
+  import type { QuestionIndexBatchPreview } from "@/question-bank/application/batch-indexing";
+  import type {
+    QuestionTopicAssignment,
+    TopicRelationPreview,
+    TopicRelationSyncMode,
+    TopicResourceProjection,
+  } from "@/question-bank/adapters/siyuan/topic-index";
   import type {
     QuestionBankInitializationPreview,
     QuestionBankRebindingPreview,
-    TopicResourceProjection,
-  } from "@/question-bank/adapters/siyuan";
+  } from "@/question-bank/adapters/siyuan/binding";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
   import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
   import QuestionBankView from "./QuestionBankView.svelte";
-  import type { RiffCard } from "@/question-bank/adapters/siyuan";
+  import type { RiffCard } from "@/question-bank/adapters/siyuan/riff";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
   import type { StoredPracticeSession } from "./session-host";
   import { createPracticeActions } from "./question-bank-practice-actions";
   import { compareAttemptDuration } from "./attempt-duration-comparison";
+  import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
   import {
     completionStatusLabel as getCompletionStatusLabel,
     copyText,
@@ -111,6 +122,13 @@
   const scanLogText = () => getScanLogText(scanMessageGroups, label);
   const optionMarkdown = (option: ShuffledOption) => getOptionMarkdown(option, currentQuestion?.type, label);
   const buildRevision = getBuildRevision();
+  const portableTopicAssignments = (questions: readonly Question[]): QuestionTopicAssignment[] => questions
+    .filter((question) => (question.metadata.topicIds?.length ?? 0) > 0)
+    .map((question) => ({
+      questionId: question.id,
+      topicIds: [...new Set(question.metadata.topicIds ?? [])],
+    }));
+  const initialPracticePreferences = controller.getPracticePreferences();
   const recent = controller.getRecentScope();
   let documentId = initialDocumentId ?? recent?.documentId ?? "";
   let binding = controller.getBinding();
@@ -118,12 +136,18 @@
   let systemDocumentId = "";
   let rebindingPreview: QuestionBankRebindingPreview | undefined;
   let preview: QuestionIndexPreview | undefined;
+  let topicRelationMode: "off" | TopicRelationSyncMode = "off";
+  let topicRelationPreview: TopicRelationPreview | undefined;
+  let topicAssignments: QuestionTopicAssignment[] = [];
+  let topicRelationReady = false;
   let sourceIdentity: SourceBlockIdentity | undefined;
   let aggregates: ReadonlyMap<string, AttemptAggregate> = new Map();
   let dueCards: ReadonlyMap<string, RiffCard> = new Map();
   let topicId = "";
-  let order: PracticeOrder = "sequential";
-  let filter: PracticeFilter = "all";
+  let order: PracticeOrder = initialPracticePreferences.order;
+  let optionOrder: PracticeOptionOrder = initialPracticePreferences.optionOrder;
+  let filter: PracticeFilter = initialPracticePreferences.filter;
+  let persistedPracticePreferences = JSON.stringify(initialPracticePreferences);
   let busy = false;
   let error = "";
   let syncComplete = false;
@@ -137,6 +161,9 @@
   let topicResources: TopicResourceProjection[] = [];
   let topicResourceQuestionId = "";
   let topicResourceRequest = 0;
+  let topicResourceValidationTimer: ReturnType<typeof setTimeout> | undefined;
+  let persistingTopicResourceIdentity = "";
+  let persistedTopicResourceIdentities: ReadonlySet<string> = new Set();
   let breadcrumbItems: BlockBreadcrumbItem[] = [];
   let breadcrumbBlockId = "";
   let shuffled: ShuffledQuestion | undefined;
@@ -152,6 +179,7 @@
   let autoScanTimer: ReturnType<typeof setTimeout> | undefined;
   let sourcePreloadTimer: ReturnType<typeof setTimeout> | undefined;
   let answerCardOpen = false;
+  let sourceEditingLocked = mobileBreadcrumb;
   let completedQuestionIndices: number[] = [];
   let complete = false;
   let practiceRuntime: PracticeSessionRuntime | undefined;
@@ -255,9 +283,27 @@
     || preview.bindingRepairs.length > 0
     || preview.ialWriteActions.length > 0
   ));
+  $: topicAssignments = preview
+    ? portableTopicAssignments(preview.scan.report.document.questions)
+    : [];
+  $: topicRelationReady = Boolean(
+    preview
+    && preview.blockers.length === 0
+    && preview.bindingRepairs.length === 0
+    && preview.actions.length === 0
+    && preview.ialWriteActions.length === 0
+  );
   $: suggestedRating = revealed
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
+  $: {
+    const nextPracticePreferences = { order, optionOrder, filter };
+    const serializedPreferences = JSON.stringify(nextPracticePreferences);
+    if (serializedPreferences !== persistedPracticePreferences) {
+      persistedPracticePreferences = serializedPreferences;
+      controller.savePracticePreferences(nextPracticePreferences);
+    }
+  }
 
   $: if (currentQuestionBlockId && currentQuestionBlockId !== breadcrumbBlockId) {
     breadcrumbBlockId = currentQuestionBlockId;
@@ -312,6 +358,13 @@
       else if (detail === "pause") void pausePractice();
     };
     host?.addEventListener("damophus-practice-command", command);
+    const refreshSyncedState = () => {
+      void run(async () => {
+        aggregates = await controller.loadAggregates();
+        await refreshStoredSessions();
+      });
+    };
+    window.addEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, refreshSyncedState);
     const updateAdaptivePanels = () => {
       const availableHeight = rootElement.getBoundingClientRect().height || window.innerHeight;
       const compactViewport = window.matchMedia("(max-width: 760px)").matches;
@@ -324,7 +377,10 @@
     workspaceResizeObserver.observe(rootElement);
     void run(refreshStoredSessions);
     scheduleAutoScan(250);
-    return () => host?.removeEventListener("damophus-practice-command", command);
+    return () => {
+      host?.removeEventListener("damophus-practice-command", command);
+      window.removeEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, refreshSyncedState);
+    };
   });
 
   onDestroy(() => {
@@ -332,6 +388,7 @@
     workspaceResizeObserver?.disconnect();
     if (autoScanTimer) clearTimeout(autoScanTimer);
     if (sourcePreloadTimer) clearTimeout(sourcePreloadTimer);
+    if (topicResourceValidationTimer) clearTimeout(topicResourceValidationTimer);
     unsubscribePracticeState?.();
     unsubscribeSaveStatus?.();
     if (practiceRuntime) void practiceRuntime.dispose();
@@ -370,6 +427,7 @@
     clearTimer();
     initializationPreview = undefined;
     preview = undefined;
+    topicRelationPreview = undefined;
     sourceIdentity = undefined;
     syncComplete = false;
     topicId = "";
@@ -384,16 +442,50 @@
   }
 
   async function loadTopicResources(questionId: string | undefined): Promise<void> {
+    if (topicResourceValidationTimer) clearTimeout(topicResourceValidationTimer);
+    topicResourceValidationTimer = undefined;
     const request = ++topicResourceRequest;
+    if (topicResourceQuestionId !== (questionId ?? "")) {
+      persistedTopicResourceIdentities = new Set();
+    }
     topicResourceQuestionId = questionId ?? "";
     topicResources = [];
     if (!questionId || !controller.loadQuestionTopicResources) return;
     try {
-      const resources = await controller.loadQuestionTopicResources(questionId);
-      if (request === topicResourceRequest && currentQuestion?.id === questionId) topicResources = resources;
+      const questionBlockId = preview?.scan.blockIdsByQuestionId.get(questionId);
+      const resources = await controller.loadQuestionTopicResources(questionId, questionBlockId);
+      if (request === topicResourceRequest && currentQuestion?.id === questionId) {
+        topicResources = resources;
+        if (resources.length > 0) {
+          topicResourceValidationTimer = setTimeout(() => void loadTopicResources(questionId), 10_000);
+        }
+      }
     } catch (reason) {
       log.warn("topic-resources.failed", { questionId, reason });
     }
+  }
+
+  function topicResourceIdentity(projection: TopicResourceProjection): string {
+    return `${projection.topicId}:${projection.resource.type}:${projection.resource.content}`;
+  }
+
+  function persistTopicResource(projection: TopicResourceProjection): void {
+    if (!currentQuestion || !currentQuestionBlockId || !controller.persistQuestionTopicResource) return;
+    const identity = topicResourceIdentity(projection);
+    if (!window.confirm(label("confirmPersistTopicResource", "确认将此考点资源固化到题目文档中？"))) return;
+    void run(async () => {
+      persistingTopicResourceIdentity = identity;
+      try {
+        await controller.persistQuestionTopicResource!({
+          questionId: currentQuestion!.id,
+          questionBlockId: currentQuestionBlockId!,
+          projection,
+        });
+        persistedTopicResourceIdentities = new Set([...persistedTopicResourceIdentities, identity]);
+      } finally {
+        persistingTopicResourceIdentity = "";
+      }
+    });
   }
 
   function scheduleAutoScan(delay = 450): void {
@@ -456,6 +548,7 @@
         controller.loadPracticeSession(documentId),
       ]);
       preview = nextPreview;
+      topicRelationPreview = undefined;
       if (nextPreview.blockers.length > 0) scanPanelOpen = true;
       sourceIdentity = nextSourceIdentity;
       recoverableSession = stored?.status === "ok" ? stored.snapshot : undefined;
@@ -576,6 +669,31 @@
     storedSessions = await controller.listPracticeSessions();
     const current = storedSessions.find((stored) => stored.sourceKey === documentId);
     recoverableSession = current?.result.status === "ok" ? current.result.snapshot : undefined;
+  }
+
+  function setTopicRelationMode(mode: "off" | TopicRelationSyncMode): void {
+    topicRelationMode = mode;
+    topicRelationPreview = undefined;
+  }
+
+  function previewTopicRelations(): void {
+    if (topicRelationMode === "off" || !topicRelationReady || !controller.previewTopicRelationSync) return;
+    const mode = topicRelationMode;
+    void run(async () => {
+      topicRelationPreview = await controller.previewTopicRelationSync!(topicAssignments, mode);
+    });
+  }
+
+  function confirmTopicRelations(): void {
+    if (topicRelationMode === "off" || !topicRelationPreview || !controller.confirmTopicRelationSync) return;
+    const mode = topicRelationMode;
+    void run(async () => {
+      topicRelationPreview = await controller.confirmTopicRelationSync!(
+        topicAssignments,
+        mode,
+        topicRelationPreview!.token,
+      );
+    });
   }
 
   function syncPracticeView(snapshot: PracticeSessionActorSnapshot): void {
@@ -767,7 +885,11 @@
       order: assembledQuestions ? "sequential" : order,
       queue: nextQueue.map((question) => ({
         question,
-        optionOrder: shuffleQuestionOptions(question, random).optionOrder,
+        optionOrder: createPracticeOptionOrder(
+          question,
+          assembledQuestions ? "random" : optionOrder,
+          random,
+        ),
       })),
       now: new Date(now()),
     });
@@ -1017,16 +1139,22 @@
     if (checked) scheduleAutoScan(0);
     else if (autoScanTimer) clearTimeout(autoScanTimer);
   }
+
+  function toggleSourceEditingLock(): void {
+    sourceEditingLocked = !sourceEditingLocked;
+  }
 </script>
 
 <QuestionBankView
   bind:rootElement bind:documentId bind:initializationPreview bind:systemDocumentId bind:rebindingPreview
   bind:view bind:composerOpen bind:examMode bind:autoScanDocument bind:dataPanelOpen bind:dataPanelUserControlled bind:fileInput
-  bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:filter
+  bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:optionOrder bind:filter
   bind:endConfirmation bind:answerCardOpen
-  {currentQuestion} {topicResources} {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
+  {currentQuestion} {topicResources} {persistTopicResource} {persistingTopicResourceIdentity} {persistedTopicResourceIdentities}
+  {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
   {timingEnabled} {sessionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
+  {sourceEditingLocked} {toggleSourceEditingLock}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
   {validDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
@@ -1037,7 +1165,9 @@
   {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
   {completionPercent} {attemptedQuestions} {untouchedQuestions} {reviewQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
   {scanMessageGroups} {sourceTypeLabel} {completionStatusLabel} {messageContext} {messageClipboardText} {scanLogText} {copyText}
-  {confirmSync} {toggleAutoSyncIndex} {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
+  {confirmSync} {toggleAutoSyncIndex} topicAssignmentCount={topicAssignments.length} {topicRelationMode} {topicRelationPreview}
+  {topicRelationReady} {setTopicRelationMode} {previewTopicRelations} {confirmTopicRelations}
+  {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
   {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
   {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {renderedQuestionContent}
   {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}

@@ -1,21 +1,22 @@
 <script lang="ts">
-  import { BookOpenCheck, CircleX, Clock3, Database, Download, Layers3, List, ListOrdered, RefreshCw, RotateCcw, ScanLine, Shuffle, Upload } from "lucide-svelte";
-  import * as Alert from "@/components/ui/alert";
+  import { Database, Download, RefreshCw, ScanLine, Upload } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
-  import * as Select from "@/components/ui/select";
-  import * as ToggleGroup from "@/components/ui/toggle-group";
   import type { ScanMessage, TopicNode } from "@/question-bank/core/types";
   import type { PracticeFilter } from "@/question-bank/core/scope";
-  import type { PracticeOrder } from "@/question-bank/application";
+  import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
+  import type { TopicRelationPreview, TopicRelationSyncMode } from "@/question-bank/adapters/siyuan";
   import type { SourceBlockIdentity } from "./controller";
   import type { StoredPracticeSession } from "./session-host";
   import PracticeScanSummary from "./PracticeScanSummary.svelte";
+  import PracticeLauncher from "./PracticeLauncher.svelte";
+  import AnswerModeSwitcher, { type AnswerMode } from "./AnswerModeSwitcher.svelte";
+  import ExamWorkspace from "./ExamWorkspace.svelte";
+  import QuestionSetComposer from "./QuestionSetComposer.svelte";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
-  import { topicLabel } from "./question-bank-display";
 
   export let label: (key: string, fallback: string) => string;
   export let documentId = "";
@@ -58,6 +59,13 @@
   export let copyText: (value: string) => Promise<void>;
   export let confirmSync: () => void;
   export let toggleAutoSyncIndex: (checked: boolean) => void;
+  export let topicAssignmentCount = 0;
+  export let topicRelationMode: "off" | TopicRelationSyncMode = "off";
+  export let topicRelationPreview: TopicRelationPreview | undefined = undefined;
+  export let topicRelationReady = false;
+  export let setTopicRelationMode: (mode: "off" | TopicRelationSyncMode) => void;
+  export let previewTopicRelations: () => void;
+  export let confirmTopicRelations: () => void;
   export let recoverableSession: any;
   export let resumePractice: () => void;
   export let pendingReplacement = false;
@@ -65,11 +73,49 @@
   export let topicId = "";
   export let topics: TopicNode[] = [];
   export let order: PracticeOrder = "sequential";
+  export let optionOrder: PracticeOptionOrder = "random";
   export let filter: PracticeFilter = "all";
   export let startPractice: () => void;
   export let openQuestionSetComposer: () => void;
+  export let composerOpen = false;
   export let examMode = false;
-  const entireDocumentScope = "__damophus_entire_document__";
+  export let translations: Record<string, string> = {};
+  export let questionCatalog: any[] = [];
+  export let sourceDocuments: any[] = [];
+  export let questionSetBlueprints: any[] = [];
+  export let run: (operation: () => Promise<void>) => void;
+  export let loadQuestionSetData: () => Promise<void>;
+  export let previewSourceSync: (documentIds: readonly string[]) => Promise<any>;
+  export let confirmSourceSync: (value: any) => Promise<any>;
+  export let assembleBlueprint: (value: any) => any;
+  export let saveBlueprint: (value: any) => Promise<void>;
+  export let removeBlueprint: (value: string) => Promise<void>;
+  export let useFrozenPracticeSet: (value: any) => Promise<void>;
+  export let controller: any;
+  export let examQuestions: any[] = [];
+  export let uuid: () => string;
+  export let random: () => number;
+  export let renderQuestionMarkdown: any;
+  export let refreshStoredSessions: () => Promise<void>;
+
+  let answerMode: AnswerMode = "practice";
+  $: answerMode = composerOpen ? "composer" : examMode ? "exam" : "practice";
+
+  function selectAnswerMode(mode: AnswerMode): void {
+    if (mode === "composer") {
+      examMode = false;
+      openQuestionSetComposer();
+      return;
+    }
+    composerOpen = false;
+    examMode = mode === "exam";
+  }
+
+  function closeInlineMode(): void {
+    composerOpen = false;
+    examMode = false;
+    void refreshStoredSessions();
+  }
 </script>
 
 <section class="workspace min-h-0 flex-1 overflow-y-auto">
@@ -128,6 +174,73 @@
       </div>
     </section>
     {/if}
+
+  <AnswerModeSwitcher {label} mode={answerMode} onSelect={selectAnswerMode} />
+
+  {#if answerMode === "practice" && preview}
+    <PracticeLauncher
+      {label}
+      {preview}
+      {sourceIdentity}
+      progressQuestionCount={progressQuestions.length}
+      {attemptedQuestions}
+      {untouchedQuestions}
+      {reviewQuestions}
+      {syncComplete}
+      {busy}
+      {recoverableSession}
+      {resumePractice}
+      bind:pendingReplacement
+      {confirmRestartPractice}
+      bind:topicId
+      {topics}
+      bind:order
+      bind:optionOrder
+      bind:filter
+      {startPractice}
+    />
+  {:else if answerMode === "composer"}
+    <div class="answer-mode-content" data-answer-mode="composer">
+      <QuestionSetComposer
+        embedded
+        catalog={questionCatalog}
+        documents={sourceDocuments}
+        blueprints={questionSetBlueprints}
+        {translations}
+        loading={busy}
+        onRefresh={() => { void run(loadQuestionSetData); }}
+        onSync={previewSourceSync}
+        onConfirmSync={confirmSourceSync}
+        onAssemble={assembleBlueprint}
+        onSave={saveBlueprint}
+        onDelete={removeBlueprint}
+        onUse={(value) => { void run(() => useFrozenPracticeSet(value)); }}
+        onClose={closeInlineMode}
+      />
+    </div>
+  {:else if answerMode === "exam"}
+    <div class="answer-mode-content" data-answer-mode="exam">
+      <ExamWorkspace
+        embedded
+        {controller}
+        questions={examQuestions}
+        blockIdsByQuestionId={preview?.scan.blockIdsByQuestionId ?? new Map()}
+        sourceKey={documentId}
+        sourceLabel={sourceIdentity?.content ?? documentId}
+        {translations}
+        {uuid}
+        {random}
+        {renderQuestionMarkdown}
+        onClose={closeInlineMode}
+      />
+    </div>
+  {/if}
+
+  <section class="workspace-maintenance" aria-labelledby="workspace-maintenance-heading">
+    <div class="workspace-maintenance-heading">
+      <strong id="workspace-maintenance-heading">{label("preparationAndMaintenance", "准备与维护")}</strong>
+      <span>{label("preparationAndMaintenanceDescription", "扫描、索引和作答数据不会挡住日常答题入口")}</span>
+    </div>
 
   <QuestionBankPanel
     bind:open={dataPanelOpen}
@@ -210,139 +323,17 @@
       {copyText}
       {confirmSync}
       {toggleAutoSyncIndex}
+      {topicAssignmentCount}
+      {topicRelationMode}
+      {topicRelationPreview}
+      {topicRelationReady}
+      {setTopicRelationMode}
+      {previewTopicRelations}
+      {confirmTopicRelations}
       {label}
     />
     </QuestionBankPanel>
 
-    <section class="practice-section" aria-labelledby="practice-settings-heading">
-      <div class="practice-section-heading">
-        <BookOpenCheck aria-hidden="true" />
-        <div>
-          <h2 id="practice-settings-heading">{label("practice", "Practice")}</h2>
-          <span>{label("scope", "Scope")} · {label("order", "Order")} · {label("filter", "Filter")}</span>
-        </div>
-      </div>
-    <section class="practice-settings">
-      {#if recoverableSession}
-        <div class="session-recovery">
-          <div>
-            <strong>{label("unfinishedFound", "Unfinished practice found")}</strong>
-            <span>{recoverableSession.completed_question_ids.length} / {recoverableSession.queue_question_ids.length}</span>
-          </div>
-          <div class="session-recovery-actions">
-            <Button onclick={() => resumePractice()}>{label("continue", "Continue")}</Button>
-            <Button variant="outline" onclick={() => pendingReplacement = true}>{label("newSettings", "Use current settings")}</Button>
-          </div>
-        </div>
-      {/if}
-
-      {#if pendingReplacement && recoverableSession}
-        <Alert.Root variant="destructive" class="col-span-full w-auto">
-          <Alert.Title>{label("replaceSession", "Replace unfinished practice?")}</Alert.Title>
-          <Alert.Description>{label("replaceSessionDescription", "Draft progress will be removed. Submitted attempts are preserved.")}</Alert.Description>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <Button variant="destructive" size="sm" onclick={confirmRestartPractice}>{label("confirmRestart", "Replace and start")}</Button>
-            <Button variant="outline" size="sm" onclick={() => pendingReplacement = false}>{label("cancel", "Cancel")}</Button>
-          </div>
-        </Alert.Root>
-      {/if}
-
-      <div class="scope-control grid gap-2">
-        <FormLabel>{label("scope", "Scope")}</FormLabel>
-        <Select.Root
-          type="single"
-          value={topicId || entireDocumentScope}
-          onValueChange={(value) => topicId = value === entireDocumentScope ? "" : value}
-        >
-          <Select.Trigger class="w-full">
-            {topicId ? topicLabel(topics.find((topic) => topic.id === topicId) ?? topics[0]) : label("entireDocument", "Entire document")}
-          </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              <Select.Item value={entireDocumentScope} label={label("entireDocument", "Entire document")} />
-              {#each topics as topic (topic.id)}
-                <Select.Item value={topic.id} label={topicLabel(topic)} />
-              {/each}
-            </Select.Group>
-          </Select.Content>
-        </Select.Root>
-      </div>
-
-      <fieldset class="order-control">
-        <legend>{label("order", "Order")}</legend>
-        <ToggleGroup.Root
-          type="single"
-          variant="outline"
-          class="grid w-full grid-cols-2"
-          value={order}
-          onValueChange={(value) => { if (value) order = value as PracticeOrder; }}
-        >
-          <ToggleGroup.Item value="sequential" title={label("sequential", "Sequential")} aria-label={label("sequential", "Sequential")}>
-            <ListOrdered aria-hidden="true" />
-            <span class="control-copy">{label("sequential", "Sequential")}</span>
-          </ToggleGroup.Item>
-          <ToggleGroup.Item value="random" title={label("random", "Random")} aria-label={label("random", "Random")}>
-            <Shuffle aria-hidden="true" />
-            <span class="control-copy">{label("random", "Random")}</span>
-          </ToggleGroup.Item>
-        </ToggleGroup.Root>
-      </fieldset>
-
-      <fieldset class="filter-control">
-        <legend>{label("filter", "Filter")}</legend>
-        <ToggleGroup.Root
-          type="single"
-          variant="outline"
-          class="grid w-full grid-cols-4 max-[520px]:grid-cols-2"
-          value={filter}
-          onValueChange={(value) => { if (value) filter = value as PracticeFilter; }}
-        >
-          <ToggleGroup.Item value="all" title={label("all", "All")} aria-label={label("all", "All")}>
-            <List aria-hidden="true" />
-            <span class="control-copy">{label("all", "All")}</span>
-          </ToggleGroup.Item>
-          <ToggleGroup.Item value="wrong" title={label("wrong", "Wrong")} aria-label={label("wrong", "Wrong")}>
-            <CircleX aria-hidden="true" />
-            <span class="control-copy">{label("wrong", "Wrong")}</span>
-          </ToggleGroup.Item>
-          <ToggleGroup.Item value="review" title={label("review", "Review")} aria-label={label("review", "Review")}>
-            <RotateCcw aria-hidden="true" />
-            <span class="control-copy">{label("review", "Review")}</span>
-          </ToggleGroup.Item>
-          <ToggleGroup.Item value="due" title={label("due", "Due")} aria-label={label("due", "Due")}>
-            <Clock3 aria-hidden="true" />
-            <span class="control-copy">{label("due", "Due")}</span>
-          </ToggleGroup.Item>
-        </ToggleGroup.Root>
-      </fieldset>
-
-      <Button
-        class="start max-[760px]:w-full"
-        disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
-        onclick={startPractice}
-      >
-        <BookOpenCheck data-icon="inline-start" aria-hidden="true" />
-        <span>{label("start", "Start practice")}</span>
-      </Button>
-      <Button
-        class="max-[760px]:w-full"
-        variant="outline"
-        disabled={busy}
-        onclick={openQuestionSetComposer}
-      >
-        <Layers3 data-icon="inline-start" aria-hidden="true" />
-        <span>{label("questionSet", "跨文档组卷")}</span>
-      </Button>
-      <Button
-        class="max-[760px]:w-full"
-        variant="outline"
-        disabled={busy || preview.blockers.length > 0 || preview.bindingRepairs.length > 0 || (!syncComplete && preview.actions.some((action) => action.kind === "add"))}
-        onclick={() => examMode = true}
-      >
-        <Clock3 data-icon="inline-start" aria-hidden="true" />
-        <span>{label("startExam", "Start exam")}</span>
-      </Button>
-    </section>
-    </section>
   {/if}
+  </section>
 </section>

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import type { Question, ShuffledOption } from "@/question-bank/core/types";
 import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
@@ -64,24 +63,6 @@ async function flush(): Promise<void> {
 }
 
 describe("PracticeQuestionContent", () => {
-  it("keeps options in one column when the viewport has enough height", async () => {
-    await page.viewport(1280, 840);
-    render();
-    await flush();
-
-    const options = document.querySelector<HTMLElement>(".options");
-    expect(getComputedStyle(options!).gridTemplateColumns.trim().split(/\s+/)).toHaveLength(1);
-
-    if (mounted) await unmount(mounted);
-    mounted = undefined;
-    await page.viewport(1280, 600);
-    render();
-    await flush();
-
-    expect(getComputedStyle(document.querySelector<HTMLElement>(".options")!).gridTemplateColumns.trim().split(/\s+/)).toHaveLength(2);
-    await page.viewport(1280, 840);
-  });
-
   it("mounts the editable embed as the question body before reveal", async () => {
     const cleanup = vi.fn();
     const toggleOption = vi.fn();
@@ -187,6 +168,20 @@ describe("PracticeQuestionContent", () => {
     if (mounted) await unmount(mounted);
     mounted = undefined;
     expect(cleanup).toHaveBeenCalledTimes(3);
+  });
+
+  it("locks source editing only when the practice toolbar lock is enabled", async () => {
+    const mountSourceBlock = vi.fn(() => () => {});
+    render({
+      revealed: true,
+      questionRenderMode: "native",
+      sourceEditingLocked: true,
+      mountSourceBlock,
+    });
+    await flush();
+
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, false, "stem", "native");
+    expect(mountSourceBlock).toHaveBeenCalledWith(expect.any(HTMLElement), blockId, false, "solution", "native");
   });
 
   it("mounts the solution embed only after the answer is revealed", async () => {

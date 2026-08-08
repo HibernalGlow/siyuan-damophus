@@ -23,10 +23,14 @@
   export let subjectiveScore: number | undefined;
   export let currentAttempt: AttemptEvent | undefined;
   export let topicResources: TopicResourceProjection[] = [];
+  export let persistTopicResource: ((projection: TopicResourceProjection) => void) | undefined = undefined;
+  export let persistingTopicResourceIdentity = "";
+  export let persistedTopicResourceIdentities: ReadonlySet<string> = new Set();
   export let durationComparisons: AttemptDurationComparison[] = [];
   export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
+  export let sourceEditingLocked = false;
   export let renderedQuestionContent: (markdown: string, sourceStyles: boolean) => string;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined;
   export let questionTypeLabel: (type: Question["type"]) => string;
@@ -130,10 +134,14 @@
       {subjectiveScore}
       {currentAttempt}
       {topicResources}
+      {persistTopicResource}
+      {persistingTopicResourceIdentity}
+      {persistedTopicResourceIdentities}
       {durationComparisons}
       {durationComparisonPosition}
       {inheritSourceStyles}
       {questionRenderMode}
+      {sourceEditingLocked}
       renderQuestionContent={renderedQuestionContent}
       {mountSourceBlock}
       {questionTypeLabel}

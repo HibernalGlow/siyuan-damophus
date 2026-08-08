@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock3, Flag, Layers3, Send, X } from "lucide-svelte";
+  import { AlertTriangle, ArrowLeft, Check, ChevronLeft, ChevronRight, Clock3, Flag, Layers3, Send, X } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Checkbox } from "@/components/ui/checkbox";
@@ -30,6 +30,7 @@
   export let sourceKey = "";
   export let sourceLabel = "";
   export let translations: Record<string, string> = {};
+  export let embedded = false;
   export let uuid: () => string = () => crypto.randomUUID();
   export let random: () => number = Math.random;
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
@@ -352,6 +353,7 @@
 
 {#if phase === "setup" && composerOpen}
   <QuestionSetComposer
+    {embedded}
     catalog={questionCatalog}
     documents={sourceDocuments}
     blueprints={questionSetBlueprints}
@@ -367,21 +369,54 @@
     onClose={() => composerOpen = false}
   />
 {:else if phase === "setup"}
-  <section class="exam-workspace exam-setup">
-    <header class="exam-heading"><div><strong>{label("examMode", "Exam mode")}</strong><span>{sourceLabel}</span></div><Button variant="ghost" size="icon" onclick={onClose}><X /></Button></header>
-    <div class="exam-form">
-      <label>{label("questionCount", "Question count")}<Input type="number" min="1" max={activeQuestions.length} bind:value={questionCount} /></label>
-      <label>{label("timeLimit", "Time limit (minutes)")}<Input type="number" min="0" bind:value={timeLimitMinutes} /></label>
-      <Label>{label("order", "Order")}<Select.Root type="single" value={order} onValueChange={(value) => { if (value) order = value as typeof order; }}><Select.Trigger>{order === "random" ? label("random", "Random") : label("sequential", "Sequential")}</Select.Trigger><Select.Content><Select.Item value="sequential" label={label("sequential", "Sequential")} /><Select.Item value="random" label={label("random", "Random")} /></Select.Content></Select.Root></Label>
-      <Label>{label("scoringMode", "Scoring")}<Select.Root type="single" value={scoringMode} onValueChange={(value) => { if (value) scoringMode = value as typeof scoringMode; }}><Select.Trigger>{scoringMode === "strict" ? label("strictScoring", "Strict one-point") : label("legalScoring", "Legal exam")}</Select.Trigger><Select.Content><Select.Item value="legal-exam" label={label("legalScoring", "Legal exam")} /><Select.Item value="strict" label={label("strictScoring", "Strict one-point")} /></Select.Content></Select.Root></Label>
-      <Label class="exam-check"><Checkbox bind:checked={allowAnswerReveal} />{label("allowAnswerReveal", "Allow answer reveal")}</Label>
-      <Label class="exam-check"><Checkbox bind:checked={strictTimeout} />{label("strictTimeout", "Strict timeout auto-submit")}</Label>
+  <section class="exam-workspace exam-setup question-bank-workflow" class:embedded>
+    <header class="workflow-header">
+      <div class="workflow-heading">
+        {#if !embedded}
+        <Button variant="ghost" size="icon" title={label("back", "返回")} aria-label={label("back", "返回")} onclick={onClose}><ArrowLeft size={16} /></Button>
+        {/if}
+        <div><strong>{label("mockExam", "模拟考试")}</strong><span>{label("examSetupDescription", "先确认试卷，再设置时间与交卷规则")}</span></div>
+      </div>
+      <Button variant="outline" onclick={() => composerOpen = true}><Layers3 size={16} />{label("chooseQuestionSet", "选择试卷")}</Button>
+    </header>
+
+    <section class="exam-source-summary" aria-label={label("examSource", "考试题源")}>
+      <div>
+        <span>{label("examSource", "考试题源")}</span>
+        <strong>{frozenSetLabel || sourceLabel || label("currentDocument", "当前文档")}</strong>
+        <small>{frozenSet?.question_ids.length ?? activeQuestions.length} {label("questions", "题")}</small>
+      </div>
+      <Clock3 aria-hidden="true" />
+    </section>
+
+    <div class="exam-form workflow-content">
+      <section class="exam-form-section">
+        <header><strong>{label("examScale", "考试规模")}</strong><span>{label("examScaleDescription", "控制题量与总时长")}</span></header>
+        <div class="exam-form-grid">
+          <label>{label("questionCount", "Question count")}<Input type="number" min="1" max={activeQuestions.length} bind:value={questionCount} /></label>
+          <label>{label("timeLimit", "Time limit (minutes)")}<Input type="number" min="0" bind:value={timeLimitMinutes} /></label>
+        </div>
+      </section>
+
+      <section class="exam-form-section">
+        <header><strong>{label("examRules", "出题与计分")}</strong><span>{label("examRulesDescription", "决定题序和客观题计分方式")}</span></header>
+        <div class="exam-form-grid">
+          <Label>{label("order", "Order")}<Select.Root type="single" value={order} onValueChange={(value) => { if (value) order = value as typeof order; }}><Select.Trigger>{order === "random" ? label("random", "Random") : label("sequential", "Sequential")}</Select.Trigger><Select.Content><Select.Item value="sequential" label={label("sequential", "Sequential")} /><Select.Item value="random" label={label("random", "Random")} /></Select.Content></Select.Root></Label>
+          <Label>{label("scoringMode", "Scoring")}<Select.Root type="single" value={scoringMode} onValueChange={(value) => { if (value) scoringMode = value as typeof scoringMode; }}><Select.Trigger>{scoringMode === "strict" ? label("strictScoring", "Strict one-point") : label("legalScoring", "Legal exam")}</Select.Trigger><Select.Content><Select.Item value="legal-exam" label={label("legalScoring", "Legal exam")} /><Select.Item value="strict" label={label("strictScoring", "Strict one-point")} /></Select.Content></Select.Root></Label>
+        </div>
+      </section>
+
+      <section class="exam-form-section exam-constraints">
+        <header><strong>{label("examConstraints", "考试约束")}</strong><span>{label("examConstraintsDescription", "这些选项会改变考试中的可用操作")}</span></header>
+        <Label class="exam-check"><Checkbox bind:checked={allowAnswerReveal} /><span><strong>{label("allowAnswerReveal", "Allow answer reveal")}</strong><small>{label("allowAnswerRevealHint", "允许提前查看解析，适合训练型考试")}</small></span></Label>
+        <Label class="exam-check"><Checkbox bind:checked={strictTimeout} /><span><strong>{label("strictTimeout", "Strict timeout auto-submit")}</strong><small>{label("strictTimeoutHint", "到时立即交卷，不保留继续答题时间")}</small></span></Label>
+      </section>
     </div>
-    {#if frozenSet}<div class="rounded border px-3 py-2 text-sm"><strong>{frozenSetLabel}</strong><span class="ml-2 text-muted-foreground">{frozenSet.question_ids.length} {label("questions", "题")}</span></div>{/if}
-    <div class="exam-actions">
+
+    <footer class="workflow-footer exam-actions">
+      <Button variant="outline" onclick={onClose}>{label("cancel", "取消")}</Button>
       <Button onclick={startExam} disabled={activeQuestions.length === 0}><Send size={16} />{label("startExam", "Start exam")}</Button>
-      <Button variant="outline" onclick={() => composerOpen = true}><Layers3 size={16} />{label("questionSet", "跨文档组卷")}</Button>
-    </div>
+    </footer>
   </section>
 {:else if phase === "active" && snapshot && currentQuestion && currentDraft}
   <section class="exam-workspace exam-runner">

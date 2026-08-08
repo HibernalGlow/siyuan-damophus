@@ -5,8 +5,57 @@ import { createPracticeSessionSnapshot } from "@/question-bank/core";
 import type { QuestionIndexBatchPreview } from "@/question-bank/application";
 import type { FrozenQuestionSet, QuestionCatalogEntry } from "@/question-bank/assembly";
 import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
+import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { attempt, blockId, button, documentId, flush, indefiniteQuestion, makePreview, mockController, objectiveQuestion, option, render, scan, scanAndSync, selectScope, subjectiveQuestion, systemDocumentId } from "./question-bank.browser.fixtures";
 describe("question bank browser flow", () => {
+  it("refreshes attempts and resumable sessions after a synchronized read-view update", async () => {
+    const { controller } = mockController();
+    render(controller);
+    await flush();
+    const sessionsBefore = vi.mocked(controller.listPracticeSessions).mock.calls.length;
+    const aggregatesBefore = vi.mocked(controller.loadAggregates).mock.calls.length;
+
+    window.dispatchEvent(new CustomEvent(TINYBASE_READ_VIEW_UPDATED_EVENT));
+
+    await vi.waitFor(() => {
+      expect(controller.listPracticeSessions).toHaveBeenCalledTimes(sessionsBefore + 1);
+      expect(controller.loadAggregates).toHaveBeenCalledTimes(aggregatesBefore + 1);
+    });
+  });
+
+  it("persists a virtual topic resource only after explicit confirmation", async () => {
+    const projection = {
+      topicId: "civil-security-flow-clause",
+      topicName: "Flow clause",
+      status: "active" as const,
+      resource: { content: "assets/security-flow.gif", name: "Security flow", type: "image" as const },
+    };
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const { controller, persistQuestionTopicResource } = mockController({
+      preview: makePreview([objectiveQuestion]),
+      topicResources: [projection],
+    });
+    render(controller);
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Security flow"));
+
+    button("固化").click();
+    await flush();
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(persistQuestionTopicResource).not.toHaveBeenCalled();
+
+    button("固化").click();
+    await flush();
+    expect(persistQuestionTopicResource).toHaveBeenCalledWith({
+      questionId: objectiveQuestion.id,
+      questionBlockId: blockId,
+      projection,
+    });
+    expect(document.body.textContent).toContain("已固化");
+  });
+
   it("uses a compact highlighted icon for automatic document scanning", async () => {
     const { controller } = mockController();
     render(controller, { autoScanDocument: true });
@@ -134,6 +183,40 @@ describe("question bank browser flow", () => {
       queue_question_ids: [objectiveQuestion.id],
     });
     expect(document.body.textContent).toContain(objectiveQuestion.title);
+  });
+
+  it("keeps question-set and exam modes inside the answer workspace", async () => {
+    const { controller } = mockController();
+    render(controller);
+    await scan();
+
+    const navigation = document.querySelector('[data-testid="workspace-navigation"]');
+    const modes = [...document.querySelectorAll<HTMLButtonElement>('.answer-mode-group [role="radio"]')];
+    expect(navigation).not.toBeNull();
+    expect(modes).toHaveLength(3);
+
+    modes[1].click();
+    await vi.waitFor(() => expect(document.querySelector('[data-answer-mode="composer"] .question-set-composer')).not.toBeNull());
+    expect(document.querySelector('[data-testid="workspace-navigation"]')).toBe(navigation);
+
+    modes[2].click();
+    await vi.waitFor(() => expect(document.querySelector('[data-answer-mode="exam"] .exam-setup')).not.toBeNull());
+    expect(document.querySelector('[data-testid="workspace-navigation"]')).toBe(navigation);
+  });
+
+  it("gives every icon-only mobile filter an equal usable width", async () => {
+    await page.viewport(390, 844);
+    const { controller } = mockController();
+    render(controller);
+    await scan();
+
+    const group = document.querySelector<HTMLElement>(".practice-filter-group");
+    const items = [...document.querySelectorAll<HTMLElement>('.practice-filter-group [data-slot="toggle-group-item"]')];
+    expect(group).not.toBeNull();
+    expect(items).toHaveLength(5);
+    expect(group!.scrollWidth).toBeLessThanOrEqual(group!.clientWidth);
+    expect(items.every((item) => item.getBoundingClientRect().width >= 44)).toBe(true);
+    expect(Math.max(...items.map((item) => item.getBoundingClientRect().width)) - Math.min(...items.map((item) => item.getBoundingClientRect().width))).toBeLessThan(1);
   });
 
   it("shows a working close action when hosted in a mobile dialog", async () => {
@@ -358,9 +441,9 @@ describe("question bank browser flow", () => {
     render(controller, { random: () => 0 });
     await scanAndSync();
     expect(document.querySelector('[data-slot="select-trigger"]')).not.toBeNull();
-    expect(document.querySelectorAll('[data-slot="toggle-group"]')).toHaveLength(2);
+    expect(document.querySelectorAll('[data-slot="toggle-group"]')).toHaveLength(3);
     await selectScope("Root topic");
-    button("Random").click();
+    button("Random questions").click();
     button("All").click();
     button("Start practice").click();
     await flush();
@@ -370,6 +453,55 @@ describe("question bank browser flow", () => {
       documentId,
       headingBlockId: "20260804120002-abcdefg",
     });
+  });
+
+  it("starts practice with only questions that have not been attempted", async () => {
+    const { controller } = mockController();
+    render(controller);
+    await scanAndSync();
+
+    button("Unattempted").click();
+    button("Start practice").click();
+    await flush();
+
+    expect(document.body.textContent).toContain("Subjective question");
+    expect(document.body.textContent).not.toContain("Objective question");
+  });
+
+  it("restores practice preferences and saves each new launcher selection", async () => {
+    const { controller, savePracticePreferences } = mockController({
+      practicePreferences: { order: "random", optionOrder: "source", filter: "wrong" },
+    });
+    render(controller);
+    await scanAndSync();
+
+    expect(button("Random questions").getAttribute("data-state")).toBe("on");
+    expect(button("Original options").getAttribute("data-state")).toBe("on");
+    expect(button("Wrong").getAttribute("data-state")).toBe("on");
+
+    button("Sequential questions").click();
+    button("Random options").click();
+    button("All").click();
+    await flush();
+
+    expect(savePracticePreferences).toHaveBeenLastCalledWith({
+      order: "sequential",
+      optionOrder: "random",
+      filter: "all",
+    });
+  });
+
+  it("freezes the selected source option order when practice starts", async () => {
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion]) });
+    render(controller, { random: () => 0 });
+    await scanAndSync();
+
+    button("Original options").click();
+    button("Start practice").click();
+    await flush();
+
+    expect([...document.querySelectorAll<HTMLElement>(".option-content")]
+      .map((element) => element.textContent?.trim())).toEqual(["Alpha", "Beta", "Gamma"]);
   });
 
   it("preloads initial and upcoming embed sources without revealing the solution", async () => {
@@ -715,7 +847,7 @@ describe("question bank browser flow", () => {
     expect(submitAttempt.mock.calls[0][0].durationMs).toBe(2_000);
   });
 
-  it("accumulates in-memory question time across answer-card navigation", async () => {
+  it("resets question time when returning through answer-card navigation", async () => {
     let now = 1000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
     const { controller, submitAttempt } = mockController({
@@ -743,7 +875,7 @@ describe("question bank browser flow", () => {
     button("good").click();
     await flush();
 
-    expect(submitAttempt.mock.calls[0][0].durationMs).toBe(5000);
+    expect(submitAttempt.mock.calls[0][0].durationMs).toBe(2000);
   });
 
   it("opens a mobile answer card, navigates pending questions, and keeps actions docked", async () => {
