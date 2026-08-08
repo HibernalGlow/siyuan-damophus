@@ -141,6 +141,7 @@ export const startAnimatedImageReplay = ({
   const sourceForImage = (img) => (
     img.dataset.damophusAnimatedSrc
     ?? img.dataset.inkloomAnimatedSrc
+    ?? img.getAttribute('src')
     ?? img.currentSrc
     ?? img.src
     ?? ''
