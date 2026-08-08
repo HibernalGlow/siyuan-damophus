@@ -19,6 +19,7 @@
   import { createEventDispatcher } from "svelte";
   import { Check, Download, FileUp, RotateCcw, Trash2 } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
+  import { Input } from "@/components/ui/input";
   import * as Tabs from "@/components/ui/tabs";
   import { cn } from "@/lib/utils";
   import type { ColorMode } from "./runtime";
@@ -94,12 +95,12 @@
       </Tabs.List>
     </Tabs.Root>
     <div class="flex items-center gap-2">
-      <input
+      <Input
         class="sr-only"
-        bind:this={fileInput}
+        bind:ref={fileInput}
         type="file"
         accept="application/json,.json"
-        on:change={readThemeFile}
+        onchange={readThemeFile}
       />
       <Button variant="outline" size="sm" onclick={() => fileInput.click()}>
         <FileUp data-icon="inline-start" />
@@ -141,12 +142,13 @@
           selectedId === id && "border-primary ring-2 ring-primary/20",
         )}
       >
-        <button
-          class="absolute inset-0 z-0 rounded-lg bg-transparent outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        <Button
+          variant="ghost"
+          class="absolute inset-0 z-0 h-auto w-auto rounded-lg bg-transparent outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           aria-label={theme.name}
           aria-pressed={selectedId === id}
-          on:click={() => selectTheme(theme, source)}
-        ></button>
+          onclick={() => selectTheme(theme, source)}
+        ></Button>
         <div class="pointer-events-none relative z-[1] flex items-start justify-between gap-2">
           <div class="min-w-0">
             <strong class="block truncate text-sm font-semibold">{theme.name}</strong>

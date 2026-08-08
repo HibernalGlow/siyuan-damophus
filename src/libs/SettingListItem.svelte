@@ -1,6 +1,10 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
   import { isMobile } from "../utils";
+  import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-svelte";
+  import { Button } from "@/components/ui/button";
+  import { Input } from "@/components/ui/input";
+  import * as Select from "@/components/ui/select";
 
   export let value: any[] = [];
   export let columns: Array<{
@@ -70,15 +74,14 @@
             {/if}
             
             {#if col.type === "select" && col.options}
-              <select class="b3-select fn__flex-center" bind:value={item[col.key]} on:change={notifyChange}>
-                {#each Object.entries(col.options) as [optValue, optLabel]}
-                  <option value={optValue}>{optLabel}</option>
-                {/each}
-              </select>
+              <Select.Root type="single" value={String(item[col.key])} onValueChange={(next) => { item[col.key] = next; notifyChange(); }}>
+                <Select.Trigger class="w-full">{col.options[String(item[col.key])] ?? item[col.key]}</Select.Trigger>
+                <Select.Content>{#each Object.entries(col.options) as [optValue, optLabel]}<Select.Item value={optValue} label={optLabel} />{/each}</Select.Content>
+              </Select.Root>
             {:else if col.type === "number"}
-              <input type="number" class="b3-text-field fn__block" bind:value={item[col.key]} placeholder={col.title} on:input={notifyChange} />
+              <Input type="number" bind:value={item[col.key]} placeholder={col.title} oninput={notifyChange} />
             {:else}
-              <input type="text" class="b3-text-field fn__block" bind:value={item[col.key]} placeholder={col.title} on:input={notifyChange} />
+              <Input type="text" bind:value={item[col.key]} placeholder={col.title} oninput={notifyChange} />
             {/if}
           </div>
         {/each}
@@ -86,22 +89,14 @@
       
       <!-- 操作区 -->
       <div class="list-actions" class:mobile={isMobile}>
-        <button class="b3-button b3-button--text" title="上移" on:click={() => moveUp(index)} disabled={index === 0}>
-          <svg><use xlink:href="#iconUp"></use></svg>
-        </button>
-        <button class="b3-button b3-button--text" title="下移" on:click={() => moveDown(index)} disabled={index === value.length - 1}>
-          <svg><use xlink:href="#iconDown"></use></svg>
-        </button>
-        <button class="b3-button b3-button--text" title="删除" style="color: var(--b3-theme-error);" on:click={() => removeItem(index)}>
-          <svg><use xlink:href="#iconTrashcan"></use></svg>
-        </button>
+        <Button variant="ghost" size="icon-sm" title="上移" aria-label="上移" onclick={() => moveUp(index)} disabled={index === 0}><ArrowUp /></Button>
+        <Button variant="ghost" size="icon-sm" title="下移" aria-label="下移" onclick={() => moveDown(index)} disabled={index === value.length - 1}><ArrowDown /></Button>
+        <Button variant="ghost" size="icon-sm" title="删除" aria-label="删除" onclick={() => removeItem(index)}><Trash2 /></Button>
       </div>
     </div>
   {/each}
   <div class="list-add-action">
-    <button class="b3-button b3-button--outline fn__flex-center" style="width: 100%;" on:click={addItem}>
-      <svg><use xlink:href="#iconAdd"></use></svg> 添加项
-    </button>
+    <Button variant="outline" class="w-full" onclick={addItem}><Plus />添加项</Button>
   </div>
 </div>
 

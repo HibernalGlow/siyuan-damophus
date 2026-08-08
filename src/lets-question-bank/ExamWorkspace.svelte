@@ -3,6 +3,10 @@
   import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock3, Flag, Layers3, Send, X } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
+  import { Checkbox } from "@/components/ui/checkbox";
+  import { Label } from "@/components/ui/label";
+  import * as Select from "@/components/ui/select";
+  import { Textarea } from "@/components/ui/textarea";
   import type { Question } from "@/question-bank/core/types";
   import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
@@ -368,10 +372,10 @@
     <div class="exam-form">
       <label>{label("questionCount", "Question count")}<Input type="number" min="1" max={activeQuestions.length} bind:value={questionCount} /></label>
       <label>{label("timeLimit", "Time limit (minutes)")}<Input type="number" min="0" bind:value={timeLimitMinutes} /></label>
-      <label>{label("order", "Order")}<select bind:value={order}><option value="sequential">{label("sequential", "Sequential")}</option><option value="random">{label("random", "Random")}</option></select></label>
-      <label>{label("scoringMode", "Scoring")}<select bind:value={scoringMode}><option value="legal-exam">{label("legalScoring", "Legal exam")}</option><option value="strict">{label("strictScoring", "Strict one-point")}</option></select></label>
-      <label class="exam-check"><input type="checkbox" bind:checked={allowAnswerReveal} />{label("allowAnswerReveal", "Allow answer reveal")}</label>
-      <label class="exam-check"><input type="checkbox" bind:checked={strictTimeout} />{label("strictTimeout", "Strict timeout auto-submit")}</label>
+      <Label>{label("order", "Order")}<Select.Root type="single" value={order} onValueChange={(value) => { if (value) order = value as typeof order; }}><Select.Trigger>{order === "random" ? label("random", "Random") : label("sequential", "Sequential")}</Select.Trigger><Select.Content><Select.Item value="sequential" label={label("sequential", "Sequential")} /><Select.Item value="random" label={label("random", "Random")} /></Select.Content></Select.Root></Label>
+      <Label>{label("scoringMode", "Scoring")}<Select.Root type="single" value={scoringMode} onValueChange={(value) => { if (value) scoringMode = value as typeof scoringMode; }}><Select.Trigger>{scoringMode === "strict" ? label("strictScoring", "Strict one-point") : label("legalScoring", "Legal exam")}</Select.Trigger><Select.Content><Select.Item value="legal-exam" label={label("legalScoring", "Legal exam")} /><Select.Item value="strict" label={label("strictScoring", "Strict one-point")} /></Select.Content></Select.Root></Label>
+      <Label class="exam-check"><Checkbox bind:checked={allowAnswerReveal} />{label("allowAnswerReveal", "Allow answer reveal")}</Label>
+      <Label class="exam-check"><Checkbox bind:checked={strictTimeout} />{label("strictTimeout", "Strict timeout auto-submit")}</Label>
     </div>
     {#if frozenSet}<div class="rounded border px-3 py-2 text-sm"><strong>{frozenSetLabel}</strong><span class="ml-2 text-muted-foreground">{frozenSet.question_ids.length} {label("questions", "题")}</span></div>{/if}
     <div class="exam-actions">
@@ -388,19 +392,19 @@
     </header>
     <nav class="exam-question-nav" aria-label={label("questionNavigation", "Question navigation")}>
       {#each snapshot.queue_question_ids as id, index (id)}
-        <button class:current={index === questionIndex} class:answered={snapshot.drafts[id].selected_option_ids.length > 0 || Boolean(snapshot.drafts[id].answer_text)} class:marked={snapshot.drafts[id].marked} onclick={() => navigate(index)}>{index + 1}</button>
+        <Button variant={index === questionIndex ? "default" : "outline"} size="icon-sm" class={(snapshot.drafts[id].selected_option_ids.length > 0 || Boolean(snapshot.drafts[id].answer_text) ? "answered " : "") + (snapshot.drafts[id].marked ? "marked" : "")} onclick={() => navigate(index)}>{index + 1}</Button>
       {/each}
     </nav>
     <article class="exam-question">
-      <div class="exam-question-toolbar"><span>{currentQuestion.type}</span><button title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class:active={currentDraft.marked} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></button></div>
+      <div class="exam-question-toolbar"><span>{currentQuestion.type}</span><Button variant="ghost" size="icon" title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class={currentDraft.marked ? "active" : ""} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></Button></div>
       <div class="exam-stem">{@html rendered(currentQuestion.stemMarkdown)}</div>
       {#if currentQuestion.type === "subjective"}
-        <textarea value={currentDraft.answer_text ?? ""} oninput={(event) => answerText(event.currentTarget.value)} placeholder={label("subjectiveAnswer", "Write your answer")}></textarea>
+        <Textarea value={currentDraft.answer_text ?? ""} oninput={(event) => answerText(event.currentTarget.value)} placeholder={label("subjectiveAnswer", "Write your answer")} />
       {:else}
         <div class="exam-options">
           {#each currentDraft.option_order as optionId (optionId)}
             {@const option = currentQuestion.options.find((candidate) => candidate.id === optionId)}
-            {#if option}<button class:selected={currentDraft.selected_option_ids.includes(option.id)} onclick={() => selectOption(option.id)}>{@html rendered(option.markdown)}</button>{/if}
+            {#if option}<Button variant={currentDraft.selected_option_ids.includes(option.id) ? "secondary" : "outline"} class="exam-option" onclick={() => selectOption(option.id)}>{@html rendered(option.markdown)}</Button>{/if}
           {/each}
         </div>
       {/if}

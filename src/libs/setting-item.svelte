@@ -5,6 +5,7 @@
   import { Slider } from "@/components/ui/slider";
   import { Switch } from "@/components/ui/switch";
   import { Textarea } from "@/components/ui/textarea";
+  import * as Select from "@/components/ui/select";
   import { plugin } from "../utils";
   import SettingListItem from "./SettingListItem.svelte";
 
@@ -69,11 +70,12 @@
       {:else if type === "button"}
         <Button variant="outline" onclick={() => dispatch("click", { key: settingKey, value: settingValue })}>{buttonLabel}</Button>
       {:else if type === "select"}
-        <select class="h-8 w-52 max-w-full rounded-md border border-input bg-background px-2 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/25" id={settingKey} bind:value={settingValue} onchange={changed}>
-          {#each Object.entries(options) as [value, text]}
-            <option {value}>{plugin.i18n[text] || text}</option>
-          {/each}
-        </select>
+        <Select.Root type="single" value={String(settingValue)} onValueChange={(value) => { settingValue = value; changed(); }}>
+          <Select.Trigger id={settingKey} class="w-52 max-w-full">{plugin.i18n[options[settingValue]] || options[settingValue] || settingValue}</Select.Trigger>
+          <Select.Content>
+            <Select.Group>{#each Object.entries(options) as [value, text]}<Select.Item {value} label={plugin.i18n[text] || text} />{/each}</Select.Group>
+          </Select.Content>
+        </Select.Root>
       {:else if type === "slider"}
         <div class="grid w-56 max-w-full grid-cols-[1fr_42px] items-center gap-3">
           <Slider type="single" min={slider.min} max={slider.max} step={slider.step} bind:value={settingValue} onValueChange={changed} aria-label={translatedTitle} />

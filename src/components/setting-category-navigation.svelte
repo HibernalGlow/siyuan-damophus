@@ -32,15 +32,14 @@
   <ul class="b3-list b3-list--background m-0 list-none p-0">
     {#each groups as group}
       <li>
-        <button
-          type="button"
-          class="b3-list-item my-1 min-h-11 w-full touch-manipulation"
-          class:b3-list-item--focus={group === focusGroup}
+        <Button
+          variant={group === focusGroup ? "secondary" : "ghost"}
+          class="my-1 min-h-11 w-full touch-manipulation justify-start"
           aria-current={group === focusGroup ? "page" : undefined}
           onclick={() => selectGroup(group)}
         >
           <span class="b3-list-item__text min-w-0 truncate">{getGroupLabel(group)}</span>
-        </button>
+        </Button>
       </li>
     {/each}
   </ul>
@@ -73,11 +72,9 @@
       <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-2">
         <nav class="flex flex-col gap-1" aria-label={categoryLabel}>
           {#each groups as group}
-            <button
-              type="button"
-              class="flex min-h-11 w-full touch-manipulation items-center justify-between rounded-md px-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-accent"
-              class:bg-accent={group === focusGroup}
-              class:text-accent-foreground={group === focusGroup}
+            <Button
+              variant={group === focusGroup ? "secondary" : "ghost"}
+              class="min-h-11 w-full touch-manipulation justify-between text-left"
               aria-current={group === focusGroup ? "page" : undefined}
               onclick={() => selectGroup(group)}
             >
@@ -85,7 +82,7 @@
               {#if group === focusGroup}
                 <Check data-icon="inline-end" />
               {/if}
-            </button>
+            </Button>
           {/each}
         </nav>
       </div>

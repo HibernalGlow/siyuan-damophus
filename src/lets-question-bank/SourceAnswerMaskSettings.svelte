@@ -22,6 +22,7 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
   import { Switch } from "@/components/ui/switch";
+  import * as Select from "@/components/ui/select";
   import type { AnswerMaskStyle } from "./source-answer-mask";
 
   export let enabled = false;
@@ -34,8 +35,8 @@
     preview: SourceAnswerMaskSettingChange;
   }>();
 
-  function updateStyle(event: Event, commit: boolean): void {
-    style = (event.currentTarget as HTMLSelectElement).value as AnswerMaskStyle;
+  function updateStyle(value: string, commit: boolean): void {
+    style = value as AnswerMaskStyle;
     dispatch(commit ? "changed" : "preview", { key: "answerMaskStyle", value: style });
   }
 </script>
@@ -62,17 +63,14 @@
 
   <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(180px,auto)] items-center gap-5 border-b border-border px-3 py-3 max-[640px]:grid-cols-1 max-[640px]:gap-3">
     <label class="text-sm font-medium" for="damophus-answer-mask-style">{labels.style}</label>
-    <select
-      id="damophus-answer-mask-style"
-      class="h-8 w-52 max-w-full rounded-md border border-input bg-background px-2 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/25"
-      value={style}
-      oninput={(event) => updateStyle(event, false)}
-      onchange={(event) => updateStyle(event, true)}
-    >
-      <option value="blur">{labels.blur}</option>
-      <option value="solid">{labels.solid}</option>
-      <option value="underline">{labels.underline}</option>
-    </select>
+    <Select.Root type="single" value={style} onValueChange={(value) => { if (value) updateStyle(value, true); }}>
+      <Select.Trigger id="damophus-answer-mask-style" class="w-52 max-w-full">{style === "blur" ? labels.blur : style === "solid" ? labels.solid : labels.underline}</Select.Trigger>
+      <Select.Content>
+        <Select.Item value="blur" label={labels.blur} />
+        <Select.Item value="solid" label={labels.solid} />
+        <Select.Item value="underline" label={labels.underline} />
+      </Select.Content>
+    </Select.Root>
   </div>
 
   <div class="px-3 py-4">

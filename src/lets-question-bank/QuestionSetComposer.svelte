@@ -3,6 +3,9 @@
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
+  import { Checkbox } from "@/components/ui/checkbox";
+  import { Label } from "@/components/ui/label";
+  import * as Select from "@/components/ui/select";
   import type { QuestionIndexBatchPreview } from "@/question-bank/application";
   import type { QuestionCatalogEntry, FrozenQuestionSet } from "@/question-bank/assembly";
   import {
@@ -195,17 +198,17 @@
     <section class="min-h-0 flex-1 overflow-y-auto">
       {#if blueprints.length > 0}
         <label class="mb-3 block text-sm">{label("savedBlueprints", "已保存方案")}
-          <select value={selectedBlueprintId} onchange={(event) => loadBlueprint(event.currentTarget.value)}>
-            <option value="">{label("newBlueprint", "新建方案")}</option>
-            {#each blueprints as blueprint (blueprint.blueprint_id)}<option value={blueprint.blueprint_id}>{blueprint.name}</option>{/each}
-          </select>
+          <Select.Root type="single" value={selectedBlueprintId} onValueChange={(value) => loadBlueprint(value ?? "")}>
+            <Select.Trigger class="w-full">{selectedBlueprintId ? blueprints.find((item) => item.blueprint_id === selectedBlueprintId)?.name : label("newBlueprint", "新建方案")}</Select.Trigger>
+            <Select.Content>{#each blueprints as blueprint (blueprint.blueprint_id)}<Select.Item value={blueprint.blueprint_id} label={blueprint.name} />{/each}</Select.Content>
+          </Select.Root>
         </label>
       {/if}
       <div class="mb-2 flex items-center justify-between"><strong>{label("questionSetSources", "选择题源")}</strong><Button variant="ghost" size="sm" onclick={selectAllDocuments}>{selectedDocumentIds.size === documents.length ? label("clearSelection", "清除选择") : label("selectAll", "全选")}</Button></div>
       <div class="grid gap-1">
         {#each documents as document (document.documentId)}
           <label class="flex items-start gap-2 rounded border px-2 py-2 text-sm">
-            <input type="checkbox" checked={selectedDocumentIds.has(document.documentId)} onchange={() => { selectedDocumentIds = toggle(selectedDocumentIds, document.documentId); }} />
+            <Checkbox checked={selectedDocumentIds.has(document.documentId)} onCheckedChange={() => { selectedDocumentIds = toggle(selectedDocumentIds, document.documentId); }} />
             <span class="min-w-0"><strong class="block truncate">{document.title}</strong><small class="text-muted-foreground">{document.hpath ?? document.documentId}</small></span>
           </label>
         {:else}<div class="text-sm text-muted-foreground">{label("noSourceDocuments", "未找到题源文档")}</div>{/each}
@@ -228,11 +231,15 @@
     <section class="min-h-0 flex-1 overflow-y-auto grid gap-3 text-sm">
       <label>{label("questionSetName", "方案名称")}<Input bind:value={name} /></label>
       <label>{label("questionCount", "题量")}<Input type="number" min="1" bind:value={questionCount} /></label>
-      <div><strong class="mb-1 block">{label("subjects", "科目")}</strong><div class="flex flex-wrap gap-1">{#each availableSubjects as subject}<label class="flex items-center gap-1 rounded border px-2 py-1"><input type="checkbox" checked={selectedSubjects.has(subject)} onchange={() => { selectedSubjects = toggle(selectedSubjects, subject); }} />{subject}</label>{/each}</div></div>
-      <div><strong class="mb-1 block">{label("years", "年份")}</strong><div class="flex flex-wrap gap-1">{#each availableYears as year}<label class="flex items-center gap-1 rounded border px-2 py-1"><input type="checkbox" checked={selectedYears.has(year)} onchange={() => { selectedYears = toggle(selectedYears, year); }} />{year}</label>{/each}</div></div>
-      <label>{label("historyFilter", "作答历史")}<select bind:value={selectedHistory}><option value="all">{label("allQuestions", "全部题")}</option><option value="unattempted">{label("unattempted", "未做题")}</option><option value="wrong">{label("wrong", "错题")}</option><option value="review">{label("review", "待复习")}</option><option value="again-hard">Again / Hard</option></select></label>
-      <label>{label("drawMode", "抽取方式")}<select bind:value={drawMode}><option value="balanced">{label("balanced", "均衡抽取")}</option><option value="uniform">{label("uniform", "完全随机")}</option></select></label>
-      <label class="flex items-center gap-2"><input type="checkbox" bind:checked={allowWidening} />{label("allowWidening", "题量不足时先放宽年份")}</label>
+      <div><strong class="mb-1 block">{label("subjects", "科目")}</strong><div class="flex flex-wrap gap-1">{#each availableSubjects as subject}<Label class="flex items-center gap-1 rounded border px-2 py-1"><Checkbox checked={selectedSubjects.has(subject)} onCheckedChange={() => { selectedSubjects = toggle(selectedSubjects, subject); }} />{subject}</Label>{/each}</div></div>
+      <div><strong class="mb-1 block">{label("years", "年份")}</strong><div class="flex flex-wrap gap-1">{#each availableYears as year}<Label class="flex items-center gap-1 rounded border px-2 py-1"><Checkbox checked={selectedYears.has(year)} onCheckedChange={() => { selectedYears = toggle(selectedYears, year); }} />{year}</Label>{/each}</div></div>
+      <Label>{label("historyFilter", "作答历史")}
+        <Select.Root type="single" value={selectedHistory} onValueChange={(value) => { if (value) selectedHistory = value as typeof selectedHistory; }}><Select.Trigger>{selectedHistory}</Select.Trigger><Select.Content><Select.Item value="all" label={label("allQuestions", "全部题")} /><Select.Item value="unattempted" label={label("unattempted", "未做题")} /><Select.Item value="wrong" label={label("wrong", "错题")} /><Select.Item value="review" label={label("review", "待复习")} /><Select.Item value="again-hard" label="Again / Hard" /></Select.Content></Select.Root>
+      </Label>
+      <Label>{label("drawMode", "抽取方式")}
+        <Select.Root type="single" value={drawMode} onValueChange={(value) => { if (value) drawMode = value as typeof drawMode; }}><Select.Trigger>{drawMode}</Select.Trigger><Select.Content><Select.Item value="balanced" label={label("balanced", "均衡抽取")} /><Select.Item value="uniform" label={label("uniform", "完全随机")} /></Select.Content></Select.Root>
+      </Label>
+      <Label class="flex items-center gap-2"><Checkbox bind:checked={allowWidening} />{label("allowWidening", "题量不足时先放宽年份")}</Label>
     </section>
     <div class="flex gap-2"><Button variant="outline" onclick={() => step = batchPreview ? "scan" : "sources"}><ArrowLeft size={16} />{label("back", "返回")}</Button><Button variant="outline" onclick={save}><Save size={16} />{label("saveBlueprint", "保存方案")}</Button><Button onclick={assemble}>{label("previewSet", "预览试卷")}</Button></div>
   {:else}

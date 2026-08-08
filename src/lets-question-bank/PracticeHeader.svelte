@@ -216,7 +216,7 @@
 {/if}
 
 {#if correctionOpen && currentQuestion?.answer}
-  <button class="correction-backdrop" aria-label={label("cancel", "Cancel")} onclick={() => correctionOpen = false}></button>
+  <Button variant="ghost" class="correction-backdrop h-auto w-auto rounded-none p-0" aria-label={label("cancel", "Cancel")} onclick={() => correctionOpen = false}></Button>
   <div class="correction-dialog" role="dialog" aria-modal="true" aria-label={label("correctAnswer", "Correct answer")}>
     <header>
       <strong>{label("correctAnswer", "Correct answer")}</strong>
@@ -243,7 +243,7 @@
 {/if}
 
 <style>
-  .correction-backdrop { position: fixed; inset: 0; z-index: 9998; border: 0; background: rgb(0 0 0 / 24%); }
+  :global(.correction-backdrop) { position: fixed; inset: 0; z-index: 9998; border: 0; background: rgb(0 0 0 / 24%); }
   .correction-dialog { position: fixed; z-index: 9999; top: 64px; right: 16px; width: min(360px, calc(100vw - 32px)); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 8px; background: var(--b3-theme-background); color: var(--b3-theme-on-background); box-shadow: 0 12px 32px rgb(0 0 0 / 24%); }
   .correction-dialog > header { display: flex; align-items: center; justify-content: space-between; }
   .correction-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
