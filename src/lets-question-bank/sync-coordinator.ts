@@ -3,6 +3,8 @@ export interface SyncMainMessage {
   data?: unknown;
 }
 
+export const TINYBASE_READ_VIEW_UPDATED_EVENT = "damophus-tinybase-read-view-updated";
+
 export interface MergeRunResult {
   mergedAt: string;
   diagnostics?: readonly unknown[];
@@ -63,6 +65,14 @@ export class StoreSyncCoordinator {
       this.timer = undefined;
       void this.flush();
     }, this.debounceMs);
+  }
+
+  async request(): Promise<void> {
+    if (this.closed) return;
+    if (this.timer !== undefined) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.queued = true;
+    await this.flush();
   }
 
   async flush(): Promise<void> {

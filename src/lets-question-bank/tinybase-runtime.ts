@@ -86,6 +86,7 @@ export class TinyBaseRuntime {
     await new TinyBasePracticeSessionRepository(
       this.warehouse.getLocalContribution().sessions,
       this.warehouse.deviceId,
+      {readView: this.warehouse.getReadView().sessions},
     ).save(snapshot, expectedRevision);
     await this.warehouse.persistSessions();
   }
@@ -95,6 +96,7 @@ export class TinyBaseRuntime {
     await new TinyBasePracticeSessionRepository(
       this.warehouse.getLocalContribution().sessions,
       this.warehouse.deviceId,
+      {readView: this.warehouse.getReadView().sessions},
     ).remove(sourceKey, sessionId);
     await this.warehouse.persistSessions();
   }

@@ -30,6 +30,20 @@ describe("TinyBase storage contracts", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts an empty snapshot only for a deleted practice session", () => {
+    const tombstone = {
+      source_key: "doc-1",
+      device_id: "device-1",
+      session_id: "session-1",
+      revision: 2,
+      updated_at: "2026-08-08T00:01:00.000Z",
+      deleted: true,
+      snapshot_json: "",
+    };
+    expect(PracticeSessionVersionRecordSchema.safeParse(tombstone).success).toBe(true);
+    expect(PracticeSessionVersionRecordSchema.safeParse({...tombstone, deleted: false}).success).toBe(false);
+  });
+
   it("validates envelope hashes syntactically before content verification", () => {
     expect(StoreEnvelopeSchema.safeParse({
       format_version: 1,

@@ -178,7 +178,7 @@ Row ID: `blueprint_id`. Store `revision`, `updated_at`, and one canonical `snaps
 
 #### `practice_session_versions`
 
-Row ID: deterministic encoding of `source_key` and origin device ID. Store `source_key`, `device_id`, `session_id`, `revision`, `updated_at`, and canonical `snapshot_json`. The whole snapshot is one logical conflict unit; TinyBase must not combine drafts from one device with navigation state from another.
+Row ID: deterministic encoding of `source_key` and origin device ID. Store `source_key`, `device_id`, `session_id`, `revision`, `updated_at`, `deleted`, and canonical `snapshot_json`. The whole snapshot is one logical conflict unit; TinyBase must not combine drafts from one device with navigation state from another. Completing or ending a session writes a newer per-device tombstone (`deleted=true`, empty `snapshot_json`) so an older active version cannot reappear after synchronization.
 
 #### `exam_session_versions`
 

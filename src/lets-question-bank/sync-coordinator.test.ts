@@ -40,4 +40,15 @@ describe("sync-end coordination", () => {
     expect(failure).toHaveBeenCalledOnce();
     expect(coordinator.getLastValidated()?.mergedAt).toBe("2026-08-08T00:00:00.000Z");
   });
+
+  it("runs an immediate merge when the question bank opens", async () => {
+    const run = vi.fn(async () => ({mergedAt: "2026-08-08T00:00:00.000Z"}));
+    const success = vi.fn();
+    const coordinator = new StoreSyncCoordinator({run}, {debounceMs: 100, onSuccess: success});
+
+    await coordinator.request();
+
+    expect(run).toHaveBeenCalledOnce();
+    expect(success).toHaveBeenCalledOnce();
+  });
 });

@@ -51,7 +51,7 @@ export const DAMOPHUS_TABLES_SCHEMA: TablesSchema = {
   },
   [TABLE.practiceSessionVersions]: {
     source_key: stringCell, device_id: stringCell, session_id: stringCell,
-    revision: numberCell, updated_at: stringCell, snapshot_json: stringCell,
+    revision: numberCell, updated_at: stringCell, deleted: booleanCell, snapshot_json: stringCell,
   },
   [TABLE.examSessionVersions]: {
     exam_id: stringCell, device_id: stringCell, revision: numberCell, status: stringCell,

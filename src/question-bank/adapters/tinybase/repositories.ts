@@ -285,40 +285,86 @@ function sessionRowId(logicalId: string, deviceId: string): string {
   return `${encodeURIComponent(logicalId)}~${encodeURIComponent(deviceId)}`;
 }
 
+interface TinyBasePracticeSessionRepositoryOptions {
+  readView?: MergeableStore;
+  now?: () => Date;
+}
+
 export class TinyBasePracticeSessionRepository implements PracticeSessionRepository {
-  constructor(private readonly sessions: MergeableStore, private readonly deviceId: string) {}
+  private readonly readView: MergeableStore;
+  private readonly now: () => Date;
+
+  constructor(
+    private readonly sessions: MergeableStore,
+    private readonly deviceId: string,
+    options: TinyBasePracticeSessionRepositoryOptions = {},
+  ) {
+    this.readView = options.readView ?? sessions;
+    this.now = options.now ?? (() => new Date());
+  }
+
+  private versionRows(): Array<[string, Record<string, Cell>]> {
+    const versions = new Map(rows(this.readView, TABLE.practiceSessionVersions));
+    for (const [rowId, row] of rows(this.sessions, TABLE.practiceSessionVersions)) {
+      versions.set(rowId, row);
+    }
+    return [...versions.entries()];
+  }
 
   private matching(sourceKey: string): Array<Record<string, Cell>> {
-    return rows(this.sessions, TABLE.practiceSessionVersions)
+    return this.versionRows()
       .map(([, row]) => row)
       .filter((row) => row.source_key === sourceKey)
-      .sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at)));
+      .sort((left, right) => {
+        const updated = String(right.updated_at).localeCompare(String(left.updated_at));
+        if (updated !== 0) return updated;
+        return Number(right.device_id === this.deviceId) - Number(left.device_id === this.deviceId);
+      });
   }
 
   async list(): Promise<Array<{sourceKey: string; deviceId: string; result: PracticeSessionSnapshotParseResult}>> {
-    return rows(this.sessions, TABLE.practiceSessionVersions).map(([, row]) => ({
-      sourceKey: String(row.source_key),
-      deviceId: String(row.device_id),
-      result: parsePracticeSessionSnapshot(JSON.parse(String(row.snapshot_json))),
-    }));
+    return this.versionRows()
+      .map(([, row]) => row)
+      .filter((row) => row.deleted !== true)
+      .map((row) => ({
+        sourceKey: String(row.source_key),
+        deviceId: String(row.device_id),
+        result: parsePracticeSessionSnapshot(JSON.parse(String(row.snapshot_json))),
+      }));
   }
 
   async load(sourceKey: string): Promise<PracticeSessionSnapshotParseResult | undefined> {
     const matches = this.matching(sourceKey);
-    const row = matches.find((item) => item.device_id === this.deviceId) ?? matches[0];
-    return row ? parsePracticeSessionSnapshot(JSON.parse(String(row.snapshot_json))) : undefined;
+    const row = matches[0];
+    return row && row.deleted !== true
+      ? parsePracticeSessionSnapshot(JSON.parse(String(row.snapshot_json)))
+      : undefined;
   }
 
   async save(snapshot: PracticeSessionSnapshot, expectedRevision?: number): Promise<void> {
     const parsed = PracticeSessionSnapshotSchema.parse(snapshot) as PracticeSessionSnapshot;
     const rowId = sessionRowId(parsed.source_key, this.deviceId);
-    const current = this.sessions.hasRow(TABLE.practiceSessionVersions, rowId)
-      ? parsePracticeSessionSnapshot(JSON.parse(String(this.sessions.getCell(TABLE.practiceSessionVersions, rowId, "snapshot_json"))))
+    const latestRow = this.matching(parsed.source_key)[0];
+    const current = latestRow && latestRow.deleted !== true
+      ? parsePracticeSessionSnapshot(JSON.parse(String(latestRow.snapshot_json)))
       : undefined;
-    if (expectedRevision !== undefined && (current?.status !== "ok" || current.snapshot.revision !== expectedRevision)) {
+    const localRow = this.sessions.hasRow(TABLE.practiceSessionVersions, rowId)
+      ? rowObject(this.sessions, TABLE.practiceSessionVersions, rowId)
+      : undefined;
+    const localCurrent = localRow && localRow.deleted !== true
+      ? parsePracticeSessionSnapshot(JSON.parse(String(localRow.snapshot_json)))
+      : undefined;
+    if (expectedRevision !== undefined && (
+      current?.status !== "ok"
+      || current.snapshot.revision !== expectedRevision
+      || current.snapshot.session_id !== parsed.session_id
+    )) {
       throw new Error("Practice session changed in another window");
     }
-    if (expectedRevision === undefined && current?.status === "ok" && current.snapshot.session_id !== parsed.session_id) {
+    if (expectedRevision === undefined && latestRow?.deleted === true && latestRow.session_id === parsed.session_id) {
+      throw new Error("Practice session changed in another window");
+    }
+    if (expectedRevision === undefined && localCurrent?.status === "ok" && localCurrent.snapshot.session_id !== parsed.session_id) {
       throw new Error("Practice session changed in another window");
     }
     this.sessions.setRow(TABLE.practiceSessionVersions, rowId, compactRow({
@@ -327,17 +373,31 @@ export class TinyBasePracticeSessionRepository implements PracticeSessionReposit
       session_id: parsed.session_id,
       revision: parsed.revision,
       updated_at: parsed.updated_at,
+      deleted: false,
       snapshot_json: canonicalJson(parsed),
     }));
   }
 
   async remove(sourceKey: string, sessionId?: string): Promise<void> {
-    const rowId = sessionRowId(sourceKey, this.deviceId);
-    if (!this.sessions.hasRow(TABLE.practiceSessionVersions, rowId)) return;
-    if (sessionId && this.sessions.getCell(TABLE.practiceSessionVersions, rowId, "session_id") !== sessionId) {
+    const latest = this.matching(sourceKey)[0];
+    if (!latest) return;
+    if (latest.deleted === true) return;
+    if (sessionId && latest.session_id !== sessionId) {
       throw new Error("Practice session changed in another window");
     }
-    this.sessions.delRow(TABLE.practiceSessionVersions, rowId);
+    const rowId = sessionRowId(sourceKey, this.deviceId);
+    const latestUpdatedAt = Date.parse(String(latest.updated_at));
+    const now = this.now().getTime();
+    const deletedAt = new Date(Math.max(now, Number.isFinite(latestUpdatedAt) ? latestUpdatedAt + 1 : now));
+    this.sessions.setRow(TABLE.practiceSessionVersions, rowId, compactRow({
+      source_key: sourceKey,
+      device_id: this.deviceId,
+      session_id: String(latest.session_id),
+      revision: Number(latest.revision) + 1,
+      updated_at: deletedAt.toISOString(),
+      deleted: true,
+      snapshot_json: "",
+    }));
   }
 }
 

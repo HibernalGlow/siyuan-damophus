@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createAttemptEvent } from "../question-bank/core/attempts";
+import { createPracticeSessionSnapshot } from "../question-bank/core/session-schema";
 import {
   readStoreEnvelope,
   type StoreFileIO,
@@ -13,7 +14,11 @@ class MemoryFiles implements StoreFileIO {
   async read(path: string): Promise<string | undefined> { return this.files.get(path); }
   async write(path: string, content: string): Promise<void> { this.files.set(path, content); }
   async list(path: string): Promise<string[]> {
-    return [...this.files.keys()].filter((item) => item.startsWith(path));
+    const prefix = `${path.replace(/\/$/, "")}/`;
+    return [...new Set([...this.files.keys()]
+      .filter((item) => item.startsWith(prefix))
+      .map((item) => item.slice(prefix.length).split("/")[0])
+      .filter(Boolean))];
   }
 }
 
@@ -63,5 +68,41 @@ describe("TinyBase runtime", () => {
     });
     expect(coreFile.store.getCell(TABLE.questionAggregates, "question-1", "attempts")).toBe(1);
     expect((await runtime.loadAggregates()).get("question-1")?.objectiveCorrect).toBe(1);
+  });
+
+  it("keeps a remotely completed practice session absent after both devices merge", async () => {
+    const files = new MemoryFiles();
+    const deviceA = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-a"));
+    const snapshot = createPracticeSessionSnapshot({
+      sessionId: "session-1",
+      sourceKey: "doc-1",
+      filter: "all",
+      order: "sequential",
+      queue: [{
+        question: {
+          id: "question-1",
+          type: "single",
+          title: "Question",
+          stemMarkdown: "Stem",
+          options: [{id: "A", markdown: "A"}, {id: "B", markdown: "B"}],
+          answer: {kind: "options", optionIds: ["A"]},
+          solutionMarkdown: "Solution",
+          metadata: {topicPath: []},
+        },
+        optionOrder: ["A", "B"],
+      }],
+      now: new Date("2026-08-08T00:00:00.000Z"),
+    });
+    await deviceA.savePracticeSession(snapshot);
+
+    const deviceB = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-b"));
+    await deviceB.mergeAfterSync();
+    await expect(deviceB.loadPracticeSession("doc-1")).resolves.toMatchObject({status: "ok"});
+    await deviceB.removePracticeSession("doc-1", "session-1");
+    await expect(deviceB.listPracticeSessions()).resolves.toEqual([]);
+
+    await deviceA.mergeAfterSync();
+    await expect(deviceA.loadPracticeSession("doc-1")).resolves.toBeUndefined();
+    await expect(deviceA.listPracticeSessions()).resolves.toEqual([]);
   });
 });

@@ -43,7 +43,7 @@ import {
 import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyuan-file-io";
 import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
 import { TinyBaseRuntime } from "./tinybase-runtime";
-import { StoreSyncCoordinator } from "./sync-coordinator";
+import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 
 type PracticeCommand = "previous" | "next" | "pause";
@@ -88,8 +88,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
     if (event.detail.type === "notebook") return;
     this.addLaunchMenuItem(event.detail.menu, launchBlockIdFromElements(event.detail.elements));
   };
-  private readonly handleWsMain = (event: CustomEvent<IEventBusMap["ws-main"]>): void => {
-    this.storeSyncCoordinator?.handle(event.detail);
+  private readonly handleSyncEnd = (): void => {
+    this.storeSyncCoordinator?.handle({cmd: "sync-end"});
   };
 
   override registerModels(): void {
@@ -116,7 +116,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.storeSyncCoordinator ??= new StoreSyncCoordinator(
       {run: () => this.getTinyBaseRuntime().mergeAfterSync()},
       {
-        onSuccess: (result) => log.info("tinybase.post-sync-merge-completed", result),
+        onSuccess: (result) => {
+          log.info("tinybase.post-sync-merge-completed", result);
+          window.dispatchEvent(new CustomEvent(TINYBASE_READ_VIEW_UPDATED_EVENT, {detail: result}));
+        },
         onFailure: (error) => log.warn("tinybase.post-sync-merge-failed", error),
       },
     );
@@ -155,7 +158,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
-    plugin.eventBus.on("ws-main", this.handleWsMain);
+    plugin.eventBus.on("sync-end", this.handleSyncEnd);
   }
 
   addMenuItem(menu: Menu): void {
@@ -203,7 +206,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
-    plugin.eventBus.off("ws-main", this.handleWsMain);
+    plugin.eventBus.off("sync-end", this.handleSyncEnd);
     this.listening = false;
     for (const app of this.mountedTabs.values()) void unmount(app);
     this.mountedTabs.clear();
@@ -411,7 +414,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       sourceQueryCache.set(key, loading);
       return loading;
     };
-    return mount(QuestionBank, {
+    const app = mount(QuestionBank, {
       target,
       props: {
         controller,
@@ -540,5 +543,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         },
       },
     });
+    void this.storeSyncCoordinator?.request();
+    return app;
   }
 }

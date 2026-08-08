@@ -136,8 +136,58 @@ describe("TinyBase repositories", () => {
     await deviceA.save(first);
     await deviceB.save({...first, session_id: "session-2", updated_at: "2026-08-08T00:01:00.000Z"});
     expect(await deviceA.list()).toHaveLength(2);
-    expect((await deviceA.load("doc-1"))?.status).toBe("ok");
+    expect(await deviceA.load("doc-1")).toMatchObject({
+      status: "ok",
+      snapshot: {session_id: "session-2"},
+    });
     await expect(deviceA.save({...first, revision: 2}, 1)).rejects.toThrow("changed in another window");
+  });
+
+  it("continues a remote practice session in the local device contribution", async () => {
+    const readView = createDamophusStore("sessions");
+    const local = createDamophusStore("sessions");
+    const question = {
+      id: "question-1", type: "single" as const, title: "Question", stemMarkdown: "Stem",
+      options: [{id: "A", markdown: "A"}, {id: "B", markdown: "B"}],
+      answer: {kind: "options" as const, optionIds: ["A"]}, solutionMarkdown: "Solution",
+      metadata: {topicPath: []},
+    };
+    const first = createPracticeSessionSnapshot({
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
+      queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
+    });
+    await new TinyBasePracticeSessionRepository(readView, "device-a").save(first);
+    const deviceB = new TinyBasePracticeSessionRepository(local, "device-b", {readView});
+
+    await expect(deviceB.load("doc-1")).resolves.toMatchObject({status: "ok"});
+    await expect(deviceB.save({...first, revision: 1, updated_at: "2026-08-08T00:01:00.000Z"}, 0)).resolves.toBeUndefined();
+    await expect(new TinyBasePracticeSessionRepository(local, "device-b").load("doc-1"))
+      .resolves.toMatchObject({status: "ok", snapshot: {revision: 1}});
+  });
+
+  it("keeps a completed remote practice session deleted on every device", async () => {
+    const store = createDamophusStore("sessions");
+    const question = {
+      id: "question-1", type: "single" as const, title: "Question", stemMarkdown: "Stem",
+      options: [{id: "A", markdown: "A"}, {id: "B", markdown: "B"}],
+      answer: {kind: "options" as const, optionIds: ["A"]}, solutionMarkdown: "Solution",
+      metadata: {topicPath: []},
+    };
+    const first = createPracticeSessionSnapshot({
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
+      queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
+    });
+    const deviceA = new TinyBasePracticeSessionRepository(store, "device-a");
+    const deviceB = new TinyBasePracticeSessionRepository(store, "device-b", {
+      now: () => new Date("2026-08-08T00:01:00.000Z"),
+    });
+    await deviceA.save(first);
+    await expect(deviceB.load("doc-1")).resolves.toMatchObject({status: "ok"});
+    await deviceB.remove("doc-1", "session-1");
+
+    await expect(deviceA.load("doc-1")).resolves.toBeUndefined();
+    await expect(deviceB.load("doc-1")).resolves.toBeUndefined();
+    expect(await deviceA.list()).toHaveLength(1);
   });
 
   it("rebuilds aggregate cache exclusively from immutable events", async () => {

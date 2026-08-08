@@ -87,8 +87,15 @@ export const PracticeSessionVersionRecordSchema = z.object({
   session_id: z.string().min(1),
   revision: z.number().int().nonnegative(),
   updated_at: z.iso.datetime({ offset: true }),
-  snapshot_json: z.string().min(2),
+  deleted: z.boolean().optional(),
+  snapshot_json: z.string(),
 }).superRefine((row, context) => {
+  if (row.deleted === true) {
+    if (row.snapshot_json !== "") {
+      context.addIssue({ code: "custom", path: ["snapshot_json"], message: "Deleted practice session must not contain a snapshot" });
+    }
+    return;
+  }
   let parsed: unknown;
   try { parsed = JSON.parse(row.snapshot_json); } catch { parsed = undefined; }
   if (!PracticeSessionSnapshotSchema.safeParse(parsed).success) {
