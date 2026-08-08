@@ -90,6 +90,50 @@
   --ring: var(--b3-theme-primary);
 }
 
+/* Select content is portaled to body, outside the themed question-bank root. */
+.damophus-select-content {
+  --popover: var(--b3-theme-background);
+  --popover-foreground: var(--b3-theme-on-background);
+  --accent: var(--b3-list-hover);
+  --accent-foreground: var(--b3-theme-on-background);
+  --border: var(--b3-border-color);
+  --ring: var(--b3-theme-primary);
+  width: min(var(--bits-select-anchor-width), calc(100vw - 24px)) !important;
+  min-width: min(var(--bits-select-anchor-width), calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: min(60dvh, 360px) !important;
+  background: var(--b3-theme-background) !important;
+  color: var(--b3-theme-on-background) !important;
+}
+
+.damophus-select-content,
+.damophus-select-content * {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+.damophus-select-content [data-select-viewport] {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.damophus-select-content [data-slot="select-group"],
+.damophus-select-content [data-slot="select-item"] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.damophus-select-content [data-slot="select-item"] {
+  width: 100% !important;
+}
+
+.damophus-select-content [data-slot="select-item"] > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .damophus-scrollable-breadcrumb {
   min-width: 0;
   max-width: 100%;
