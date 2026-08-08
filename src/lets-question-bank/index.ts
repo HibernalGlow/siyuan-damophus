@@ -36,7 +36,9 @@ import {
 } from "./source-embed-query";
 import {
   defocusProtyleEditor,
+  enforceSourceBlockReadOnly,
   observeFocusedBlock,
+  sourceBlockEditorMode,
   sourceBlockProtyleActions,
   sourceEmbedBlockAttributes,
 } from "./source-embed-presentation";
@@ -490,12 +492,20 @@ export default class QuestionBankPlugin extends SubPluginBase {
             host.className = "damophus-native-source-block";
             target.append(host);
             let stopBlockIsolation = () => {};
+            let stopReadOnlyEnforcement = () => {};
             let defocusTimer: ReturnType<typeof setTimeout> | undefined;
             const editor = new Protyle(plugin.app, host, {
-              mode: editable ? "wysiwyg" : "preview",
+              mode: sourceBlockEditorMode,
               action: [...sourceBlockProtyleActions],
               blockId: mountedBlockId,
               after: (mountedEditor) => {
+                stopReadOnlyEnforcement();
+                if (!editable) {
+                  mountedEditor.disable();
+                  stopReadOnlyEnforcement = enforceSourceBlockReadOnly(
+                    mountedEditor.protyle.wysiwyg.element,
+                  );
+                }
                 stopBlockIsolation();
                 stopBlockIsolation = observeFocusedBlock(
                   mountedEditor.protyle.wysiwyg.element,
@@ -521,6 +531,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
             return {
               editor,
               stopBlockIsolation: () => stopBlockIsolation(),
+              stopReadOnlyEnforcement: () => stopReadOnlyEnforcement(),
               cancelDefocus: () => {
                 if (defocusTimer !== undefined) clearTimeout(defocusTimer);
               },
@@ -530,6 +541,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
             for (const mounted of editors) {
               mounted.cancelDefocus();
               mounted.stopBlockIsolation();
+              mounted.stopReadOnlyEnforcement();
               mounted.editor.destroy();
             }
             target.replaceChildren();

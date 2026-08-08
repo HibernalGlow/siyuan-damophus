@@ -32,6 +32,26 @@ describe("source embed query", () => {
     ]);
   });
 
+  it("mounts only top-level solution roots without duplicating their descendants", () => {
+    const nestedRows: SourceEmbedBlockRow[] = [
+      { id: "20260806030000-q000001", type: "h", ial: '{: custom-qb-id="nested-solution"}' },
+      { id: "20260806030001-answer-heading", parent_id: "20260806030000-q000001", type: "h", content: "答案与解析" },
+      { id: "20260806030002-sol0001", parent_id: "20260806030001-answer-heading", type: "l", content: "Answer: A", ial: '{: custom-qb-section="solution"}' },
+      { id: "20260806030003-explanation", parent_id: "20260806030001-answer-heading", type: "p", content: "Explanation" },
+      { id: "20260806030004-heading", parent_id: "20260806030000-q000001", type: "h", content: "主线图" },
+      { id: "20260806030005-diagram", parent_id: "20260806030004-heading", type: "b", content: "flowchart LR" },
+      { id: "20260806030006-chain-heading", parent_id: "20260806030000-q000001", type: "h", content: "判断链" },
+      { id: "20260806030007-chain", parent_id: "20260806030006-chain-heading", type: "l", content: "结案方式" },
+      { id: "20260806030008-chain-item", parent_id: "20260806030007-chain", type: "i", content: "制作调解书" },
+    ];
+
+    expect(sourceEmbedBlockIds(nestedRows, "20260806030000-q000001", "solution")).toEqual([
+      "20260806030001-answer-heading",
+      "20260806030004-heading",
+      "20260806030006-chain-heading",
+    ]);
+  });
+
   it("preserves section block order in SQL", () => {
     const query = sourceEmbedSql(rows, "20260806000001-q000001", "solution");
     expect(query).toContain(

@@ -1,4 +1,23 @@
-export const sourceBlockProtyleActions = [] as const;
+export const sourceBlockProtyleActions = ["cb-get-all"] as const;
+
+export const sourceBlockEditorMode = "wysiwyg" as const;
+
+export function enforceSourceBlockReadOnly(root: HTMLElement): () => void {
+  const apply = () => {
+    root.querySelectorAll<HTMLElement>('[contenteditable="true"]').forEach((element) => {
+      element.contentEditable = "false";
+    });
+  };
+  apply();
+  const observer = new MutationObserver(apply);
+  observer.observe(root, {
+    attributes: true,
+    attributeFilter: ["contenteditable"],
+    childList: true,
+    subtree: true,
+  });
+  return () => observer.disconnect();
+}
 
 export type SourceEmbedHeadingMode = "0" | "1" | "2";
 

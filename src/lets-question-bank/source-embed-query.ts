@@ -164,12 +164,26 @@ export function sourceEmbedBlockIds(
   const selected: string[] = [];
   if (section === "solution" && solutionIndex < 0) return [];
   if (section === "solution" && solutionIndex >= 0) {
-    for (const row of subtree.slice(solutionIndex)) {
-      if (row.parent_id !== questionBlockId) continue;
+    // The solution marker can live inside an answer heading. Start from that
+    // heading and mount only the question's top-level solution roots. Protyle
+    // renders each root's descendants, so mounting children separately would
+    // duplicate answer lists, diagrams, and callouts.
+    let solutionRoot = subtree[solutionIndex];
+    while (solutionRoot.parent_id && solutionRoot.parent_id !== questionBlockId) {
+      const parent = byId.get(solutionRoot.parent_id);
+      if (!parent) break;
+      solutionRoot = parent;
+    }
+    const questionChildren = byParent.get(questionBlockId) ?? [];
+    const solutionRootIndex = questionChildren.findIndex((row) => row.id === solutionRoot.id);
+    const solutionRoots = solutionRootIndex >= 0
+      ? questionChildren.slice(solutionRootIndex)
+      : [subtree[solutionIndex]];
+    for (const row of solutionRoots) {
       if (options.hideEmptySolutionBlocks && isEmptyDisplayBlock(row, byParent)) continue;
       selected.push(row.id);
     }
-    if (options.hideEmptySolutionBlocks) return selected;
+    if (options.hideEmptySolutionBlocks && selected.length === 0) return [];
     return selected.length > 0 ? selected : [questionBlockId];
   }
   for (const row of stemRows) {
