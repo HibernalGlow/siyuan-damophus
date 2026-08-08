@@ -244,12 +244,6 @@ function renderMarker(
     label.className = "damophus-topic-relations__label";
     label.textContent = options.labels.topicNote;
     row.append(label);
-    appendSeparator(row);
-    row.append(createTopicButton(
-      group.label,
-      options.labels.openRelations,
-      (button) => options.onOpen(button, group, target.blockId),
-    ));
     const otherNotes = group.notes.filter((entry) => entry.blockId !== target.blockId);
     const questions = group.questions.filter((entry) => entry.blockId !== target.blockId);
     const noteCount = createCountButton(
@@ -264,8 +258,14 @@ function renderMarker(
       options.labels.relatedQuestions,
       (button) => options.onOpen(button, group, target.blockId, "questions"),
     );
-    if (noteCount) row.append(noteCount);
-    if (questionCount) row.append(questionCount);
+    if (noteCount) {
+      appendSeparator(row);
+      row.append(noteCount);
+    }
+    if (questionCount) {
+      appendSeparator(row);
+      row.append(questionCount);
+    }
     marker.append(row);
 
     if (options.displayMode === "expanded") {

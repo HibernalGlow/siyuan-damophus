@@ -107,12 +107,19 @@ describe("topic relation editor projection", () => {
     expect(note.querySelector(".damophus-topic-relations")?.textContent).toContain("Topic note");
     expect(note.querySelector(".damophus-topic-relations")?.textContent).toContain("Other topic notes");
     expect(note.querySelector(".damophus-topic-relations")?.textContent).toContain("Related questions");
+    expect(note.querySelector(".damophus-topic-relations__row")?.textContent)
+      .not.toContain("Detailed topic");
     expect(question.querySelector(".damophus-topic-relations")?.textContent).toContain("Topics");
     expect(question.querySelectorAll('[data-type="block-ref"]')).toHaveLength(2);
     expect(note.querySelector('[data-id="20260808000100-note001"]')).toBeNull();
 
     note.querySelector<HTMLButtonElement>(".damophus-topic-relations__topic-button")?.click();
-    expect(open).toHaveBeenCalledWith(expect.any(HTMLElement), group, "20260808000100-note001");
+    expect(open).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      group,
+      "20260808000100-note001",
+      "notes",
+    );
   });
 
   it("projects a zoomed topic-note root beneath the SiYuan document title", () => {
