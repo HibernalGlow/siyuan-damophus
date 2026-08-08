@@ -1,13 +1,27 @@
-import { getSkill, listSkills, removeSkill, renameSkill, saveSkill, syncSkillDirectory, type SkillDocument, type SkillSummary } from "./api";
+import {
+  getSkill,
+  inspectSkillSourceRoot,
+  listSkills,
+  removeSkill,
+  renameSkill,
+  saveSkill,
+  syncSkillFromRoot,
+  syncSkillSourceRoot,
+  type SkillDocument,
+  type SkillSummary,
+  type SkillSyncResult,
+  type SkillSyncState,
+  type SkillSyncSummary,
+} from "./api";
 
 export interface SkillManagerLabels {
   title: string;
   refresh: string;
+  openTab: string;
   source: string;
-  sourcePlaceholder: string;
-  sync: string;
+  syncAll: string;
+  update: string;
   newSkill: string;
-  nameOptional: string;
   select: string;
   content: string;
   save: string;
@@ -16,8 +30,15 @@ export interface SkillManagerLabels {
   empty: string;
   saved: string;
   synced: string;
+  syncResult: string;
   failed: string;
   confirmRemove: string;
+  states: Record<SkillSyncState, string>;
+}
+
+export interface SkillManagerConfig {
+  sourceRoot: string;
+  onlyChanged: boolean;
 }
 
 export interface SkillManagerOperations {
@@ -26,7 +47,9 @@ export interface SkillManagerOperations {
   saveSkill(name: string, content: string): Promise<void>;
   renameSkill(oldName: string, newName: string): Promise<void>;
   removeSkill(name: string): Promise<void>;
-  syncSkillDirectory(source: string, requestedName?: string): Promise<{ name: string }>;
+  inspectSkillSourceRoot(sourceRoot: string): Promise<SkillSyncSummary[]>;
+  syncSkillSourceRoot(sourceRoot: string, onlyChanged: boolean): Promise<SkillSyncResult>;
+  syncSkillFromRoot(sourceRoot: string, name: string): Promise<void>;
 }
 
 const defaultOperations: SkillManagerOperations = {
@@ -35,7 +58,9 @@ const defaultOperations: SkillManagerOperations = {
   saveSkill,
   renameSkill,
   removeSkill,
-  syncSkillDirectory,
+  inspectSkillSourceRoot,
+  syncSkillSourceRoot,
+  syncSkillFromRoot,
 };
 
 function icon(name: string): SVGElement {
@@ -61,9 +86,12 @@ function button(label: string, iconName: string, handler: () => void): HTMLButto
 export function renderSkillManagerDock(
   target: HTMLElement,
   labels: SkillManagerLabels,
+  config: SkillManagerConfig,
   operations: SkillManagerOperations = defaultOperations,
+  onOpenTab?: () => void,
 ): () => void {
-  let skills: SkillSummary[] = [];
+  let skills: SkillSyncSummary[] = [];
+  let installedNames = new Set<string>();
   let selected = "";
   const root = document.createElement("section");
   root.className = "damophus-skill-manager";
@@ -74,23 +102,15 @@ export function renderSkillManagerDock(
   const heading = document.createElement("h2");
   heading.textContent = labels.title;
   const create = button(labels.newSkill, "iconAdd", () => createSkill());
+  const syncAll = button(labels.syncAll, "iconUpload", () => void syncAllSkills());
   const refresh = button(labels.refresh, "iconRefresh", () => void refreshSkills());
-  toolbar.append(heading, create, refresh);
+  toolbar.append(heading, create, syncAll, refresh);
+  if (onOpenTab) toolbar.append(button(labels.openTab, "iconOpen", onOpenTab));
 
-  const sync = document.createElement("div");
-  sync.className = "damophus-skill-manager__sync";
-  const source = document.createElement("input");
-  source.className = "b3-text-field";
-  source.type = "text";
-  source.placeholder = labels.sourcePlaceholder;
-  source.setAttribute("aria-label", labels.source);
-  const syncName = document.createElement("input");
-  syncName.className = "b3-text-field";
-  syncName.type = "text";
-  syncName.placeholder = labels.nameOptional;
-  syncName.setAttribute("aria-label", labels.nameOptional);
-  const syncButton = button(labels.sync, "iconUpload", () => void syncFromPath());
-  sync.append(source, syncName, syncButton);
+  const source = document.createElement("div");
+  source.className = "damophus-skill-manager__source";
+  source.title = config.sourceRoot;
+  source.append(icon("iconFolder"), document.createTextNode(`${labels.source}: ${config.sourceRoot}`));
 
   const body = document.createElement("div");
   body.className = "damophus-skill-manager__body";
@@ -118,7 +138,7 @@ export function renderSkillManagerDock(
   status.className = "damophus-skill-manager__status";
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
-  root.append(toolbar, sync, body, status);
+  root.append(toolbar, source, body, status);
   target.replaceChildren(root);
 
   function setStatus(message: string, error = false): void {
@@ -144,32 +164,41 @@ export function renderSkillManagerDock(
       return;
     }
     for (const skill of skills) {
+      const row = document.createElement("div");
+      row.className = "damophus-skill-manager__item-row";
       const item = document.createElement("button");
       item.type = "button";
       item.className = "damophus-skill-manager__item";
       item.setAttribute("role", "option");
       item.setAttribute("aria-selected", String(skill.name === selected));
+      item.disabled = !installedNames.has(skill.name);
       const title = document.createElement("strong");
       title.textContent = skill.name;
-      const description = document.createElement("span");
-      description.textContent = skill.description;
-      item.append(title, description);
+      const badge = document.createElement("span");
+      badge.className = "damophus-skill-manager__badge";
+      badge.dataset.state = skill.state;
+      badge.textContent = labels.states[skill.state];
+      item.append(title, badge);
       item.addEventListener("click", () => void selectSkill(skill.name));
-      list.append(item);
+      row.append(item);
+      if (skill.sourcePath && skill.state !== "unreadable") {
+        const update = button(labels.update, "iconDownload", () => void syncOneSkill(skill.name));
+        update.classList.add("damophus-skill-manager__update");
+        row.append(update);
+      }
+      list.append(row);
     }
   }
 
   async function refreshSkills(): Promise<void> {
     try {
-      skills = (await operations.listSkills()) || [];
+      const installed = (await operations.listSkills()) || [];
+      installedNames = new Set(installed.map((skill) => skill.name));
+      skills = await operations.inspectSkillSourceRoot(config.sourceRoot);
       renderList();
-      if (selected && skills.some((skill) => skill.name === selected)) await selectSkill(selected);
-      else if (skills[0]) await selectSkill(skills[0].name);
-      else {
-        selected = "";
-        name.value = "";
-        content.value = "";
-      }
+      if (selected && installedNames.has(selected)) await selectSkill(selected);
+      else if (installed[0]) await selectSkill(installed[0].name);
+      else createSkill();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
     }
@@ -223,11 +252,23 @@ export function renderSkillManagerDock(
     }
   }
 
-  async function syncFromPath(): Promise<void> {
-    if (!source.value.trim()) return setStatus(labels.failed, true);
+  async function syncOneSkill(skillName: string): Promise<void> {
     try {
-      const result = await operations.syncSkillDirectory(source.value.trim(), syncName.value.trim() || undefined);
-      setStatus(`${labels.synced}: ${result.name}`);
+      await operations.syncSkillFromRoot(config.sourceRoot, skillName);
+      setStatus(`${labels.synced}: ${skillName}`);
+      await refreshSkills();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
+  async function syncAllSkills(): Promise<void> {
+    try {
+      const result = await operations.syncSkillSourceRoot(config.sourceRoot, config.onlyChanged);
+      setStatus(labels.syncResult
+        .replace("{synced}", String(result.synced))
+        .replace("{skipped}", String(result.skipped))
+        .replace("{unreadable}", String(result.unreadable)));
       await refreshSkills();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
@@ -235,7 +276,5 @@ export function renderSkillManagerDock(
   }
 
   void refreshSkills();
-  return () => {
-    target.replaceChildren();
-  };
+  return () => target.replaceChildren();
 }

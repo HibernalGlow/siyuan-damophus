@@ -9,11 +9,14 @@
 }
 
 .damophus-skill-manager__toolbar,
-.damophus-skill-manager__actions,
-.damophus-skill-manager__sync {
+.damophus-skill-manager__actions {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.damophus-skill-manager__toolbar {
+  flex-wrap: wrap;
 }
 
 .damophus-skill-manager__toolbar h2 {
@@ -35,13 +38,22 @@
   height: 16px;
 }
 
-.damophus-skill-manager__sync {
-  flex-wrap: wrap;
+.damophus-skill-manager__source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  overflow: hidden;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.damophus-skill-manager__sync .b3-text-field {
-  min-width: 0;
-  flex: 1 1 150px;
+.damophus-skill-manager__source svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
 }
 
 .damophus-skill-manager__body {
@@ -62,7 +74,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  width: 100%;
+  min-width: 0;
+  flex: 1;
   padding: 9px;
   border: 0;
   border-bottom: 1px solid var(--b3-border-color);
@@ -70,6 +83,29 @@
   color: var(--b3-theme-on-background);
   text-align: left;
   cursor: pointer;
+}
+
+.damophus-skill-manager__item-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.damophus-skill-manager__item-row .damophus-skill-manager__item {
+  border-bottom: 0;
+}
+
+.damophus-skill-manager__item:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.damophus-skill-manager__update {
+  min-width: 34px;
+  padding: 0 8px;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  font-size: 0;
 }
 
 .damophus-skill-manager__item[aria-selected="true"] {
@@ -83,6 +119,15 @@
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.damophus-skill-manager__badge[data-state="missing"],
+.damophus-skill-manager__badge[data-state="update"] {
+  color: var(--b3-theme-primary);
+}
+
+.damophus-skill-manager__badge[data-state="unreadable"] {
+  color: var(--b3-theme-error);
 }
 
 .damophus-skill-manager__editor {

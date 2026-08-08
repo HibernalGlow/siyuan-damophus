@@ -10,6 +10,19 @@ export interface SkillDocument {
   content: string;
 }
 
+export type SkillSyncState = "missing" | "synced" | "update" | "target-only" | "unreadable";
+
+export interface SkillSyncSummary extends SkillSummary {
+  sourcePath?: string;
+  state: SkillSyncState;
+}
+
+export interface SkillSyncResult {
+  synced: number;
+  skipped: number;
+  unreadable: number;
+}
+
 interface KernelResponse<T> {
   code: number;
   msg?: string;
@@ -57,6 +70,158 @@ function sourceBasename(path: string): string {
 
 async function fileRequest(path: string, body: unknown): Promise<unknown> {
   return post(path, body);
+}
+
+async function readTextFile(path: string): Promise<string> {
+  return new TextDecoder().decode(await readFileBytes(path));
+}
+
+async function readFileBytes(path: string): Promise<ArrayBuffer> {
+  const response = await fetch("/api/file/getFile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!response.ok || response.status === 202) throw new Error(`Unable to read ${path}`);
+  return response.arrayBuffer();
+}
+
+async function readDirectory(path: string): Promise<FileEntry[]> {
+  return (await fileRequest("/api/file/readDir", { path }) as FileEntry[] | null) || [];
+}
+
+const IGNORED_FINGERPRINT_NAMES = new Set([".git", ".skills-manager", ".DS_Store", "Thumbs.db"]);
+
+function hex(bytes: ArrayBuffer): string {
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function fingerprintDirectory(root: string): Promise<string> {
+  const records: string[] = [];
+  async function visit(path: string, relative: string): Promise<void> {
+    const entries = (await readDirectory(path))
+      .filter((entry) => !IGNORED_FINGERPRINT_NAMES.has(entry.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      const childPath = `${path}/${entry.name}`;
+      const childRelative = relative ? `${relative}/${entry.name}` : entry.name;
+      if (entry.isDir) {
+        records.push(`d:${childRelative}`);
+        await visit(childPath, childRelative);
+      } else {
+        const digest = await crypto.subtle.digest("SHA-256", await readFileBytes(childPath));
+        records.push(`f:${childRelative}:${hex(digest)}`);
+      }
+    }
+  }
+  await visit(root, "");
+  return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(records.join("\n"))));
+}
+
+async function installedSkillNames(): Promise<Set<string>> {
+  try {
+    return new Set((await readDirectory(SKILLS_ROOT)).filter((entry) => entry.isDir).map((entry) => entry.name));
+  } catch {
+    return new Set();
+  }
+}
+
+async function withStagedSourceRoot<T>(sourceRoot: string, action: (stage: string) => Promise<T>): Promise<T> {
+  const sourceName = sourceBasename(sourceRoot);
+  if (!sourceName) throw new Error("Invalid skill source root");
+  const stageRoot = `/data/storage/ai/agent/.damophus-skill-scan-${Date.now()}`;
+  try {
+    await fileRequest("/api/file/globalCopyFiles", { srcs: [sourceRoot], destDir: stageRoot });
+    return await action(`${stageRoot}/${sourceName}`);
+  } finally {
+    await fileRequest("/api/file/removeFile", { path: stageRoot }).catch(() => undefined);
+  }
+}
+
+async function replaceStagedSkill(stage: string, name: string): Promise<void> {
+  const destination = `${SKILLS_ROOT}/${name}`;
+  const backup = `${SKILLS_ROOT}/.damophus-skill-backup-${Date.now()}-${name}`;
+  const installed = await installedSkillNames();
+  let backedUp = false;
+  try {
+    if (installed.has(name)) {
+      await fileRequest("/api/file/renameFile", { path: destination, newPath: backup });
+      backedUp = true;
+    }
+    await fileRequest("/api/file/renameFile", { path: stage, newPath: destination });
+    if (backedUp) await fileRequest("/api/file/removeFile", { path: backup });
+  } catch (error) {
+    if (backedUp) {
+      const current = await installedSkillNames().catch(() => new Set<string>());
+      if (!current.has(name)) {
+        await fileRequest("/api/file/renameFile", { path: backup, newPath: destination }).catch(() => undefined);
+      }
+    }
+    throw error;
+  }
+}
+
+async function inspectStagedRoot(stageRoot: string, sourceRoot: string): Promise<SkillSyncSummary[]> {
+  const installed = await listSkills();
+  const installedByName = new Map(installed.map((skill) => [skill.name, skill]));
+  const results: SkillSyncSummary[] = [];
+  const entries = await readDirectory(stageRoot);
+  for (const entry of entries.filter((item) => item.isDir && !item.name.startsWith("."))) {
+    const sourcePath = `${sourceRoot.replace(/[\\/]+$/u, "")}/${entry.name}`;
+    const target = installedByName.get(entry.name);
+    if (target) installedByName.delete(entry.name);
+    try {
+      await readTextFile(`${stageRoot}/${entry.name}/SKILL.md`);
+      if (!target) {
+        results.push({ name: entry.name, description: "", sourcePath, state: "missing" });
+        continue;
+      }
+      const sourceFingerprint = await fingerprintDirectory(`${stageRoot}/${entry.name}`);
+      const targetFingerprint = await fingerprintDirectory(`${SKILLS_ROOT}/${entry.name}`).catch(() => "");
+      results.push({
+        name: entry.name,
+        description: target.description,
+        sourcePath,
+        state: sourceFingerprint === targetFingerprint ? "synced" : "update",
+      });
+    } catch {
+      results.push({ name: entry.name, description: "", sourcePath, state: "unreadable" });
+    }
+  }
+  for (const skill of installedByName.values()) results.push({ ...skill, state: "target-only" });
+  return results.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function inspectSkillSourceRoot(sourceRoot: string): Promise<SkillSyncSummary[]> {
+  return withStagedSourceRoot(sourceRoot, (stage) => inspectStagedRoot(stage, sourceRoot));
+}
+
+export function syncSkillSourceRoot(sourceRoot: string, onlyChanged = true): Promise<SkillSyncResult> {
+  return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
+    const statuses = await inspectStagedRoot(stageRoot, sourceRoot);
+    const result: SkillSyncResult = { synced: 0, skipped: 0, unreadable: 0 };
+    for (const skill of statuses) {
+      if (skill.state === "target-only") continue;
+      if (skill.state === "unreadable") {
+        result.unreadable += 1;
+        continue;
+      }
+      if (onlyChanged && skill.state === "synced") {
+        result.skipped += 1;
+        continue;
+      }
+      await replaceStagedSkill(`${stageRoot}/${skill.name}`, skill.name);
+      result.synced += 1;
+    }
+    return result;
+  });
+}
+
+export function syncSkillFromRoot(sourceRoot: string, name: string): Promise<void> {
+  return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
+    await readTextFile(`${stageRoot}/${name}/SKILL.md`);
+    await replaceStagedSkill(`${stageRoot}/${name}`, name);
+  });
 }
 
 export async function syncSkillDirectory(source: string, requestedName?: string): Promise<{ name: string }> {

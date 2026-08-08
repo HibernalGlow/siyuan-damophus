@@ -20,5 +20,6 @@ export class SubPluginBase implements SubPlugin {
 
   registerModels(): void {}
   onload(): void {}
+  onLayoutReady(): void | Promise<void> {}
   onunload(): void {}
 }
