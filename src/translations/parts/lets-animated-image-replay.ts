@@ -1,7 +1,11 @@
 export const en = {
   "lets-animated-image-replay.displayName": "Animated Image Replay",
-  "lets-animated-image-replay.description": "Pause supported animated images on their first frame and replay them on demand",
+  "lets-animated-image-replay.description": "Pause supported animated images on a chosen still frame and replay them on demand",
   "lets-animated-image-replay.replay": "Replay image",
+  "lets-animated-image-replay.initialFrameTitle": "Default still frame",
+  "lets-animated-image-replay.initialFrameDescription": "Choose whether supported animated images pause on the final frame or the first frame by default.",
+  "lets-animated-image-replay.initialFrameLast": "Final frame",
+  "lets-animated-image-replay.initialFrameFirst": "First frame",
   "lets-animated-image-replay.showReplayButtonTitle": "Show replay control",
   "lets-animated-image-replay.showReplayButtonDescription": "Show a replay control at the lower-right corner of each supported animated image.",
   "lets-animated-image-replay.replayOnHoverTitle": "Replay on hover",
@@ -16,8 +20,12 @@ export const en = {
 
 export const zhCN: typeof en = {
   "lets-animated-image-replay.displayName": "动图重播",
-  "lets-animated-image-replay.description": "让支持的动图停在首帧，并可按需重新播放",
+  "lets-animated-image-replay.description": "让支持的动图停在指定静帧，并可按需重新播放",
   "lets-animated-image-replay.replay": "重新播放",
+  "lets-animated-image-replay.initialFrameTitle": "默认停帧",
+  "lets-animated-image-replay.initialFrameDescription": "选择支持的动图默认停在尾帧还是首帧。",
+  "lets-animated-image-replay.initialFrameLast": "尾帧",
+  "lets-animated-image-replay.initialFrameFirst": "首帧",
   "lets-animated-image-replay.showReplayButtonTitle": "显示重播按钮",
   "lets-animated-image-replay.showReplayButtonDescription": "在每张支持的动图右下角显示重播按钮。",
   "lets-animated-image-replay.replayOnHoverTitle": "悬停重播",

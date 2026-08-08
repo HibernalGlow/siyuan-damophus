@@ -8,6 +8,17 @@ export const pluginMetadata: PluginMetadata = {
   enabled: true,
   settings: [
     {
+      type: "select",
+      title: "lets-animated-image-replay.initialFrameTitle",
+      description: "lets-animated-image-replay.initialFrameDescription",
+      key: "initialFrame",
+      value: "last",
+      options: {
+        last: "lets-animated-image-replay.initialFrameLast",
+        first: "lets-animated-image-replay.initialFrameFirst",
+      },
+    },
+    {
       type: "checkbox",
       title: "lets-animated-image-replay.showReplayButtonTitle",
       description: "lets-animated-image-replay.showReplayButtonDescription",

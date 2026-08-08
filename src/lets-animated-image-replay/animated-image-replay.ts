@@ -12,6 +12,7 @@ export interface AnimatedImageReplayOptions {
   replayBlobCacheSize?: number;
   replayWhenOpenedLarge?: boolean;
   scanDocument?: boolean;
+  initialFrame?: "first" | "last";
 }
 
 export interface AnimatedImageReplayHandle {
@@ -41,6 +42,7 @@ export const startAnimatedImageReplay = ({
   replayBlobCacheSize = 4,
   replayWhenOpenedLarge = true,
   scanDocument = true,
+  initialFrame = "last",
 }: AnimatedImageReplayOptions = {}): AnimatedImageReplayHandle => {
   window.__inkloomAnimatedImagePlayer?.dispose?.();
 
@@ -62,6 +64,7 @@ export const startAnimatedImageReplay = ({
     playbackEndGuardMs: clamp(playbackEndGuardMs, 0, 5000), // Allow for image decode before releasing the replay lock.
     replayBlobCacheSize: Math.round(clamp(replayBlobCacheSize, 1, 16)), // Bound decoded replay media retained during a SiYuan session.
     replayWhenOpenedLarge: replayWhenOpenedLarge !== false, // Replay when SiYuan opens the large-image viewer.
+    initialFrame: initialFrame === "first" ? "first" : "last",
   };
 
   const LEGACY_WRAPPER_CLASS = 'inkloom-animated-image-player';
@@ -293,6 +296,14 @@ export const startAnimatedImageReplay = ({
     })();
     replayDurationPromisesBySource.set(key, durationPromise);
     return durationPromise;
+  };
+
+  const hasManifestDurationSource = (source) => {
+    try {
+      return new URL(source, window.location.href).pathname.includes('/animation-avif/');
+    } catch {
+      return false;
+    }
   };
 
   const replayBlobForSource = (source) => {
@@ -568,14 +579,19 @@ export const startAnimatedImageReplay = ({
     });
 
     const initialVisibility = img.style.visibility;
+    const playsThroughToTail = CONFIG.initialFrame === "last" && hasManifestDurationSource(src);
     let initialFreezePending = true;
-    img.style.visibility = 'hidden';
+    let initialFrameReady = !playsThroughToTail;
+    let initialFreezeTimer = 0;
+    if (!playsThroughToTail) img.style.visibility = 'hidden';
     const restoreInitialVisibility = () => {
       img.style.visibility = initialVisibility;
     };
     const cleanupInitialFreezeListeners = () => {
       img.removeEventListener('load', freezeInitialFrameAfterLayout);
       img.removeEventListener('error', revealBrokenImage);
+      window.clearTimeout(initialFreezeTimer);
+      initialFreezeTimer = 0;
     };
     const freezeInitialFrame = () => {
       if (!initialFreezePending) return;
@@ -606,8 +622,23 @@ export const startAnimatedImageReplay = ({
         restoreInitialVisibility();
       }
     };
-    if (img.complete) freezeInitialFrameAfterLayout();
-    else img.addEventListener('load', freezeInitialFrameAfterLayout, {once: true});
+    const armInitialFrame = () => {
+      if (!initialFrameReady) return;
+      if (img.complete) freezeInitialFrameAfterLayout();
+      else img.addEventListener('load', freezeInitialFrameAfterLayout, {once: true});
+    };
+    if (initialFrameReady) {
+      armInitialFrame();
+    } else {
+      void replayDurationForSource(src).then((durationMs) => {
+        if (!initialFreezePending || !img.isConnected) return;
+        initialFreezeTimer = window.setTimeout(() => {
+          initialFreezeTimer = 0;
+          initialFrameReady = true;
+          armInitialFrame();
+        }, Math.max(0, durationMs + CONFIG.playbackEndGuardMs));
+      });
+    }
     img.addEventListener('error', revealBrokenImage, {once: true});
 
     replayButton?.addEventListener('pointerdown', (event) => {
