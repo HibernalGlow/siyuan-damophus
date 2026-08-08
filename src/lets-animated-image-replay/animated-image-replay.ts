@@ -138,6 +138,14 @@ export const startAnimatedImageReplay = ({
     return CONFIG.imageTypes.find((type) => type.extensions.includes(extension));
   };
 
+  const sourceForImage = (img) => (
+    img.dataset.damophusAnimatedSrc
+    ?? img.dataset.inkloomAnimatedSrc
+    ?? img.currentSrc
+    ?? img.src
+    ?? ''
+  );
+
   const installStyles = () => {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement('style');
@@ -402,7 +410,7 @@ export const startAnimatedImageReplay = ({
         originalSrc: img.getAttribute('src'),
         originalSrcset: img.getAttribute('srcset'),
         releaseTimer: 0,
-        source: img.currentSrc || img.src,
+        source: sourceForImage(img),
       };
       replayStatesByImage.set(img, state);
     }
@@ -595,6 +603,9 @@ export const startAnimatedImageReplay = ({
     };
     const freezeInitialFrame = () => {
       if (!initialFreezePending) return;
+      // Tail mode waits for the native animation to finish before capturing.
+      // ResizeObserver can run before that timer, so do not freeze the first frame early.
+      if (!initialFrameReady) return;
       if (!freezeCurrentFrame(img)) {
         if (img.complete && (!img.naturalWidth || !img.naturalHeight)) {
           initialFreezePending = false;
@@ -658,7 +669,7 @@ export const startAnimatedImageReplay = ({
 
   const enhanceImage = async (img) => {
     if (controllersByImage.has(img) || img.dataset[PLAYER_STATE_KEY] === 'loading') return;
-    const src = img.currentSrc || img.src;
+    const src = sourceForImage(img);
     const type = src ? findImageType(img, src) : null;
     if (!src || !type) return;
     img.dataset[PLAYER_STATE_KEY] = 'loading';

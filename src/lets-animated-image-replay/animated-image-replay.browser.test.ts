@@ -24,6 +24,13 @@ const mountImage = async (): Promise<HTMLImageElement> => {
   return image;
 };
 
+const mountManifestImage = async (): Promise<HTMLImageElement> => {
+  const image = await mountImage();
+  image.dataset.damophusAnimatedSrc =
+    "https://inkloomer.github.io/inkloom/animation-avif/test/scene.avif";
+  return image;
+};
+
 afterEach(() => {
   player?.dispose();
   player = undefined;
@@ -65,6 +72,30 @@ describe("animated image replay", () => {
       expect(overlay).not.toBeNull();
       expect(overlay?.querySelector("canvas:not([hidden])")).not.toBeNull();
       expect(overlay?.querySelector('button[aria-label="Replay image"]')).not.toBeNull();
+    });
+  });
+
+  it("does not capture the first frame before the tail-mode duration elapses", async () => {
+    await mountManifestImage();
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      scenes: [{file: "scene.avif", durationMs: 40}],
+    }), {
+      headers: {"content-type": "application/json"},
+    }));
+    player = startAnimatedImageReplay({
+      replayLabel: "Replay image",
+      replayOnHover: false,
+      playbackEndGuardMs: 0,
+    });
+
+    await vi.waitFor(() => {
+      expect(document.querySelector(".damophus-animated-image-overlay")).not.toBeNull();
+    });
+    expect(document.querySelector("canvas:not([hidden])")).toBeNull();
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 80));
+    await vi.waitFor(() => {
+      expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
     });
   });
 
