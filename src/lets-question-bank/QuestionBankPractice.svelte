@@ -84,11 +84,12 @@
     </Alert.Root>
   {/if}
   {#if answerCardOpen}
-    <button
-      class="answer-card-scrim"
+    <Button
+      variant="ghost"
+      class="answer-card-scrim h-auto w-auto rounded-none p-0"
       aria-label={label("closeAnswerCard", "Close answer card")}
       onclick={() => answerCardOpen = false}
-    ></button>
+    ></Button>
     <aside class="answer-card-panel" aria-label={label("answerCard", "Answer card")}>
       <header>
         <strong>{label("answerCard", "Answer card")}</strong>

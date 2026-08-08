@@ -24,6 +24,7 @@
   import { createEventDispatcher, tick } from "svelte";
   import { Database, EyeOff, GraduationCap, Monitor, Timer } from "lucide-svelte";
   import SettingPanel from "@/libs/setting-panel.svelte";
+  import { Button } from "@/components/ui/button";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
   import SourceAnswerMaskSettings from "./SourceAnswerMaskSettings.svelte";
   import type { AnswerMaskStyle } from "./source-answer-mask";
@@ -103,9 +104,9 @@
     <div class="question-bank-settings-title" role="heading" aria-level="2">{title}</div>
     <nav class="question-bank-settings-navigation" aria-label={labels.sections.navigation}>
       {#each sections as section (section.id)}
-        <button
-          type="button"
-          class:active={activeSection === section.id}
+        <Button
+          variant="ghost"
+          class={activeSection === section.id ? "active" : ""}
           title={section.label}
           aria-label={section.label}
           aria-current={activeSection === section.id ? "location" : undefined}
@@ -115,7 +116,7 @@
         >
           <svelte:component this={section.Icon} aria-hidden="true" />
           <span class="question-bank-settings-navigation-label">{section.label}</span>
-        </button>
+        </Button>
       {/each}
     </nav>
   </header>
@@ -194,7 +195,7 @@
     gap: 4px;
   }
 
-  .question-bank-settings-navigation button {
+  .question-bank-settings-navigation :global([data-slot="button"]) {
     display: inline-flex;
     min-height: 30px;
     align-items: center;
@@ -209,23 +210,23 @@
     cursor: pointer;
   }
 
-  .question-bank-settings-navigation button :global(svg) {
+  .question-bank-settings-navigation :global([data-slot="button"] svg) {
     width: 15px;
     height: 15px;
     flex: 0 0 15px;
   }
 
-  .question-bank-settings-navigation button:hover {
+  .question-bank-settings-navigation :global([data-slot="button"]:hover) {
     background: var(--b3-list-hover);
     color: var(--b3-theme-on-background);
   }
 
-  .question-bank-settings-navigation button:focus-visible {
+  .question-bank-settings-navigation :global([data-slot="button"]:focus-visible) {
     outline: 2px solid var(--b3-theme-primary);
     outline-offset: 1px;
   }
 
-  .question-bank-settings-navigation button.active {
+  .question-bank-settings-navigation :global([data-slot="button"].active) {
     border-color: color-mix(in srgb, var(--b3-theme-primary) 32%, transparent);
     background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
     color: var(--b3-theme-primary);
@@ -250,7 +251,7 @@
   }
 
   @container (max-width: 680px) {
-    .question-bank-settings-navigation button {
+    .question-bank-settings-navigation :global([data-slot="button"]) {
       width: 32px;
       padding: 4px;
     }
