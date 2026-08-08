@@ -29,16 +29,16 @@
     <strong class="block text-sm font-semibold">Damophus</strong>
     <span class="text-xs text-muted-foreground">{preferencesLabel}</span>
   </div>
-  <ul class="b3-list b3-list--background m-0 list-none p-0">
+  <ul class="m-0 flex list-none flex-col gap-1 p-0">
     {#each groups as group}
       <li>
         <Button
           variant={group === focusGroup ? "secondary" : "ghost"}
-          class="my-1 min-h-11 w-full touch-manipulation justify-start"
+          class="h-9 w-full touch-manipulation justify-start rounded-md px-3"
           aria-current={group === focusGroup ? "page" : undefined}
           onclick={() => selectGroup(group)}
         >
-          <span class="b3-list-item__text min-w-0 truncate">{getGroupLabel(group)}</span>
+          <span class="min-w-0 truncate">{getGroupLabel(group)}</span>
         </Button>
       </li>
     {/each}
@@ -74,7 +74,7 @@
           {#each groups as group}
             <Button
               variant={group === focusGroup ? "secondary" : "ghost"}
-              class="min-h-11 w-full touch-manipulation justify-between text-left"
+              class="h-9 w-full touch-manipulation justify-between text-left"
               aria-current={group === focusGroup ? "page" : undefined}
               onclick={() => selectGroup(group)}
             >
