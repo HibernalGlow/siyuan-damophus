@@ -18,13 +18,14 @@
     DEFAULT_CUSTOM_PROPERTY_STYLE,
   } from "./lets-block-attr/custom-properties";
   import { PluginRegistry } from "./plugin-registry";
-  import { plugin } from "./utils";
+  import { isMobile, plugin } from "./utils";
   import SettingCategoryNavigation from "./components/setting-category-navigation.svelte";
 
   const SWITCH_GROUP = "开关";
   const GENERAL_GROUP = "设置";
   const BLOCK_ATTRIBUTE_PLUGIN = "quickAttr";
   const QUESTION_BANK_PLUGIN = "questionBank";
+  const COMPACT_LAYOUT_MAX_WIDTH = 720;
   const LAYOUT_ACTIONS_PLUGIN = "layoutActions";
 
   interface ChangeEvent {
@@ -97,6 +98,9 @@
     ? settings.get("uiThemeId")
     : DEFAULT_THEME_ID;
   let selectedThemeId = savedThemeId;
+  let settingRoot: HTMLDivElement;
+  let compactLayout = isMobile;
+  let showCompactCategories = compactLayout;
 
   $: groups = [
     SWITCH_GROUP,
@@ -273,9 +277,44 @@
     updateLocalSetting(detail.group, detail.key, detail.value);
   }
 
-  onMount(() => observeHostColorMode((nextMode) => {
-    mode = nextMode;
-  }));
+  function selectGroup(group: string) {
+    focusGroup = group;
+    if (compactLayout) showCompactCategories = false;
+  }
+
+  function showCategoryList() {
+    if (compactLayout) showCompactCategories = true;
+  }
+
+  onMount(() => {
+    const stopObservingColorMode = observeHostColorMode((nextMode) => {
+      mode = nextMode;
+    });
+    const updateLayout = () => {
+      const nextCompactLayout = isMobile || settingRoot.clientWidth <= COMPACT_LAYOUT_MAX_WIDTH;
+      if (nextCompactLayout === compactLayout) return;
+      compactLayout = nextCompactLayout;
+      showCompactCategories = nextCompactLayout;
+    };
+    const layoutObserver = new ResizeObserver(updateLayout);
+    const hostWindow = window as Window & { goBack?: (...args: unknown[]) => unknown };
+    const originalGoBack = hostWindow.goBack;
+    const compactGoBack = (...args: unknown[]) => {
+      if (compactLayout && !showCompactCategories) {
+        showCompactCategories = true;
+        return;
+      }
+      return originalGoBack?.apply(hostWindow, args);
+    };
+    updateLayout();
+    layoutObserver.observe(settingRoot);
+    if (isMobile && originalGoBack) hostWindow.goBack = compactGoBack;
+    return () => {
+      layoutObserver.disconnect();
+      stopObservingColorMode();
+      if (hostWindow.goBack === compactGoBack) hostWindow.goBack = originalGoBack;
+    };
+  });
 
   onDestroy(async () => {
     await settings.save();
@@ -283,22 +322,28 @@
 </script>
 
 <div
-  class="damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 overflow-hidden bg-background text-foreground max-[768px]:flex-col"
+  bind:this={settingRoot}
+  class="damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 overflow-hidden bg-background text-foreground"
+  class:flex-col={compactLayout}
+  class:damophus-settings-mobile={compactLayout}
   data-color-mode={mode}
 >
   <SettingCategoryNavigation
     {groups}
     {focusGroup}
+    mobile={compactLayout}
+    showCategories={showCompactCategories}
     getGroupLabel={getGroupLabel}
     categoryLabel={t("settings.selectCategory", "Setting categories")}
     categoryDescription={t("settings.selectCategoryDescription", "Choose which Damophus settings to display.")}
     preferencesLabel={t("settings.preferences", "Preferences")}
-    closeLabel={t("settings.close", "Close")}
-    on:select={(event) => (focusGroup = event.detail)}
+    backLabel={t("settings.back", "Back")}
+    on:select={(event) => selectGroup(event.detail)}
+    on:back={showCategoryList}
   />
 
-  <main class="min-w-0 flex-1 overflow-y-auto">
-    <div class="mx-auto box-border flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
+  <main class="min-w-0 flex-1 overflow-y-auto overscroll-contain" class:hidden={compactLayout && showCompactCategories}>
+    <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
       {#if !showQuestionBankSettings && !showLayoutActionsSettings}
         <header class="border-b border-border pb-4">
           <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
@@ -313,6 +358,7 @@
           customStyle={getFocusedSettingValue("customStyle", DEFAULT_CUSTOM_PROPERTY_STYLE)}
           theme={selectedTheme}
           {mode}
+          mobile={compactLayout}
           labels={blockAttributeLabels()}
           on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
           on:preview={(event) => onPreview(new CustomEvent("preview", { detail: { group: focusGroup, ...event.detail } }))}
@@ -322,6 +368,7 @@
           group={focusGroup}
           title={getGroupLabel(focusGroup)}
           settingItems={settingItems[focusGroup] ?? []}
+          mobile={compactLayout}
           labels={questionBankSettingsLabels()}
           on:changed={onChanged}
           on:click={onClick}
@@ -334,6 +381,7 @@
           actions={layoutActions}
           showDock={layoutActionsDockEnabled}
           dockPosition={layoutActionsDockPosition}
+          mobile={compactLayout}
           labels={layoutActionsSettingsLabels()}
           on:changed={onChanged}
         />
@@ -341,6 +389,7 @@
         <SettingPanel
           group={focusGroup}
           settingItems={settingItems[focusGroup] ?? []}
+          mobile={compactLayout}
           on:changed={onChanged}
           on:click={onClick}
           on:preview={onPreview}

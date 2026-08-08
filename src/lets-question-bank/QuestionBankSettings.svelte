@@ -37,6 +37,7 @@
   export let title: string;
   export let settingItems: ISettingItem[] = [];
   export let labels: QuestionBankSettingsLabelsBundle;
+  export let mobile = false;
 
   const sectionIds = ["practice", "review", "index", "display", "timing", "mask"] as const;
   type SectionId = typeof sectionIds[number];
@@ -135,7 +136,7 @@
   }
 </script>
 
-<section class="question-bank-settings min-w-0" aria-label={title}>
+<section class="question-bank-settings min-w-0" class:mobile aria-label={title}>
   <header class="question-bank-settings-header">
     <div class="question-bank-settings-title" role="heading" aria-level="2">{title}</div>
     <nav class="question-bank-settings-navigation" aria-label={labels.sections.navigation}>
@@ -186,6 +187,7 @@
               <SettingPanel
                 {group}
                 settingItems={standardItemsFor(section.id)}
+                {mobile}
                 on:changed={(event) => dispatch("changed", event.detail)}
                 on:click={(event) => dispatch("click", event.detail)}
                 on:preview={(event) => dispatch("preview", event.detail)}
@@ -206,7 +208,7 @@
                         {@const selectedValue = String(item.value)}
                         {@const selectedLabel = localized(item.options[selectedValue] || selectedValue)}
                         {@const SelectedIcon = displaySelectIcon(item.key, selectedValue)}
-                        <Select.Trigger id={item.key} class="w-52 max-w-full" title={selectedLabel} aria-label={localized(item.title)}>
+                        <Select.Trigger id={item.key} class="w-52 max-w-full damophus-setting-select" title={selectedLabel} aria-label={localized(item.title)}>
                           <svelte:component this={SelectedIcon} aria-hidden="true" />
                           <span>{selectedLabel}</span>
                         </Select.Trigger>
@@ -343,6 +345,45 @@
     text-overflow: ellipsis;
   }
 
+  .question-bank-settings.mobile .question-bank-settings-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .question-bank-settings.mobile .question-bank-settings-title {
+    font-size: 16px;
+  }
+
+  .question-bank-settings.mobile .question-bank-settings-navigation {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(40px, 1fr));
+    gap: 4px;
+    justify-content: stretch;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .question-bank-settings.mobile .question-bank-settings-navigation :global([data-slot="button"]) {
+    width: 100%;
+    min-height: 40px;
+    padding: 4px;
+  }
+
+  .question-bank-settings.mobile .question-bank-settings-navigation::-webkit-scrollbar {
+    display: none;
+  }
+
+  .question-bank-settings.mobile .question-bank-settings-navigation-label {
+    display: none;
+  }
+
+  .question-bank-settings.mobile .question-bank-display-select :global([data-slot="select-trigger"]) {
+    width: 100%;
+    max-width: none;
+  }
+
   @container (max-width: 520px) {
     .question-bank-display-select {
       grid-template-columns: 1fr;
@@ -356,14 +397,53 @@
       padding: 4px;
     }
 
+    .question-bank-settings.mobile .question-bank-settings-navigation :global([data-slot="button"]) {
+      width: 100%;
+    }
+
     .question-bank-settings-navigation-label {
+      display: none;
+    }
+
+    .question-bank-settings-navigation::-webkit-scrollbar {
       display: none;
     }
   }
 
   @media (max-width: 640px) {
+    .question-bank-settings-header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .question-bank-settings-title {
+      font-size: 16px;
+    }
+
+    .question-bank-settings-navigation {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(40px, 1fr));
+      gap: 4px;
+      justify-content: stretch;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+    }
+
+    .question-bank-settings-navigation :global([data-slot="button"]) {
+      width: 100%;
+      min-height: 40px;
+      padding: 4px;
+    }
+
+    .question-bank-settings-navigation-label {
+      display: none;
+    }
+
     .question-bank-settings-panel-content {
       padding: 0 10px 10px;
     }
   }
+
 </style>

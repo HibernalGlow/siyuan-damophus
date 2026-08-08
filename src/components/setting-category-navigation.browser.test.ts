@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingCategoryNavigation from "./setting-category-navigation.svelte";
 
 let mounted: ReturnType<typeof mount>[] = [];
+type EventHandler = (event: any) => void;
 
 afterEach(async () => {
   await Promise.all(mounted.map((component) => unmount(component)));
@@ -11,7 +12,17 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 
-function render(select = vi.fn()) {
+function render({
+  select = vi.fn() as EventHandler,
+  back = vi.fn() as EventHandler,
+  mobile = false,
+  showCategories = false,
+}: {
+  select?: EventHandler;
+  back?: EventHandler;
+  mobile?: boolean;
+  showCategories?: boolean;
+} = {}) {
   const target = document.createElement("div");
   target.className = "damophus-theme-root damophus-question-bank-theme";
   document.body.appendChild(target);
@@ -24,11 +35,13 @@ function render(select = vi.fn()) {
       categoryLabel: "设置分类",
       categoryDescription: "选择要显示的设置分类",
       preferencesLabel: "偏好设置",
-      closeLabel: "关闭",
+      mobile,
+      showCategories,
+      backLabel: "返回",
     },
-    events: { select },
+    events: { select, back },
   }));
-  return { target, select };
+  return { target, select, back };
 }
 
 describe("setting category navigation", () => {
@@ -37,21 +50,19 @@ describe("setting category navigation", () => {
     const { target } = render();
     await tick();
 
-    expect(getComputedStyle(target.querySelector("nav")!).display).not.toBe("none");
-    expect(getComputedStyle(target.querySelector('button[aria-label="设置分类"]')!).display).toBe("none");
+    expect(target.querySelector('[data-testid="setting-desktop-navigation"]')).not.toBeNull();
+    expect(target.querySelector('[data-testid="setting-mobile-navigation"]')).toBeNull();
+    expect(target.querySelector('button[aria-label="设置分类"]')).toBeNull();
   });
 
-  it("uses a bottom drawer on mobile and closes after choosing a category", async () => {
+  it("shows a single-page category list in compact layouts", async () => {
     await page.viewport(390, 700);
-    const { target, select } = render();
+    const select = vi.fn();
+    const { target } = render({ select, mobile: true, showCategories: true });
     await tick();
 
-    expect(getComputedStyle(target.querySelector("nav")!).display).toBe("none");
-    const trigger = target.querySelector<HTMLButtonElement>('button[aria-label="设置分类"]');
-    if (!trigger) throw new Error("Missing mobile category trigger");
-
-    trigger.click();
-    await tick();
+    expect(target.querySelector('[data-testid="setting-desktop-navigation"]')).toBeNull();
+    expect(target.querySelector('[data-testid="setting-mobile-navigation"]')).not.toBeNull();
     expect(document.body.textContent).toContain("选择要显示的设置分类");
     expect(document.body.textContent).toContain("通用设置");
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
@@ -59,12 +70,26 @@ describe("setting category navigation", () => {
     const category = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.trim() === "通用设置",
     );
-    if (!category) throw new Error("Missing drawer category");
+    if (!category) throw new Error("Missing compact category");
     category.click();
     await tick();
 
     expect(select).toHaveBeenCalledWith(expect.objectContaining({ detail: "设置" }));
-    const dialogContent = document.querySelector<HTMLElement>('[role="dialog"]');
-    expect(dialogContent?.getAttribute("data-state")).toBe("closed");
+  });
+
+  it("uses a page-level back action in compact detail views", async () => {
+    await page.viewport(390, 700);
+    const back = vi.fn();
+    const { target } = render({ back, mobile: true, showCategories: false });
+    await tick();
+
+    expect(target.querySelector('[data-testid="setting-mobile-navigation"]')).toBeNull();
+    expect(target.querySelector('[data-testid="setting-mobile-detail-navigation"]')).not.toBeNull();
+    const backButton = target.querySelector<HTMLButtonElement>('button[aria-label="返回"]');
+    if (!backButton) throw new Error("Missing compact back button");
+    backButton.click();
+    await tick();
+
+    expect(back).toHaveBeenCalledOnce();
   });
 });

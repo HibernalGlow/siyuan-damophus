@@ -67,13 +67,13 @@ const settingItems: ISettingItem[] = [
   { type: "select", title: "遮罩样式", description: "遮罩样式说明", key: "answerMaskStyle", value: "blur", options: { blur: "模糊" } },
 ];
 
-function render(events: Record<string, (event: any) => void> = {}) {
+function render(events: Record<string, (event: any) => void> = {}, mobile = false) {
   const target = document.createElement("div");
   target.className = "damophus-theme-root damophus-question-bank-theme";
   document.body.appendChild(target);
   mounted.push(mount(QuestionBankSettings, {
     target,
-    props: { group: "lets-question-bank.displayName", title: "题库", settingItems, labels },
+    props: { group: "lets-question-bank.displayName", title: "题库", settingItems, labels, mobile },
     events,
   }));
   return target;
@@ -208,6 +208,18 @@ describe("question bank settings navigation", () => {
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
     expect(target.querySelectorAll("[data-settings-section-target]")).toHaveLength(6);
     expect(target.querySelectorAll("h2, h3")).toHaveLength(0);
+  });
+
+  it("keeps all six compact navigation icons on one row", async () => {
+    await page.viewport(320, 760);
+    const target = render({}, true);
+    await tick();
+
+    const navigationItems = [...target.querySelectorAll<HTMLElement>("[data-settings-section-target]")];
+    expect(navigationItems).toHaveLength(6);
+    expect(new Set(navigationItems.map((item) => Math.round(item.getBoundingClientRect().top))).size).toBe(1);
+    expect(navigationItems.every((item) => item.getBoundingClientRect().width >= 40)).toBe(true);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 
 });
