@@ -262,7 +262,7 @@
     padding-bottom: 0 !important;
     overflow: visible;
   }
-  .options { width: 100%; max-width: 980px; margin: 16px auto 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+  .options { width: 100%; max-width: 980px; margin: 16px auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
   .options > :global(button.option) {
     min-width: 0;
     min-height: 36px;
@@ -342,7 +342,7 @@
       padding-right: 0 !important;
     }
     .group-material { margin-top: 10px; padding-block: 9px; }
-    .options { margin-top: 12px; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .options { margin-top: 12px; gap: 7px; }
     .options > :global(button.option) { padding: 5px 8px; }
     .answer { margin-top: 10px; padding: 14px 14px 18px; }
   }
@@ -358,6 +358,13 @@
     .option-label { width: 22px; height: 22px; border-radius: 5px; }
   }
 
+  @media (max-height: 620px) {
+    .options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-height: 480px) {
+    .options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
   @container (max-width: 560px) {
     .options { grid-template-columns: 1fr; }
   }
