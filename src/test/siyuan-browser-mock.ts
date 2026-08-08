@@ -7,6 +7,7 @@ export class Menu {}
 export class Plugin {}
 
 export function showMessage(): void {}
+export function globalCommand(): void {}
 
 export function getFrontend(): string {
   return "desktop";

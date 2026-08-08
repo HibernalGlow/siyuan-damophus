@@ -11,6 +11,7 @@
   import SettingPanel from "./libs/setting-panel.svelte";
   import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
   import QuestionBankSettings from "./lets-question-bank/QuestionBankSettings.svelte";
+  import LayoutActionsSettings from "./lets-layout-actions/LayoutActionsSettings.svelte";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
     DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
@@ -24,6 +25,7 @@
   const GENERAL_GROUP = "设置";
   const BLOCK_ATTRIBUTE_PLUGIN = "quickAttr";
   const QUESTION_BANK_PLUGIN = "questionBank";
+  const LAYOUT_ACTIONS_PLUGIN = "layoutActions";
 
   interface ChangeEvent {
     group: string;
@@ -109,6 +111,10 @@
   );
   $: showBlockAttributeSettings = focusedPlugin?.name === BLOCK_ATTRIBUTE_PLUGIN;
   $: showQuestionBankSettings = focusedPlugin?.name === QUESTION_BANK_PLUGIN;
+  $: showLayoutActionsSettings = focusedPlugin?.name === LAYOUT_ACTIONS_PLUGIN;
+  $: layoutActions = settingItems[focusGroup]?.find((item) => item.key === "actions")?.value ?? [];
+  $: layoutActionsDockEnabled = Boolean(settingItems[focusGroup]?.find((item) => item.key === "showDock")?.value);
+  $: layoutActionsDockPosition = settingItems[focusGroup]?.find((item) => item.key === "dockPosition")?.value ?? "RightBottom";
   $: if (groups && !groups.includes(focusGroup)) focusGroup = SWITCH_GROUP;
 
   function t(key: string, fallback: string) {
@@ -197,6 +203,39 @@
     };
   }
 
+  function layoutActionsSettingsLabels() {
+    return {
+      dockEnabled: t("lets-layout-actions.dockEnabled", "Add a custom action Dock"),
+      dockEnabledDescription: t("lets-layout-actions.dockEnabledDescription", "Show configured Dock actions."),
+      dockPosition: t("lets-layout-actions.dockPosition", "Dock position"),
+      actions: t("lets-layout-actions.actions", "Custom actions"),
+      addAction: t("lets-layout-actions.addAction", "Add action"),
+      enabled: t("lets-layout-actions.enabled", "Enabled"),
+      title: t("lets-layout-actions.title", "Title"),
+      icon: t("lets-layout-actions.icon", "Icon"),
+      kind: t("lets-layout-actions.kind", "Source"),
+      command: t("lets-layout-actions.command", "Command"),
+      commandId: t("lets-layout-actions.commandId", "Command ID"),
+      placement: t("lets-layout-actions.placement", "Show in"),
+      system: t("lets-layout-actions.system", "SiYuan system command"),
+      plugin: t("lets-layout-actions.plugin", "Plugin command"),
+      editor: t("lets-layout-actions.editor", "Editor command"),
+      placementMenu: t("lets-layout-actions.placementMenu", "Damophus menu"),
+      dock: t("lets-layout-actions.dock", "Dock"),
+      both: t("lets-layout-actions.both", "Menu and Dock"),
+      leftTop: t("lets-layout-actions.leftTop", "Left top"),
+      leftBottom: t("lets-layout-actions.leftBottom", "Left bottom"),
+      rightTop: t("lets-layout-actions.rightTop", "Right top"),
+      rightBottom: t("lets-layout-actions.rightBottom", "Right bottom"),
+      bottomLeft: t("lets-layout-actions.bottomLeft", "Bottom left"),
+      bottomRight: t("lets-layout-actions.bottomRight", "Bottom right"),
+      unavailable: t("lets-layout-actions.unavailable", "not callable"),
+      moveUp: t("lets-layout-actions.moveUp", "Move up"),
+      moveDown: t("lets-layout-actions.moveDown", "Move down"),
+      remove: t("lets-layout-actions.remove", "Remove"),
+    };
+  }
+
   async function onClick({ detail }: CustomEvent<ChangeEvent>) {
     if (detail.group === GENERAL_GROUP && detail.key === "resetData") {
       await settings.resetData();
@@ -260,7 +299,7 @@
 
   <main class="min-w-0 flex-1 overflow-y-auto">
     <div class="mx-auto box-border flex w-full max-w-5xl flex-col gap-5 p-6 max-[768px]:p-4">
-      {#if !showQuestionBankSettings}
+      {#if !showQuestionBankSettings && !showLayoutActionsSettings}
         <header class="border-b border-border pb-4">
           <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
         </header>
@@ -287,6 +326,16 @@
           on:changed={onChanged}
           on:click={onClick}
           on:preview={onPreview}
+        />
+      {:else if showLayoutActionsSettings}
+        <LayoutActionsSettings
+          group={focusGroup}
+          title={getGroupLabel(focusGroup)}
+          actions={layoutActions}
+          showDock={layoutActionsDockEnabled}
+          dockPosition={layoutActionsDockPosition}
+          labels={layoutActionsSettingsLabels()}
+          on:changed={onChanged}
         />
       {:else}
         <SettingPanel

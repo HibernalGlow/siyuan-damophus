@@ -1,4 +1,5 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
+import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { isMobile, plugin } from "@/utils";
 import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, setBlockAttrs, sql } from "@/api";
 import { settings } from "@/settings";
@@ -66,6 +67,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private registered = false;
   private listening = false;
   private dockApp?: ReturnType<typeof mount>;
+  private openEntry?: UnifiedEntryPoint;
   private removeDockGestureIsolation?: () => void;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
@@ -134,10 +136,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
     if (!this.registered) {
       this.registered = true;
-      plugin.addCommand({
-        langKey: "lets-question-bank.commandOpen",
-        callback: () => this.open(),
-      });
+      this.openEntry = this.createOpenEntry();
+      this.openEntry.registerCommand();
+      this.openEntry.registerDock();
       plugin.addCommand({
         langKey: "lets-question-bank.commandPrevious",
         hotkey: "",
@@ -153,7 +154,6 @@ export default class QuestionBankPlugin extends SubPluginBase {
         hotkey: "",
         callback: () => this.dispatchPracticeCommand("pause"),
       });
-      this.registerDock();
     }
     if (this.listening) return;
     this.listening = true;
@@ -164,38 +164,42 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   addMenuItem(menu: Menu): void {
-    menu.addItem({
-      icon: "iconDatabase",
-      label: this.t("lets-question-bank.open"),
-      click: () => this.open(),
-    });
+    this.openEntry?.addMenuItem(menu);
   }
 
-  private registerDock(): void {
+  private createOpenEntry(): UnifiedEntryPoint {
     const owner = this;
-    plugin.addDock({
-      config: {
-        position: "LeftTop",
-        size: { width: 420, height: 0 },
-        icon: "iconDatabase",
-        title: this.t("lets-question-bank.displayName"),
-        show: false,
+    return new UnifiedEntryPoint({
+      id: "question-bank.open",
+      title: this.t("lets-question-bank.open"),
+      icon: "iconDatabase",
+      execute: () => this.open(),
+      command: {
+        langKey: "lets-question-bank.commandOpen",
       },
-      data: { documentId: this.currentDocumentId() },
-      type: "damophus-question-bank-dock",
-      init() {
-        const target = this.element as HTMLElement;
-        target.innerHTML = "";
-        if (isMobile) owner.removeDockGestureIsolation = isolateMobileDialogGestures(target);
-        owner.dockApp = owner.mountQuestionBank(target, owner.currentDocumentId());
+      dock: {
+        config: {
+          position: "LeftTop",
+          size: { width: 420, height: 0 },
+          icon: "iconDatabase",
+          title: this.t("lets-question-bank.displayName"),
+          show: false,
+        },
+        data: { documentId: this.currentDocumentId() },
+        type: "damophus-question-bank-dock",
+        init(target) {
+          target.replaceChildren();
+          if (isMobile) owner.removeDockGestureIsolation = isolateMobileDialogGestures(target);
+          owner.dockApp = owner.mountQuestionBank(target, owner.currentDocumentId());
+        },
+        destroy() {
+          owner.removeDockGestureIsolation?.();
+          owner.removeDockGestureIsolation = undefined;
+          if (owner.dockApp) void unmount(owner.dockApp);
+          owner.dockApp = undefined;
+        },
       },
-      destroy() {
-        owner.removeDockGestureIsolation?.();
-        owner.removeDockGestureIsolation = undefined;
-        if (owner.dockApp) void unmount(owner.dockApp);
-        owner.dockApp = undefined;
-      },
-    });
+    }, plugin);
   }
 
   override async onunload(): Promise<void> {
@@ -205,6 +209,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.removeDockGestureIsolation = undefined;
     if (this.dockApp) void unmount(this.dockApp);
     this.dockApp = undefined;
+    this.openEntry?.destroyDockContent();
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
