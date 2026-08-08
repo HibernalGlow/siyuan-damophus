@@ -22,9 +22,11 @@
 
 <script lang="ts">
   import { createEventDispatcher, tick } from "svelte";
-  import { Database, EyeOff, GraduationCap, Monitor, Timer } from "lucide-svelte";
+  import { Database, EyeOff, FileText, GraduationCap, Heading1, ListTree, Monitor, PanelsTopLeft, Rows3, TextSelect, Timer } from "lucide-svelte";
   import SettingPanel from "@/libs/setting-panel.svelte";
   import { Button } from "@/components/ui/button";
+  import * as ToggleGroup from "@/components/ui/toggle-group";
+  import { plugin } from "@/utils";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
   import SourceAnswerMaskSettings from "./SourceAnswerMaskSettings.svelte";
   import type { AnswerMaskStyle } from "./source-answer-mask";
@@ -37,6 +39,7 @@
   const sectionIds = ["review", "index", "display", "timing", "mask"] as const;
   type SectionId = typeof sectionIds[number];
   type StandardSectionId = Exclude<SectionId, "mask">;
+  const directDisplaySettingKeys = new Set(["questionRenderMode", "embedHeadingMode"]);
 
   const sectionKeys: Record<StandardSectionId, string[]> = {
     review: [
@@ -74,6 +77,23 @@
 
   function itemsFor(sectionId: StandardSectionId): ISettingItem[] {
     return settingItems.filter((item) => sectionKeys[sectionId].includes(item.key));
+  }
+
+  function standardItemsFor(sectionId: StandardSectionId): ISettingItem[] {
+    return itemsFor(sectionId).filter((item) => !directDisplaySettingKeys.has(item.key));
+  }
+
+  function directDisplayItems(): ISettingItem[] {
+    return itemsFor("display").filter((item) => directDisplaySettingKeys.has(item.key));
+  }
+
+  function localized(value: string): string {
+    return plugin.i18n[value] || value;
+  }
+
+  function setDirectDisplayChoice(item: ISettingItem, value: string): void {
+    if (!value || value === item.value) return;
+    dispatch("changed", { group, key: item.key, value });
   }
 
   function setSectionOpen(sectionId: SectionId, open: boolean): void {
@@ -150,11 +170,57 @@
             {:else}
               <SettingPanel
                 {group}
-                settingItems={itemsFor(section.id)}
+                settingItems={standardItemsFor(section.id)}
                 on:changed={(event) => dispatch("changed", event.detail)}
                 on:click={(event) => dispatch("click", event.detail)}
                 on:preview={(event) => dispatch("preview", event.detail)}
               />
+              {#if section.id === "display"}
+                <div class="question-bank-direct-choices">
+                  {#each directDisplayItems() as item (item.key)}
+                    <div class="question-bank-direct-choice" data-settings-direct-choice={item.key}>
+                      <div class="min-w-0">
+                        <div class="text-sm font-medium">{@html localized(item.title)}</div>
+                        <div class="mt-1 text-xs leading-5 text-muted-foreground">{@html localized(item.description)}</div>
+                      </div>
+                      <ToggleGroup.Root
+                        type="single"
+                        size="sm"
+                        variant="outline"
+                        value={String(item.value)}
+                        aria-label={localized(item.title)}
+                        onValueChange={(value) => setDirectDisplayChoice(item, value)}
+                      >
+                        {#each Object.entries(item.options) as [value, option] (value)}
+                          {@const label = localized(option)}
+                          <ToggleGroup.Item
+                            {value}
+                            title={label}
+                            aria-label={label}
+                            data-settings-choice-value={value}
+                          >
+                            {#if item.key === "questionRenderMode"}
+                              {#if value === "html"}
+                                <TextSelect aria-hidden="true" />
+                              {:else if value === "native"}
+                                <FileText aria-hidden="true" />
+                              {:else}
+                                <PanelsTopLeft aria-hidden="true" />
+                              {/if}
+                            {:else if value === "0"}
+                              <Rows3 aria-hidden="true" />
+                            {:else if value === "1"}
+                              <Heading1 aria-hidden="true" />
+                            {:else}
+                              <ListTree aria-hidden="true" />
+                            {/if}
+                          </ToggleGroup.Item>
+                        {/each}
+                      </ToggleGroup.Root>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             {/if}
           </div>
         </QuestionBankPanel>
@@ -249,6 +315,37 @@
   .question-bank-settings-panel-content :global(section) {
     border-top: 0;
     border-bottom: 0;
+  }
+
+  .question-bank-direct-choices {
+    border-top: 1px solid var(--b3-border-color);
+  }
+
+  .question-bank-direct-choice {
+    display: grid;
+    min-height: 64px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 20px;
+    border-bottom: 1px solid var(--b3-border-color);
+    padding: 12px;
+  }
+
+  .question-bank-direct-choice :global([data-slot="toggle-group"]) {
+    max-width: 100%;
+  }
+
+  .question-bank-direct-choice :global([data-slot="toggle-group-item"][data-state="on"]) {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 46%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent);
+    color: var(--b3-theme-primary);
+  }
+
+  @container (max-width: 520px) {
+    .question-bank-direct-choice {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
   }
 
   @container (max-width: 680px) {

@@ -7,7 +7,7 @@ describe("select content portal styling", () => {
     document.documentElement.style.setProperty("--b3-theme-background", "rgb(21, 19, 32)");
     document.documentElement.style.setProperty("--b3-theme-on-background", "rgb(224, 222, 244)");
     document.body.innerHTML = `
-      <div class="damophus-select-content" style="--bits-select-anchor-width: 300px; width: 300px">
+      <div class="damophus-select-content z-[10000]" style="--bits-select-anchor-width: 300px; width: 300px">
         <div data-select-viewport>
           <div data-slot="select-group" style="padding: 4px">
             <div data-slot="select-item" style="padding: 4px 32px 4px 6px; width: 100%">整个文档</div>
@@ -20,6 +20,7 @@ describe("select content portal styling", () => {
     const item = content.querySelector<HTMLElement>('[data-slot="select-item"]')!;
     expect(getComputedStyle(content).backgroundColor).toBe("rgb(21, 19, 32)");
     expect(getComputedStyle(content).boxSizing).toBe("border-box");
+    expect(getComputedStyle(content).zIndex).toBe("10000");
     expect(getComputedStyle(item).boxSizing).toBe("border-box");
     expect(item.getBoundingClientRect().right).toBeLessThanOrEqual(content.getBoundingClientRect().right);
   });

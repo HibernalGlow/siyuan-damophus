@@ -51,9 +51,9 @@ const settingItems: ISettingItem[] = [
   { type: "checkbox", title: "显示答题标题", description: "标题说明", key: "showPracticeTitle", value: false },
   { type: "checkbox", title: "隐藏空答案块", description: "空块说明", key: "hideEmptyAnswerBlocks", value: true },
   { type: "checkbox", title: "继承原文样式", description: "样式说明", key: "inheritSourceStyles", value: true },
-  { type: "select", title: "题目渲染方式", description: "渲染说明", key: "questionRenderMode", value: "native", options: { native: "原生" } },
+  { type: "select", title: "题目渲染方式", description: "渲染说明", key: "questionRenderMode", value: "native", options: { html: "HTML", native: "原生", embed: "嵌入块" } },
   { type: "checkbox", title: "显示面包屑", description: "面包屑说明", key: "embedBreadcrumb", value: false },
-  { type: "select", title: "标题嵌入方式", description: "标题嵌入说明", key: "embedHeadingMode", value: "0", options: { "0": "全部" } },
+  { type: "select", title: "标题嵌入方式", description: "标题嵌入说明", key: "embedHeadingMode", value: "0", options: { "0": "全部", "1": "仅标题", "2": "仅下方块" } },
   { type: "checkbox", title: "记录作答用时", description: "计时说明", key: "timingEnabled", value: true },
   { type: "checkbox", title: "看答案时暂停", description: "暂停说明", key: "pauseOnAnswerReveal", value: true },
   { type: "select", title: "用时对比位置", description: "位置说明", key: "durationComparisonPosition", value: "rating", options: { rating: "评分上方" } },
@@ -128,6 +128,46 @@ describe("question bank settings navigation", () => {
     expect(clicked).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "maintainIndex" }),
     }));
+  });
+
+  it("uses direct icon choices for display modes without opening a Select popover", async () => {
+    const changed = vi.fn();
+    const target = render({ changed });
+    await tick();
+
+    const questionRenderMode = target.querySelector<HTMLElement>('[data-settings-direct-choice="questionRenderMode"]');
+    const embedHeadingMode = target.querySelector<HTMLElement>('[data-settings-direct-choice="embedHeadingMode"]');
+    if (!questionRenderMode || !embedHeadingMode) throw new Error("Missing direct display choices");
+
+    expect(questionRenderMode.querySelectorAll('[data-slot="toggle-group-item"]')).toHaveLength(3);
+    expect(embedHeadingMode.querySelectorAll('[data-slot="toggle-group-item"]')).toHaveLength(3);
+    expect(questionRenderMode.querySelector('[data-slot="select-trigger"]')).toBeNull();
+    expect(embedHeadingMode.querySelector('[data-slot="select-trigger"]')).toBeNull();
+
+    questionRenderMode.querySelector<HTMLButtonElement>('[data-settings-choice-value="embed"]')?.click();
+    embedHeadingMode.querySelector<HTMLButtonElement>('[data-settings-choice-value="2"]')?.click();
+
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "questionRenderMode", value: "embed" }),
+    }));
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "embedHeadingMode", value: "2" }),
+    }));
+  });
+
+  it("keeps the settings document scrollable while a remaining Select is open", async () => {
+    const target = render();
+    await tick();
+
+    expect(target.querySelector("#durationComparisonPosition")).not.toBeNull();
+    await page.getByRole("button", { name: "评分上方" }).click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-slot="select-content"]')).not.toBeNull();
+    });
+
+    expect(document.documentElement.style.overflow).not.toBe("hidden");
+    expect(document.body.style.overflow).not.toBe("hidden");
   });
 
   it("adapts navigation labels to the available width without overflowing", async () => {
