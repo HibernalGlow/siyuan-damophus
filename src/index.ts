@@ -9,10 +9,11 @@ import { PluginRegistry } from "@/plugin-registry";
 import { settings } from "@/settings";
 import { isMobile, setPlugin } from "@/utils";
 import { reloadPetal } from "@/plugin-reload";
+import { prepareToolbarIcon } from "@/toolbar-icon";
 import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 
 const log = getLogger("index");
-const damophusToolbarIcon = damophusMonoIcon.replace(/^<\?xml[^>]*>\s*/u, "");
+const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
 
 export default class PluginLetsGo extends Plugin {
   private readonly pluginRegistry = PluginRegistry.getInstance();
