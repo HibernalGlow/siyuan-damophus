@@ -1,29 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDamophusStore, TABLE } from "../question-bank/adapters/tinybase/tables";
-import { mergeStoreContents, installStoreWorker, type StoreWorkerMergeRequest } from "./store-worker";
 import { StoreSyncCoordinator } from "./sync-coordinator";
-
-describe("post-sync TinyBase worker", () => {
-  it("merges independent store contents without a main-thread table algorithm", () => {
-    const first = createDamophusStore("first").setCell(TABLE.questions, "q1", "title", "First");
-    const second = createDamophusStore("second").setCell(TABLE.questions, "q2", "title", "Second");
-    const result = mergeStoreContents([
-      {store_id: "first", mergeable_content: first.getMergeableContent()},
-      {store_id: "second", mergeable_content: second.getMergeableContent()},
-    ]);
-    const merged = createDamophusStore("assert").setMergeableContent(result);
-    expect(merged.getCell(TABLE.questions, "q1", "title")).toBe("First");
-    expect(merged.getCell(TABLE.questions, "q2", "title")).toBe("Second");
-  });
-
-  it("handles worker requests and reports malformed payloads", () => {
-    const scope = {postMessage: vi.fn(), onmessage: null} as unknown as Parameters<typeof installStoreWorker>[0];
-    installStoreWorker(scope);
-    const request: StoreWorkerMergeRequest = {type: "merge", request_id: "1", stores: []};
-    scope.onmessage?.({data: request} as MessageEvent<StoreWorkerMergeRequest>);
-    expect(scope.postMessage).toHaveBeenCalledWith(expect.objectContaining({type: "merged", request_id: "1"}));
-  });
-});
 
 describe("sync-end coordination", () => {
   it("debounces repeated sync-end events and ignores sync-fail", async () => {

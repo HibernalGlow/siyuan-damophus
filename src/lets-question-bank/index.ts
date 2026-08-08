@@ -44,7 +44,6 @@ import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyua
 import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
 import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator } from "./sync-coordinator";
-import { createWorkerStoreMerger } from "./store-worker";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 
 type PracticeCommand = "previous" | "next" | "pause";
@@ -217,8 +216,6 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.tinybaseRuntime ??= new TinyBaseRuntime(new TinyBaseWarehouse(
       new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
       currentDeviceId(),
-      undefined,
-      createWorkerStoreMerger(),
     ));
     return this.tinybaseRuntime;
   }

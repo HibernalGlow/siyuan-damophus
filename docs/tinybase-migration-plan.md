@@ -2,11 +2,13 @@
 
 Status: completed on 2026-08-08.
 
-Completion evidence: runtime cutover, worker-backed synchronization, and the development migration are implemented. The verified workspace report is `D:/1STUDY/SIYUAN/data/storage/petal/siyuan-damophus/store/migration-report.json`; it records `migration_version = 1`, no conflicts, and an idempotent rerun with 0 created and 5 duplicate attempts. The migration input inventory is `D:/1Dev/Python/temp/damophus-inventory-20260808.json`.
+Completion evidence: runtime cutover, synchronized contribution merging, and the development migration are implemented. The verified workspace report is `D:/1STUDY/SIYUAN/data/storage/petal/siyuan-damophus/store/migration-report.json`; it records `migration_version = 1`, no conflicts, and an idempotent rerun with 0 created and 5 duplicate attempts. The migration input inventory is `D:/1Dev/Python/temp/damophus-inventory-20260808.json`.
 
-Validation completed with 46 Node test files / 239 tests, 30 Browser Mode files / 139 tests, Svelte/TypeScript checks, production build, smoke checks, and package validation. The three real workspace envelopes passed content-hash verification; their business row counts match the inventory and report.
+Validation completed with 46 Node test files / 238 tests, 30 Browser Mode files / 139 tests, Svelte/TypeScript checks, production build, smoke checks, and package validation. The three real workspace envelopes passed content-hash verification; their business row counts match the inventory and report.
 
-The completed build was atomically deployed to `D:/1STUDY/SIYUAN` and reloaded in the running SiYuan 3.8.0-alpha.3 process. The live petal response contains the TinyBase store path and Worker asset reference, the Worker asset returns HTTP 200, and the kernel log confirms `siyuan-damophus` in the reloaded desktop petal set.
+The completed build was atomically deployed to `D:/1STUDY/SIYUAN` and reloaded in the running SiYuan 3.8.0-alpha.3 process. The live desktop question-bank flow opens without legacy AV dependencies, and the kernel reports `siyuan-damophus` in the reloaded desktop petal set.
+
+> **Runtime amendment (2026-08-08).** SiYuan loads production plugins as CJS, which made the Vite Web Worker URL and module bundle unreliable in the live desktop runtime. Post-sync merges therefore use `mergeContributionStores` on the main thread. Debouncing, exclusive locking, corrupt-contribution quarantine, and the last validated read view remain unchanged. Worker-specific requirements below are superseded for the current SiYuan runtime.
 
 This plan replaces the Damophus attribute-view data model with a file-synchronized TinyBase data warehouse. It is a one-way development migration: after cutover, Question Index, Topic Index, and Attempt Log are legacy input only and the user removes them manually after verifying the result.
 
