@@ -9,7 +9,10 @@ import {
 } from "../question-bank/adapters/siyuan/document";
 import type { SiyuanKernelClient } from "../question-bank/adapters/siyuan/types";
 import { TinyBaseCoreCatalogRepository } from "../question-bank/adapters/tinybase/repositories";
-import type { QuestionIndexPreview } from "../question-bank/application/indexing";
+import {
+  stableQuestionIdMetadata,
+  type QuestionIndexPreview,
+} from "../question-bank/application/indexing";
 import type { QuestionIndexBatchPreview } from "../question-bank/application/batch-indexing";
 import type {
   HydratedQuestionSource,
@@ -49,13 +52,26 @@ function recordMetadata(question: Question): Pick<
   QuestionCatalogRecord,
   "year" | "subject" | "category" | "collection" | "source" | "parent_id"
 > {
+  const metadata = sourceMetadataWithIdFallback(question.id, question.metadata);
   return {
-    year: question.metadata.year,
+    year: metadata.year,
     subject: question.metadata.subject,
     category: question.metadata.category,
-    collection: question.metadata.collection,
-    source: question.metadata.source,
+    collection: metadata.collection,
+    source: metadata.source,
     parent_id: question.metadata.parentId,
+  };
+}
+
+function sourceMetadataWithIdFallback(
+  questionId: string,
+  metadata: Pick<Question["metadata"], "year" | "collection" | "source">,
+): Pick<Question["metadata"], "year" | "collection" | "source"> {
+  const inferred = stableQuestionIdMetadata(questionId);
+  return {
+    year: metadata.year || inferred.year,
+    collection: metadata.collection || inferred.collection,
+    source: metadata.source || inferred.source,
   };
 }
 
@@ -364,6 +380,7 @@ export class TinyBaseSiyuanCatalogRuntime {
       const parsed = QuestionCatalogRecordSchema.safeParse(core.getRow("questions", questionId));
       if (!parsed.success || !parsed.data.available) return [];
       const question = parsed.data as QuestionCatalogRecord;
+      const metadata = sourceMetadataWithIdFallback(questionId, question);
       const document = documentsById.get(question.document_id);
       const aggregate = aggregates.get(questionId);
       const topicId = topics.find((topic) => topic.question_id === questionId)?.topic_id;
@@ -376,11 +393,11 @@ export class TinyBaseSiyuanCatalogRuntime {
         documentPath: document?.hpath ?? document?.path,
         questionTitle: question.title,
         questionType: question.question_type,
-        year: question.year,
+        year: metadata.year,
         subject: question.subject,
         category: question.category,
-        collection: question.collection,
-        source: question.source,
+        collection: metadata.collection,
+        source: metadata.source,
         topicId,
         contentSignature: question.content_signature,
         indexedAt: question.indexed_at,

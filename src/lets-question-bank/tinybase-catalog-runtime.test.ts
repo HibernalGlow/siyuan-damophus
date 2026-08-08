@@ -29,10 +29,14 @@ const markdown = `## 合同效力
 
 解析：题目答案为 A。`;
 
-function client(): SiyuanKernelClient {
+const legacyMetadataMarkdown = markdown
+  .replace('custom-qb-id="q-contract-1"', 'custom-qb-id="civil-procedure-gold-2025-2-4-18"')
+  .replace(' custom-qb-year="2026" custom-qb-subject="civil" custom-qb-category="contract" custom-qb-collection="law" custom-qb-source="mock"', ' custom-qb-subject="civil" custom-qb-category="contract"');
+
+function client(kramdown = markdown): SiyuanKernelClient {
   return {
     request: vi.fn(async <T,>(endpoint: string, payload: {stmt?: string; id?: string}) => {
-      if (endpoint === "/api/block/getBlockKramdown") return {id: payload.id, kramdown: markdown} as T;
+      if (endpoint === "/api/block/getBlockKramdown") return {id: payload.id, kramdown} as T;
       if (endpoint === "/api/query/sql" && payload.stmt?.includes("type = 'd'")) {
         return [{id: documentId, box: "notebook-1", content: "合同题", hpath: "/合同题", updated: "2026-08-08T00:00:00Z"}] as T;
       }
@@ -75,5 +79,33 @@ describe("TinyBase SiYuan catalog runtime", () => {
     });
     expect(attrWrites).toEqual([]);
     expect((await catalog.loadCatalog()).map((entry) => entry.questionId)).toEqual(["q-contract-1"]);
+  });
+
+  it("derives report metadata from stable legacy question IDs", async () => {
+    const warehouse = new TinyBaseWarehouse(new MemoryFiles(), "device-a");
+    const catalog = new TinyBaseSiyuanCatalogRuntime(
+      new TinyBaseRuntime(warehouse),
+      client(legacyMetadataMarkdown),
+    );
+
+    const preview = await catalog.previewDocument(documentId);
+    await catalog.confirmDocument(documentId, preview.token);
+    for (const field of ["year", "collection", "source"] as const) {
+      warehouse.getLocalContribution().core.setCell(
+        "questions",
+        "civil-procedure-gold-2025-2-4-18",
+        field,
+        "",
+      );
+    }
+
+    await expect(catalog.loadStatisticsQuestions()).resolves.toEqual([
+      expect.objectContaining({
+        questionId: "civil-procedure-gold-2025-2-4-18",
+        year: "2025",
+        collection: "gold",
+        source: "gold",
+      }),
+    ]);
   });
 });
