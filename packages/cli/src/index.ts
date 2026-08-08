@@ -1,5 +1,5 @@
 import { defineCommand, runMain } from "citty";
-import { doctorCommand, exportCommand, pasteCommand, statusCommand } from "./commands";
+import { doctorCommand, exportCommand, pasteCommand, skillCommand, statusCommand } from "./commands";
 
 const main = defineCommand({
   meta: {
@@ -12,6 +12,7 @@ const main = defineCommand({
     export: exportCommand,
     status: statusCommand,
     doctor: doctorCommand,
+    skill: skillCommand,
   },
 });
 

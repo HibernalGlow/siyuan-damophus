@@ -12,6 +12,15 @@ import {
 } from "@hibernalglow/damophus-agent-contract";
 import { createReporter } from "./reporter";
 import {
+  defaultSiyuanEndpoint,
+  getSkill,
+  listSkills,
+  removeSkill,
+  renameSkill,
+  saveSkill,
+} from "./skill-client";
+import { syncSkill } from "./skill-sync";
+import {
   discoverBridge,
   inspectTask,
   readFreshHeartbeat,
@@ -300,5 +309,162 @@ export const exportCommand = defineCommand({
       await reporter.error(error instanceof Error ? error : new Error(String(error)));
       process.exitCode = 1;
     }
+  },
+});
+
+const skillConnectionArgs = {
+  endpoint: {
+    type: "string" as const,
+    description: "SiYuan kernel endpoint",
+    default: defaultSiyuanEndpoint(),
+  },
+  json: {
+    type: "boolean" as const,
+    description: "Emit newline-delimited JSON",
+    default: false,
+  },
+};
+
+const skillListCommand = defineCommand({
+  meta: { name: "list", description: "List skills installed in SiYuan" },
+  args: skillConnectionArgs,
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      await reporter.info(await listSkills(args.endpoint));
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+const skillGetCommand = defineCommand({
+  meta: { name: "get", description: "Read an installed SiYuan skill" },
+  args: {
+    name: { type: "positional" as const, description: "Installed skill directory name", required: true },
+    output: { type: "string" as const, description: "Write the skill to this UTF-8 file" },
+    ...skillConnectionArgs,
+  },
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const skill = await getSkill(args.endpoint, args.name);
+      if (typeof args.output === "string") {
+        const output = resolve(args.output);
+        await mkdir(dirname(output), { recursive: true });
+        await writeFile(output, skill.content, "utf8");
+        await reporter.info({ status: "written", name: skill.name, output });
+      } else if (args.json) {
+        await reporter.info(skill);
+      } else {
+        process.stdout.write(skill.content);
+      }
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+const skillSaveCommand = defineCommand({
+  meta: { name: "save", description: "Create or update an installed SiYuan skill" },
+  args: {
+    name: { type: "positional" as const, description: "Installed skill directory name", required: true },
+    file: { type: "string" as const, description: "UTF-8 SKILL.md source", required: true },
+    ...skillConnectionArgs,
+  },
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const file = resolve(args.file);
+      await saveSkill(args.endpoint, args.name, await readFile(file, "utf8"));
+      await reporter.info({ status: "saved", name: args.name, file });
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+const skillRenameCommand = defineCommand({
+  meta: { name: "rename", description: "Rename an installed SiYuan skill" },
+  args: {
+    name: { type: "positional" as const, description: "Current skill directory name", required: true },
+    "new-name": { type: "string" as const, description: "New skill directory name", required: true },
+    ...skillConnectionArgs,
+  },
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const newName = String(args.newName);
+      await renameSkill(args.endpoint, args.name, newName);
+      await reporter.info({ status: "renamed", oldName: args.name, name: newName });
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+const skillRemoveCommand = defineCommand({
+  meta: { name: "remove", description: "Remove an installed SiYuan skill" },
+  args: {
+    name: { type: "positional" as const, description: "Installed skill directory name", required: true },
+    ...skillConnectionArgs,
+  },
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      await removeSkill(args.endpoint, args.name);
+      await reporter.info({ status: "removed", name: args.name });
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+const skillSyncCommand = defineCommand({
+  meta: { name: "sync", description: "Synchronize a local skill directory into SiYuan" },
+  args: {
+    source: { type: "positional" as const, description: "Local skill directory or directory symlink", required: true },
+    name: { type: "string" as const, description: "Installed directory name; defaults to the source name" },
+    workspace: { type: "string" as const, description: "SiYuan workspace; auto-discovered when omitted" },
+    materialize: {
+      type: "boolean" as const,
+      description: "Dereference all symbolic links and install real files",
+      default: false,
+    },
+    ...skillConnectionArgs,
+  },
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const workspace = typeof args.workspace === "string"
+        ? resolve(args.workspace)
+        : (await discoverBridge(args.endpoint)).workspace;
+      await reporter.info(await syncSkill({
+        source: args.source,
+        workspace,
+        name: typeof args.name === "string" ? args.name : undefined,
+        materialize: args.materialize,
+      }));
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+export const skillCommand = defineCommand({
+  meta: { name: "skill", description: "Manage SiYuan agent skills" },
+  subCommands: {
+    list: skillListCommand,
+    get: skillGetCommand,
+    save: skillSaveCommand,
+    rename: skillRenameCommand,
+    remove: skillRemoveCommand,
+    sync: skillSyncCommand,
   },
 });

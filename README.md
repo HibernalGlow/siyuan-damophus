@@ -245,6 +245,7 @@ pnpm test:package
 | 模拟考试设置与评分规则 | [考试模式](docs/exam-mode.md) |
 | 带 IAL 的 Markdown 复制与 CLI 导出 | [Kramdown 导出](docs/kramdown-export.md) |
 | Agent Bridge CLI 协议与命令 | [Agent 桥接](docs/agent-bridge.md) |
+| 思源 AI 技能管理与软链接展开 | [技能管理](docs/skill-management.md) |
 | 模块边界和宿主适配方式 | [架构](docs/architecture.md) |
 | 已接受的功能范围与非目标 | [产品范围](docs/product-scope.md) |
 | 旧数据和系统文档连接方式 | [迁移指南](docs/migration.md) |
