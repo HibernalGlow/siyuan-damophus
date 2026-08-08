@@ -6,6 +6,7 @@ import type { QuestionSetBlueprint } from "../assembly/schema";
 import type {
   QuestionAggregateRecord,
   QuestionCatalogRecord,
+  QuestionTopicRecord,
   SourceDocumentRecord,
   TopicAnchorRecord,
 } from "./schemas";
@@ -13,6 +14,8 @@ import type {
 export interface QuestionCatalogRepository {
   listQuestions(filters?: Partial<QuestionCatalogRecord>): Promise<QuestionCatalogRecord[]>;
   upsertQuestion(id: string, question: QuestionCatalogRecord): Promise<void>;
+  listQuestionTopics(questionId?: string): Promise<QuestionTopicRecord[]>;
+  replaceQuestionTopics(documentId: string, topics: readonly QuestionTopicRecord[]): Promise<void>;
   markDocumentUnavailable(documentId: string): Promise<void>;
   hydrate(questionIds?: readonly string[]): Promise<unknown>;
 }

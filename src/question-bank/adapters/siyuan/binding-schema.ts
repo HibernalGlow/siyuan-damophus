@@ -66,6 +66,7 @@ export const topicFields = [
   "resource",
   "status",
   "questions_relation",
+  "question_ids_snapshot",
   "question_count",
   "attempt_count",
   "wrong_count",
@@ -109,7 +110,7 @@ export interface AttributeViewBinding<Field extends string> {
 }
 
 export interface QuestionBankBinding {
-  schemaVersion: 4;
+  schemaVersion: 5;
   notebookId: string;
   systemDocumentId: string;
   questionIndex: AttributeViewBinding<QuestionField>;
@@ -133,13 +134,28 @@ const attemptKeySchema = z.object(Object.fromEntries(
 const topicKeySchema = z.object(Object.fromEntries(
   topicFields.map((field) => [field, nodeId]),
 ) as Record<TopicField, typeof nodeId>);
+const versionFourTopicFields = topicFields.filter(
+  (field): field is Exclude<TopicField, "question_ids_snapshot"> => field !== "question_ids_snapshot",
+);
+const versionFourTopicKeySchema = z.object(Object.fromEntries(
+  versionFourTopicFields.map((field) => [field, nodeId]),
+) as Record<Exclude<TopicField, "question_ids_snapshot">, typeof nodeId>);
 
 export const QuestionBankBindingSchema = z.object({
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   notebookId: nodeId,
   systemDocumentId: nodeId,
   questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: questionKeySchema }),
   topicIndex: z.object({ avId: nodeId, blockId: nodeId, keys: topicKeySchema }),
+  attemptLog: z.object({ avId: nodeId, blockId: nodeId, keys: attemptKeySchema }),
+});
+
+export const QuestionBankBindingV4Schema = z.object({
+  schemaVersion: z.literal(4),
+  notebookId: nodeId,
+  systemDocumentId: nodeId,
+  questionIndex: z.object({ avId: nodeId, blockId: nodeId, keys: questionKeySchema }),
+  topicIndex: z.object({ avId: nodeId, blockId: nodeId, keys: versionFourTopicKeySchema }),
   attemptLog: z.object({ avId: nodeId, blockId: nodeId, keys: attemptKeySchema }),
 });
 
@@ -226,6 +242,7 @@ export const topicColumns: readonly ColumnDefinition<Exclude<TopicField, "entry"
   { field: "resource", name: "Resource", type: "mAsset" },
   { field: "status", name: "Status", type: "select" },
   { field: "questions_relation", name: "Questions", type: "relation" },
+  { field: "question_ids_snapshot", name: "Question ID Snapshot", type: "text" },
   { field: "question_count", name: "Question Count", type: "rollup" },
   { field: "attempt_count", name: "Attempt Count", type: "number" },
   { field: "wrong_count", name: "Wrong Count", type: "number" },

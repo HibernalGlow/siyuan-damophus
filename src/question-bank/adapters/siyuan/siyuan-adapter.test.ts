@@ -128,7 +128,7 @@ describe("SiYuan question bank adapter", () => {
       missingManagedKeys: [],
     });
     expect(Object.keys(binding.questionIndex.keys)).toHaveLength(16);
-    expect(Object.keys(binding.topicIndex.keys)).toHaveLength(13);
+    expect(Object.keys(binding.topicIndex.keys)).toHaveLength(14);
     expect(Object.keys(binding.attemptLog.keys)).toHaveLength(23);
     const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
     expect(questionAv.keyValues.map((keyValues) => [keyValues.key.name, keyValues.key.type]))
@@ -162,6 +162,7 @@ describe("SiYuan question bank adapter", () => {
       ["Resource", "mAsset"],
       ["Status", "select"],
       ["Questions", "relation"],
+      ["Question ID Snapshot", "text"],
       ["Question Count", "rollup"],
       ["Attempt Count", "number"],
       ["Wrong Count", "number"],
@@ -214,7 +215,26 @@ describe("SiYuan question bank adapter", () => {
   });
 
   it("migrates a v1 binding to managed two-way relations and rollups", async () => {
-    const { client, binding } = await initialized();
+    const { client, binding, nextId } = await initialized();
+    const sourceDocumentId = "20260804120000-migrate";
+    const source = fixture("siyuan-kramdown");
+    client.documents.set(sourceDocumentId, source);
+    client.blockRoots.set("20260804000200-quest01", sourceDocumentId);
+    const questionPreview = await previewQuestionIndexSync(client, binding, sourceDocumentId);
+    await confirmQuestionIndexSync(client, binding, sourceDocumentId, questionPreview.token);
+    const attempt = createAttemptEvent({
+      attemptId: "attempt-before-topic-migration",
+      questionId: "civil-kramdown-108",
+      questionRelation: "20260804000200-quest01",
+      sessionId: "session-before-topic-migration",
+      answeredAt: "2026-08-07T12:00:00.000Z",
+      questionType: "multiple",
+      optionOrder: ["A", "B", "C", "D"],
+      selectedOptionIds: ["A"],
+      objectiveCorrect: false,
+      masteryRating: "again",
+    });
+    await appendAttemptEvent(client, binding, attempt, nextId);
     const questionAv = client.attributeViews.get(binding.questionIndex.avId)!;
     const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
     const newQuestionFields = ["attempts_relation", "attempt_count", "wrong_count", "total_duration_ms"] as const;
@@ -242,7 +262,7 @@ describe("SiYuan question bank adapter", () => {
     const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
     const migrated = await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
 
-    expect(migrated.schemaVersion).toBe(4);
+    expect(migrated.schemaVersion).toBe(5);
     expect(preview.bindingRepairs).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "createDatabase", database: "topicIndex" }),
       expect.objectContaining({ kind: "add", field: "topics_relation", type: "relation" }),
@@ -251,6 +271,8 @@ describe("SiYuan question bank adapter", () => {
       expect.objectContaining({ kind: "add", field: "wrong_value", type: "number" }),
     ]));
     expect((await verifyQuestionBankBinding(client, migrated)).ok).toBe(true);
+    expect(client.documents.get(sourceDocumentId)).toBe(source);
+    expect((await readAttemptEvents(client, migrated)).events).toEqual([attempt]);
   });
 
   it("previews and repairs missing managed columns while reconnecting", async () => {
@@ -266,6 +288,103 @@ describe("SiYuan question bank adapter", () => {
     expect(preview.bindingRepairs).toEqual([expect.objectContaining({ field: "duration_ms" })]);
     expect(rebound).toEqual(binding);
     expect((await verifyQuestionBankBinding(client, rebound)).ok).toBe(true);
+  });
+
+  it("migrates a version 4 Topic Index by adding the stable question ID snapshot", async () => {
+    const { client, binding } = await initialized();
+    const topicAv = client.attributeViews.get(binding.topicIndex.avId)!;
+    const { question_ids_snapshot, ...versionFourTopicKeys } = binding.topicIndex.keys;
+    topicAv.keyValues = topicAv.keyValues.filter((entry) => entry.key.id !== question_ids_snapshot);
+    const versionFourBinding = {
+      ...binding,
+      schemaVersion: 4,
+      topicIndex: { ...binding.topicIndex, keys: versionFourTopicKeys },
+    };
+    client.blockAttrs.set(binding.systemDocumentId, {
+      "custom-damophus-question-bank-binding": JSON.stringify(versionFourBinding),
+    });
+
+    const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
+    expect(preview.binding.schemaVersion).toBe(5);
+    expect(preview.bindingRepairs).toEqual([
+      expect.objectContaining({
+        kind: "add",
+        database: "topicIndex",
+        field: "question_ids_snapshot",
+        type: "text",
+      }),
+    ]);
+
+    const migrated = await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
+    expect(migrated.schemaVersion).toBe(5);
+    expect((await verifyQuestionBankBinding(client, migrated)).ok).toBe(true);
+  });
+
+  it("recovers the native Topic Index primary key while migrating version 4", async () => {
+    const { client, binding } = await initialized();
+    const actualPrimaryKeyId = binding.topicIndex.keys.entry;
+    const stalePrimaryKeyId = "20260807162113-stale01";
+    const topicAv = client.attributeViews.get(binding.topicIndex.avId)!;
+    const { question_ids_snapshot, ...versionFourTopicKeys } = binding.topicIndex.keys;
+    topicAv.keyValues = topicAv.keyValues.filter((entry) => entry.key.id !== question_ids_snapshot);
+    const versionFourBinding = {
+      ...binding,
+      schemaVersion: 4,
+      topicIndex: {
+        ...binding.topicIndex,
+        keys: { ...versionFourTopicKeys, entry: stalePrimaryKeyId },
+      },
+    };
+    client.blockAttrs.set(binding.systemDocumentId, {
+      "custom-damophus-question-bank-binding": JSON.stringify(versionFourBinding),
+    });
+
+    const preview = await previewQuestionBankRebinding(client, binding.systemDocumentId);
+
+    expect(preview.binding.topicIndex.keys.entry).toBe(actualPrimaryKeyId);
+    expect(preview.bindingRepairs).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "rebindPrimary",
+        database: "topicIndex",
+        field: "entry",
+        previousKeyId: stalePrimaryKeyId,
+        keyId: actualPrimaryKeyId,
+      }),
+      expect.objectContaining({
+        kind: "add",
+        database: "topicIndex",
+        field: "question_ids_snapshot",
+      }),
+    ]));
+
+    const migrated = await confirmQuestionBankRebinding(client, binding.systemDocumentId, preview.token);
+    const persisted = JSON.parse(client.blockAttrs.get(binding.systemDocumentId)![
+      "custom-damophus-question-bank-binding"
+    ]!);
+    expect(migrated.topicIndex.keys.entry).toBe(actualPrimaryKeyId);
+    expect(persisted.schemaVersion).toBe(5);
+    expect(persisted.topicIndex.keys.entry).toBe(actualPrimaryKeyId);
+    expect((await verifyQuestionBankBinding(client, migrated)).ok).toBe(true);
+  });
+
+  it("persists a recovered Topic Index primary key during index maintenance", async () => {
+    const { client, binding } = await initialized();
+    const actualPrimaryKeyId = binding.topicIndex.keys.entry;
+    const staleBinding = structuredClone(binding);
+    staleBinding.topicIndex.keys.entry = "20260807162113-stale02";
+    client.blockAttrs.set(binding.systemDocumentId, {
+      "custom-damophus-question-bank-binding": JSON.stringify(staleBinding),
+    });
+
+    const result = await maintainQuestionIndex(client, staleBinding);
+    const persisted = JSON.parse(client.blockAttrs.get(binding.systemDocumentId)![
+      "custom-damophus-question-bank-binding"
+    ]!);
+
+    expect(result.bindingRepairs).toBe(1);
+    expect(staleBinding.topicIndex.keys.entry).toBe(actualPrimaryKeyId);
+    expect(persisted.topicIndex.keys.entry).toBe(actualPrimaryKeyId);
+    expect((await verifyQuestionBankBinding(client, staleBinding)).ok).toBe(true);
   });
 
   it("previews and repairs legacy Question Index column types", async () => {
@@ -540,6 +659,80 @@ describe("SiYuan question bank adapter", () => {
 
     const changed = await previewQuestionIndexSync(client, binding, documentId);
     expect(changed.actions.map((action) => action.kind)).toEqual(["update"]);
+  });
+
+  it("refuses to rebind a stable question ID while its original block still exists", async () => {
+    const { client, binding } = await initialized();
+    const documentId = "20260804120000-sourced";
+    const originalBlockId = "20260804000200-quest01";
+    const competingBlockId = "20260807190000-compet1";
+    client.documents.set(documentId, fixture("siyuan-kramdown"));
+    client.blockRoots.set(originalBlockId, documentId);
+    const initial = await previewQuestionIndexSync(client, binding, documentId);
+    await confirmQuestionIndexSync(client, binding, documentId, initial.token);
+
+    client.documents.set(documentId, fixture("siyuan-kramdown").replace(originalBlockId, competingBlockId));
+    client.blockRoots.set(competingBlockId, documentId);
+    const preview = await previewQuestionIndexSync(client, binding, documentId);
+
+    expect(preview.actions).toEqual([]);
+    expect(preview.blockers).toEqual([
+      expect.objectContaining({ code: "question-id-rebound", questionId: "civil-kramdown-108" }),
+    ]);
+    await expect(confirmQuestionIndexSync(client, binding, documentId, preview.token))
+      .rejects.toThrow("already bound to existing block");
+  });
+
+  it("recreates an auto-removed question row and reconnects historical attempts by stable ID", async () => {
+    const { client, binding, nextId } = await initialized();
+    const documentId = "20260804120000-sourced";
+    const originalBlockId = "20260804000200-quest01";
+    const recreatedBlockId = "20260807190000-recreat";
+    client.documents.set(documentId, fixture("siyuan-kramdown"));
+    client.blockRoots.set(originalBlockId, documentId);
+    const initial = await previewQuestionIndexSync(client, binding, documentId);
+    await confirmQuestionIndexSync(client, binding, documentId, initial.token);
+    await appendAttemptEvent(client, binding, createAttemptEvent({
+      attemptId: "attempt-recreated-1",
+      questionId: "civil-kramdown-108",
+      questionRelation: originalBlockId,
+      sessionId: "session-recreated",
+      answeredAt: "2026-08-07T12:00:00.000Z",
+      questionType: "multiple",
+      optionOrder: ["A", "B", "C", "D"],
+      selectedOptionIds: ["A"],
+      objectiveCorrect: false,
+      masteryRating: "again",
+    }), nextId);
+    const oldRowId = questionAvRowId(client, binding, originalBlockId);
+    await client.request("/api/av/removeAttributeViewBlocks", {
+      avID: binding.questionIndex.avId,
+      srcIDs: [oldRowId],
+    });
+    const attemptAv = client.attributeViews.get(binding.attemptLog.avId)!;
+    const relation = attemptAv.keyValues.find(
+      (entry) => entry.key.id === binding.attemptLog.keys.question_relation,
+    )!.values[0];
+    relation.relation = { blockIDs: [] };
+    client.blockRoots.delete(originalBlockId);
+    client.blockRoots.set(recreatedBlockId, documentId);
+    client.documents.set(documentId, fixture("siyuan-kramdown").replace(originalBlockId, recreatedBlockId));
+
+    const preview = await previewQuestionIndexSync(client, binding, documentId);
+    expect(preview.blockers).toEqual([]);
+    expect(preview.actions.map((action) => action.kind)).toEqual(["add"]);
+    await confirmQuestionIndexSync(client, binding, documentId, preview.token);
+
+    const newRowId = questionAvRowId(client, binding, recreatedBlockId);
+    expect(newRowId).not.toBe(oldRowId);
+    expect(relation.relation?.blockIDs).toEqual([newRowId]);
+    expect((await readAttemptEvents(client, binding)).events).toEqual([
+      expect.objectContaining({
+        attempt_id: "attempt-recreated-1",
+        question_id: "civil-kramdown-108",
+        question_relation: recreatedBlockId,
+      }),
+    ]);
   });
 
   it("reports per-question sync failures and allows an idempotent retry", async () => {

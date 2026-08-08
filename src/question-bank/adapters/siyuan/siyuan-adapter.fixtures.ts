@@ -30,6 +30,7 @@ export class MockKernelClient implements SiyuanKernelClient {
   readonly attributeViews = new Map<string, RawAttributeView>();
   private primaryIndex = 0;
   private rowIndex = 0;
+  private blockIndex = 0;
   failNextCellWrite = false;
   failNextKeyWrite = false;
 
@@ -52,9 +53,12 @@ export class MockKernelClient implements SiyuanKernelClient {
     }
     if (endpoint === "/api/block/appendBlock") {
       const current = this.documents.get(payload.parentID);
-      if (current === undefined) throw new Error(`Block not found: ${payload.parentID}`);
-      this.documents.set(payload.parentID, `${current}\n\n${payload.data}`);
-      return [{ doOperations: [] }] as T;
+      const root = this.blockRoots.get(payload.parentID);
+      if (current === undefined && root === undefined) throw new Error(`Block not found: ${payload.parentID}`);
+      if (current !== undefined) this.documents.set(payload.parentID, `${current}\n\n${payload.data}`);
+      const id = `20260807160000-${String(this.blockIndex++).padStart(7, "0")}`;
+      this.blockRoots.set(id, root ?? payload.parentID);
+      return [{ doOperations: [{ id }] }] as T;
     }
     if (endpoint === "/api/query/sql") {
       const ids = [...String(payload.stmt).matchAll(/'(\d{14}-[a-z0-9]{7})'/gu)]
@@ -107,7 +111,14 @@ export class MockKernelClient implements SiyuanKernelClient {
         for (const operation of transaction.doOperations) {
           const av = this.requireAv(operation.avID);
           const key = av.keyValues.find((value) => value.key.id === operation.keyID)?.key;
-          if (operation.action === "updateAttrViewColRelation") {
+          if (operation.action === "replaceAttrViewBlock") {
+            const primary = av.keyValues.find((value) => value.key.type === "block")!;
+            const row = primary.values.find((value) => value.blockID === operation.previousID);
+            if (!row) throw new Error(`Row not found: ${operation.previousID}`);
+            if (!this.blockRoots.has(operation.nextID)) throw new Error(`Block not found: ${operation.nextID}`);
+            row.isDetached = false;
+            row.block = { ...(row.block ?? {}), id: operation.nextID };
+          } else if (operation.action === "updateAttrViewColRelation") {
             if (!key) throw new Error(`Key not found: ${operation.keyID}`);
             key.name = operation.format;
             key.relation = {

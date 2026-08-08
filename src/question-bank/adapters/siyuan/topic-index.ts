@@ -1,10 +1,12 @@
 import type { Question, ScanMessage } from "../../core/types";
 import { rebuildAttemptStatistics } from "./attempt-store";
 import { readAttributeView, requireQuestionBankBinding, type QuestionBankBinding } from "./binding";
-import { numberCell, relationCells, setAttributeViewCell } from "./cells";
+import { numberCell, relationCells, setAttributeViewCell, textCell } from "./cells";
 import { hashToken } from "./binding-utils";
 import { questionRowIdentityMaps } from "./row-identity";
 import type { AttributeViewValue, RawAttributeView, SiyuanKernelClient } from "./types";
+
+const topicRelationMigrationAttribute = "custom-damophus-topic-relation-ial-migration-v1";
 
 export type TopicStatus = "active" | "archived";
 
@@ -24,6 +26,7 @@ export interface TopicRecord {
   resources: TopicResource[];
   status: TopicStatus;
   questionIds: string[];
+  questionIdSnapshot: string[];
   attemptCount?: number;
   wrongCount?: number;
   wrongRate?: number;
@@ -87,6 +90,26 @@ export interface TopicResourceProjection {
   resource: TopicResource;
 }
 
+export interface PersistTopicResourceInput {
+  questionId: string;
+  questionBlockId: string;
+  projection: TopicResourceProjection;
+}
+
+export interface PersistTopicResourceResult {
+  blockId: string;
+  resourceIdentity: string;
+}
+
+export interface TopicRelationMigrationResult {
+  alreadyCompleted: boolean;
+  scannedQuestions: number;
+  candidateQuestions: number;
+  linkedQuestions: number;
+  skippedWithExistingRelations: number;
+  issues: ScanMessage[];
+}
+
 const stableTopicIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 function errorMessage(reason: unknown): string {
@@ -95,7 +118,14 @@ function errorMessage(reason: unknown): string {
 
 function fieldValues(av: RawAttributeView, keyId: string): Map<string, AttributeViewValue> {
   const values = av.keyValues.find((entry) => entry.key.id === keyId)?.values ?? [];
-  return new Map(values.map((value) => [value.blockID, value]));
+  const result = new Map<string, AttributeViewValue>();
+  for (const value of values) {
+    result.set(value.blockID, value);
+    // Detached AV rows use the primary value's id as the row identity while
+    // other columns refer to it through blockID. Keep both aliases readable.
+    if (value.id) result.set(value.id, value);
+  }
+  return result;
 }
 
 function textValue(value: AttributeViewValue | undefined): string | undefined {
@@ -109,6 +139,19 @@ function numberValue(value: AttributeViewValue | undefined): number | undefined 
 
 function multiValue(value: AttributeViewValue | undefined): string[] {
   return value?.mSelect?.map((item) => item.content) ?? [];
+}
+
+function questionIdSnapshot(value: AttributeViewValue | undefined): string[] {
+  const content = value?.text?.content;
+  if (!content) return [];
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    return Array.isArray(parsed)
+      ? [...new Set(parsed.filter((item): item is string => typeof item === "string" && item.length > 0))]
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function questionIdsByItemId(av: RawAttributeView, binding: QuestionBankBinding): Map<string, string> {
@@ -142,6 +185,7 @@ async function readTopicState(
   const resources = fieldValues(topicAv, binding.topicIndex.keys.resource);
   const statuses = fieldValues(topicAv, binding.topicIndex.keys.status);
   const questions = fieldValues(topicAv, binding.topicIndex.keys.questions_relation);
+  const questionSnapshots = fieldValues(topicAv, binding.topicIndex.keys.question_ids_snapshot);
   const attempts = fieldValues(topicAv, binding.topicIndex.keys.attempt_count);
   const wrong = fieldValues(topicAv, binding.topicIndex.keys.wrong_count);
   const rates = fieldValues(topicAv, binding.topicIndex.keys.wrong_rate);
@@ -150,7 +194,8 @@ async function readTopicState(
   const topics: TopicRecord[] = [];
   const seen = new Set<string>();
 
-  for (const [itemId, entry] of primary) {
+  for (const entry of new Set(primary.values())) {
+    const itemId = entry.id ?? entry.blockID;
     const topicId = textValue(topicIds.get(itemId));
     if (!topicId) {
       issues.push({ code: "missing-topic-index-id", message: `Topic row '${itemId}' has no Topic ID` });
@@ -184,6 +229,7 @@ async function readTopicState(
       questionIds: (questions.get(itemId)?.relation?.blockIDs ?? [])
         .map((questionItemId) => questionIdByItemId.get(questionItemId))
         .filter((questionId): questionId is string => Boolean(questionId)),
+      questionIdSnapshot: questionIdSnapshot(questionSnapshots.get(itemId)),
       attemptCount: numberValue(attempts.get(itemId)),
       wrongCount: numberValue(wrong.get(itemId)),
       wrongRate: numberValue(rates.get(itemId)),
@@ -197,6 +243,93 @@ export async function readTopicIndex(
   binding: QuestionBankBinding,
 ): Promise<ReadTopicIndexResult> {
   return (await readTopicState(client, binding)).result;
+}
+
+function portableTopicIds(value: string | undefined): string[] {
+  return [...new Set((value ?? "").split(",").map((item) => item.trim()).filter(Boolean))];
+}
+
+export async function migrateTopicRelationsFromIal(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<TopicRelationMigrationResult> {
+  const attrs = await client.request<Record<string, string>>("/api/attr/getBlockAttrs", {
+    id: binding.systemDocumentId,
+  });
+  if (attrs[topicRelationMigrationAttribute] === "completed") {
+    return {
+      alreadyCompleted: true,
+      scannedQuestions: 0,
+      candidateQuestions: 0,
+      linkedQuestions: 0,
+      skippedWithExistingRelations: 0,
+      issues: [],
+    };
+  }
+  const { questionAv } = await readTopicState(client, binding);
+  const identities = questionRowIdentityMaps(questionAv, binding.questionIndex.keys.block_id);
+  const questionIds = questionIdsByItemId(questionAv, binding);
+  const relations = fieldValues(questionAv, binding.questionIndex.keys.topics_relation);
+  const assignments: QuestionTopicAssignment[] = [];
+  let scannedQuestions = 0;
+  let skippedWithExistingRelations = 0;
+  for (const row of identities.rows) {
+    const questionId = questionIds.get(row.itemId);
+    if (!questionId) continue;
+    scannedQuestions += 1;
+    const current = relations.get(row.itemId)?.relation?.blockIDs ?? [];
+    if (current.length > 0) {
+      skippedWithExistingRelations += 1;
+      continue;
+    }
+    const sourceBlockId = row.sourceBlockId;
+    if (!sourceBlockId) continue;
+    const sourceAttrs = await client.request<Record<string, string>>("/api/attr/getBlockAttrs", {
+      id: sourceBlockId,
+    });
+    const topicIds = portableTopicIds(
+      sourceAttrs["custom-qb-question-topic-ids"] ?? sourceAttrs["custom-qb-topic-ids"],
+    );
+    if (topicIds.length > 0) assignments.push({ questionId, topicIds });
+  }
+  const issues: ScanMessage[] = [];
+  let linkedQuestions = 0;
+  if (assignments.length > 0) {
+    const preview = await previewTopicRelationSync(client, binding, assignments, "merge");
+    issues.push(...preview.issues);
+    if (issues.length === 0) {
+      const result = await confirmTopicRelationSync(
+        client,
+        binding,
+        preview.assignments,
+        "merge",
+        preview.token,
+      );
+      issues.push(...result.issues);
+      linkedQuestions = result.results.filter((item) => item.status === "synced").length;
+      for (const failed of result.results.filter((item) => item.status === "failed")) {
+        issues.push({
+          code: "topic-relation-migration-write-failed",
+          message: failed.message ?? `Question '${failed.questionId}' topic relation write failed`,
+          questionId: failed.questionId,
+        });
+      }
+    }
+  }
+  if (issues.length === 0) {
+    await client.request("/api/attr/setBlockAttrs", {
+      id: binding.systemDocumentId,
+      attrs: { [topicRelationMigrationAttribute]: "completed" },
+    });
+  }
+  return {
+    alreadyCompleted: false,
+    scannedQuestions,
+    candidateQuestions: assignments.length,
+    linkedQuestions,
+    skippedWithExistingRelations,
+    issues,
+  };
 }
 
 export function portableTopicAssignments(questions: readonly Question[]): QuestionTopicAssignment[] {
@@ -331,6 +464,91 @@ export async function confirmTopicRelationSync(
   return { ...preview, actions: pendingActions, issues, results };
 }
 
+export async function restoreQuestionTopicRelations(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  questionIds: readonly string[],
+): Promise<{ restoredQuestionIds: string[]; issues: ScanMessage[] }> {
+  const { result, questionAv } = await readTopicState(client, binding);
+  const questionItemById = new Map(
+    [...questionIdsByItemId(questionAv, binding)].map(([itemId, questionId]) => [questionId, itemId]),
+  );
+  const relations = fieldValues(questionAv, binding.questionIndex.keys.topics_relation);
+  const restoredQuestionIds: string[] = [];
+  const issues = [...result.issues];
+  for (const questionId of [...new Set(questionIds)]) {
+    const questionItemId = questionItemById.get(questionId);
+    if (!questionItemId) continue;
+    const snapshotTopicItemIds = result.topics
+      .filter((topic) => topic.questionIdSnapshot.includes(questionId))
+      .map((topic) => topic.itemId);
+    if (snapshotTopicItemIds.length === 0) continue;
+    const current = relations.get(questionItemId)?.relation?.blockIDs ?? [];
+    const final = [...current, ...snapshotTopicItemIds.filter((itemId) => !current.includes(itemId))];
+    if (final.length === current.length) continue;
+    try {
+      await setAttributeViewCell(
+        client,
+        binding.questionIndex.avId,
+        binding.questionIndex.keys.topics_relation,
+        questionItemId,
+        relationCells(final),
+      );
+      restoredQuestionIds.push(questionId);
+    } catch (reason) {
+      issues.push({
+        code: "topic-relation-restore-failed",
+        message: `Question '${questionId}' topic relations could not be restored: ${errorMessage(reason)}`,
+        questionId,
+      });
+    }
+  }
+  if (restoredQuestionIds.length > 0) {
+    const rebuilt = await rebuildTopicStatistics(client, binding);
+    issues.push(...rebuilt.issues);
+  }
+  return { restoredQuestionIds, issues };
+}
+
+function nextQuestionIdSnapshot(topic: TopicRecord, indexedQuestionIds: ReadonlySet<string>): string[] {
+  return [...new Set([
+    ...topic.questionIdSnapshot.filter(
+      (questionId) => !indexedQuestionIds.has(questionId) || topic.questionIds.includes(questionId),
+    ),
+    ...topic.questionIds,
+  ])].sort();
+}
+
+export async function refreshTopicRelationSnapshots(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+): Promise<{ updatedTopics: number; issues: ScanMessage[] }> {
+  const { result, questionAv } = await readTopicState(client, binding);
+  const indexedQuestionIds = new Set(questionIdsByItemId(questionAv, binding).values());
+  let updatedTopics = 0;
+  const issues = [...result.issues];
+  for (const topic of result.topics) {
+    const snapshot = nextQuestionIdSnapshot(topic, indexedQuestionIds);
+    if (JSON.stringify(snapshot) === JSON.stringify(topic.questionIdSnapshot)) continue;
+    try {
+      await setAttributeViewCell(
+        client,
+        binding.topicIndex.avId,
+        binding.topicIndex.keys.question_ids_snapshot,
+        topic.itemId,
+        textCell(JSON.stringify(snapshot)),
+      );
+      updatedTopics += 1;
+    } catch (reason) {
+      issues.push({
+        code: "topic-relation-snapshot-write-failed",
+        message: `Topic '${topic.topicId}' relation snapshot could not be written: ${errorMessage(reason)}`,
+      });
+    }
+  }
+  return { updatedTopics, issues };
+}
+
 export async function rebuildTopicStatistics(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
@@ -339,10 +557,11 @@ export async function rebuildTopicStatistics(
   issues: ScanMessage[];
   results: TopicStatisticWriteResult[];
 }> {
-  const [{ topics, issues }, attempts] = await Promise.all([
-    readTopicIndex(client, binding),
+  const [{ result: { topics, issues }, questionAv }, attempts] = await Promise.all([
+    readTopicState(client, binding),
     rebuildAttemptStatistics(client, binding),
   ]);
+  const indexedQuestionIds = new Set(questionIdsByItemId(questionAv, binding).values());
   const statistics: TopicStatistic[] = [];
   const results: TopicStatisticWriteResult[] = [];
   const writeIssues: ScanMessage[] = [];
@@ -355,6 +574,7 @@ export async function rebuildTopicStatistics(
       wrongCount += aggregate?.objectiveIncorrect ?? 0;
     }
     const wrongRate = attemptCount > 0 ? wrongCount / attemptCount : undefined;
+    const questionIdSnapshot = nextQuestionIdSnapshot(topic, indexedQuestionIds);
     const statistic = {
       topicId: topic.topicId,
       questionCount: topic.questionIds.length,
@@ -364,6 +584,13 @@ export async function rebuildTopicStatistics(
     };
     statistics.push(statistic);
     try {
+      await setAttributeViewCell(
+        client,
+        binding.topicIndex.avId,
+        binding.topicIndex.keys.question_ids_snapshot,
+        topic.itemId,
+        textCell(JSON.stringify(questionIdSnapshot)),
+      );
       await setAttributeViewCell(
         client,
         binding.topicIndex.avId,
@@ -431,4 +658,50 @@ export async function resolveQuestionTopicResources(
     }
   }
   return { resources, issues: result.issues };
+}
+
+function resourceMarkdown(projection: TopicResourceProjection): string {
+  const name = (projection.resource.name || projection.topicName)
+    .replace(/\\/gu, "\\\\")
+    .replace(/\]/gu, "\\]");
+  const content = projection.resource.content.replace(/\)/gu, "%29");
+  return projection.resource.type === "image"
+    ? `![${name}](${content})`
+    : `[${name}](${content})`;
+}
+
+export async function persistQuestionTopicResource(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  input: PersistTopicResourceInput,
+): Promise<PersistTopicResourceResult> {
+  const sourceRows = await client.request<Array<{ id: string }>>("/api/query/sql", {
+    stmt: `SELECT id FROM blocks WHERE id = '${input.questionBlockId.replace(/'/gu, "''")}' LIMIT 1`,
+  });
+  if (sourceRows.length === 0) {
+    throw new Error(`Question source block '${input.questionBlockId}' no longer exists`);
+  }
+
+  const resolved = await resolveQuestionTopicResources(client, binding, input.questionId);
+  const current = resolved.resources.some((projection) => (
+    projection.topicId === input.projection.topicId
+    && projection.resource.type === input.projection.resource.type
+    && projection.resource.content === input.projection.resource.content
+  ));
+  if (!current) throw new Error("Topic resource projection is stale; reload the question before persisting it");
+
+  const resourceIdentity = hashToken({
+    topicId: input.projection.topicId,
+    type: input.projection.resource.type,
+    content: input.projection.resource.content,
+  });
+  const markdown = `${resourceMarkdown(input.projection)}\n{: custom-qb-resource-source-block="${input.questionBlockId}" custom-qb-resource-topic-id="${input.projection.topicId}" custom-qb-resource-identity="${resourceIdentity}"}`;
+  const operations = await client.request<Array<{ doOperations?: Array<{ id?: string }> }>>("/api/block/appendBlock", {
+    dataType: "markdown",
+    data: markdown,
+    parentID: input.questionBlockId,
+  });
+  const blockId = operations[0]?.doOperations?.[0]?.id;
+  if (!blockId) throw new Error("SiYuan did not return the persisted topic resource block ID");
+  return { blockId, resourceIdentity };
 }

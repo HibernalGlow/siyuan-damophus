@@ -20,13 +20,25 @@ import {
 } from "../adapters/siyuan/document";
 import type { AttributeViewValue, SiyuanKernelClient } from "../adapters/siyuan/types";
 import { questionRowIdentityMaps } from "../adapters/siyuan/row-identity";
-import { rebuildTopicStatistics } from "../adapters/siyuan/topic-index";
+import {
+  confirmTopicRelationSync,
+  portableTopicAssignments,
+  previewTopicRelationSync,
+  rebuildTopicStatistics,
+  restoreQuestionTopicRelations,
+} from "../adapters/siyuan/topic-index";
 
-export interface QuestionIndexAction {
+export type QuestionIndexAction = {
   kind: "add" | "update";
   question: Question;
   blockId: string;
-}
+} | {
+  kind: "rebind";
+  question: Question;
+  blockId: string;
+  itemId: string;
+  previousBlockId?: string;
+};
 
 export interface QuestionIndexPreview {
   token: string;
@@ -208,23 +220,21 @@ function previewToken(
   }));
 }
 
-async function questionRowsInDocument(
+async function questionBlockRoots(
   client: SiyuanKernelClient,
   rows: readonly ExistingQuestionRow[],
-  documentId: string,
-): Promise<ExistingQuestionRow[]> {
+): Promise<Map<string, string>> {
   const blockIds = [...new Set(rows.map((row) => row.blockId).filter(
     (blockId): blockId is string => Boolean(blockId) && nodeIdPattern.test(blockId!),
   ))];
-  if (blockIds.length === 0) return [];
+  if (blockIds.length === 0) return new Map();
   const quoted = blockIds.map((blockId) => `'${blockId}'`).join(",");
   const blocks = await client.request<Array<{ id?: string; root_id?: string }>>("/api/query/sql", {
     stmt: `SELECT id, root_id FROM blocks WHERE id IN (${quoted})`,
   });
-  const currentBlockIds = new Set(
-    blocks.filter((block) => block.root_id === documentId).map((block) => block.id),
-  );
-  return rows.filter((row) => row.blockId && currentBlockIds.has(row.blockId));
+  return new Map(blocks.flatMap((block) => (
+    block.id && block.root_id ? [[block.id, block.root_id]] : []
+  )));
 }
 
 export async function previewQuestionIndexSync(
@@ -239,8 +249,15 @@ export async function previewQuestionIndexSync(
   const scan = await scanSiyuanDocument(client, documentId);
   const av = await readAttributeView(client, binding.questionIndex.avId);
   const rows = existingQuestionRows(av, binding);
-  const documentRows = await questionRowsInDocument(client, rows, documentId);
-  const byQuestionId = new Map(rows.filter((row) => row.questionId).map((row) => [row.questionId!, row]));
+  const blockRoots = await questionBlockRoots(client, rows);
+  const documentRows = rows.filter(
+    (row) => row.blockId && blockRoots.get(row.blockId) === documentId,
+  );
+  const rowsByQuestionId = new Map<string, ExistingQuestionRow[]>();
+  for (const row of rows) {
+    if (!row.questionId) continue;
+    rowsByQuestionId.set(row.questionId, [...(rowsByQuestionId.get(row.questionId) ?? []), row]);
+  }
   const byBlockId = new Map(rows.filter((row) => row.blockId).map((row) => [row.blockId!, row]));
   const blockers = [...scan.report.conflicts, ...scan.sourceIssues];
   const actions: QuestionIndexAction[] = [];
@@ -256,22 +273,41 @@ export async function previewQuestionIndexSync(
       });
       continue;
     }
-    const sameQuestion = byQuestionId.get(question.id);
-    const sameBlock = byBlockId.get(blockId);
-    if (sameQuestion && sameQuestion.blockId !== blockId) {
+    const questionRows = rowsByQuestionId.get(question.id) ?? [];
+    if (questionRows.length > 1) {
       blockers.push({
-        code: "question-id-rebound",
-        message: `Question '${question.id}' is already bound to block '${sameQuestion.blockId}'`,
+        code: "duplicate-question-index-id",
+        message: `Question '${question.id}' has multiple Question Index rows`,
         questionId: question.id,
       });
       continue;
     }
+    const sameQuestion = questionRows[0];
+    const sameBlock = byBlockId.get(blockId);
     if (sameBlock?.questionId && sameBlock.questionId !== question.id) {
       blockers.push({
         code: "block-id-reused",
         message: `Block '${blockId}' is already indexed as question '${sameBlock.questionId}'`,
         questionId: question.id,
       });
+      continue;
+    }
+    if (sameQuestion && sameQuestion.blockId !== blockId) {
+      if (sameQuestion.blockId && blockRoots.has(sameQuestion.blockId)) {
+        blockers.push({
+          code: "question-id-rebound",
+          message: `Question '${question.id}' is already bound to existing block '${sameQuestion.blockId}'`,
+          questionId: question.id,
+        });
+      } else {
+        actions.push({
+          kind: "rebind",
+          question,
+          blockId,
+          itemId: sameQuestion.itemId,
+          previousBlockId: sameQuestion.blockId,
+        });
+      }
       continue;
     }
     const existing = sameQuestion ?? sameBlock;
@@ -447,6 +483,33 @@ async function getQuestionRowItemId(
   return itemId;
 }
 
+async function rebindQuestionRow(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  action: Extract<QuestionIndexAction, { kind: "rebind" }>,
+): Promise<string> {
+  await client.request("/api/transactions", {
+    session: "siyuan-damophus",
+    app: "siyuan-damophus",
+    reqId: Date.now(),
+    transactions: [{
+      doOperations: [{
+        action: "replaceAttrViewBlock",
+        avID: binding.questionIndex.avId,
+        previousID: action.itemId,
+        nextID: action.blockId,
+        isDetached: false,
+        blockID: binding.questionIndex.blockId,
+      }],
+    }],
+  });
+  const reboundItemId = await getQuestionRowItemId(client, binding, action.blockId);
+  if (reboundItemId !== action.itemId) {
+    throw new Error(`Question '${action.question.id}' rebound to an unexpected Question Index row`);
+  }
+  return reboundItemId;
+}
+
 export async function confirmQuestionIndexSync(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
@@ -484,6 +547,7 @@ export async function applyQuestionIndexPreview(
   }
   const scannedAt = Date.now();
   const results: QuestionIndexWriteResult[] = [];
+  const newlyAddedQuestions: Question[] = [];
   for (const action of preview.actions) {
     try {
       await writeInferredIal(
@@ -505,8 +569,11 @@ export async function applyQuestionIndexPreview(
           ignoreDefaultFill: true,
         });
       }
-      const itemId = await getQuestionRowItemId(client, binding, action.blockId);
+      const itemId = action.kind === "rebind"
+        ? await rebindQuestionRow(client, binding, action)
+        : await getQuestionRowItemId(client, binding, action.blockId);
       await writeQuestionRow(client, binding, action, itemId, scannedAt);
+      if (action.kind === "add") newlyAddedQuestions.push(action.question);
       results.push({ questionId: action.question.id, status: "synced" });
     } catch (error) {
       results.push({
@@ -514,6 +581,56 @@ export async function applyQuestionIndexPreview(
         status: "failed",
         message: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+  if (results.some((result) => result.status === "synced")) {
+    const initialTopicAssignments = portableTopicAssignments(newlyAddedQuestions).filter(
+      (assignment) => results.some(
+        (result) => result.questionId === assignment.questionId && result.status === "synced",
+      ),
+    );
+    if (initialTopicAssignments.length > 0) {
+      const topicPreview = await previewTopicRelationSync(
+        client,
+        binding,
+        initialTopicAssignments,
+        "merge",
+      );
+      if (topicPreview.issues.length > 0) {
+        throw new Error(`Initial question topic sync is blocked: ${topicPreview.issues.map((issue) => issue.message).join("; ")}`);
+      }
+      const topicResult = await confirmTopicRelationSync(
+        client,
+        binding,
+        topicPreview.assignments,
+        "merge",
+        topicPreview.token,
+      );
+      const topicFailures = topicResult.results.filter((result) => result.status === "failed");
+      if (topicFailures.length > 0 || topicResult.issues.length > 0) {
+        throw new Error(`Initial question topic sync failed: ${[
+          ...topicFailures.map((result) => result.message),
+          ...topicResult.issues.map((issue) => issue.message),
+        ].filter(Boolean).join("; ")}`);
+      }
+    }
+    const verification = await verifyQuestionBankBinding(client, binding);
+    const attemptRelationRepairs = verification.missingManagedKeys.filter(
+      (repair) => repair.database === "attemptLog" && repair.field === "question_relation",
+    );
+    if (attemptRelationRepairs.length > 0) {
+      await repairQuestionBankBinding(client, binding, attemptRelationRepairs);
+    }
+    const restoredTopics = await restoreQuestionTopicRelations(
+      client,
+      binding,
+      results.filter((result) => result.status === "synced").map((result) => result.questionId),
+    );
+    const recoveryFailures = restoredTopics.issues.filter(
+      (issue) => issue.code === "topic-relation-restore-failed",
+    );
+    if (recoveryFailures.length > 0) {
+      throw new Error(`Question topic relation recovery failed: ${recoveryFailures.map((issue) => issue.message).join("; ")}`);
     }
   }
   return {

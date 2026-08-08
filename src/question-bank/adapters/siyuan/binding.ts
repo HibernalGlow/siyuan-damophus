@@ -21,6 +21,7 @@ import { questionRowIdentityMaps } from "./row-identity";
 import {
   attemptColumns,
   QuestionBankBindingSchema,
+  QuestionBankBindingV4Schema,
   QuestionBankBindingV3Schema,
   QuestionBankBindingV2Schema,
   LegacyQuestionBankBindingSchema,
@@ -95,13 +96,28 @@ async function initializeAttributeView<Field extends string>(
 }
 
 type VersionThreeBinding = z.infer<typeof QuestionBankBindingV3Schema>;
+type VersionFourBinding = z.infer<typeof QuestionBankBindingV4Schema>;
+
+function upgradeVersionFourBinding(binding: VersionFourBinding): QuestionBankBinding {
+  return {
+    ...binding,
+    schemaVersion: 5,
+    topicIndex: {
+      ...binding.topicIndex,
+      keys: {
+        ...binding.topicIndex.keys,
+        question_ids_snapshot: migratedKeyId(binding, "topic-index:question_ids_snapshot"),
+      },
+    },
+  };
+}
 
 function upgradeVersionThreeBinding(binding: VersionThreeBinding): QuestionBankBinding {
   const topicKeys = Object.fromEntries([
     "entry",
     ...topicColumns.map((column) => column.field),
   ].map((field) => [field, migratedKeyId(binding, `topic-index:${field}`)])) as Record<TopicField, string>;
-  return {
+  return upgradeVersionFourBinding({
     schemaVersion: 4,
     notebookId: binding.notebookId,
     systemDocumentId: binding.systemDocumentId,
@@ -118,12 +134,14 @@ function upgradeVersionThreeBinding(binding: VersionThreeBinding): QuestionBankB
       keys: topicKeys,
     },
     attemptLog: binding.attemptLog,
-  };
+  });
 }
 
 export function migrateQuestionBankBinding(value: unknown): QuestionBankBinding | undefined {
   const current = QuestionBankBindingSchema.safeParse(value);
   if (current.success) return current.data as QuestionBankBinding;
+  const versionFour = QuestionBankBindingV4Schema.safeParse(value);
+  if (versionFour.success) return upgradeVersionFourBinding(versionFour.data);
   const versionThree = QuestionBankBindingV3Schema.safeParse(value);
   if (versionThree.success) return upgradeVersionThreeBinding(versionThree.data);
   const versionTwo = QuestionBankBindingV2Schema.safeParse(value);
@@ -316,7 +334,7 @@ export async function confirmQuestionBankInitialization(
       preview.topicColumns,
     );
     const binding: QuestionBankBinding = {
-      schemaVersion: 4,
+      schemaVersion: 5,
       notebookId: preview.notebookId,
       systemDocumentId,
       questionIndex: {
@@ -416,13 +434,14 @@ export interface BindingVerification {
 
 export interface ManagedKeyRepair {
   kind: "add" | "changeType" | "normalizeValues" | "configureRelation" | "configureRollup"
-    | "createDatabase" | "convertDurationUnit";
+    | "createDatabase" | "convertDurationUnit" | "rebindPrimary";
   database: "questionIndex" | "topicIndex" | "attemptLog";
   field: QuestionField | TopicField | AttemptField;
   keyId: string;
   name: string;
   type: AttributeViewKeyType;
   currentType?: AttributeViewKeyType;
+  previousKeyId?: string;
 }
 
 async function configureTopicRelation(
@@ -528,10 +547,30 @@ function verifyKeys<Field extends string>(
   database: ManagedKeyRepair["database"],
   fatalErrors: string[],
   missingManagedKeys: ManagedKeyRepair[],
-): void {
+): string | undefined {
   const byId = new Map(av.keyValues.map((value) => [value.key.id, value.key]));
-  const primary = byId.get(expected[primaryField]);
-  if (!primary || primary.type !== "block") fatalErrors.push(`Missing primary key '${primaryField}' in AV ${av.id}`);
+  const expectedPrimaryId = expected[primaryField];
+  const primary = byId.get(expectedPrimaryId);
+  let recoveredPrimaryId: string | undefined;
+  if (!primary || primary.type !== "block") {
+    const nativePrimaryKeys = av.keyValues.filter((value) => value.key.type === "block");
+    if (nativePrimaryKeys.length === 1) {
+      const recovered = nativePrimaryKeys[0]!.key;
+      expected[primaryField] = recovered.id;
+      recoveredPrimaryId = recovered.id;
+      pushRepair(missingManagedKeys, {
+        kind: "rebindPrimary",
+        database,
+        field: primaryField as QuestionField | TopicField | AttemptField,
+        keyId: recovered.id,
+        previousKeyId: expectedPrimaryId,
+        name: recovered.name,
+        type: "block",
+      });
+    } else {
+      fatalErrors.push(`Missing primary key '${primaryField}' in AV ${av.id}`);
+    }
+  }
   for (const column of columns) {
     const key = byId.get(expected[column.field as Field]);
     if (!key) {
@@ -573,6 +612,7 @@ function verifyKeys<Field extends string>(
       }
     }
   }
+  return recoveredPrimaryId;
 }
 
 function valuesByItemId(av: RawAttributeView, keyId: string): Map<string, AttributeViewValue> {
@@ -661,7 +701,7 @@ export async function verifyQuestionBankBinding(
         });
       }
     }
-    verifyKeys(
+    const recoveredQuestionPrimary = verifyKeys(
       questionAv,
       binding.questionIndex.keys,
       questionColumns,
@@ -670,6 +710,7 @@ export async function verifyQuestionBankBinding(
       fatalErrors,
       missingManagedKeys,
     );
+    if (recoveredQuestionPrimary) bindingInput.questionIndex.keys.block_id = recoveredQuestionPrimary;
     const durationKey = attemptAv.keyValues.find(
       (value) => value.key.id === binding.attemptLog.keys.duration_ms,
     )?.key;
@@ -696,7 +737,7 @@ export async function verifyQuestionBankBinding(
         type: "rollup",
       });
     }
-    verifyKeys(
+    const recoveredAttemptPrimary = verifyKeys(
       attemptAv,
       binding.attemptLog.keys,
       attemptColumns,
@@ -705,8 +746,9 @@ export async function verifyQuestionBankBinding(
       fatalErrors,
       missingManagedKeys,
     );
+    if (recoveredAttemptPrimary) bindingInput.attemptLog.keys.entry = recoveredAttemptPrimary;
     if (topicAv) {
-      verifyKeys(
+      const recoveredTopicPrimary = verifyKeys(
         topicAv,
         binding.topicIndex.keys,
         topicColumns,
@@ -715,6 +757,7 @@ export async function verifyQuestionBankBinding(
         fatalErrors,
         missingManagedKeys,
       );
+      if (recoveredTopicPrimary) bindingInput.topicIndex.keys.entry = recoveredTopicPrimary;
     }
     const relationKey = attemptAv.keyValues.find(
       (value) => value.key.id === binding.attemptLog.keys.question_relation,
@@ -845,7 +888,58 @@ export async function verifyQuestionBankBinding(
 }
 
 function repairIdentity(repair: ManagedKeyRepair): string {
-  return `${repair.kind}:${repair.database}:${String(repair.field)}:${repair.keyId}:${repair.currentType ?? ""}->${repair.type}`;
+  return `${repair.kind}:${repair.database}:${String(repair.field)}:${repair.previousKeyId ?? ""}->${repair.keyId}:${repair.currentType ?? ""}->${repair.type}`;
+}
+
+interface TopicMigrationInvariantSnapshot {
+  sourceDocuments: Array<{ id: string; kramdown: string }>;
+  attemptValues: Array<{ keyId: string; values: AttributeViewValue[] }>;
+}
+
+async function captureTopicMigrationInvariants(
+  client: SiyuanKernelClient,
+  binding: QuestionBankBinding,
+  repairs: readonly ManagedKeyRepair[],
+): Promise<TopicMigrationInvariantSnapshot> {
+  const questionAv = await getAttributeView(client, binding.questionIndex.avId);
+  const primary = questionAv.keyValues.find((value) => value.key.type === "block");
+  const blockIds = [...new Set((primary?.values ?? [])
+    .map((value) => value.block?.id)
+    .filter((id): id is string => Boolean(id)))];
+  const roots = blockIds.length === 0
+    ? []
+    : await client.request<Array<{ root_id?: string }>>("/api/query/sql", {
+      stmt: `SELECT root_id FROM blocks WHERE id IN (${blockIds.map((id) => `'${id}'`).join(",")})`,
+    });
+  const rootIds = [...new Set(roots.map((row) => row.root_id).filter(
+    (id): id is string => Boolean(id) && id !== binding.systemDocumentId,
+  ))].sort();
+  const sourceDocuments = await Promise.all(rootIds.map(async (id) => ({
+    id,
+    kramdown: (await client.request<{ kramdown: string }>("/api/block/getBlockKramdown", { id })).kramdown,
+  })));
+
+  const repairedAttemptKeyIds = new Set(
+    repairs.filter((repair) => repair.database === "attemptLog").map((repair) => repair.keyId),
+  );
+  const attemptAv = await getAttributeView(client, binding.attemptLog.avId);
+  const attemptValues = attemptAv.keyValues
+    .filter((value) => !repairedAttemptKeyIds.has(value.key.id))
+    .map((value) => ({ keyId: value.key.id, values: structuredClone(value.values) }))
+    .sort((left, right) => left.keyId.localeCompare(right.keyId));
+  return { sourceDocuments, attemptValues };
+}
+
+function assertTopicMigrationInvariants(
+  before: TopicMigrationInvariantSnapshot,
+  after: TopicMigrationInvariantSnapshot,
+): void {
+  if (JSON.stringify(before.sourceDocuments) !== JSON.stringify(after.sourceDocuments)) {
+    throw new Error("Topic Index migration changed question content, stable IDs, or block references");
+  }
+  if (JSON.stringify(before.attemptValues) !== JSON.stringify(after.attemptValues)) {
+    throw new Error("Topic Index migration changed existing Attempt Log event values");
+  }
 }
 
 async function createMissingTopicIndex(
@@ -1122,11 +1216,23 @@ export async function repairQuestionBankBinding(
   if (verification.fatalErrors.length > 0) {
     throw new Error(`Question bank binding is invalid: ${verification.fatalErrors.join("; ")}`);
   }
-  const actual = verification.missingManagedKeys.map(repairIdentity).sort();
-  const expected = expectedRepairs.map(repairIdentity).sort();
+  const actual = verification.missingManagedKeys
+    .filter((repair) => repair.kind !== "rebindPrimary")
+    .map(repairIdentity)
+    .sort();
+  const expected = expectedRepairs
+    .filter((repair) => repair.kind !== "rebindPrimary")
+    .map(repairIdentity)
+    .sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error("Question bank binding repair preview is stale; scan again before confirming");
   }
+  const verifiesTopicMigration = verification.missingManagedKeys.some(
+    (repair) => repair.kind === "createDatabase" && repair.database === "topicIndex",
+  );
+  const invariantSnapshot = verifiesTopicMigration
+    ? await captureTopicMigrationInvariants(client, binding, verification.missingManagedKeys)
+    : undefined;
   await createMissingTopicIndex(client, binding, verification.missingManagedKeys);
   await addMissingManagedKeys(client, binding, "questionIndex", verification.missingManagedKeys);
   await addMissingManagedKeys(client, binding, "topicIndex", verification.missingManagedKeys);
@@ -1158,6 +1264,12 @@ export async function repairQuestionBankBinding(
   const repaired = await verifyQuestionBankBinding(client, binding);
   if (!repaired.ok) {
     throw new Error(`Question bank binding repair failed: ${repaired.errors.join("; ")}`);
+  }
+  if (invariantSnapshot) {
+    assertTopicMigrationInvariants(
+      invariantSnapshot,
+      await captureTopicMigrationInvariants(client, binding, verification.missingManagedKeys),
+    );
   }
 }
 

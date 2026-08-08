@@ -24,6 +24,7 @@ Topic Index owns one row per reusable, atomic legal point. Its managed fields ar
 | `resource` | image/resource | Optional primary animation or image for this point |
 | `status` | single select | `active` or `archived` |
 | `questions` | inverse relation | Questions currently linked through Question Index |
+| `question_ids_snapshot` | managed text | Stable question IDs retained while a bound Question Index row is absent |
 | `question_count` | rollup | Derived count of linked questions |
 | `attempt_count` | derived/rollup | Rebuilt from immutable Attempt Log events |
 | `wrong_count` | derived/rollup | Rebuilt from immutable Attempt Log events |
@@ -45,6 +46,8 @@ cardinality: many-to-many
 Do not add `topic_1`, `topic_2`, `topic_name`, `wrong_count`, or `correct_rate` columns to Question Index. Topic labels and topic-level aggregates belong to Topic Index; question-level attempt facts remain in Attempt Log.
 
 The stable key remains `custom-qb-id`. SiYuan block IDs and database row IDs are navigation/runtime identifiers only. Changing a relation, renaming a topic, moving a question, or recreating a block must not rewrite `custom-qb-id`.
+
+SiYuan may remove a bound Question Index row and clear its native relations when the source block is deleted. Damophus therefore mirrors each topic relation into `question_ids_snapshot`. A snapshot ID is retained while that question is absent, restored when the same `custom-qb-id` returns, and removed only when the question still exists and its topic relation has been explicitly removed.
 
 ## Statistics
 

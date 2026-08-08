@@ -97,6 +97,8 @@ Status: accepted on 2026-08-04.
 
 题库系统还包含独立的 Topic Index。Question Index 只增加一个 `Topics` 多值关联列，目标为 Topic Index；题目可以关联任意数量的考点，考点也可以关联任意数量的题目。日常维护只修改该关联列，不手工维护第二份题目级考点清单。完整的 Topic Index 字段、归档规则和非持久化动图投影见 [ADR 0006](adr/0006-topic-database-and-virtual-resource-projection.md)。
 
+Topic Index 另有受管的稳定题目 ID 恢复快照。思源因删除题目块而自动移除 Question Index 行时，快照保留原 `custom-qb-id`；同一题目 ID 重新出现并确认索引同步后，插件恢复历史作答关系和 Topics 关联。题目仍存在而用户主动删除 Topics 关联时，相应快照也会删除，不会把明确移除的考点重新加回。
+
 题目属性视图绑定题目标题块。插件用 attribute-view key ID 识别受管列，因此用户可以重命名、重排列并添加自定义列。
 
 首版受管逻辑字段包括：题目 ID、题型、年份、科目、分类、题集、来源、标题范围、Topics 关联、父题 ID、块 ID 和最近扫描时间。插件不删除未知列；缺少受管列时先预览，再补建所需列。

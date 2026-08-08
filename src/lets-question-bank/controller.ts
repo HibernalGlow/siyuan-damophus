@@ -10,54 +10,28 @@ import {
   type QuestionSetBlueprintRepository,
 } from "@/question-bank/assembly";
 import { getLogger } from "@/libs/logger";
-import {
-  addQuickRiffCards,
-  correctQuestionAnswer as persistCorrectQuestionAnswer,
-  appendExamSummaryEvent,
-  appendAttemptEvent,
-  confirmQuestionBankInitialization,
-  confirmQuestionBankRebinding,
-  getDueRiffCards,
-  mapDueRiffCardsToQuestions,
-  migrateQuestionBankBinding,
-  previewQuestionBankInitialization,
-  previewQuestionBankRebinding,
-  previewTopicRelationSync,
-  QuestionBankBindingSchema,
-  rebuildAttemptStatistics,
-  rebuildTopicStatistics,
-  readExamSummaryEvents,
-  readQuestionIndexStatistics,
-  resolveQuestionTopicResources,
-  confirmTopicRelationSync,
-  hydrateQuestionSources,
-  listQuestionSourceDocuments,
-  readQuestionSourceCatalog,
-  siyuanKernelClient,
-  submitRiffRating,
-  type QuestionBankBinding,
-  type QuestionBankInitializationPreview,
-  type QuestionBankRebindingPreview,
-  type RiffCard,
-  type SiyuanKernelClient,
-  type TopicResourceProjection,
-  type QuestionTopicAssignment,
-  type TopicRelationPreview,
-  type TopicRelationSyncMode,
-} from "@/question-bank/adapters/siyuan";
-import {
-  confirmQuestionIndexBatch,
-  confirmQuestionIndexSync,
-  confirmAttemptImport,
-  previewQuestionIndexBatch,
-  previewQuestionIndexSync,
-  previewAttemptImport,
-  shouldAutoCreateQuickCard,
-  type AttemptImportPreview,
-  type AttemptImportResult,
-  type QuestionIndexPreview,
-  type QuestionIndexBatchPreview,
-} from "@/question-bank/application";
+import { correctQuestionAnswer as persistCorrectQuestionAnswer } from "@/question-bank/adapters/siyuan/answer-correction";
+import { getDueRiffCards, mapDueRiffCardsToQuestions, submitRiffRating, addQuickRiffCards } from "@/question-bank/adapters/siyuan/riff";
+import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
+import type { SiyuanKernelClient } from "@/question-bank/adapters/siyuan/types";
+import type {
+  QuestionBankBinding,
+  QuestionBankInitializationPreview,
+  QuestionBankRebindingPreview,
+} from "@/question-bank/adapters/siyuan/binding";
+import type {
+  TopicResourceProjection,
+  PersistTopicResourceInput,
+  PersistTopicResourceResult,
+  QuestionTopicAssignment,
+  TopicRelationPreview,
+  TopicRelationSyncMode,
+} from "@/question-bank/adapters/siyuan/topic-index";
+import type { RiffCard } from "@/question-bank/adapters/siyuan/riff";
+import type { AttemptImportPreview, AttemptImportResult } from "@/question-bank/application/recovery";
+import type { QuestionIndexPreview } from "@/question-bank/application/indexing";
+import type { QuestionIndexBatchPreview } from "@/question-bank/application/batch-indexing";
+import { shouldAutoCreateQuickCard } from "@/question-bank/application/review";
 import type { QuestionSourceDocument, HydratedQuestionSource } from "@/question-bank/adapters/siyuan/source-catalog";
 import { loadSourceBlockIdentity, type SourceBlockIdentity } from "./source-identity";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "@/question-bank/core";
@@ -67,6 +41,14 @@ import type {
   StoredPracticeSession,
 } from "./session-host";
 import type { SiyuanExamSessionRepository } from "./exam-session-host";
+import type { TinyBaseRuntime } from "./tinybase-runtime";
+import type { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
+import { resolveSourceRenderingBinding } from "./source-rendering-binding";
+import {
+  normalizePracticeDefaults,
+  resolvePracticePreferences,
+  type PracticePreferences,
+} from "./practice-preferences";
 
 export type { SourceBlockIdentity } from "./source-identity";
 
@@ -80,6 +62,7 @@ export interface RecentScope {
 }
 
 export interface QuestionBankUiController {
+  readonly usesTinyBase?: boolean;
   getBinding(): QuestionBankBinding | undefined;
   previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview>;
   confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding>;
@@ -109,7 +92,8 @@ export interface QuestionBankUiController {
   loadQuestionCatalog?(): Promise<QuestionCatalogEntry[]>;
   hydrateQuestionSources?(questionIds: readonly string[]): Promise<HydratedQuestionSource>;
   correctQuestionAnswer?(questionBlockId: string, question: Question, answer: ObjectiveAnswer): Promise<void>;
-  loadQuestionTopicResources?(questionId: string): Promise<TopicResourceProjection[]>;
+  loadQuestionTopicResources?(questionId: string, questionBlockId?: string): Promise<TopicResourceProjection[]>;
+  persistQuestionTopicResource?(input: PersistTopicResourceInput): Promise<PersistTopicResourceResult>;
   previewTopicRelationSync?(
     assignments: readonly QuestionTopicAssignment[],
     mode: TopicRelationSyncMode,
@@ -142,6 +126,8 @@ export interface QuestionBankUiController {
   ): Promise<AttemptSubmissionResult>;
   getRecentScope(): RecentScope | undefined;
   saveRecentScope(scope: RecentScope): void;
+  getPracticePreferences(): PracticePreferences;
+  savePracticePreferences(preferences: PracticePreferences): void;
 }
 
 export interface AttemptSubmissionResult {
@@ -160,27 +146,22 @@ export interface QuestionBankControllerOptions {
   sessionLeases?: PracticeSessionLeaseCoordinator;
   examSessionRepository?: SiyuanExamSessionRepository;
   questionSetRepository?: QuestionSetBlueprintRepository;
+  tinybaseRuntime?: TinyBaseRuntime;
+  tinybaseCatalogRuntime?: TinyBaseSiyuanCatalogRuntime;
 }
 
-const bindingSetting = "binding";
 const recentScopeSetting = "recentScope";
+const recentPracticePreferencesSetting = "recentPracticePreferences";
 const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
 
-function topicStatisticsWarning(
-  result: Awaited<ReturnType<typeof rebuildTopicStatistics>>,
-): string | undefined {
-  if (result.issues.length === 0) return undefined;
-  return result.issues.map((issue) => issue.message).join("; ");
-}
-
 export class QuestionBankController implements QuestionBankUiController {
+  readonly usesTinyBase: boolean;
   private readonly client: SiyuanKernelClient;
-  private readonly nodeId: () => string;
   private readonly uuid: () => string;
 
   constructor(private readonly options: QuestionBankControllerOptions) {
+    this.usesTinyBase = Boolean(options.tinybaseRuntime);
     this.client = options.client ?? siyuanKernelClient;
-    this.nodeId = options.nodeId ?? (() => window.Lute.NewNodeID());
     this.uuid = options.uuid ?? (() => crypto.randomUUID());
     log.info("controller.created", {
       pluginVersion: options.pluginVersion,
@@ -190,52 +171,28 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   getBinding(): QuestionBankBinding | undefined {
-    const stored = this.options.getSetting(bindingSetting);
-    const binding = migrateQuestionBankBinding(stored);
-    if (binding && !QuestionBankBindingSchema.safeParse(stored).success) {
-      this.options.setSetting(bindingSetting, binding);
-    }
-    return binding;
+    return resolveSourceRenderingBinding(this.options.getSetting, this.options.setSetting);
   }
 
   async previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview> {
-    if (!nodeIdPattern.test(documentId)) throw new Error("Invalid SiYuan document ID");
-    const blocks = await this.client.request<Array<{ box?: string }>>("/api/query/sql", {
-      stmt: `SELECT box FROM blocks WHERE id = '${documentId}' LIMIT 1`,
-    });
-    const notebookId = blocks[0]?.box;
-    if (!notebookId || !nodeIdPattern.test(notebookId)) {
-      throw new Error("Cannot resolve the notebook for the selected document");
-    }
-    const existing = await this.client.request<string[]>("/api/filetree/getIDsByHPath", {
-      notebook: notebookId,
-      path: "/Damophus",
-    });
-    if (existing.length > 0) {
-      throw new Error(`A Damophus system document already exists (${existing[0]}); reconnect it instead of creating another one`);
-    }
-    return previewQuestionBankInitialization({
-      notebookId,
-      path: "/Damophus",
-      idGenerator: this.nodeId,
-    });
+    void documentId;
+    throw new Error("Question bank initialization is not used after TinyBase cutover");
   }
 
   async confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding> {
-    const binding = await confirmQuestionBankInitialization(this.client, preview, preview.token);
-    this.options.setSetting(bindingSetting, binding);
-    return binding;
+    void preview;
+    throw new Error("Question bank initialization is not used after TinyBase cutover");
   }
 
   async previewRebinding(systemDocumentId: string): Promise<QuestionBankRebindingPreview> {
-    if (!nodeIdPattern.test(systemDocumentId)) throw new Error("Invalid SiYuan system document ID");
-    return previewQuestionBankRebinding(this.client, systemDocumentId);
+    void systemDocumentId;
+    throw new Error("Question bank rebinding is not used after TinyBase cutover");
   }
 
   async confirmRebinding(systemDocumentId: string, token: string): Promise<QuestionBankBinding> {
-    const binding = await confirmQuestionBankRebinding(this.client, systemDocumentId, token);
-    this.options.setSetting(bindingSetting, binding);
-    return binding;
+    void systemDocumentId;
+    void token;
+    throw new Error("Question bank rebinding is not used after TinyBase cutover");
   }
 
   async loadSourceIdentity(blockId: string): Promise<SourceBlockIdentity> {
@@ -243,23 +200,34 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async listPracticeSessions(): Promise<StoredPracticeSession[]> {
+    if (this.options.tinybaseRuntime) return this.options.tinybaseRuntime.listPracticeSessions();
     return this.options.sessionRepository?.list() ?? [];
   }
 
   async loadPracticeSession(sourceKey: string): Promise<PracticeSessionSnapshotParseResult | undefined> {
+    if (this.options.tinybaseRuntime) return this.options.tinybaseRuntime.loadPracticeSession(sourceKey);
     return this.options.sessionRepository?.load(sourceKey);
   }
 
   async savePracticeSession(snapshot: PracticeSessionSnapshot, expectedRevision?: number): Promise<void> {
+    if (this.options.tinybaseRuntime) {
+      await this.options.tinybaseRuntime.savePracticeSession(snapshot, expectedRevision);
+      return;
+    }
     if (!this.options.sessionRepository) return;
     await this.options.sessionRepository.save(snapshot, expectedRevision);
   }
 
   async removePracticeSession(sourceKey: string, sessionId?: string): Promise<void> {
+    if (this.options.tinybaseRuntime) {
+      await this.options.tinybaseRuntime.removePracticeSession(sourceKey, sessionId);
+      return;
+    }
     await this.options.sessionRepository?.remove(sourceKey, sessionId);
   }
 
   async exportPracticeSessionDiagnostic(sourceKey: string): Promise<string> {
+    if (this.options.tinybaseRuntime) return this.options.tinybaseRuntime.practiceSessionDiagnostic(sourceKey);
     return this.options.sessionRepository?.diagnostic(sourceKey) ?? "{}";
   }
 
@@ -272,52 +240,52 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async loadExamSession(): Promise<ExamSessionSnapshot | undefined> {
+    if (this.options.tinybaseRuntime) return this.options.tinybaseRuntime.loadExamSession();
     return this.options.examSessionRepository?.load();
   }
 
   async saveExamSession(snapshot: ExamSessionSnapshot, expectedRevision?: number): Promise<void> {
+    if (this.options.tinybaseRuntime) {
+      await this.options.tinybaseRuntime.saveExamSession(snapshot, expectedRevision);
+      return;
+    }
     await this.options.examSessionRepository?.save(snapshot, expectedRevision);
   }
 
   async removeExamSession(examId?: string): Promise<void> {
+    if (this.options.tinybaseRuntime) {
+      await this.options.tinybaseRuntime.removeExamSession(examId);
+      return;
+    }
     await this.options.examSessionRepository?.remove(examId);
   }
 
   async exportExamSessionDiagnostic(): Promise<string> {
+    if (this.options.tinybaseRuntime) return this.options.tinybaseRuntime.examSessionDiagnostic();
     return this.options.examSessionRepository?.diagnostic() ?? "{}";
   }
 
   async loadExamEvents(): Promise<ExamSummaryEvent[]> {
-    return (await readExamSummaryEvents(this.client, this.requireBinding())).events;
+    return this.requireTinyBase().listExamEvents();
   }
 
   async submitExamEvent(event: ExamSummaryEvent): Promise<"created" | "duplicate"> {
-    return (await appendExamSummaryEvent(this.client, this.requireBinding(), event, this.nodeId)).status;
+    return this.requireTinyBase().appendExamEvent(event);
   }
 
   async submitExamAttempt(event: AttemptEvent): Promise<"created" | "duplicate"> {
-    const binding = this.requireBinding();
-    const result = await appendAttemptEvent(this.client, binding, event, this.nodeId);
-    if (result.status === "created") {
-      try {
-        const warning = topicStatisticsWarning(await rebuildTopicStatistics(this.client, binding));
-        if (warning) log.warn("topic-statistics.rebuild-incomplete", { questionId: event.question_id, warning });
-      } catch (error) {
-        log.warn("topic-statistics.rebuild-failed", { questionId: event.question_id, error });
-      }
-    }
-    return result.status;
+    return this.requireTinyBase().appendAttempt(event);
   }
 
   async loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]> {
-    const result = await rebuildAttemptStatistics(this.client, this.requireBinding());
-    return result.events.filter((event) => event.session_id === sessionId);
+    return (await this.requireTinyBase().listAttemptEvents())
+      .filter((event) => event.session_id === sessionId);
   }
 
   async previewSync(documentId: string): Promise<QuestionIndexPreview> {
     log.info("scan.started", { documentId });
     try {
-      const preview = await previewQuestionIndexSync(this.client, this.requireBinding(), documentId);
+      const preview = await this.requireTinyBaseCatalog().previewDocument(documentId);
       log.info("scan.completed", {
         documentId,
         questions: preview.scan.report.document.questions.length,
@@ -333,46 +301,57 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview> {
-    return confirmQuestionIndexSync(this.client, this.requireBinding(), documentId, token);
+    return this.requireTinyBaseCatalog().confirmDocument(documentId, token);
   }
 
   async previewSyncBatch(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {
-    return previewQuestionIndexBatch(this.client, this.requireBinding(), documentIds);
+    return this.requireTinyBaseCatalog().previewBatch(documentIds);
   }
 
   async confirmSyncBatch(documentIds: readonly string[], token: string): Promise<QuestionIndexBatchPreview> {
-    return confirmQuestionIndexBatch(this.client, this.requireBinding(), documentIds, token);
+    return this.requireTinyBaseCatalog().confirmBatch(documentIds, token);
   }
 
   async listQuestionSourceDocuments(): Promise<QuestionSourceDocument[]> {
-    return listQuestionSourceDocuments(this.client);
+    return this.requireTinyBaseCatalog().listSourceDocuments();
   }
 
   async loadQuestionCatalog(): Promise<QuestionCatalogEntry[]> {
-    return readQuestionSourceCatalog(this.client, this.requireBinding(), await this.loadAggregates());
+    return this.requireTinyBaseCatalog().loadCatalog();
   }
 
   async hydrateQuestionSources(questionIds: readonly string[]): Promise<HydratedQuestionSource> {
-    return hydrateQuestionSources(this.client, await this.loadQuestionCatalog(), questionIds);
+    return this.requireTinyBaseCatalog().hydrate(questionIds);
   }
 
   async correctQuestionAnswer(questionBlockId: string, question: Question, answer: ObjectiveAnswer): Promise<void> {
     await persistCorrectQuestionAnswer(this.client, questionBlockId, question, answer);
   }
 
-  async loadQuestionTopicResources(questionId: string): Promise<TopicResourceProjection[]> {
-    const result = await resolveQuestionTopicResources(this.client, this.requireBinding(), questionId);
-    if (result.issues.length > 0) {
-      log.warn("topic-resources.issues", { questionId, issues: result.issues });
-    }
-    return result.resources;
+  async loadQuestionTopicResources(questionId: string, questionBlockId?: string): Promise<TopicResourceProjection[]> {
+    void questionId;
+    void questionBlockId;
+    return [];
+  }
+
+  async persistQuestionTopicResource(input: PersistTopicResourceInput): Promise<PersistTopicResourceResult> {
+    void input;
+    throw new Error("Topic resource AV projection is disabled after TinyBase cutover");
   }
 
   async previewTopicRelationSync(
     assignments: readonly QuestionTopicAssignment[],
     mode: TopicRelationSyncMode,
   ): Promise<TopicRelationPreview> {
-    return previewTopicRelationSync(this.client, this.requireBinding(), assignments, mode);
+    return {
+      token: "tinybase-topic-relations-disabled",
+      generatedAt: new Date().toISOString(),
+      mode,
+      assignments: [...assignments],
+      actions: [],
+      issues: [],
+      results: [],
+    };
   }
 
   async confirmTopicRelationSync(
@@ -380,19 +359,21 @@ export class QuestionBankController implements QuestionBankUiController {
     mode: TopicRelationSyncMode,
     token: string,
   ): Promise<TopicRelationPreview> {
-    return confirmTopicRelationSync(this.client, this.requireBinding(), assignments, mode, token);
+    const preview = await this.previewTopicRelationSync(assignments, mode);
+    if (preview.token !== token) throw new Error("Topic relation preview is stale");
+    return preview;
   }
 
   async listQuestionSetBlueprints(): Promise<QuestionSetBlueprint[]> {
-    return this.options.questionSetRepository?.list() ?? [];
+    return this.requireTinyBase().listBlueprints();
   }
 
   async saveQuestionSetBlueprint(blueprint: QuestionSetBlueprint): Promise<void> {
-    await this.options.questionSetRepository?.save(blueprint);
+    await this.requireTinyBase().saveBlueprint(blueprint);
   }
 
   async removeQuestionSetBlueprint(blueprintId: string): Promise<void> {
-    await this.options.questionSetRepository?.remove(blueprintId);
+    await this.requireTinyBase().removeBlueprint(blueprintId);
   }
 
   assembleQuestionSet(input: {
@@ -406,15 +387,15 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>> {
-    return (await rebuildAttemptStatistics(this.client, this.requireBinding())).aggregates;
+    return this.requireTinyBase().loadAggregates();
   }
 
   async loadStatisticsQuestions(): Promise<StatisticsQuestion[]> {
-    return readQuestionIndexStatistics(this.client, this.requireBinding());
+    return this.requireTinyBaseCatalog().loadStatisticsQuestions();
   }
 
   async loadAttemptEvents(): Promise<AttemptEvent[]> {
-    return (await rebuildAttemptStatistics(this.client, this.requireBinding())).events;
+    return this.requireTinyBase().listAttemptEvents();
   }
 
   async loadDueCards(
@@ -425,33 +406,18 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async exportAttempts(): Promise<string> {
-    const result = await rebuildAttemptStatistics(this.client, this.requireBinding());
-    if (result.issues.length > 0) {
-      throw new Error(`Cannot export while attempt rows are invalid: ${result.issues.map((issue) => issue.message).join("; ")}`);
-    }
-    return serializeAttemptArchive(createAttemptArchive(result.events, this.options.pluginVersion));
+    return serializeAttemptArchive(createAttemptArchive(
+      await this.requireTinyBase().listAttemptEvents(),
+      this.options.pluginVersion,
+    ));
   }
 
   async previewImport(source: string): Promise<AttemptImportPreview> {
-    return previewAttemptImport(this.client, this.requireBinding(), source);
+    return this.requireTinyBase().previewAttemptImport(source);
   }
 
   async confirmImport(source: string, token: string): Promise<AttemptImportResult> {
-    const binding = this.requireBinding();
-    const result = await confirmAttemptImport(
-      this.client,
-      binding,
-      source,
-      token,
-      this.nodeId,
-    );
-    try {
-      const warning = topicStatisticsWarning(await rebuildTopicStatistics(this.client, binding));
-      if (warning) log.warn("topic-statistics.import-rebuild-incomplete", { warning });
-    } catch (error) {
-      log.warn("topic-statistics.import-rebuild-failed", error);
-    }
-    return result;
+    return this.requireTinyBase().confirmAttemptImport(source, token);
   }
 
   async submitAttempt(
@@ -466,22 +432,9 @@ export class QuestionBankController implements QuestionBankUiController {
       objectiveCorrect: event.objective_correct,
       masteryRating: event.mastery_rating,
     });
-    const binding = this.requireBinding();
-    const result = await appendAttemptEvent(this.client, binding, event, this.nodeId);
+    const result = {status: await this.requireTinyBase().appendAttempt(event)};
     if (result.status !== "created") throw new Error(`Attempt '${event.attempt_id}' already exists`);
     const warnings: string[] = [];
-    try {
-      const topicWarning = topicStatisticsWarning(await rebuildTopicStatistics(this.client, binding));
-      if (topicWarning) {
-        const message = `Attempt saved, but Topic Index statistics remain incomplete: ${topicWarning}`;
-        warnings.push(message);
-        log.warn(message);
-      }
-    } catch (error) {
-      const message = `Attempt saved, but Topic Index statistics failed to rebuild: ${error instanceof Error ? error.message : String(error)}`;
-      warnings.push(message);
-      log.warn(message);
-    }
     if (dueCard) {
       try {
         await submitRiffRating(this.client, dueCard, event.mastery_rating);
@@ -492,8 +445,7 @@ export class QuestionBankController implements QuestionBankUiController {
       }
     } else if (input.questionRelation && this.autoAddQuickCardsEnabled()) {
       try {
-        const aggregate = (await rebuildAttemptStatistics(this.client, this.requireBinding()))
-          .aggregates.get(event.question_id);
+        const aggregate = (await this.loadAggregates()).get(event.question_id);
         if (shouldAutoCreateQuickCard(aggregate, this.autoCardThresholds())) {
           await addQuickRiffCards(this.client, [input.questionRelation]);
         }
@@ -527,10 +479,27 @@ export class QuestionBankController implements QuestionBankUiController {
     });
   }
 
-  private requireBinding(): QuestionBankBinding {
-    const binding = this.getBinding();
-    if (!binding) throw new Error("Damophus is not initialized");
-    return binding;
+  getPracticePreferences(): PracticePreferences {
+    const defaults = normalizePracticeDefaults({
+      order: this.options.getSetting("defaultQuestionOrder"),
+      optionOrder: this.options.getSetting("defaultOptionOrder"),
+      filter: this.options.getSetting("defaultPracticeFilter"),
+    });
+    return resolvePracticePreferences(this.options.getSetting(recentPracticePreferencesSetting), defaults);
+  }
+
+  savePracticePreferences(preferences: PracticePreferences): void {
+    this.options.setSetting(recentPracticePreferencesSetting, preferences);
+  }
+
+  private requireTinyBase(): TinyBaseRuntime {
+    if (!this.options.tinybaseRuntime) throw new Error("TinyBase runtime is not configured");
+    return this.options.tinybaseRuntime;
+  }
+
+  private requireTinyBaseCatalog(): TinyBaseSiyuanCatalogRuntime {
+    if (!this.options.tinybaseCatalogRuntime) throw new Error("TinyBase catalog runtime is not configured");
+    return this.options.tinybaseCatalogRuntime;
   }
 
   private autoAddQuickCardsEnabled(): boolean {

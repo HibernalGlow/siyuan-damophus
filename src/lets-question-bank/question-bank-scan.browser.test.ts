@@ -16,6 +16,124 @@ import {
 } from "./question-bank.browser.fixtures";
 
 describe("question bank scan and import browser flow", () => {
+  function topicReadyPreview() {
+    const question = {
+      ...objectiveQuestion,
+      metadata: { ...objectiveQuestion.metadata, topicIds: ["topic-a", "topic-b"] },
+    };
+    const preview = makePreview([question]);
+    preview.actions = [];
+    return preview;
+  }
+
+  it("keeps portable topic relation synchronization off by default", async () => {
+    const { controller, previewTopicRelationSync } = mockController({ preview: topicReadyPreview() });
+    render(controller);
+    await scan();
+
+    expect(document.body.textContent).toContain("Topic relation sync");
+    expect(button("Off").getAttribute("data-state")).toBe("on");
+    expect([...document.querySelectorAll("button")].some((item) => item.textContent?.trim() === "Preview topic sync")).toBe(false);
+    expect(previewTopicRelationSync).not.toHaveBeenCalled();
+  });
+
+  it("previews merge additions and confirms the selected assignments", async () => {
+    const relationPreview = {
+      token: "merge-token",
+      generatedAt: "2026-08-07T12:00:00.000Z",
+      mode: "merge" as const,
+      assignments: [{ questionId: objectiveQuestion.id, topicIds: ["topic-a", "topic-b"] }],
+      actions: [{
+        questionId: objectiveQuestion.id,
+        currentTopicIds: ["topic-a"],
+        incomingTopicIds: ["topic-a", "topic-b"],
+        addedTopicIds: ["topic-b"],
+        removedTopicIds: [],
+        finalTopicIds: ["topic-a", "topic-b"],
+      }],
+      issues: [],
+      results: [],
+    };
+    const { controller, previewTopicRelationSync, confirmTopicRelationSync } = mockController({
+      preview: topicReadyPreview(),
+      topicRelationPreview: relationPreview,
+      topicRelationConfirmResult: { ...relationPreview, actions: [], results: [{ questionId: objectiveQuestion.id, status: "synced" }] },
+    });
+    render(controller);
+    await scan();
+
+    button("merge").click();
+    await flush();
+    button("Preview topic sync").click();
+    await flush();
+
+    expect(previewTopicRelationSync).toHaveBeenCalledWith(
+      [{ questionId: objectiveQuestion.id, topicIds: ["topic-a", "topic-b"] }],
+      "merge",
+    );
+    expect(document.body.textContent).toContain("+topic-b");
+    expect(document.body.textContent).toContain("--");
+
+    button("Confirm topic sync").click();
+    await flush();
+    expect(confirmTopicRelationSync).toHaveBeenCalledWith(
+      [{ questionId: objectiveQuestion.id, topicIds: ["topic-a", "topic-b"] }],
+      "merge",
+      "merge-token",
+    );
+    expect(document.body.textContent).toContain("synced");
+  });
+
+  it("shows diff removals and blocks confirmation when issues exist", async () => {
+    const relationPreview = {
+      token: "diff-token",
+      generatedAt: "2026-08-07T12:00:00.000Z",
+      mode: "diff" as const,
+      assignments: [{ questionId: objectiveQuestion.id, topicIds: ["topic-a", "topic-b"] }],
+      actions: [{
+        questionId: objectiveQuestion.id,
+        currentTopicIds: ["topic-a", "topic-old"],
+        incomingTopicIds: ["topic-a", "topic-b"],
+        addedTopicIds: ["topic-b"],
+        removedTopicIds: ["topic-old"],
+        finalTopicIds: ["topic-a", "topic-b"],
+      }],
+      issues: [{ code: "unknown-topic-relation-topic", message: "Unknown topic", questionId: objectiveQuestion.id }],
+      results: [],
+    };
+    const { controller, confirmTopicRelationSync } = mockController({
+      preview: topicReadyPreview(),
+      topicRelationPreview: relationPreview,
+    });
+    render(controller);
+    await scan();
+
+    button("diff").click();
+    await flush();
+    button("Preview topic sync").click();
+    await flush();
+
+    expect(document.body.textContent).toContain("-topic-old");
+    expect(document.body.textContent).toContain("Unknown topic");
+    expect(button("Confirm topic sync").disabled).toBe(true);
+    expect(confirmTopicRelationSync).not.toHaveBeenCalled();
+  });
+
+  it("requires question index synchronization before topic relation preview", async () => {
+    const { controller, previewTopicRelationSync } = mockController({ preview: makePreview([{
+      ...objectiveQuestion,
+      metadata: { ...objectiveQuestion.metadata, topicIds: ["topic-a"] },
+    }]) });
+    render(controller);
+    await scan();
+
+    button("merge").click();
+    await flush();
+    expect(button("Preview topic sync").disabled).toBe(true);
+    expect(document.body.textContent).toContain("Synchronize the question index before previewing topic relations");
+    expect(previewTopicRelationSync).not.toHaveBeenCalled();
+  });
+
   it("clears a saved heading scope when its block no longer exists", async () => {
     const { controller, saveRecentScope } = mockController({
       recent: { documentId, headingBlockId: "20260804120004-deleted" },
