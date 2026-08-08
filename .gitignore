@@ -20,3 +20,4 @@ public/i18n/en.json
 src/translations/en.ts
 src/translations/zh-CN.ts
 .playwright-cli/*
+*.png
