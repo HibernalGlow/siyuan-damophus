@@ -16,6 +16,7 @@
   export let currentQuestion: Question | undefined;
   export let buildRevision: string;
   export let showPracticeTitle = false;
+  export let showPracticeBreadcrumb = true;
   export let label: Label;
   export let translations: Record<string, string> = {};
   export let onClose: (() => void) | undefined = undefined;
@@ -121,6 +122,7 @@
         {/if}
       </div>
       <div class="practice-heading-details">
+        {#if showPracticeBreadcrumb}
         <div
           class="practice-topic practice-breadcrumb"
           use:practiceBreadcrumb={{
@@ -130,6 +132,7 @@
           }}
           aria-label="Breadcrumb"
         ></div>
+        {/if}
         {#if durationComparisonPosition === "header" && durationComparisons.length > 0}
           <PracticeDurationComparison comparisons={durationComparisons} {label} {formatDuration} />
         {/if}

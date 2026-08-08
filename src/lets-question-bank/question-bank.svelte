@@ -91,6 +91,7 @@
   export let autoScanDocument = false;
   export let onAutoScanDocumentChange: ((value: boolean) => void) | undefined = undefined;
   export let showPracticeTitle = false;
+  export let showPracticeBreadcrumb = true;
   export let timingEnabled = true;
   export let pauseOnAnswerReveal = true;
   export let now: () => number = Date.now;
@@ -1023,7 +1024,7 @@
   bind:view bind:composerOpen bind:examMode bind:autoScanDocument bind:dataPanelOpen bind:dataPanelUserControlled bind:fileInput
   bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:filter
   bind:endConfirmation bind:answerCardOpen
-  {currentQuestion} {topicResources} {buildRevision} {showPracticeTitle} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
+  {currentQuestion} {topicResources} {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
   {timingEnabled} {sessionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}

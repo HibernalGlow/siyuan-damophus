@@ -76,9 +76,52 @@ describe("practice header answer correction", () => {
     const breadcrumb = target.querySelector<HTMLElement>(".practice-breadcrumb")!;
     expect(breadcrumb.textContent).toContain("Civil Procedure");
     expect(breadcrumb.textContent).toContain("Service of process");
+    expect(breadcrumb.textContent).toContain("/");
+    expect(breadcrumb.querySelectorAll(".protyle-breadcrumb__arrow")).toHaveLength(0);
     expect(breadcrumb.getBoundingClientRect().width).toBeGreaterThan(0);
     breadcrumb.querySelector<HTMLElement>('[data-node-id="document"]')?.click();
     expect(openQuestionSource).toHaveBeenCalledWith("document");
+  });
+
+  it("hides only the practice breadcrumb when its display setting is disabled", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    mounted = mount(PracticeHeader, {
+      target,
+      props: {
+        currentQuestion: question,
+        buildRevision: "test",
+        showPracticeBreadcrumb: false,
+        label: (_key: string, fallback: string) => fallback,
+        translations: {},
+        questionIndex: 0,
+        queueLength: 1,
+        completedCount: 0,
+        timingEnabled: false,
+        sessionElapsedMs: 0,
+        breadcrumbItems: [{ id: "document", name: "Civil Procedure", type: "NodeDocument", subType: "" }],
+        currentQuestionBlockId: "question",
+        openQuestionSource: vi.fn(),
+        mobileBreadcrumb: false,
+        breadcrumbPriority: "tail",
+        breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
+        submitting: false,
+        reviewing: false,
+        answerTimerPaused: false,
+        timerEffectivelyPaused: false,
+        answerCardOpen: false,
+        previousQuestion: vi.fn(),
+        nextQuestion: vi.fn(),
+        togglePracticeTimer: vi.fn(),
+        exitReview: vi.fn(),
+        pausePractice: vi.fn(),
+        requestEndPractice: vi.fn(),
+        onAnswerCardToggle: vi.fn(),
+      },
+    });
+    await tick();
+
+    expect(target.querySelector(".practice-breadcrumb")).toBeNull();
   });
 
   it("opens the correction dialog from the revealed title-bar pencil and saves a changed answer", async () => {

@@ -60,6 +60,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.showPracticeBreadcrumb",
+      description: "lets-question-bank.showPracticeBreadcrumbDescription",
+      key: "showPracticeBreadcrumb",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.hideEmptyAnswerBlocks",
       description: "lets-question-bank.hideEmptyAnswerBlocksDescription",
       key: "hideEmptyAnswerBlocks",

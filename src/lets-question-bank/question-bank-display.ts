@@ -163,6 +163,7 @@ export function createPracticeBreadcrumbAction(
         next.activeId,
         options.label("expand", "Expand"),
         options.mobile ? options.textDisplay : normalizeBreadcrumbTextDisplay("full", 16, 160),
+        "slash",
       );
       return;
     }
@@ -181,19 +182,11 @@ function renderFallbackBreadcrumb(node: HTMLElement, fallback: string): void {
     text.textContent = part;
     fragment.append(text);
     if (index >= parts.length - 1) return;
-    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    icon.setAttribute("viewBox", "0 0 24 24");
-    icon.setAttribute("fill", "none");
-    icon.setAttribute("stroke", "currentColor");
-    icon.setAttribute("stroke-width", "2");
-    icon.setAttribute("stroke-linecap", "round");
-    icon.setAttribute("stroke-linejoin", "round");
-    icon.setAttribute("aria-hidden", "true");
-    icon.classList.add("practice-breadcrumb-separator");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "m9 18 6-6-6-6");
-    icon.append(path);
-    fragment.append(icon);
+    const slash = document.createElement("span");
+    slash.className = "damophus-breadcrumb-separator";
+    slash.setAttribute("aria-hidden", "true");
+    slash.textContent = "/";
+    fragment.append(slash);
   });
   node.replaceChildren(fragment);
 }

@@ -127,6 +127,7 @@ export class ScrollableBreadcrumb {
     activeId: string | undefined,
     expandLabel: string,
     textDisplay: BreadcrumbTextDisplay = normalizeBreadcrumbTextDisplay("full", 16, 160),
+    separator: "arrow" | "slash" = "arrow",
   ): void {
     const fragment = document.createDocumentFragment();
     items.forEach((item, index) => {
@@ -157,6 +158,14 @@ export class ScrollableBreadcrumb {
       fragment.append(pathItem);
 
       if (index < items.length - 1) {
+        if (separator === "slash") {
+          const slash = document.createElement("span");
+          slash.className = "damophus-breadcrumb-separator";
+          slash.setAttribute("aria-hidden", "true");
+          slash.textContent = "/";
+          fragment.append(slash);
+          return;
+        }
         const arrow = document.createElement("span");
         arrow.className = "protyle-breadcrumb__arrow ariaLabel";
         arrow.setAttribute("role", "button");

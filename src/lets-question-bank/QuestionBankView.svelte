@@ -17,6 +17,7 @@
   export let currentQuestion: any;
   export let buildRevision: string;
   export let showPracticeTitle = false;
+  export let showPracticeBreadcrumb = true;
   export let label: any;
   export let translations: Record<string, string>;
   export let onClose: any;
@@ -182,6 +183,7 @@
     currentQuestion={currentQuestion}
     {buildRevision}
     {showPracticeTitle}
+    {showPracticeBreadcrumb}
     {label}
     {translations}
     {onClose}

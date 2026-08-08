@@ -427,6 +427,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         autoSyncIndex: this.getSetting("autoSyncIndex") === true,
         autoScanDocument: this.getSetting("autoScanDocument") === true,
         showPracticeTitle: this.getSetting("showPracticeTitle") === true,
+        showPracticeBreadcrumb: this.getSetting("showPracticeBreadcrumb") !== false,
         timingEnabled: this.getSetting("timingEnabled") !== false,
         pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
         mobileBreadcrumb: isMobile,

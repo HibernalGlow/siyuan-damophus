@@ -48,6 +48,7 @@
     index: ["autoSyncIndex", "maintainIndex", "autoScanDocument"],
     display: [
       "showPracticeTitle",
+      "showPracticeBreadcrumb",
       "hideEmptyAnswerBlocks",
       "inheritSourceStyles",
       "questionRenderMode",
