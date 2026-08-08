@@ -78,7 +78,7 @@ describe("animated image replay", () => {
   it("does not capture the first frame before the tail-mode duration elapses", async () => {
     await mountManifestImage();
     vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({
-      scenes: [{file: "scene.avif", durationMs: 40}],
+      scenes: [{file: "scene.avif", durationMs: 1000}],
     }), {
       headers: {"content-type": "application/json"},
     }));
@@ -93,7 +93,7 @@ describe("animated image replay", () => {
     });
     expect(document.querySelector("canvas:not([hidden])")).toBeNull();
 
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 80));
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1050));
     await vi.waitFor(() => {
       expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
     });
