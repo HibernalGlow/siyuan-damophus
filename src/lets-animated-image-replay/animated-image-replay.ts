@@ -180,6 +180,18 @@ export const startAnimatedImageReplay = ({
         height: 100%;
         pointer-events: none;
       }
+      .${OVERLAY_CLASS}__replay {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: block;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .${OVERLAY_CLASS}__replay[hidden] {
+        display: none;
+      }
       .${OVERLAY_CLASS}__still[hidden] {
         display: none;
       }
@@ -345,12 +357,12 @@ export const startAnimatedImageReplay = ({
     if (stillFrame) stillFrame.hidden = true;
   };
 
-  const freezeCurrentFrame = (img) => {
+  const freezeCurrentFrame = (img, frameSource = img) => {
     const controller = controllersByImage.get(img);
     if (!controller
-      || !img.complete
-      || !img.naturalWidth
-      || !img.naturalHeight
+      || !frameSource.complete
+      || !frameSource.naturalWidth
+      || !frameSource.naturalHeight
       || !img.offsetWidth
       || !img.offsetHeight) return false;
 
@@ -358,12 +370,12 @@ export const startAnimatedImageReplay = ({
     stillFrame.className = `${OVERLAY_CLASS}__still`;
     stillFrame.setAttribute('aria-hidden', 'true');
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
-    stillFrame.width = Math.min(img.naturalWidth, Math.max(1, Math.round(img.offsetWidth * pixelRatio)));
-    stillFrame.height = Math.min(img.naturalHeight, Math.max(1, Math.round(img.offsetHeight * pixelRatio)));
+    stillFrame.width = Math.min(frameSource.naturalWidth, Math.max(1, Math.round(img.offsetWidth * pixelRatio)));
+    stillFrame.height = Math.min(frameSource.naturalHeight, Math.max(1, Math.round(img.offsetHeight * pixelRatio)));
     try {
       const context = stillFrame.getContext('2d');
       if (!context) return false;
-      context.drawImage(img, 0, 0, stillFrame.width, stillFrame.height);
+      context.drawImage(frameSource, 0, 0, stillFrame.width, stillFrame.height);
     } catch (error) {
       console.warn('[Damophus Animated Image Replay] Could not freeze the previous replay.', error);
       return false;
@@ -384,7 +396,11 @@ export const startAnimatedImageReplay = ({
       window.clearTimeout(state.releaseTimer);
       state.releaseTimer = 0;
     }
-    if (freeze) freezeCurrentFrame(img);
+    if (freeze && !freezeCurrentFrame(img, state?.replayImage || img)) {
+      const stillFrame = controllersByImage.get(img)?.stillFrame;
+      if (stillFrame) stillFrame.hidden = false;
+    }
+    if (state?.replayImage) state.replayImage.hidden = true;
     activeReplayImage = null;
   };
 
@@ -399,6 +415,7 @@ export const startAnimatedImageReplay = ({
     }
     activeReplayImage = img;
     hideStillFrame(img);
+    if (state?.replayImage) state.replayImage.hidden = true;
   };
 
   const replayNativeImage = async (img) => {
@@ -408,10 +425,9 @@ export const startAnimatedImageReplay = ({
       state = {
         generation: 0,
         objectUrl: '',
-        originalSrc: img.getAttribute('src'),
-        originalSrcset: img.getAttribute('srcset'),
         releaseTimer: 0,
         source: sourceForImage(img),
+        replayImage: controllersByImage.get(img)?.replayImage,
       };
       replayStatesByImage.set(img, state);
     }
@@ -428,20 +444,24 @@ export const startAnimatedImageReplay = ({
       const previousObjectUrl = state.objectUrl;
       state.objectUrl = objectUrl;
       replayedImages.add(img);
-      if (previousObjectUrl) {
-        img.addEventListener('load', () => URL.revokeObjectURL(previousObjectUrl), {once: true});
-      }
-      img.srcset = '';
-      img.src = objectUrl;
+      const replayImage = state.replayImage;
+      if (!replayImage) throw new Error('Replay layer is unavailable');
+      if (previousObjectUrl) URL.revokeObjectURL(previousObjectUrl);
+      replayImage.hidden = true;
+      replayImage.onload = () => {
+        if (state.generation === generation && activeReplayImage === img) replayImage.hidden = false;
+      };
+      replayImage.onerror = () => {
+        if (state.generation === generation && activeReplayImage === img) releaseReplayOwnership(img);
+      };
+      replayImage.src = objectUrl;
       const replayStartedAt = Date.now();
       void replayDurationPromise.then((replayDurationMs) => {
         if (state.generation !== generation || activeReplayImage !== img) return;
         const elapsedMs = Date.now() - replayStartedAt;
         state.releaseTimer = window.setTimeout(() => {
           state.releaseTimer = 0;
-          if (state.generation === generation && activeReplayImage === img) {
-            activeReplayImage = null;
-          }
+          if (state.generation === generation && activeReplayImage === img) releaseReplayOwnership(img);
         }, Math.max(0, replayDurationMs + CONFIG.playbackEndGuardMs - elapsedMs));
       });
     } catch (error) {
@@ -455,10 +475,12 @@ export const startAnimatedImageReplay = ({
     if (!state) return;
     state.generation += 1;
     window.clearTimeout(state.releaseTimer);
-    if (state.originalSrc === null) img.removeAttribute('src');
-    else img.setAttribute('src', state.originalSrc);
-    if (state.originalSrcset === null) img.removeAttribute('srcset');
-    else img.setAttribute('srcset', state.originalSrcset);
+    if (state.replayImage) {
+      state.replayImage.onload = null;
+      state.replayImage.onerror = null;
+    }
+    state.replayImage?.removeAttribute('src');
+    state.replayImage?.setAttribute('hidden', '');
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
     if (activeReplayImage === img) activeReplayImage = null;
     replayStatesByImage.delete(img);
@@ -489,8 +511,8 @@ export const startAnimatedImageReplay = ({
     });
   });
 
-  const registerController = ({img, overlay, replay, cancelHoverReplay, resumeHoverReplay, disposePlayback}) => {
-    const controller = {cancelHoverReplay, disposePlayback, img, overlay, replay, resumeHoverReplay};
+  const registerController = ({img, overlay, replay, replayImage, cancelHoverReplay, resumeHoverReplay, disposePlayback}) => {
+    const controller = {cancelHoverReplay, disposePlayback, img, overlay, replay, replayImage, resumeHoverReplay};
     controllersByImage.set(img, controller);
     activeControllers.add(controller);
     resizeObserver.observe(img);
@@ -530,6 +552,11 @@ export const startAnimatedImageReplay = ({
 
   const addImageControls = async (img, src, type) => {
     const overlay = createOverlay(src, type);
+    const replayImage = document.createElement('img');
+    replayImage.className = `${OVERLAY_CLASS}__replay`;
+    replayImage.alt = '';
+    replayImage.hidden = true;
+    overlay.appendChild(replayImage);
     const {controls, replayButton} = createReplayControl();
     overlay.appendChild(controls);
 
@@ -576,6 +603,7 @@ export const startAnimatedImageReplay = ({
       img,
       overlay,
       replay,
+      replayImage,
       cancelHoverReplay,
       resumeHoverReplay: () => {
         if (pointerInside) scheduleHoverReplay();

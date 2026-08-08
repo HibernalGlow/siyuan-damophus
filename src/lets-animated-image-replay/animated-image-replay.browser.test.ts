@@ -111,11 +111,42 @@ describe("animated image replay", () => {
       expect(document.querySelector('button[aria-label="Replay image"]')).not.toBeNull();
     });
     await userEvent.click(document.querySelector<HTMLButtonElement>('button[aria-label="Replay image"]')!);
-    await vi.waitFor(() => expect(image.getAttribute("src")).toMatch(/^blob:/));
-    const firstReplaySource = image.getAttribute("src");
+    await vi.waitFor(() => expect(
+      document.querySelector<HTMLImageElement>(".damophus-animated-image-overlay__replay")?.src,
+    ).toMatch(/^blob:/));
+    const replayImage = document.querySelector<HTMLImageElement>(".damophus-animated-image-overlay__replay")!;
+    const firstReplaySource = replayImage.src;
     await userEvent.click(document.querySelector<HTMLButtonElement>('button[aria-label="Replay image"]')!);
-    await vi.waitFor(() => expect(image.getAttribute("src")).not.toBe(firstReplaySource));
+    await vi.waitFor(() => expect(replayImage.src).not.toBe(firstReplaySource));
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(image.getAttribute("src")).toBe(testImage);
+  });
+
+  it("freezes the previous replay layer without resetting either original image", async () => {
+    const first = await mountImage();
+    const second = await mountImage();
+    player = startAnimatedImageReplay({
+      replayLabel: "Replay image",
+      replayOnHover: false,
+      playbackEndGuardMs: 0,
+    });
+
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll('button[aria-label="Replay image"]')).toHaveLength(2);
+    });
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label="Replay image"]')];
+    await userEvent.click(buttons[0]);
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll<HTMLImageElement>(".damophus-animated-image-overlay__replay[src^='blob:']")).toHaveLength(1);
+    });
+    await userEvent.click(buttons[1]);
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll<HTMLImageElement>(".damophus-animated-image-overlay__replay[src^='blob:']")).toHaveLength(2);
+      expect(document.querySelectorAll<HTMLCanvasElement>(".damophus-animated-image-overlay__still:not([hidden])")).toHaveLength(1);
+    });
+
+    expect(first.getAttribute("src")).toBe(testImage);
+    expect(second.getAttribute("src")).toBe(testImage);
   });
 
   it("removes controls and restores the original image when disposed", async () => {
@@ -129,7 +160,9 @@ describe("animated image replay", () => {
       expect(document.querySelector('button[aria-label="Replay image"]')).not.toBeNull();
     });
     await userEvent.click(document.querySelector<HTMLButtonElement>('button[aria-label="Replay image"]')!);
-    await vi.waitFor(() => expect(image.getAttribute("src")).toMatch(/^blob:/));
+    await vi.waitFor(() => expect(
+      document.querySelector<HTMLImageElement>(".damophus-animated-image-overlay__replay")?.src,
+    ).toMatch(/^blob:/));
 
     player.dispose();
     player = undefined;
