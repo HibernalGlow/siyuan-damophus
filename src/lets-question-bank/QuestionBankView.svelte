@@ -154,6 +154,7 @@
   export let durationComparisonPosition: any;
   export let inheritSourceStyles: boolean;
   export let questionRenderMode: any;
+  export let indefinitePracticeMode = false;
   export let sourceEditingLocked: boolean;
   export let toggleSourceEditingLock: any;
   export let renderedQuestionContent: any;
@@ -394,6 +395,7 @@
       {durationComparisonPosition}
       {inheritSourceStyles}
       {questionRenderMode}
+      {indefinitePracticeMode}
       {sourceEditingLocked}
       {renderedQuestionContent}
       {mountSourceBlock}

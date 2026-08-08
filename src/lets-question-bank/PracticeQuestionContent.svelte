@@ -9,6 +9,7 @@
   import type { DurationComparisonPosition } from "./duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
   import PracticeTopicResources from "./PracticeTopicResources.svelte";
+  import { hideTrailingQuestionTypeMarker } from "./question-bank-display";
 
   type Label = (key: string, fallback: string) => string;
   type RenderMarkdown = (markdown: string, inheritStyles: boolean) => string;
@@ -40,6 +41,7 @@
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let sourceEditingLocked = false;
+  export let indefinitePracticeMode = false;
   export let renderQuestionContent: RenderMarkdown;
   export let mountSourceBlock: MountSourceBlock | undefined = undefined;
   export let questionTypeLabel: (type: QuestionType) => string;
@@ -89,6 +91,33 @@
     };
   }
 
+  function maskQuestionTypeMarkers(node: HTMLElement, enabled: boolean) {
+    const mask = () => {
+      if (!enabled) return;
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let current = walker.nextNode();
+      while (current) {
+        const text = current as Text;
+        text.data = hideTrailingQuestionTypeMarker(text.data);
+        current = walker.nextNode();
+      }
+    };
+    const observer = new MutationObserver(mask);
+    if (enabled) observer.observe(node, { childList: true, subtree: true });
+    mask();
+    return {
+      update(next: boolean) {
+        enabled = next;
+        observer.disconnect();
+        if (enabled) observer.observe(node, { childList: true, subtree: true });
+        mask();
+      },
+      destroy() {
+        observer.disconnect();
+      },
+    };
+  }
+
 </script>
 
 {#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
@@ -101,7 +130,7 @@
     {/if}
     <div class="native-question-source">
       {#key currentQuestionBlockId}
-        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}></div>
+        <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}></div>
       {/key}
     </div>
     {#if displayedOptions.length > 0}
@@ -131,7 +160,7 @@
     {/if}
     <div class="embedded-question-source">
       {#key currentQuestionBlockId}
-        <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}></div>
+        <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}></div>
       {/key}
     </div>
     {#if displayedOptions.length > 0}
@@ -155,10 +184,12 @@
   <article class="question">
     <div class="question-heading">
       <div class="question-title">
-        <Badge variant="secondary" data-question-type={currentQuestion.type}>
-          {questionTypeLabel(currentQuestion.type)}
-        </Badge>
-        <h2>{currentQuestion.title}</h2>
+        {#if !indefinitePracticeMode}
+          <Badge variant="secondary" data-question-type={currentQuestion.type}>
+            {questionTypeLabel(currentQuestion.type)}
+          </Badge>
+        {/if}
+        <h2>{indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.title) : currentQuestion.title}</h2>
       </div>
     </div>
     {#if currentGroup}
@@ -167,7 +198,7 @@
         <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="markdown native-content protyle-wysiwyg stem" contenteditable="false">{@html renderQuestionContent(currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
+    <div class="markdown native-content protyle-wysiwyg stem" contenteditable="false">{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
     {#if displayedOptions.length > 0}
       <div class="options">
         {#each displayedOptions as option (option.originalId)}

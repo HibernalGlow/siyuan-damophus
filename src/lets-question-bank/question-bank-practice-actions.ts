@@ -12,6 +12,7 @@ export interface PracticeActionState {
   readOnlyQuestion: boolean;
   submitting: boolean;
   timingEnabled: boolean;
+  indefinitePracticeMode?: boolean;
   previewBlockIds: ReadonlyMap<string, string> | undefined;
   sessionId: string;
   filter: string;
@@ -34,7 +35,7 @@ export function createPracticeActions(deps: {
     if (!current.currentQuestion || current.revealed || current.readOnlyQuestion || !current.practiceRuntime) return;
     const draft = current.practiceRuntime.actor.getSnapshot().context.session.drafts[current.currentQuestion.id];
     const selectedOptionIds = draft?.selected_option_ids ?? current.selectedOptionIds;
-    const nextSelection = current.currentQuestion.type === "multiple" || current.currentQuestion.type === "indefinite"
+    const nextSelection = current.indefinitePracticeMode || current.currentQuestion.type === "multiple" || current.currentQuestion.type === "indefinite"
       ? selectedOptionIds.includes(optionId)
         ? selectedOptionIds.filter((id) => id !== optionId)
         : [...selectedOptionIds, optionId]

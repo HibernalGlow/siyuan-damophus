@@ -63,6 +63,19 @@ async function flush(): Promise<void> {
 }
 
 describe("PracticeQuestionContent", () => {
+  it("hides the type badge and trailing marker in indefinite mode", async () => {
+    render({
+      indefinitePracticeMode: true,
+      currentQuestion: { ...question, type: "single", title: "2015-3-82，多。" },
+      questionRenderMode: "html",
+      renderQuestionContent: (markdown: string) => markdown,
+    });
+    await flush();
+
+    expect(document.querySelector("[data-question-type]")).toBeNull();
+    expect(document.querySelector("h2")?.textContent).toBe("2015-3-82");
+  });
+
   it("mounts the editable embed as the question body before reveal", async () => {
     const cleanup = vi.fn();
     const toggleOption = vi.fn();

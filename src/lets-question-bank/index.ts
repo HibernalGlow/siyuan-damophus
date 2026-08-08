@@ -435,6 +435,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         autoScanDocument: this.getSetting("autoScanDocument") === true,
         showPracticeTitle: this.getSetting("showPracticeTitle") === true,
         showPracticeBreadcrumb: this.getSetting("showPracticeBreadcrumb") !== false,
+        indefinitePracticeMode: this.getSetting("indefinitePracticeMode") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
         pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
         mobileBreadcrumb: isMobile,

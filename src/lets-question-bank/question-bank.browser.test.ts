@@ -747,6 +747,28 @@ describe("question bank browser flow", () => {
     expect(option("Beta").getAttribute("aria-pressed")).toBe("true");
   });
 
+  it("treats a single-choice question as indefinite when the optional mode is enabled", async () => {
+    const singleQuestion: Question = {
+      ...objectiveQuestion,
+      type: "single",
+      title: "2015-3-82，多。",
+      answer: { kind: "options", optionIds: ["A"] },
+    };
+    const { controller } = mockController({ preview: makePreview([singleQuestion]) });
+    render(controller, { indefinitePracticeMode: true, questionRenderMode: "html", random: () => 0.99 });
+    await scanAndSync();
+    await page.getByRole("button", { name: /Start practice/ }).click();
+    await flush();
+
+    expect(document.querySelector("[data-question-type]")).toBeNull();
+    expect(document.querySelector("h2")?.textContent).toBe("2015-3-82");
+    option("Alpha").click();
+    option("Beta").click();
+    await flush();
+    expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
+    expect(option("Beta").getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("does not run or persist timing when the timer setting is disabled", async () => {
     const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });
     render(controller, { timingEnabled: false, random: () => 0.99 });

@@ -54,6 +54,13 @@ export function questionTypeLabel(type: QuestionType, label: Label): string {
   return labels[type];
 }
 
+const TRAILING_QUESTION_TYPE_MARKER = /\s*(?:(?:[,，、]\s*[单多]\s*[。.]?)|(?:[（(【\[]\s*(?:单|多|单选|多选|单项选择|多项选择)(?:题)?\s*[）)】\]])|(?:[,，、\s]+(?:单选|多选|单项选择|多项选择)(?:题)?[。.]?))\s*$/u;
+
+export function hideTrailingQuestionTypeMarker(value: string): string {
+  if (/^\s*(?:单选|多选|单项选择|多项选择)(?:题)?\s*$/u.test(value)) return "";
+  return value.replace(TRAILING_QUESTION_TYPE_MARKER, "").trimEnd();
+}
+
 export function sourceTypeLabel(type: string, label: Label): string {
   const labels: Record<string, string> = {
     d: label("sourceTypeDocument", "Document"),

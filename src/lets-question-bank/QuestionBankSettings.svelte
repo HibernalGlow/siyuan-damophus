@@ -44,7 +44,7 @@
   const displaySelectSettingKeys = new Set(["questionRenderMode", "embedHeadingMode"]);
 
   const sectionKeys: Record<StandardSectionId, string[]> = {
-    practice: ["defaultQuestionOrder", "defaultOptionOrder", "defaultPracticeFilter"],
+    practice: ["defaultQuestionOrder", "defaultOptionOrder", "defaultPracticeFilter", "indefinitePracticeMode"],
     review: [
       "reviewThreshold",
       "autoAddQuickCards",

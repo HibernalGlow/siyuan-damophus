@@ -103,6 +103,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.indefinitePracticeMode",
+      description: "lets-question-bank.indefinitePracticeModeDescription",
+      key: "indefinitePracticeMode",
+      value: false,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.hideEmptyAnswerBlocks",
       description: "lets-question-bank.hideEmptyAnswerBlocksDescription",
       key: "hideEmptyAnswerBlocks",

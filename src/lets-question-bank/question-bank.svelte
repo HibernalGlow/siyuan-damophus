@@ -93,6 +93,7 @@
   export let openQuestionSource: ((blockId: string) => void) | undefined = undefined;
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
+  export let indefinitePracticeMode = false;
   export let durationComparisonPosition: "answer" | "rating" | "header" = "rating";
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined = undefined;
@@ -232,6 +233,7 @@
       readOnlyQuestion,
       submitting,
       timingEnabled,
+      indefinitePracticeMode,
       previewBlockIds: preview?.scan.blockIdsByQuestionId,
       sessionId,
       filter,
@@ -1169,7 +1171,7 @@
   {topicRelationReady} {setTopicRelationMode} {previewTopicRelations} {confirmTopicRelations}
   {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
   {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
-  {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {renderedQuestionContent}
+  {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {indefinitePracticeMode} {renderedQuestionContent}
   {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}
   {questionElapsedMs} {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
   {correctCurrentAnswer}

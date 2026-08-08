@@ -20,6 +20,47 @@ const question: Question = {
 };
 
 describe("question bank practice actions", () => {
+  it("allows multiple selections for a single-choice question in indefinite mode", () => {
+    const singleQuestion = { ...question, type: "single" as const };
+    const send = vi.fn((event: { patch?: { selected_option_ids?: string[] } }) => {
+      const selected = event.patch?.selected_option_ids;
+      if (selected) draft.selected_option_ids = [...selected];
+    });
+    const draft = { selected_option_ids: [] as string[] };
+    const practiceRuntime = {
+      actor: {
+        getSnapshot: () => ({ context: { session: { drafts: { [singleQuestion.id]: draft } } } }),
+        send,
+      },
+    } as unknown as PracticeSessionRuntime;
+    const actions = createPracticeActions({
+      getState: () => ({
+        currentQuestion: singleQuestion,
+        shuffled: { optionOrder: ["A", "B", "C", "D"], options: [] },
+        practiceRuntime,
+        selectedOptionIds: [],
+        revealed: false,
+        readOnlyQuestion: false,
+        submitting: false,
+        timingEnabled: true,
+        indefinitePracticeMode: true,
+        previewBlockIds: undefined,
+        sessionId: "session-1",
+        filter: "all",
+        dueCards: new Map(),
+      }),
+      now: () => 1000,
+      setError: vi.fn(),
+      setSubmitting: vi.fn(),
+      label: (_key, fallback) => fallback,
+      controller: {} as never,
+    });
+
+    actions.toggleOption("B");
+    actions.toggleOption("C");
+    expect(draft.selected_option_ids).toEqual(["B", "C"]);
+  });
+
   it("builds a multi-choice selection from the authoritative draft across rapid option clicks", () => {
     const send = vi.fn((event: { patch?: { selected_option_ids?: string[] } }) => {
       const selected = event.patch?.selected_option_ids;
