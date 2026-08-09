@@ -13,9 +13,10 @@ const testImage =
 
 let player: AnimatedImageReplayHandle | undefined;
 
-const mountImage = async (): Promise<HTMLImageElement> => {
+const mountImage = async (animatedSource?: string): Promise<HTMLImageElement> => {
   const image = document.createElement("img");
   image.setAttribute("data-damophus-animated-type", "avif");
+  if (animatedSource) image.dataset.damophusAnimatedSrc = animatedSource;
   image.alt = "Animated test image";
   image.src = testImage;
   image.style.cssText = "display:block;width:320px;height:180px";
@@ -25,10 +26,7 @@ const mountImage = async (): Promise<HTMLImageElement> => {
 };
 
 const mountManifestImage = async (): Promise<HTMLImageElement> => {
-  const image = await mountImage();
-  image.dataset.damophusAnimatedSrc =
-    "https://inkloomer.github.io/inkloom/animation-avif/test/scene.avif";
-  return image;
+  return mountImage("https://inkloomer.github.io/inkloom/animation-avif/test/scene.avif");
 };
 
 afterEach(() => {
@@ -36,6 +34,8 @@ afterEach(() => {
   player = undefined;
   document.body.replaceChildren();
   document.getElementById("damophus-animated-image-replay-styles")?.remove();
+  (window as typeof window & {__damophusAnimatedStillFrames?: Map<string, HTMLCanvasElement>})
+    .__damophusAnimatedStillFrames?.clear();
   vi.restoreAllMocks();
 });
 
@@ -57,6 +57,21 @@ describe("animated image replay", () => {
     });
 
     player.disposeRoot(document.body);
+    expect(document.querySelector(".damophus-animated-image-overlay")).toBeNull();
+  });
+
+  it("cancels queued scans when the plugin player is disposed", async () => {
+    await mountImage();
+    player = startAnimatedImageReplay({
+      replayLabel: "Replay image",
+      replayOnHover: false,
+      scanDocument: false,
+    });
+    player.scanRoot(document.body);
+    player.dispose();
+    player = undefined;
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
     expect(document.querySelector(".damophus-animated-image-overlay")).toBeNull();
   });
 
@@ -97,6 +112,53 @@ describe("animated image replay", () => {
     await vi.waitFor(() => {
       expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
     });
+  });
+
+  it("restores the remembered tail frame when SiYuan replaces an image node", async () => {
+    const source = "https://inkloomer.github.io/inkloom/animation-avif/test/scene.avif";
+    const first = await mountImage(source);
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      targetFps: 30,
+      scenes: [{file: "scene.avif", durationMs: 300, frameCount: 9}],
+    }), {
+      headers: {"content-type": "application/json"},
+    }));
+    player = startAnimatedImageReplay({
+      replayLabel: "Replay image",
+      replayOnHover: false,
+    });
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
+    });
+    first.remove();
+    await mountImage(source);
+
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll(".damophus-animated-image-overlay")).toHaveLength(1);
+    });
+    expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
+  });
+
+  it("restores the remembered tail frame after the plugin player restarts", async () => {
+    await mountManifestImage();
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      targetFps: 30,
+      scenes: [{file: "scene.avif", durationMs: 300, frameCount: 9}],
+    }), {
+      headers: {"content-type": "application/json"},
+    }));
+    player = startAnimatedImageReplay({replayOnHover: false});
+    await vi.waitFor(() => {
+      expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
+    });
+
+    player.dispose();
+    player = startAnimatedImageReplay({replayOnHover: false});
+    await vi.waitFor(() => {
+      expect(document.querySelector(".damophus-animated-image-overlay")).not.toBeNull();
+    });
+    expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
   });
 
   it("reuses the downloaded media when the replay control is clicked again", async () => {
