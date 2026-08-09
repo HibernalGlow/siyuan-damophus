@@ -1,5 +1,6 @@
 import { openTab, showMessage, type Menu } from "siyuan";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
+import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { plugin } from "@/utils";
 import { inspectSkillSourceRoot, syncSkillSourceRoot } from "./api";
 import { renderSkillManagerDock } from "./dock";
@@ -8,6 +9,7 @@ import "./skill-manager.css";
 
 export default class SkillManagerPlugin extends SubPluginBase {
   private tabRegistered = false;
+  private openEntry?: UnifiedEntryPoint;
   private dockCleanup?: () => void;
   private dockTarget?: HTMLElement;
   private readonly tabCleanups = new Map<HTMLElement, () => void>();
@@ -30,30 +32,14 @@ export default class SkillManagerPlugin extends SubPluginBase {
         },
       });
     }
-    const owner = this;
-    plugin.addDock({
-      config: {
-        position: "RightBottom",
-        size: { width: 380, height: 0 },
-        icon: "iconSparkles",
-        title: this.t("lets-skill-manager.displayName"),
-        show: false,
-      },
-      data: {},
-      type: "damophus-skill-manager-dock",
-      init() {
-        owner.dockTarget = this.element as HTMLElement;
-        owner.renderDock();
-      },
-      destroy() {
-        owner.dockCleanup?.();
-        owner.dockCleanup = undefined;
-        owner.dockTarget = undefined;
-      },
-    });
   }
 
   override onload(): void {
+    if (!this.openEntry) {
+      this.openEntry = this.createOpenEntry();
+      this.openEntry.registerDock();
+    }
+    this.openEntry.setEnabled(true);
     this.renderOpenViews();
   }
 
@@ -83,6 +69,7 @@ export default class SkillManagerPlugin extends SubPluginBase {
   }
 
   override onunload(): void {
+    this.openEntry?.setEnabled(false);
     this.dockCleanup?.();
     this.dockCleanup = undefined;
     for (const cleanup of this.tabCleanups.values()) cleanup();
@@ -140,14 +127,38 @@ export default class SkillManagerPlugin extends SubPluginBase {
   }
 
   addMenuItem(menu: Menu): void {
-    menu.addItem({
+    this.openEntry?.addMenuItem(menu);
+  }
+
+  private createOpenEntry(): UnifiedEntryPoint {
+    return new UnifiedEntryPoint({
+      id: "skill-manager.open",
+      title: this.t("lets-skill-manager.menu"),
       icon: "iconSparkles",
-      label: this.t("lets-skill-manager.menu"),
-      click: () => {
-        const dock = document.querySelector<HTMLElement>('.dock__item[data-type="damophus-skill-manager-dock"]');
-        dock?.click();
+      execute: () => {
+        document.querySelector<HTMLElement>('.dock__item[data-type="damophus-skill-manager-dock"]')?.click();
       },
-    });
+      dock: {
+        config: {
+          position: "RightBottom",
+          size: { width: 380, height: 0 },
+          icon: "iconSparkles",
+          title: this.t("lets-skill-manager.displayName"),
+          show: false,
+        },
+        data: {},
+        type: "damophus-skill-manager-dock",
+        init: (target) => {
+          this.dockTarget = target;
+          this.renderDock();
+        },
+        destroy: () => {
+          this.dockCleanup?.();
+          this.dockCleanup = undefined;
+          this.dockTarget = undefined;
+        },
+      },
+    }, plugin);
   }
 
   private labels() {

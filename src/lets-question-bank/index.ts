@@ -65,6 +65,7 @@ function currentDeviceId(): string {
 export default class QuestionBankPlugin extends SubPluginBase {
   private tabRegistered = false;
   private registered = false;
+  private practiceCommandsRegistered = false;
   private listening = false;
   private dockApp?: ReturnType<typeof mount>;
   private openEntry?: UnifiedEntryPoint;
@@ -139,22 +140,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
       this.openEntry = this.createOpenEntry();
       this.openEntry.registerCommand();
       this.openEntry.registerDock();
-      plugin.addCommand({
-        langKey: "lets-question-bank.commandPrevious",
-        hotkey: "",
-        callback: () => this.dispatchPracticeCommand("previous"),
-      });
-      plugin.addCommand({
-        langKey: "lets-question-bank.commandNext",
-        hotkey: "",
-        callback: () => this.dispatchPracticeCommand("next"),
-      });
-      plugin.addCommand({
-        langKey: "lets-question-bank.commandPause",
-        hotkey: "",
-        callback: () => this.dispatchPracticeCommand("pause"),
-      });
     }
+    this.openEntry?.setEnabled(true);
+    this.registerPracticeCommands();
     if (this.listening) return;
     this.listening = true;
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
@@ -203,6 +191,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   override async onunload(): Promise<void> {
+    this.openEntry?.setEnabled(false);
+    this.unregisterPracticeCommands();
     this.stopSourceAnswerMask?.();
     this.stopSourceAnswerMask = undefined;
     this.removeDockGestureIsolation?.();
@@ -220,6 +210,39 @@ export default class QuestionBankPlugin extends SubPluginBase {
     await this.sessionLeases.releaseAll();
     this.storeSyncCoordinator?.close();
     this.storeSyncCoordinator = undefined;
+  }
+
+  private registerPracticeCommands(): void {
+    if (this.practiceCommandsRegistered) return;
+    plugin.addCommand({
+      langKey: "lets-question-bank.commandPrevious",
+      hotkey: "",
+      callback: () => this.dispatchPracticeCommand("previous"),
+    });
+    plugin.addCommand({
+      langKey: "lets-question-bank.commandNext",
+      hotkey: "",
+      callback: () => this.dispatchPracticeCommand("next"),
+    });
+    plugin.addCommand({
+      langKey: "lets-question-bank.commandPause",
+      hotkey: "",
+      callback: () => this.dispatchPracticeCommand("pause"),
+    });
+    this.practiceCommandsRegistered = true;
+  }
+
+  private unregisterPracticeCommands(): void {
+    if (!this.practiceCommandsRegistered) return;
+    const langKeys = new Set([
+      "lets-question-bank.commandPrevious",
+      "lets-question-bank.commandNext",
+      "lets-question-bank.commandPause",
+    ]);
+    for (let index = plugin.commands.length - 1; index >= 0; index -= 1) {
+      if (langKeys.has(plugin.commands[index].langKey)) plugin.commands.splice(index, 1);
+    }
+    this.practiceCommandsRegistered = false;
   }
 
   private getTinyBaseRuntime(): TinyBaseRuntime {

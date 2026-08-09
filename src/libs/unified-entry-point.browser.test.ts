@@ -1,0 +1,44 @@
+import { describe, expect, it, vi } from "vitest";
+import { UnifiedEntryPoint } from "./unified-entry-point";
+
+describe("UnifiedEntryPoint Dock visibility", () => {
+  it("hides its registered Dock button while disabled and restores it when enabled", () => {
+    const dockButton = document.createElement("button");
+    dockButton.className = "dock__item";
+    dockButton.dataset.type = "lifecycle-test-dock";
+    document.body.append(dockButton);
+
+    const entry = new UnifiedEntryPoint({
+      id: "lifecycle-test",
+      title: "Lifecycle test",
+      icon: "iconTest",
+      execute: vi.fn(),
+      dock: {
+        type: "lifecycle-test-dock",
+        config: {
+          position: "RightBottom",
+          size: { width: 240, height: 0 },
+          icon: "iconTest",
+          title: "Lifecycle test",
+        },
+        data: {},
+        init: vi.fn(),
+      },
+    }, {
+      addCommand: vi.fn(),
+      addDock: vi.fn(() => ({ config: {} as never, model: {} as never })),
+    });
+
+    entry.setEnabled(false);
+    expect(dockButton.hidden).toBe(true);
+    expect(dockButton.style.display).toBe("none");
+    expect(dockButton.getAttribute("aria-hidden")).toBe("true");
+
+    entry.setEnabled(true);
+    expect(dockButton.hidden).toBe(false);
+    expect(dockButton.style.display).toBe("");
+    expect(dockButton.getAttribute("aria-hidden")).toBe("false");
+
+    dockButton.remove();
+  });
+});

@@ -2,6 +2,7 @@ import { settings } from "./settings";
 import type { PluginMetadata, SubPlugin } from "./types/plugin";
 import { getLogger } from "@/libs/logger";
 import { registerPluginModels } from "./plugin-models";
+import { beginSubPlugin, unloadSubPlugin } from "./plugin-lifecycle";
 const log = getLogger("plugin-registry");
 
 export class PluginRegistry {
@@ -167,15 +168,14 @@ export class PluginRegistry {
     log.info("beginPlugin", key);
     const plugin = this.getPlugin(key);
     if (plugin) {
-      await plugin.onload();
-      await plugin.onLayoutReady?.();
+      await beginSubPlugin(plugin);
     }
   }
 
   unloadPlugin(key: string) {
     const plugin = this.getPlugin(key);
     if (plugin) {
-      plugin.onunload();
+      unloadSubPlugin(plugin);
       // this.plugins.delete(key);
     }
   }

@@ -90,6 +90,11 @@
   --ring: var(--b3-theme-primary);
 }
 
+.damophus-question-bank-host .siyuan-floating-toc-plugin-container,
+.damophus-question-bank-dialog .siyuan-floating-toc-plugin-container {
+  display: none !important;
+}
+
 /* Select content is portaled to body, outside the themed question-bank root. */
 .damophus-select-content {
   --popover: var(--b3-theme-background, #fff);

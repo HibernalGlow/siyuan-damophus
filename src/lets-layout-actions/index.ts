@@ -31,20 +31,23 @@ export default class LayoutActionsPlugin extends SubPluginBase {
 
   override onload(): void {
     this.registerBuiltInCommands();
+    for (const entry of this.commandEntries ?? []) entry.setEnabled(true);
     this.ensureOptionalDock();
     this.renderDock();
   }
 
   onDataChanged(): void {
-    if (this.getSetting("showDock") === true) this.ensureOptionalDock();
+    this.ensureOptionalDock();
     this.renderDock();
   }
 
   override onunload(): void {
+    for (const entry of this.commandEntries ?? []) entry.setEnabled(false);
     this.cleanupDock?.();
     this.cleanupDock = undefined;
     this.dockTarget = undefined;
     this.dockEntry?.destroyDockContent();
+    this.dockEntry?.setEnabled(false);
   }
 
   addMenuItem(menu: Menu): void {
@@ -76,7 +79,11 @@ export default class LayoutActionsPlugin extends SubPluginBase {
   }
 
   private ensureOptionalDock(): void {
-    if (this.dockEntry || this.getSetting("showDock") !== true) return;
+    if (this.dockEntry) {
+      this.dockEntry.setEnabled(this.getSetting("showDock") === true);
+      return;
+    }
+    if (this.getSetting("showDock") !== true) return;
     const position = this.dockPosition();
     this.dockEntry = new UnifiedEntryPoint({
       id: "layout-actions.dock",
@@ -105,6 +112,7 @@ export default class LayoutActionsPlugin extends SubPluginBase {
       },
     }, plugin);
     this.dockEntry.registerDock();
+    this.dockEntry.setEnabled(true);
   }
 
   private renderDock(): void {

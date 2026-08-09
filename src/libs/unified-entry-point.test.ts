@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { UnifiedEntryPoint } from "./unified-entry-point";
 
 describe("UnifiedEntryPoint", () => {
@@ -44,6 +44,7 @@ describe("UnifiedEntryPoint", () => {
         init: (target) => initialized.push(target),
       },
     }, {
+      commands,
       addCommand: (command) => commands.push(command),
       addDock: (dock) => {
         docks.push(dock);
@@ -64,5 +65,55 @@ describe("UnifiedEntryPoint", () => {
     const target = {} as HTMLElement;
     docks[0].init.call({ element: target });
     expect(initialized).toEqual([target]);
+  });
+
+  it("disables command execution and tears down Dock content until re-enabled", () => {
+    const commands: any[] = [];
+    const docks: any[] = [];
+    const init = vi.fn();
+    const destroy = vi.fn();
+    const execute = vi.fn();
+    const entry = new UnifiedEntryPoint({
+      id: "lifecycle-test",
+      title: "Lifecycle test",
+      icon: "iconTest",
+      execute,
+      command: { langKey: "lifecycle-test" },
+      dock: {
+        type: "lifecycle-test-dock",
+        config: {
+          position: "RightBottom",
+          size: { width: 240, height: 0 },
+          icon: "iconTest",
+          title: "Lifecycle test",
+        },
+        data: {},
+        init,
+        destroy,
+      },
+    }, {
+      commands,
+      addCommand: (command) => commands.push(command),
+      addDock: (dock) => {
+        docks.push(dock);
+        return { config: dock.config, model: {} as never };
+      },
+    });
+
+    entry.registerCommand();
+    entry.registerDock();
+    docks[0].init.call({ element: {} as HTMLElement });
+    expect(init).toHaveBeenCalledOnce();
+
+    entry.setEnabled(false);
+    expect(commands).toHaveLength(0);
+    entry.menuItem().click?.({} as HTMLElement, {} as MouseEvent);
+    expect(execute).not.toHaveBeenCalled();
+    expect(destroy).toHaveBeenCalledOnce();
+
+    entry.setEnabled(true);
+    commands[0].callback();
+    expect(init).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledOnce();
   });
 });

@@ -1,4 +1,4 @@
-import { Dialog, fetchSyncPost, Menu, Plugin, showMessage } from "siyuan";
+import { Dialog, fetchSyncPost, globalCommand, Menu, Plugin, showMessage } from "siyuan";
 import { registerPlugin } from "@frostime/siyuan-plugin-kits";
 import { mount, unmount } from "svelte";
 import "@/styles/damophus.css";
@@ -18,6 +18,7 @@ const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
 export default class PluginLetsGo extends Plugin {
   private readonly pluginRegistry = PluginRegistry.getInstance();
   private topBarElement?: HTMLElement;
+  private mobileAppearanceElement?: HTMLElement;
 
   private init(): void {
     const plugin = registerPlugin(this);
@@ -47,6 +48,7 @@ export default class PluginLetsGo extends Plugin {
 
   override async onLayoutReady(): Promise<void> {
     this.registerTopBar();
+    this.registerMobileAppearanceTopBar();
     const plugins = this.pluginRegistry.getAllPlugins();
     log.info("plugin.layout.ready", {
       enabledModules: plugins.filter((plugin) => plugin.enabled).map((plugin) => plugin.name),
@@ -82,6 +84,17 @@ export default class PluginLetsGo extends Plugin {
             ?? document.querySelector<HTMLElement>("#barMore")?.getBoundingClientRect();
         if (rect) this.addMenu(rect);
       },
+    });
+  }
+
+  private registerMobileAppearanceTopBar(): void {
+    if (!isMobile || this.mobileAppearanceElement) return;
+    const title = window.siyuan?.languages?.appearance ?? "Appearance";
+    this.mobileAppearanceElement = this.addTopBar({
+      icon: "iconTheme",
+      title,
+      position: "right",
+      callback: () => globalCommand("appearance", this.app),
     });
   }
 
@@ -157,6 +170,8 @@ export default class PluginLetsGo extends Plugin {
     }
     this.topBarElement?.remove();
     this.topBarElement = undefined;
+    this.mobileAppearanceElement?.remove();
+    this.mobileAppearanceElement = undefined;
   }
 
   openSetting(): void {
