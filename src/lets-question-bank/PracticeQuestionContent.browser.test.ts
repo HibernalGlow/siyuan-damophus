@@ -120,6 +120,17 @@ describe("PracticeQuestionContent", () => {
     expect(mountSourceBlock).not.toHaveBeenCalled();
   });
 
+  it("aligns the HTML stem and options without a narrow centered column", async () => {
+    render({ questionRenderMode: "html" });
+    await flush();
+
+    const stem = document.querySelector<HTMLElement>(".stem")!;
+    const options = document.querySelector<HTMLElement>(".options")!;
+    expect(Math.abs(stem.getBoundingClientRect().left - options.getBoundingClientRect().left)).toBeLessThan(1);
+    expect(Math.abs(stem.getBoundingClientRect().width - options.getBoundingClientRect().width)).toBeLessThan(1);
+    expect(getComputedStyle(options).maxWidth).toBe("none");
+  });
+
   it("projects Topic Index media without creating persisted document blocks", async () => {
     render({
       questionRenderMode: "html",

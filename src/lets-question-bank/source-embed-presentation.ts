@@ -38,8 +38,11 @@ export function sourceEmbedBlockAttributes(options: {
 export function observeFocusedBlock(
   wysiwyg: HTMLElement,
   blockId: string,
+  retainedBlockIds: readonly string[] = [blockId],
 ): () => void {
   let pruning = false;
+  const retainedIds = new Set(retainedBlockIds);
+  retainedIds.add(blockId);
 
   const prune = (): void => {
     if (pruning) return;
@@ -49,18 +52,14 @@ export function observeFocusedBlock(
 
     pruning = true;
     try {
-      let branch = target;
-      while (branch.parentElement && branch.parentElement !== wysiwyg) {
-        const parent = branch.parentElement;
-        for (const sibling of [...parent.children]) {
-          if (sibling !== branch && (sibling as HTMLElement).hasAttribute("data-node-id")) {
-            sibling.remove();
-          }
-        }
-        branch = parent;
-      }
-      for (const sibling of [...wysiwyg.children]) {
-        if (sibling !== branch) sibling.remove();
+      const blocks = [...wysiwyg.querySelectorAll<HTMLElement>("[data-node-id]")];
+      for (const element of blocks.reverse()) {
+        const id = element.dataset.nodeId;
+        if (id && retainedIds.has(id)) continue;
+        if (element.closest([...retainedIds].map((retainedId) => `[data-node-id="${retainedId}"]`).join(","))) continue;
+        if ([...element.querySelectorAll<HTMLElement>("[data-node-id]")]
+          .some((descendant) => descendant.dataset.nodeId && retainedIds.has(descendant.dataset.nodeId))) continue;
+        element.remove();
       }
     } finally {
       pruning = false;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Database, Download, RefreshCw, ScanLine, Upload } from "lucide-svelte";
+  import { Database, Download, FileInput, RefreshCw, ScanLine, Upload } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@
   export let label: (key: string, fallback: string) => string;
   export let documentId = "";
   export let validDocument: () => boolean;
+  export let useCurrentDocument: () => void;
   export let invalidateDocumentTarget: () => void;
   export let busy = false;
   export let preview: QuestionIndexPreview | undefined;
@@ -123,6 +124,17 @@
     <div class="document-row">
       <FormLabel class="document-id-label" for="document-id">{label("documentId", "Document ID")}</FormLabel>
       <Input id="document-id" name="document-id" bind:value={documentId} autocomplete="off" spellcheck="false" oninput={invalidateDocumentTarget} />
+      <Button
+        variant="ghost"
+        size="icon"
+        data-use-current-document
+        title={label("useCurrentDocument", "Use current document")}
+        aria-label={label("useCurrentDocument", "Use current document")}
+        disabled={busy}
+        onclick={useCurrentDocument}
+      >
+        <FileInput aria-hidden="true" />
+      </Button>
       <Button variant="outline" size="icon" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} onclick={() => scanDocument(true)}>
         <ScanLine aria-hidden="true" />
       </Button>

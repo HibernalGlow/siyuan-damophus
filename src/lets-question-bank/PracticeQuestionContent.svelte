@@ -272,7 +272,7 @@
 {/if}
 
 <style>
-  .question { width: 100%; margin: 0 auto; padding: 24px 22px 8px; }
+  .question { width: 100%; margin: 0 auto; padding: 16px 14px 8px; }
   .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .question-title { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
@@ -299,11 +299,10 @@
   }
   .source-block-host :global(.damophus-native-source-block .protyle-wysiwyg) {
     min-height: 0;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+    padding: 0 !important;
     overflow: visible;
   }
-  .options { width: 100%; max-width: 980px; margin: 16px auto 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
+  .options { width: 100%; margin: 16px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; }
   .options > :global(button.option) {
     min-width: 0;
     min-height: 36px;
@@ -346,26 +345,30 @@
     padding: 0 !important;
     line-height: 1.4 !important;
   }
-  .answer { width: 100%; margin: 16px auto 0; padding: 18px 22px 24px; border-top: 1px solid var(--b3-border-color); }
+  .answer { width: 100%; margin: 16px auto 0; padding: 18px 14px 24px; border-top: 1px solid var(--b3-border-color); }
   .solution { margin-top: 12px; line-height: 1.7; }
   .correct { color: var(--b3-theme-success); font-size: 13px; }
   .incorrect { color: var(--b3-theme-error); }
   .answer-summary { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
   .answer-summary::-webkit-scrollbar { display: none; }
   .answer-summary > strong { flex: 0 0 auto; white-space: nowrap; }
-  .native-answer-source { margin-top: 12px; min-height: 0; overflow: visible; }
-  .native-answer-source :global(.damophus-native-source-block) { min-height: 0; margin: 0; overflow: visible; }
-  .native-answer-source :global(.damophus-native-source-block + .damophus-native-source-block) { margin-top: 0; }
+  .native-answer-source, .embedded-answer-source { margin-top: 12px; min-height: 0; overflow: visible; }
+  .native-answer-source :global(.damophus-native-source-block),
+  .embedded-answer-source :global(.damophus-native-source-block) { min-height: 0; margin: 0; overflow: visible; }
+  .native-answer-source :global(.damophus-native-source-block + .damophus-native-source-block),
+  .embedded-answer-source :global(.damophus-native-source-block + .damophus-native-source-block) { margin-top: 0; }
   .native-answer-source :global(.damophus-native-source-block > .protyle),
-  .native-answer-source :global(.damophus-native-source-block .protyle-content) {
+  .native-answer-source :global(.damophus-native-source-block .protyle-content),
+  .embedded-answer-source :global(.damophus-native-source-block > .protyle),
+  .embedded-answer-source :global(.damophus-native-source-block .protyle-content) {
     height: auto;
     min-height: 0;
     overflow: visible;
   }
-  .native-answer-source :global(.damophus-native-source-block .protyle-wysiwyg) {
+  .native-answer-source :global(.damophus-native-source-block .protyle-wysiwyg),
+  .embedded-answer-source :global(.damophus-native-source-block .protyle-wysiwyg) {
     min-height: 0;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+    padding: 0 !important;
     overflow: visible;
   }
   .attempt-metadata { margin-top: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
@@ -413,13 +416,17 @@
 
   @media (max-width: 750px) {
     .source-block-host :global(.protyle-scroll),
-    .native-answer-source :global(.protyle-scroll) { display: none !important; }
+    .native-answer-source :global(.protyle-scroll),
+    .embedded-answer-source :global(.protyle-scroll) { display: none !important; }
     .source-block-host :global(.damophus-native-source-block > .protyle),
     .source-block-host :global(.damophus-native-source-block .protyle-content),
     .source-block-host :global(.damophus-native-source-block .protyle-wysiwyg),
     .native-answer-source :global(.damophus-native-source-block > .protyle),
     .native-answer-source :global(.damophus-native-source-block .protyle-content),
-    .native-answer-source :global(.damophus-native-source-block .protyle-wysiwyg) {
+    .native-answer-source :global(.damophus-native-source-block .protyle-wysiwyg),
+    .embedded-answer-source :global(.damophus-native-source-block > .protyle),
+    .embedded-answer-source :global(.damophus-native-source-block .protyle-content),
+    .embedded-answer-source :global(.damophus-native-source-block .protyle-wysiwyg) {
       width: 100% !important;
       max-width: none !important;
       margin-left: 0 !important;

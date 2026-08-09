@@ -86,6 +86,7 @@
   } from "./question-bank-display";
   export let controller: QuestionBankUiController;
   export let initialDocumentId: string | undefined = undefined;
+  export let getCurrentDocumentId: (() => string | undefined) | undefined = undefined;
   export let translations: Record<string, string> = {};
   export let reviewThreshold = 2;
   export let random: () => number = Math.random;
@@ -441,6 +442,13 @@
     recoverableSession = undefined;
     scanPanelUserControlled = false;
     scheduleAutoScan();
+  }
+
+  function useCurrentDocument(): void {
+    const currentDocumentId = getCurrentDocumentId?.();
+    if (!currentDocumentId || currentDocumentId === documentId) return;
+    documentId = currentDocumentId;
+    invalidateDocumentTarget();
   }
 
   async function loadTopicResources(questionId: string | undefined): Promise<void> {
@@ -1158,7 +1166,7 @@
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
   {sourceEditingLocked} {toggleSourceEditingLock}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
-  {validDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
+  {validDocument} {useCurrentDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
   {questionSetBlueprints} {run} {loadQuestionSetData} {previewSourceSync} {confirmSourceSync} {assembleBlueprint} {saveBlueprint}
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}

@@ -68,6 +68,63 @@ describe("practice header answer correction", () => {
     expect(toggleSourceEditingLock).toHaveBeenCalledOnce();
   });
 
+  it("moves low-frequency controls into an overflow menu when the header is narrow", async () => {
+    const openQuestionSource = vi.fn();
+    const toggleSourceEditingLock = vi.fn();
+    const target = document.createElement("div");
+    target.className = "question-bank";
+    target.style.width = "600px";
+    document.body.append(target);
+    mounted = mount(PracticeHeader, {
+      target,
+      props: {
+        currentQuestion: question,
+        buildRevision: "test",
+        label: (_key: string, fallback: string) => fallback,
+        translations: {},
+        questionIndex: 0,
+        queueLength: 1,
+        timingEnabled: false,
+        breadcrumbItems: [],
+        currentQuestionBlockId: "20260808120000-menu001",
+        openQuestionSource,
+        mobileBreadcrumb: false,
+        breadcrumbPriority: "tail",
+        breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
+        sourceEditingAvailable: true,
+        sourceEditingLocked: true,
+        toggleSourceEditingLock,
+        previousQuestion: vi.fn(),
+        nextQuestion: vi.fn(),
+        togglePracticeTimer: vi.fn(),
+        exitReview: vi.fn(),
+        pausePractice: vi.fn(),
+        requestEndPractice: vi.fn(),
+        onAnswerCardToggle: vi.fn(),
+        revealed: true,
+        onCorrectAnswer: vi.fn(),
+      },
+    });
+    await tick();
+
+    const directLocate = target.querySelector<HTMLElement>("[data-open-question-source]")!;
+    const overflow = target.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")!;
+    expect(getComputedStyle(directLocate).display).toBe("none");
+    expect(getComputedStyle(overflow).display).not.toBe("none");
+    overflow.click();
+    await tick();
+    const menu = target.querySelector<HTMLElement>('[role="menu"]');
+    expect(menu?.textContent).toContain("Open source in SiYuan");
+    expect(menu?.textContent).toContain("Unlock source editing");
+    expect(menu?.textContent).toContain("Correct answer");
+    [...menu!.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes("Open source in SiYuan"))
+      ?.click();
+    await tick();
+    expect(openQuestionSource).toHaveBeenCalledWith("20260808120000-menu001");
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+  });
+
   it("hides the Damophus title by default and keeps breadcrumb items visible and clickable", async () => {
     const openQuestionSource = vi.fn();
     const target = document.createElement("div");

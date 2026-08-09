@@ -46,6 +46,7 @@
   export let binding: any;
   export let documentId: string;
   export let validDocument: any;
+  export let useCurrentDocument: any;
   export let initializationPreview: any;
   export let previewInitialization: any;
   export let confirmInitialization: any;
@@ -297,6 +298,7 @@
       {label}
       bind:documentId
       {validDocument}
+      {useCurrentDocument}
       {invalidateDocumentTarget}
       {busy}
       {preview}

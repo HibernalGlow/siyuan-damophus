@@ -163,11 +163,22 @@ describe("question bank settings navigation", () => {
 
     await page.getByRole("button", { name: "题目渲染方式" }).click();
     await page.getByRole("option", { name: "嵌入块" }).click();
+    await tick();
+    expect(questionRenderMode.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("嵌入块");
+    await page.getByRole("button", { name: "题目渲染方式" }).click();
+    await page.getByRole("option", { name: "原生" }).click();
+    await tick();
+    expect(questionRenderMode.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("原生");
     await page.getByRole("button", { name: "标题嵌入方式" }).click();
     await page.getByRole("option", { name: "仅下方块" }).click();
+    await tick();
+    expect(embedHeadingMode.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("仅下方块");
 
     expect(changed).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "questionRenderMode", value: "embed" }),
+    }));
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "questionRenderMode", value: "native" }),
     }));
     expect(changed).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "embedHeadingMode", value: "2" }),

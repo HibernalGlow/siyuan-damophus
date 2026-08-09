@@ -24,11 +24,11 @@
 
 <script lang="ts">
   import { createEventDispatcher, tick } from "svelte";
-  import { BookOpenCheck, Database, EyeOff, FileText, GraduationCap, Heading1, ListTree, Monitor, PanelsTopLeft, Rows3, TextSelect, Timer } from "lucide-svelte";
+  import { BookOpenCheck, Database, EyeOff, GraduationCap, Monitor, Timer } from "lucide-svelte";
   import SettingPanel from "@/libs/setting-panel.svelte";
   import { Button } from "@/components/ui/button";
-  import * as Select from "@/components/ui/select";
   import { plugin } from "@/utils";
+  import QuestionBankDisplaySelect from "./QuestionBankDisplaySelect.svelte";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
   import SourceAnswerMaskSettings from "./SourceAnswerMaskSettings.svelte";
   import type { AnswerMaskStyle } from "./source-answer-mask";
@@ -97,19 +97,8 @@
   }
 
   function setDisplaySelectChoice(item: ISettingItem, value: string): void {
-    if (!value || value === item.value) return;
+    if (!value) return;
     dispatch("changed", { group, key: item.key, value });
-  }
-
-  function displaySelectIcon(key: string, value: string) {
-    if (key === "questionRenderMode") {
-      if (value === "html") return TextSelect;
-      if (value === "native") return FileText;
-      return PanelsTopLeft;
-    }
-    if (value === "0") return Rows3;
-    if (value === "1") return Heading1;
-    return ListTree;
   }
 
   function setSectionOpen(sectionId: SectionId, open: boolean): void {
@@ -200,31 +189,7 @@
                         <div class="text-sm font-medium">{@html localized(item.title)}</div>
                         <div class="mt-1 text-xs leading-5 text-muted-foreground">{@html localized(item.description)}</div>
                       </div>
-                      <Select.Root
-                        type="single"
-                        value={String(item.value)}
-                        onValueChange={(value) => setDisplaySelectChoice(item, value)}
-                      >
-                        {@const selectedValue = String(item.value)}
-                        {@const selectedLabel = localized(item.options[selectedValue] || selectedValue)}
-                        {@const SelectedIcon = displaySelectIcon(item.key, selectedValue)}
-                        <Select.Trigger id={item.key} class="w-52 max-w-full damophus-setting-select" title={selectedLabel} aria-label={localized(item.title)}>
-                          <svelte:component this={SelectedIcon} aria-hidden="true" />
-                          <span>{selectedLabel}</span>
-                        </Select.Trigger>
-                        <Select.Content>
-                          <Select.Group>
-                            {#each Object.entries(item.options) as [value, option] (value)}
-                              {@const label = localized(option)}
-                              {@const Icon = displaySelectIcon(item.key, value)}
-                              <Select.Item {value} {label}>
-                                <svelte:component this={Icon} aria-hidden="true" />
-                                <span>{label}</span>
-                              </Select.Item>
-                            {/each}
-                          </Select.Group>
-                        </Select.Content>
-                      </Select.Root>
+                      <QuestionBankDisplaySelect {item} onChange={(value) => setDisplaySelectChoice(item, value)} />
                     </div>
                   {/each}
                 </div>

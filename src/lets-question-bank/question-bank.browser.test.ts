@@ -72,6 +72,22 @@ describe("question bank browser flow", () => {
     expect(toggle?.getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("loads the current editor document into a dock-opened question bank", async () => {
+    const currentDocumentId = "20260809093000-current";
+    const { controller } = mockController();
+    render(controller, {
+      initialDocumentId: undefined,
+      getCurrentDocumentId: () => currentDocumentId,
+    });
+    await flush();
+
+    const input = document.querySelector<HTMLInputElement>("#document-id");
+    expect(input?.value).toBe("");
+    button("Use current document").click();
+    await flush();
+    expect(input?.value).toBe(currentDocumentId);
+  });
+
   it("keeps the scan summary collapsed on a short mobile viewport", async () => {
     await page.viewport(390, 640);
     const { controller } = mockController();

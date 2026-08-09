@@ -31,6 +31,7 @@ import {
   EMPTY_SOURCE_EMBED_SQL,
   loadSourceEmbedRows,
   sourceEmbedBlockIds,
+  sourceEmbedSubtreeIds,
   sourceEmbedSql,
   type SourceEmbedBlockRow,
   type SourceEmbedSection,
@@ -96,6 +97,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private readonly handleSyncEnd = (): void => {
     this.storeSyncCoordinator?.handle({cmd: "sync-end"});
   };
+  private readonly handleVisibilityChange = (): void => {
+    if (document.visibilityState === "visible") void this.storeSyncCoordinator?.request();
+  };
 
   override registerModels(): void {
     if (this.tabRegistered) return;
@@ -151,6 +155,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
     plugin.eventBus.on("sync-end", this.handleSyncEnd);
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
   }
 
   addMenuItem(menu: Menu): void {
@@ -206,6 +211,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
     plugin.eventBus.off("sync-end", this.handleSyncEnd);
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.listening = false;
     for (const app of this.mountedTabs.values()) void unmount(app);
     this.mountedTabs.clear();
@@ -472,6 +478,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       props: {
         controller,
         initialDocumentId: documentId,
+        getCurrentDocumentId: () => this.currentDocumentId(),
         translations: plugin.i18n,
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
@@ -534,8 +541,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
               }));
             }
           }
-          const mountedBlockIds = renderMode === "native"
-            ? sourceEmbedBlockIds(await loadSourceRows(blockId), blockId, section, {
+          const sourceRows = renderMode === "native" ? await loadSourceRows(blockId) : undefined;
+          const mountedBlockIds = sourceRows
+            ? sourceEmbedBlockIds(sourceRows, blockId, section, {
                 hideEmptySolutionBlocks: section === "solution" && this.getSetting("hideEmptyAnswerBlocks") !== false,
               })
             : temporaryEmbedId ? [temporaryEmbedId] : [];
@@ -562,6 +570,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
                 stopBlockIsolation = observeFocusedBlock(
                   mountedEditor.protyle.wysiwyg.element,
                   mountedBlockId,
+                  sourceRows ? sourceEmbedSubtreeIds(sourceRows, mountedBlockId) : [mountedBlockId],
                 );
                 if (isMobile) {
                   defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element);

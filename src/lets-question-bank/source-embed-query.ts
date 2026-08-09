@@ -193,6 +193,15 @@ export function sourceEmbedBlockIds(
   return selected.length > 0 ? selected : [questionBlockId];
 }
 
+export function sourceEmbedSubtreeIds(
+  rows: readonly SourceEmbedBlockRow[],
+  rootBlockId: string,
+): string[] {
+  const root = rows.find((row) => row.id === rootBlockId);
+  if (!root) return [rootBlockId];
+  return descendants(root, buildChildren(rows)).map((row) => row.id);
+}
+
 export function sourceEmbedSql(
   rows: readonly SourceEmbedBlockRow[],
   questionBlockId: string,

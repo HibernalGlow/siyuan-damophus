@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enforceSourceBlockReadOnly } from "./source-embed-presentation";
+import { enforceSourceBlockReadOnly, observeFocusedBlock } from "./source-embed-presentation";
 
 describe("source embed read-only enforcement", () => {
   it("locks existing and dynamically rendered editable descendants", async () => {
@@ -23,5 +23,31 @@ describe("source embed read-only enforcement", () => {
     root.append(afterStop);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(afterStop.contentEditable).toBe("true");
+  });
+
+  it("retains a focused heading and its sibling-rendered source subtree", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="answer-heading">答案与解析</div>
+      <div data-node-id="answer-list">答案 ABC</div>
+      <div data-node-id="answer-callout">解析正文</div>
+      <div data-node-id="next-question">下一题</div>
+    `;
+
+    const stop = observeFocusedBlock(root, "answer-heading", [
+      "answer-heading",
+      "answer-list",
+      "answer-callout",
+    ]);
+
+    expect(root.querySelector('[data-node-id="answer-heading"]')).not.toBeNull();
+    expect(root.querySelector('[data-node-id="answer-list"]')).not.toBeNull();
+    expect(root.querySelector('[data-node-id="answer-callout"]')).not.toBeNull();
+    expect(root.querySelector('[data-node-id="next-question"]')).toBeNull();
+
+    root.insertAdjacentHTML("beforeend", '<div data-node-id="unrelated-late">无关内容</div>');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(root.querySelector('[data-node-id="unrelated-late"]')).toBeNull();
+    stop();
   });
 });

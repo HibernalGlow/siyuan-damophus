@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   loadSourceEmbedRows,
   sourceEmbedBlockIds,
+  sourceEmbedSubtreeIds,
   sourceEmbedSql,
   type SourceEmbedBlockRow,
 } from "./source-embed-query";
@@ -49,6 +50,11 @@ describe("source embed query", () => {
       "20260806030001-answer-heading",
       "20260806030004-heading",
       "20260806030006-chain-heading",
+    ]);
+    expect(sourceEmbedSubtreeIds(nestedRows, "20260806030006-chain-heading")).toEqual([
+      "20260806030006-chain-heading",
+      "20260806030007-chain",
+      "20260806030008-chain-item",
     ]);
   });
 
