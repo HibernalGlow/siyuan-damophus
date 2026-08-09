@@ -7,7 +7,7 @@ import pluginMetadata from "./plugin";
 
 describe("list merge settings", () => {
   it("registers an independent module setting for the mixed-list default", () => {
-    expect(pluginMetadata.settings).toEqual([
+    expect(pluginMetadata.settings).toEqual(expect.arrayContaining([
       expect.objectContaining({
         key: "defaultMixedSubtype",
         type: "select",
@@ -17,7 +17,7 @@ describe("list merge settings", () => {
           u: "lets-list-merge.defaultMixedSubtypeUnordered",
         },
       }),
-    ]);
+    ]));
   });
 });
 

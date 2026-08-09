@@ -1,4 +1,5 @@
 import { en } from "../translations/en";
+import type { PluginEntrySurface } from "@/libs/plugin-entry-settings";
 
 export type TranslationKey = keyof typeof en;
 
@@ -44,6 +45,7 @@ export interface SubPlugin {
   t?(key: TranslationKey): string;
   getSetting?(key: string): any;
   setSetting?(key: string, value: any): void;
+  isEntryEnabled?(surface: PluginEntrySurface, fallback?: boolean): boolean;
 
   // Event handlers
   addMenuItem?(menu: Menu): void;

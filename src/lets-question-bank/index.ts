@@ -141,8 +141,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
       this.openEntry.registerCommand();
       this.openEntry.registerDock();
     }
+    this.openEntry?.setSurfaces(this.configuredEntrySurfaces());
     this.openEntry?.setEnabled(true);
-    this.registerPracticeCommands();
+    if (this.isEntryEnabled("command")) this.registerPracticeCommands();
+    else this.unregisterPracticeCommands();
     if (this.listening) return;
     this.listening = true;
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
@@ -161,7 +163,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       id: "question-bank.open",
       title: this.t("lets-question-bank.open"),
       icon: "iconDatabase",
-      execute: () => this.open(),
+      execute: () => this.openConfiguredSurface(),
       command: {
         langKey: "lets-question-bank.commandOpen",
       },
@@ -271,12 +273,33 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   private addLaunchMenuItem(menu: IEventBusMap["click-blockicon"]["menu"], blockId?: string): void {
-    if (!blockId) return;
+    if (!blockId || !this.isEntryEnabled("menu")) return;
     menu.addItem({
       icon: "iconDatabase",
       label: this.t("lets-question-bank.openFromBlock"),
-      click: () => this.open(blockId),
+      click: () => this.openConfiguredSurface(blockId),
     });
+  }
+
+  private configuredEntrySurfaces() {
+    const dock = this.isEntryEnabled("dock");
+    const tab = this.isEntryEnabled("tab");
+    const hasTarget = dock || tab;
+    return {
+      menu: hasTarget && this.isEntryEnabled("menu"),
+      dock,
+      command: hasTarget && this.isEntryEnabled("command"),
+    };
+  }
+
+  private openConfiguredSurface(blockId = this.currentDocumentId()): void {
+    if (this.isEntryEnabled("tab")) {
+      this.open(blockId);
+      return;
+    }
+    if (this.isEntryEnabled("dock")) {
+      document.querySelector<HTMLElement>('.dock__item[data-type="damophus-question-bank-dock"]')?.click();
+    }
   }
 
   private currentDocumentId(): string | undefined {

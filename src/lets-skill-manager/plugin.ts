@@ -1,4 +1,5 @@
 import type { PluginMetadata } from "@/types/plugin";
+import { createEntrySettings } from "../libs/plugin-entry-settings";
 
 const pluginMetadata: PluginMetadata = {
   name: "skillManager",
@@ -7,6 +8,7 @@ const pluginMetadata: PluginMetadata = {
   version: "1.0.0",
   enabled: true,
   settings: [
+    ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }),
     {
       type: "textinput",
       title: "lets-skill-manager.sourceRootTitle",

@@ -31,7 +31,10 @@ export default class LayoutActionsPlugin extends SubPluginBase {
 
   override onload(): void {
     this.registerBuiltInCommands();
-    for (const entry of this.commandEntries ?? []) entry.setEnabled(true);
+    for (const entry of this.commandEntries ?? []) {
+      entry.setSurfaces({ command: this.isEntryEnabled("command") });
+      entry.setEnabled(true);
+    }
     this.ensureOptionalDock();
     this.renderDock();
   }
@@ -51,6 +54,7 @@ export default class LayoutActionsPlugin extends SubPluginBase {
   }
 
   addMenuItem(menu: Menu): void {
+    if (!this.isEntryEnabled("menu")) return;
     const actions = this.actionsFor("menu");
     if (actions.length === 0) return;
     menu.addItem({

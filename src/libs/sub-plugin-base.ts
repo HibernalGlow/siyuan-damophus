@@ -1,4 +1,5 @@
 import type { SubPlugin, TranslationKey } from "../types/plugin";
+import { resolveEntrySetting, type PluginEntrySurface } from "./plugin-entry-settings";
 
 /**
  * 子插件基类
@@ -17,6 +18,10 @@ export class SubPluginBase implements SubPlugin {
   t!: (key: TranslationKey) => string;
   getSetting!: (key: string) => any;
   setSetting!: (key: string, value: any) => void;
+
+  isEntryEnabled(surface: PluginEntrySurface, fallback = true): boolean {
+    return resolveEntrySetting((key) => this.getSetting(key), surface, fallback);
+  }
 
   registerModels(): void {}
   onload(): void {}

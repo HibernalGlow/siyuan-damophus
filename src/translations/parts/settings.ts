@@ -36,6 +36,14 @@ export const en = {
   "settings.debugLoggingDesc": "Enable verbose console output for debugging. Keep disabled in normal use.",
   "settings.lastVersion": "Last Prompted Version",
   "settings.lastVersionDesc": "The version for which the changelog was last shown. Set to a high value (e.g. 999.999.999) to suppress future update dialogs.",
+  "settings.entry.menu": "Plugin menu",
+  "settings.entry.menuDescription": "Show this module in Damophus and supported context menus.",
+  "settings.entry.dock": "Dock",
+  "settings.entry.dockDescription": "Show this module in SiYuan's Dock.",
+  "settings.entry.command": "Commands",
+  "settings.entry.commandDescription": "Register this module's commands in SiYuan.",
+  "settings.entry.tab": "Open in new tab",
+  "settings.entry.tabDescription": "Allow this module to open its workspace in a separate tab.",
 };
 
 export const zhCN: typeof en = {
@@ -75,4 +83,12 @@ export const zhCN: typeof en = {
   "settings.debugLoggingDesc": "开启后在控制台输出详细日志，日常使用请保持关闭。",
   "settings.lastVersion": "上次提示版本",
   "settings.lastVersionDesc": "记录已展示过更新日志的最新版本号，手动修改可重新触发更新提示。设置为极大值（如 999.999.999）可永久关闭更新提醒。",
+  "settings.entry.menu": "插件菜单",
+  "settings.entry.menuDescription": "在 Damophus 菜单及该模块支持的上下文菜单中显示入口。",
+  "settings.entry.dock": "侧栏 Dock",
+  "settings.entry.dockDescription": "在思源侧栏中显示该模块的 Dock 入口。",
+  "settings.entry.command": "命令",
+  "settings.entry.commandDescription": "在思源中注册该模块提供的命令。",
+  "settings.entry.tab": "新标签页",
+  "settings.entry.tabDescription": "允许该模块在独立标签页中打开工作区。",
 };

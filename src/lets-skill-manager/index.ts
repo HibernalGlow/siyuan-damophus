@@ -39,6 +39,7 @@ export default class SkillManagerPlugin extends SubPluginBase {
       this.openEntry = this.createOpenEntry();
       this.openEntry.registerDock();
     }
+    this.openEntry.setSurfaces(this.configuredEntrySurfaces());
     this.openEntry.setEnabled(true);
     this.renderOpenViews();
   }
@@ -79,7 +80,10 @@ export default class SkillManagerPlugin extends SubPluginBase {
   private renderDock(): void {
     if (!this.dockTarget) return;
     this.dockCleanup?.();
-    this.dockCleanup = this.render(this.dockTarget, () => this.openInTab());
+    this.dockCleanup = this.render(
+      this.dockTarget,
+      this.isEntryEnabled("tab") ? () => this.openInTab() : undefined,
+    );
   }
 
   private renderOpenViews(): void {
@@ -135,9 +139,8 @@ export default class SkillManagerPlugin extends SubPluginBase {
       id: "skill-manager.open",
       title: this.t("lets-skill-manager.menu"),
       icon: "iconSparkles",
-      execute: () => {
-        document.querySelector<HTMLElement>('.dock__item[data-type="damophus-skill-manager-dock"]')?.click();
-      },
+      execute: () => this.openConfiguredSurface(),
+      command: { langKey: "lets-skill-manager.commandOpen" },
       dock: {
         config: {
           position: "RightBottom",
@@ -159,6 +162,28 @@ export default class SkillManagerPlugin extends SubPluginBase {
         },
       },
     }, plugin);
+  }
+
+  private configuredEntrySurfaces() {
+    const dock = this.isEntryEnabled("dock");
+    const tab = this.isEntryEnabled("tab");
+    const hasTarget = dock || tab;
+    return {
+      menu: hasTarget && this.isEntryEnabled("menu"),
+      dock,
+      command: hasTarget && this.isEntryEnabled("command"),
+    };
+  }
+
+  private openConfiguredSurface(): void {
+    if (this.isEntryEnabled("dock")) {
+      const dock = document.querySelector<HTMLElement>('.dock__item[data-type="damophus-skill-manager-dock"]');
+      if (dock) {
+        dock.click();
+        return;
+      }
+    }
+    if (this.isEntryEnabled("tab")) this.openInTab();
   }
 
   private labels() {

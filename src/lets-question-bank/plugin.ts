@@ -1,4 +1,5 @@
 import type { PluginMetadata } from "@/types/plugin";
+import { createEntrySettings } from "../libs/plugin-entry-settings";
 import { DEFAULT_ANSWER_MASK_STYLE } from "./source-answer-mask";
 
 const pluginMetadata: PluginMetadata = {
@@ -9,6 +10,7 @@ const pluginMetadata: PluginMetadata = {
   author: "HibernalGlow",
   enabled: true,
   settings: [
+    ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }),
     {
       type: "number",
       title: "lets-question-bank.reviewThreshold",

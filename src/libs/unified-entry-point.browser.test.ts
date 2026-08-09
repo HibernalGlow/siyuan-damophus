@@ -39,6 +39,12 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     expect(dockButton.style.display).toBe("");
     expect(dockButton.getAttribute("aria-hidden")).toBe("false");
 
+    entry.setSurfaces({ dock: false });
+    expect(dockButton.style.display).toBe("none");
+
+    entry.setSurfaces({ dock: true });
+    expect(dockButton.style.display).toBe("");
+
     dockButton.remove();
   });
 });

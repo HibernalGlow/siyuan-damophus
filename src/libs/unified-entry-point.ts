@@ -1,4 +1,5 @@
 import type { ICommand, IMenu, IPluginDockTab, Menu, Plugin } from "siyuan";
+import type { PluginEntrySurface } from "./plugin-entry-settings";
 
 export interface UnifiedEntryDock {
   type: string;
@@ -21,6 +22,7 @@ export interface UnifiedEntryDefinition {
 }
 
 type UnifiedEntryHost = Pick<Plugin, "addCommand" | "addDock"> & Partial<Pick<Plugin, "commands">>;
+type ManagedEntrySurface = Exclude<PluginEntrySurface, "tab">;
 
 /**
  * Declares one user-facing action once, then exposes it consistently through
@@ -33,6 +35,11 @@ export class UnifiedEntryPoint {
   private dockTarget?: HTMLElement;
   private dockInitialized = false;
   private enabled = true;
+  private surfaces: Record<ManagedEntrySurface, boolean> = {
+    menu: true,
+    dock: true,
+    command: true,
+  };
 
   constructor(
     private readonly definition: UnifiedEntryDefinition,
@@ -40,7 +47,7 @@ export class UnifiedEntryPoint {
   ) {}
 
   registerCommand(): void {
-    if (this.commandRegistered || !this.definition.command) return;
+    if (!this.enabled || !this.surfaces.command || this.commandRegistered || !this.definition.command) return;
     this.commandRegistered = true;
     this.registeredCommand = {
       langKey: this.definition.command.langKey,
@@ -75,7 +82,7 @@ export class UnifiedEntryPoint {
   }
 
   addMenuItem(menu: Menu): void {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.surfaces.menu) return;
     menu.addItem(this.menuItem());
   }
 
@@ -84,7 +91,7 @@ export class UnifiedEntryPoint {
       icon: this.definition.icon,
       label: this.definition.title,
       click: () => {
-        if (this.enabled) this.definition.execute();
+        if (this.enabled && this.surfaces.menu) this.definition.execute();
       },
     };
   }
@@ -96,10 +103,21 @@ export class UnifiedEntryPoint {
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
-    if (enabled) this.registerCommand();
-    else this.unregisterCommand();
+    this.syncCommandState();
     this.syncDockVisibility();
     this.syncDockState();
+  }
+
+  setSurfaces(surfaces: Partial<Record<ManagedEntrySurface, boolean>>): void {
+    this.surfaces = { ...this.surfaces, ...surfaces };
+    this.syncCommandState();
+    this.syncDockVisibility();
+    this.syncDockState();
+  }
+
+  private syncCommandState(): void {
+    if (this.enabled && this.surfaces.command) this.registerCommand();
+    else this.unregisterCommand();
   }
 
   private unregisterCommand(): void {
@@ -115,10 +133,11 @@ export class UnifiedEntryPoint {
 
   private syncDockState(): void {
     if (!this.dockTarget || !this.definition.dock) return;
-    if (this.enabled && !this.dockInitialized) {
+    const active = this.enabled && this.surfaces.dock;
+    if (active && !this.dockInitialized) {
       this.definition.dock.init(this.dockTarget);
       this.dockInitialized = true;
-    } else if (!this.enabled && this.dockInitialized) {
+    } else if (!active && this.dockInitialized) {
       this.definition.dock.destroy?.(this.dockTarget);
       this.dockInitialized = false;
     }
@@ -127,12 +146,13 @@ export class UnifiedEntryPoint {
   private syncDockVisibility(): void {
     const dockType = this.definition.dock?.type;
     if (!dockType || typeof document === "undefined") return;
+    const hidden = !this.enabled || !this.surfaces.dock;
     const apply = () => {
       document.querySelectorAll<HTMLElement>(".dock__item[data-type]").forEach((element) => {
         if (element.dataset.type !== dockType) return;
-        element.hidden = !this.enabled;
-        element.style.display = this.enabled ? "" : "none";
-        element.setAttribute("aria-hidden", String(!this.enabled));
+        element.hidden = hidden;
+        element.style.display = hidden ? "none" : "";
+        element.setAttribute("aria-hidden", String(hidden));
       });
     };
     apply();

@@ -1,4 +1,5 @@
 import type { PluginMetadata } from "@/types/plugin";
+import { createEntrySettings } from "../libs/plugin-entry-settings";
 import { DEFAULT_ACTIONS } from "./actions";
 
 const pluginMetadata: PluginMetadata = {
@@ -8,6 +9,7 @@ const pluginMetadata: PluginMetadata = {
   version: "1.0.0",
   enabled: true,
   settings: [
+    ...createEntrySettings({ menu: true, command: true }),
     {
       type: "checkbox",
       title: "lets-layout-actions.dockEnabled",

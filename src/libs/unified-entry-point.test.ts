@@ -116,4 +116,31 @@ describe("UnifiedEntryPoint", () => {
     expect(init).toHaveBeenCalledTimes(2);
     expect(execute).toHaveBeenCalledOnce();
   });
+
+  it("configures menu, Dock, and command surfaces independently", () => {
+    const commands: any[] = [];
+    const menu = { addItem: vi.fn() };
+    const entry = new UnifiedEntryPoint({
+      id: "surface-test",
+      title: "Surface test",
+      icon: "iconTest",
+      execute: vi.fn(),
+      command: { langKey: "surface-test" },
+    }, {
+      commands,
+      addCommand: (command) => commands.push(command),
+      addDock: () => ({ config: {} as never, model: {} as never }),
+    });
+
+    entry.registerCommand();
+    entry.setSurfaces({ menu: false, command: false });
+    entry.addMenuItem(menu as never);
+    expect(menu.addItem).not.toHaveBeenCalled();
+    expect(commands).toHaveLength(0);
+
+    entry.setSurfaces({ menu: true, command: true });
+    entry.addMenuItem(menu as never);
+    expect(menu.addItem).toHaveBeenCalledOnce();
+    expect(commands).toHaveLength(1);
+  });
 });

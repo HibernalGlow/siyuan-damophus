@@ -1,7 +1,7 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { getLogger } from "@/libs/logger";
 import { plugin } from "@/utils";
-import { showMessage, type IEventBusMap, type IOperation, type IProtyle, type IMenu } from "siyuan";
+import { showMessage, type ICommand, type IEventBusMap, type IOperation, type IProtyle, type IMenu } from "siyuan";
 import {
   applyListMergeDom,
   buildListMergeTransaction,
@@ -17,30 +17,26 @@ const log = getLogger("lets-list-merge");
 
 export default class ListMergePlugin extends SubPluginBase {
   private listening = false;
-  private commandsRegistered = false;
+  private commandEntries: ICommand[] = [];
 
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
+    if (!this.isEntryEnabled("menu")) return;
     const selection = resolveListMergeSelection(event.detail.blockElements);
     if (!selection) return;
     event.detail.menu.addItem(this.menuItem(selection, event.detail.protyle));
   };
 
   override onload(): void {
-    if (!this.commandsRegistered) {
-      this.commandsRegistered = true;
-      this.registerDefaultCommand();
-      this.registerCommand("lets-list-merge.commandOrdered", "o");
-      this.registerCommand("lets-list-merge.commandUnordered", "u");
-    }
+    this.syncCommands();
     if (this.listening) return;
     this.listening = true;
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
   }
 
   private registerDefaultCommand(): void {
-    plugin.addCommand({
+    const command: ICommand = {
       langKey: "lets-list-merge.commandDefault",
       hotkey: "",
       editorCallback: (protyle) => {
@@ -49,17 +45,20 @@ export default class ListMergePlugin extends SubPluginBase {
         const plan = selection && createListMergePlan(selection, this.preferredSubtype());
         if (plan) this.execute(plan, selection, protyle);
       },
-    });
+    };
+    plugin.addCommand(command);
+    this.commandEntries.push(command);
   }
 
   override onunload(): void {
+    this.removeCommands();
     if (!this.listening) return;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     this.listening = false;
   }
 
   private registerCommand(langKey: string, subtype: ListSubtype): void {
-    plugin.addCommand({
+    const command: ICommand = {
       langKey,
       hotkey: "",
       editorCallback: (protyle) => {
@@ -68,7 +67,29 @@ export default class ListMergePlugin extends SubPluginBase {
         const plan = selection && createListMergePlan(selection, subtype);
         if (plan) this.execute(plan, selection, protyle);
       },
-    });
+    };
+    plugin.addCommand(command);
+    this.commandEntries.push(command);
+  }
+
+  private syncCommands(): void {
+    if (this.isEntryEnabled("command")) {
+      if (this.commandEntries.length > 0) return;
+      this.registerDefaultCommand();
+      this.registerCommand("lets-list-merge.commandOrdered", "o");
+      this.registerCommand("lets-list-merge.commandUnordered", "u");
+      return;
+    }
+    this.removeCommands();
+  }
+
+  private removeCommands(): void {
+    if (this.commandEntries.length === 0) return;
+    for (const command of this.commandEntries) {
+      const index = plugin.commands.indexOf(command);
+      if (index >= 0) plugin.commands.splice(index, 1);
+    }
+    this.commandEntries = [];
   }
 
   private currentEditorSelection(protyle: IProtyle): ListMergeSelection | undefined {
