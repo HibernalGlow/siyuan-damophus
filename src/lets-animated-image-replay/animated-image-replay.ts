@@ -401,15 +401,19 @@ export const startAnimatedImageReplay = ({
     const controller = controllersByImage.get(img);
     const key = initialFrameCacheKey(source);
     const snapshot = stillFramesBySource.get(key);
-    if (!controller || !snapshot || !img.offsetWidth || !img.offsetHeight) return false;
+    if (!controller || !snapshot) return false;
     stillFramesBySource.delete(key);
     stillFramesBySource.set(key, snapshot);
     const stillFrame = document.createElement('canvas');
     stillFrame.className = `${OVERLAY_CLASS}__still`;
     stillFrame.setAttribute('aria-hidden', 'true');
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
-    stillFrame.width = Math.max(1, Math.round(img.offsetWidth * pixelRatio));
-    stillFrame.height = Math.max(1, Math.round(img.offsetHeight * pixelRatio));
+    stillFrame.width = img.offsetWidth > 0
+      ? Math.max(1, Math.round(img.offsetWidth * pixelRatio))
+      : snapshot.width;
+    stillFrame.height = img.offsetHeight > 0
+      ? Math.max(1, Math.round(img.offsetHeight * pixelRatio))
+      : snapshot.height;
     const context = stillFrame.getContext('2d');
     if (!context) return false;
     try {
@@ -689,6 +693,7 @@ export const startAnimatedImageReplay = ({
     });
 
     const initialVisibility = img.style.visibility;
+    const initialOpacity = img.style.opacity;
     const playsThroughToTail = CONFIG.initialFrame === "last" && hasManifestDurationSource(src);
     let initialFreezePending = true;
     let initialFrameReady = !playsThroughToTail;
@@ -696,6 +701,11 @@ export const startAnimatedImageReplay = ({
     if (!playsThroughToTail) img.style.visibility = 'hidden';
     const restoreInitialVisibility = () => {
       img.style.visibility = initialVisibility;
+      img.style.opacity = initialOpacity;
+    };
+    const hideOriginalImage = () => {
+      img.style.visibility = initialVisibility;
+      img.style.opacity = '0';
     };
     const cleanupInitialFreezeListeners = () => {
       img.removeEventListener('load', freezeInitialFrameAfterLayout);
@@ -718,7 +728,7 @@ export const startAnimatedImageReplay = ({
       }
       initialFreezePending = false;
       cleanupInitialFreezeListeners();
-      restoreInitialVisibility();
+      hideOriginalImage();
     };
     const freezeInitialFrameAfterLayout = () => requestAnimationFrame(freezeInitialFrame);
     const revealBrokenImage = () => {
@@ -730,10 +740,8 @@ export const startAnimatedImageReplay = ({
     controller.freezeInitialFrame = freezeInitialFrame;
     controller.disposeInitialFreeze = () => {
       cleanupInitialFreezeListeners();
-      if (initialFreezePending) {
-        initialFreezePending = false;
-        restoreInitialVisibility();
-      }
+      initialFreezePending = false;
+      restoreInitialVisibility();
     };
     const armInitialFrame = () => {
       if (!initialFrameReady) return;
@@ -744,7 +752,7 @@ export const startAnimatedImageReplay = ({
       initialFreezePending = false;
       initialFrameReady = true;
       cleanupInitialFreezeListeners();
-      restoreInitialVisibility();
+      hideOriginalImage();
     } else if (initialFrameReady) {
       armInitialFrame();
     } else {

@@ -76,7 +76,7 @@ describe("animated image replay", () => {
   });
 
   it("freezes the initial frame and keeps a replay control above it", async () => {
-    await mountImage();
+    const image = await mountImage();
     player = startAnimatedImageReplay({
       replayLabel: "Replay image",
       replayOnHover: false,
@@ -88,6 +88,25 @@ describe("animated image replay", () => {
       expect(overlay?.querySelector("canvas:not([hidden])")).not.toBeNull();
       expect(overlay?.querySelector('button[aria-label="Replay image"]')).not.toBeNull();
     });
+    expect(image.style.opacity).toBe("0");
+  });
+
+  it("keeps hover replay active while the original image is visually hidden", async () => {
+    const image = await mountImage();
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    player = startAnimatedImageReplay({
+      replayLabel: "Replay image",
+      replayOnHover: true,
+      hoverReplayDelayMs: 100,
+    });
+    await vi.waitFor(() => {
+      expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
+    });
+
+    image.dispatchEvent(new PointerEvent("pointerenter", {pointerType: "mouse"}));
+    await vi.waitFor(() => expect(
+      document.querySelector<HTMLImageElement>(".damophus-animated-image-overlay__replay")?.src,
+    ).toMatch(/^blob:/));
   });
 
   it("does not capture the first frame before the tail-mode duration elapses", async () => {
@@ -161,6 +180,43 @@ describe("animated image replay", () => {
     expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
   });
 
+  it("attaches the remembered tail while a virtualized replacement has zero size", async () => {
+    const source = "https://inkloomer.github.io/inkloom/animation-avif/test/scene.avif";
+    const first = await mountImage(source);
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      targetFps: 30,
+      scenes: [{file: "scene.avif", durationMs: 120, frameCount: 4}],
+    }), {
+      headers: {"content-type": "application/json"},
+    }));
+    player = startAnimatedImageReplay({replayOnHover: false});
+    await vi.waitFor(() => {
+      expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
+    });
+    first.remove();
+
+    const replacement = document.createElement("img");
+    replacement.dataset.damophusAnimatedType = "avif";
+    replacement.dataset.damophusAnimatedSrc = source;
+    replacement.src = testImage;
+    replacement.style.cssText = "display:none;width:320px;height:180px";
+    document.body.append(replacement);
+    await replacement.decode();
+    await vi.waitFor(() => {
+      expect(replacement.dataset.damophusAnimatedImageReplay).toBe("ready");
+      expect(document.querySelectorAll(".damophus-animated-image-overlay")).toHaveLength(1);
+    });
+    expect(document.querySelector("canvas")).not.toBeNull();
+    expect(replacement.style.opacity).toBe("0");
+
+    replacement.style.display = "block";
+    await vi.waitFor(() => {
+      expect(document.querySelector<HTMLElement>(".damophus-animated-image-overlay")?.hidden).toBe(false);
+      expect(document.querySelector("canvas:not([hidden])")).not.toBeNull();
+    });
+    expect(replacement.style.opacity).toBe("0");
+  });
+
   it("reuses the downloaded media when the replay control is clicked again", async () => {
     const image = await mountImage();
     player = startAnimatedImageReplay({
@@ -230,6 +286,7 @@ describe("animated image replay", () => {
     player = undefined;
 
     expect(image.getAttribute("src")).toBe(testImage);
+    expect(image.style.opacity).toBe("");
     expect(document.querySelector(".damophus-animated-image-overlay")).toBeNull();
     expect(document.getElementById("damophus-animated-image-replay-styles")).toBeNull();
   });
