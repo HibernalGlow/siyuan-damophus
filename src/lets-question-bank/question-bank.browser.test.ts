@@ -665,7 +665,7 @@ describe("question bank browser flow", () => {
     await flush();
 
     expect(document.body.textContent).toContain("Source changes were reconciled");
-    expect(document.body.textContent).toContain("q-subjective: missing-question");
+    expect(document.body.textContent).toContain("q-subjective: Question removed from source");
   });
 
   it("keeps an unfinished session when another window owns its lease", async () => {

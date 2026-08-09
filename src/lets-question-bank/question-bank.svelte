@@ -418,6 +418,7 @@
     try {
       await operation();
     } catch (reason) {
+      log.error("operation.failed", { error: reason });
       error = practiceErrorMessage(reason, label);
     } finally {
       busy = false;
@@ -907,7 +908,8 @@
     });
   }
 
-  function resumePractice(snapshot = recoverableSession): void {
+  function resumePractice(): void {
+    const snapshot = recoverableSession;
     if (!snapshot || (!preview && !assembledQuestions)) return;
     void run(async () => {
       await resumePracticeSession({
