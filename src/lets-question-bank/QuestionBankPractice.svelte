@@ -31,6 +31,7 @@
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let sourceEditingLocked = false;
+  export let showStemStyles = false;
   export let indefinitePracticeMode = false;
   export let renderedQuestionContent: (markdown: string, sourceStyles: boolean) => string;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined;
@@ -143,6 +144,7 @@
       {inheritSourceStyles}
       {questionRenderMode}
       {sourceEditingLocked}
+      {showStemStyles}
       {indefinitePracticeMode}
       renderQuestionContent={renderedQuestionContent}
       {mountSourceBlock}

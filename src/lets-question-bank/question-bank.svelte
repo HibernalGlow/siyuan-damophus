@@ -182,6 +182,7 @@
   let sourcePreloadTimer: ReturnType<typeof setTimeout> | undefined;
   let answerCardOpen = false;
   let sourceEditingLocked = mobileBreadcrumb;
+  let showStemStyles = false;
   let completedQuestionIndices: number[] = [];
   let complete = false;
   let practiceRuntime: PracticeSessionRuntime | undefined;
@@ -1153,6 +1154,10 @@
   function toggleSourceEditingLock(): void {
     sourceEditingLocked = !sourceEditingLocked;
   }
+
+  function toggleStemStyles(): void {
+    showStemStyles = !showStemStyles;
+  }
 </script>
 
 <QuestionBankView
@@ -1164,7 +1169,7 @@
   {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
   {timingEnabled} {sessionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
-  {sourceEditingLocked} {toggleSourceEditingLock}
+  {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
   {validDocument} {useCurrentDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}

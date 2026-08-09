@@ -158,6 +158,8 @@
   export let indefinitePracticeMode = false;
   export let sourceEditingLocked: boolean;
   export let toggleSourceEditingLock: any;
+  export let showStemStyles: boolean;
+  export let toggleStemStyles: any;
   export let renderedQuestionContent: any;
   export let mountSourceBlock: any;
   export let questionTypeLabel: any;
@@ -223,6 +225,8 @@
     sourceEditingAvailable={questionRenderMode !== "html"}
     {sourceEditingLocked}
     {toggleSourceEditingLock}
+    {showStemStyles}
+    {toggleStemStyles}
     onCorrectAnswer={correctCurrentAnswer}
     {previousQuestion}
     {nextQuestion}
@@ -398,6 +402,7 @@
       {inheritSourceStyles}
       {questionRenderMode}
       {indefinitePracticeMode}
+      {showStemStyles}
       {sourceEditingLocked}
       {renderedQuestionContent}
       {mountSourceBlock}

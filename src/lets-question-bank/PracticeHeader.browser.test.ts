@@ -71,6 +71,7 @@ describe("practice header answer correction", () => {
   it("moves low-frequency controls into an overflow menu when the header is narrow", async () => {
     const openQuestionSource = vi.fn();
     const toggleSourceEditingLock = vi.fn();
+    const toggleStemStyles = vi.fn();
     const target = document.createElement("div");
     target.className = "question-bank";
     target.style.width = "600px";
@@ -94,6 +95,8 @@ describe("practice header answer correction", () => {
         sourceEditingAvailable: true,
         sourceEditingLocked: true,
         toggleSourceEditingLock,
+        showStemStyles: false,
+        toggleStemStyles,
         previousQuestion: vi.fn(),
         nextQuestion: vi.fn(),
         togglePracticeTimer: vi.fn(),
@@ -114,6 +117,10 @@ describe("practice header answer correction", () => {
     overflow.click();
     await tick();
     const menu = target.querySelector<HTMLElement>('[role="menu"]');
+    const stemStyles = menu?.querySelector<HTMLButtonElement>("[data-toggle-stem-styles]");
+    expect(stemStyles?.getAttribute("role")).toBe("menuitemcheckbox");
+    expect(stemStyles?.getAttribute("aria-checked")).toBe("false");
+    expect(stemStyles?.textContent).toContain("Show question stem styles");
     expect(menu?.textContent).toContain("Open source in SiYuan");
     expect(menu?.textContent).toContain("Unlock source editing");
     expect(menu?.textContent).toContain("Correct answer");
@@ -122,6 +129,13 @@ describe("practice header answer correction", () => {
       ?.click();
     await tick();
     expect(openQuestionSource).toHaveBeenCalledWith("20260808120000-menu001");
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+
+    overflow.click();
+    await tick();
+    target.querySelector<HTMLButtonElement>("[data-toggle-stem-styles]")?.click();
+    await tick();
+    expect(toggleStemStyles).toHaveBeenCalledOnce();
     expect(target.querySelector('[role="menu"]')).toBeNull();
   });
 
@@ -177,6 +191,90 @@ describe("practice header answer correction", () => {
     expect(breadcrumb.getBoundingClientRect().width).toBeGreaterThan(0);
     breadcrumb.querySelector<HTMLElement>('[data-node-id="document"]')?.click();
     expect(openQuestionSource).toHaveBeenCalledWith("document");
+  });
+
+  it("keeps the stem style switch reachable in the desktop overflow menu", async () => {
+    const target = document.createElement("div");
+    target.className = "question-bank";
+    target.style.width = "1100px";
+    document.body.append(target);
+    mounted = mount(PracticeHeader, {
+      target,
+      props: {
+        currentQuestion: question,
+        buildRevision: "test",
+        label: (_key: string, fallback: string) => fallback,
+        questionIndex: 0,
+        queueLength: 1,
+        timingEnabled: false,
+        breadcrumbItems: [],
+        currentQuestionBlockId: "20260808120000-desktop1",
+        openQuestionSource: vi.fn(),
+        mobileBreadcrumb: false,
+        breadcrumbPriority: "tail",
+        breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
+        previousQuestion: vi.fn(),
+        nextQuestion: vi.fn(),
+        togglePracticeTimer: vi.fn(),
+        exitReview: vi.fn(),
+        pausePractice: vi.fn(),
+        requestEndPractice: vi.fn(),
+        onAnswerCardToggle: vi.fn(),
+      },
+    });
+    await tick();
+
+    const overflow = target.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")!;
+    expect(getComputedStyle(overflow).display).not.toBe("none");
+    overflow.click();
+    await tick();
+    expect(getComputedStyle(target.querySelector<HTMLElement>("[data-toggle-stem-styles]")!).display).not.toBe("none");
+    expect(getComputedStyle(target.querySelector<HTMLElement>(".practice-overflow-compact-action")!).display).toBe("none");
+  });
+
+  it("keeps compact progress beside the timer instead of creating an empty row", async () => {
+    const target = document.createElement("div");
+    target.className = "question-bank";
+    target.style.width = "600px";
+    document.body.append(target);
+    mounted = mount(PracticeHeader, {
+      target,
+      props: {
+        currentQuestion: question,
+        buildRevision: "test",
+        label: (_key: string, fallback: string) => fallback,
+        translations: {},
+        questionIndex: 0,
+        queueLength: 7,
+        completedCount: 1,
+        timingEnabled: true,
+        sessionElapsedMs: 2_000,
+        breadcrumbItems: [],
+        showPracticeBreadcrumb: false,
+        currentQuestionBlockId: "20260806120000-compact01",
+        openQuestionSource: vi.fn(),
+        mobileBreadcrumb: false,
+        breadcrumbPriority: "tail",
+        breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
+        previousQuestion: vi.fn(),
+        nextQuestion: vi.fn(),
+        togglePracticeTimer: vi.fn(),
+        exitReview: vi.fn(),
+        pausePractice: vi.fn(),
+        requestEndPractice: vi.fn(),
+        onAnswerCardToggle: vi.fn(),
+      },
+    });
+    await tick();
+
+    const toolbar = target.querySelector<HTMLElement>(".practice-toolbar");
+    const timer = target.querySelector<HTMLElement>(".timer");
+    const progress = target.querySelector<HTMLElement>(".progress-copy");
+    expect(toolbar).not.toBeNull();
+    expect(timer).not.toBeNull();
+    expect(progress).not.toBeNull();
+    expect(Math.abs(timer!.getBoundingClientRect().top - progress!.getBoundingClientRect().top)).toBeLessThanOrEqual(1);
+    expect(toolbar!.getBoundingClientRect().height).toBeLessThanOrEqual(50);
   });
 
   it("hides only the practice breadcrumb when its display setting is disabled", async () => {

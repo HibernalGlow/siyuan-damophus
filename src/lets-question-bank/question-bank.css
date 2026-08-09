@@ -99,7 +99,8 @@
   .practice-breadcrumb .practice-breadcrumb-fallback-item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .practice-breadcrumb .damophus-breadcrumb-separator { flex: 0 0 auto; margin-inline: 5px; color: var(--b3-theme-on-surface); opacity: 0.72; }
   .practice-controls { position: relative; display: flex; align-items: center; min-width: max-content; }
-  .practice-overflow-trigger { display: none; }
+  .practice-overflow-trigger { display: inline-flex; }
+  .practice-overflow-menu .practice-overflow-compact-action { display: none; }
   .save-status { padding: 4px 20px; color: var(--b3-theme-on-surface); font-size: 11px; text-align: right; }
   .answer-card-scrim { position: absolute; z-index: 3; inset: 0 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
   .answer-card-panel { position: absolute; z-index: 4; top: 8px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 74px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
@@ -145,17 +146,16 @@
       min-height: 40px;
       padding: 5px 8px 4px 10px;
       grid-template-columns: auto minmax(0, 1fr) auto 32px;
-      grid-template-rows: 34px 20px;
+      grid-template-rows: 34px auto;
       grid-template-areas:
-        "timer spacer controls card"
-        "topic topic topic progress";
+        "status spacer controls card"
+        "topic topic topic topic";
       column-gap: 4px;
       row-gap: 2px;
     }
-    .practice-status { display: contents; }
-    .progress-copy { grid-area: progress; justify-self: end; align-self: center; font-variant-numeric: tabular-nums; }
+    .practice-status { grid-area: status; display: flex; align-items: center; gap: 8px; }
+    .progress-copy { font-variant-numeric: tabular-nums; }
     .progress-label, .submitted-copy { display: none; }
-    .timer { grid-area: timer; align-self: center; }
     .practice-heading-details { grid-area: topic; justify-content: flex-start; }
     .practice-topic { display: block; text-align: left; align-self: center; font-size: 12px; }
     .practice-controls { grid-area: controls; gap: 1px; justify-self: end; }
@@ -192,7 +192,7 @@
     .practice-settings [data-slot="toggle-group-item"],
     .practice-settings button.start { min-height: 44px; }
     .practice-controls .practice-secondary-action { display: none; }
-    .practice-controls .practice-overflow-trigger { display: inline-flex; }
+    .practice-overflow-menu .practice-overflow-compact-action { display: flex; }
     .practice-section { margin-top: 10px; padding: 12px; }
     .practice-settings { padding-top: 12px; }
     .answer-mode-content { height: clamp(500px, 74vh, 720px); border-inline: 0; border-radius: 0; }

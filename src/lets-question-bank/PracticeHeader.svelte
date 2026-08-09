@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, LocateFixed, LockKeyhole, Pause, Pencil, Play, UnlockKeyhole, X } from "lucide-svelte";
+  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, LocateFixed, LockKeyhole, Pause, Pencil, Play, Type, UnlockKeyhole, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import { Button } from "@/components/ui/button";
   import {
@@ -50,6 +50,8 @@
   export let sourceEditingAvailable = false;
   export let sourceEditingLocked = false;
   export let toggleSourceEditingLock: () => void = () => {};
+  export let showStemStyles = false;
+  export let toggleStemStyles: () => void = () => {};
   export let onCorrectAnswer: ((answer: ObjectiveAnswer) => void) | undefined = undefined;
 
   let correctionOpen = false;
@@ -205,43 +207,52 @@
             <Pencil size={17} aria-hidden="true" />
           </Button>
         {/if}
-        {#if (currentQuestionBlockId && openQuestionSource) || sourceEditingAvailable || (revealed && currentQuestion.answer && onCorrectAnswer && !reviewing)}
-          <Button
-            variant="ghost"
-            size="icon"
-            class="practice-overflow-trigger"
-            data-practice-overflow-trigger
-            title={label("moreActions", "More actions")}
-            aria-label={label("moreActions", "More actions")}
-            aria-haspopup="menu"
-            aria-expanded={overflowOpen}
-            onclick={() => overflowOpen = !overflowOpen}
-          >
-            <Ellipsis size={17} aria-hidden="true" />
-          </Button>
-          {#if overflowOpen}
-            <button class="practice-overflow-backdrop" aria-label={label("closeMoreActions", "Close more actions")} onclick={() => overflowOpen = false}></button>
-            <div class="practice-overflow-menu" role="menu" aria-label={label("moreActions", "More actions")}>
-              {#if currentQuestionBlockId && openQuestionSource}
-                <Button variant="ghost" role="menuitem" onclick={() => runOverflowAction(() => openQuestionSource?.(currentQuestionBlockId as string))}>
-                  <LocateFixed size={16} aria-hidden="true" />
-                  {label("openSource", "Open source in SiYuan")}
-                </Button>
-              {/if}
-              {#if sourceEditingAvailable}
-                <Button variant="ghost" role="menuitem" aria-pressed={sourceEditingLocked} onclick={() => runOverflowAction(toggleSourceEditingLock)}>
-                  {#if sourceEditingLocked}<LockKeyhole size={16} aria-hidden="true" />{:else}<UnlockKeyhole size={16} aria-hidden="true" />{/if}
-                  {sourceEditingLocked ? label("unlockSourceEditing", "Unlock source editing") : label("lockSourceEditing", "Lock source editing")}
-                </Button>
-              {/if}
-              {#if revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}
-                <Button variant="ghost" role="menuitem" onclick={() => runOverflowAction(openCorrection)}>
-                  <Pencil size={16} aria-hidden="true" />
-                  {label("correctAnswer", "Correct answer")}
-                </Button>
-              {/if}
-            </div>
-          {/if}
+        <Button
+          variant="ghost"
+          size="icon"
+          class="practice-overflow-trigger"
+          data-practice-overflow-trigger
+          title={label("moreActions", "More actions")}
+          aria-label={label("moreActions", "More actions")}
+          aria-haspopup="menu"
+          aria-expanded={overflowOpen}
+          onclick={() => overflowOpen = !overflowOpen}
+        >
+          <Ellipsis size={17} aria-hidden="true" />
+        </Button>
+        {#if overflowOpen}
+          <button class="practice-overflow-backdrop" aria-label={label("closeMoreActions", "Close more actions")} onclick={() => overflowOpen = false}></button>
+          <div class="practice-overflow-menu" role="menu" aria-label={label("moreActions", "More actions")}>
+            <Button
+              variant="ghost"
+              role="menuitemcheckbox"
+              aria-checked={showStemStyles}
+              data-toggle-stem-styles
+              onclick={() => runOverflowAction(toggleStemStyles)}
+            >
+              <Type size={16} aria-hidden="true" />
+              {label("showStemStyles", "Show question stem styles")}
+              {#if showStemStyles}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
+            </Button>
+            {#if currentQuestionBlockId && openQuestionSource}
+              <Button variant="ghost" class="practice-overflow-compact-action" role="menuitem" onclick={() => runOverflowAction(() => openQuestionSource?.(currentQuestionBlockId as string))}>
+                <LocateFixed size={16} aria-hidden="true" />
+                {label("openSource", "Open source in SiYuan")}
+              </Button>
+            {/if}
+            {#if sourceEditingAvailable}
+              <Button variant="ghost" class="practice-overflow-compact-action" role="menuitem" aria-pressed={sourceEditingLocked} onclick={() => runOverflowAction(toggleSourceEditingLock)}>
+                {#if sourceEditingLocked}<LockKeyhole size={16} aria-hidden="true" />{:else}<UnlockKeyhole size={16} aria-hidden="true" />{/if}
+                {sourceEditingLocked ? label("unlockSourceEditing", "Unlock source editing") : label("lockSourceEditing", "Lock source editing")}
+              </Button>
+            {/if}
+            {#if revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}
+              <Button variant="ghost" class="practice-overflow-compact-action" role="menuitem" onclick={() => runOverflowAction(openCorrection)}>
+                <Pencil size={16} aria-hidden="true" />
+                {label("correctAnswer", "Correct answer")}
+              </Button>
+            {/if}
+          </div>
         {/if}
         {#if reviewing}
           <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
@@ -318,4 +329,5 @@
   .practice-overflow-backdrop { position: fixed; z-index: 20; inset: 0; border: 0; background: transparent; }
   .practice-overflow-menu { position: absolute; z-index: 21; top: calc(100% + 4px); right: 0; min-width: 210px; padding: 4px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-menu-background, var(--b3-theme-background)); box-shadow: var(--b3-dialog-shadow); display: grid; }
   .practice-overflow-menu :global(button) { width: 100%; height: 36px; padding-inline: 10px; justify-content: flex-start; gap: 9px; white-space: nowrap; }
+  :global(.practice-menu-check) { margin-left: auto; }
 </style>

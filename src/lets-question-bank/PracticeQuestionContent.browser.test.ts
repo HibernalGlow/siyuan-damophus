@@ -120,6 +120,37 @@ describe("PracticeQuestionContent", () => {
     expect(mountSourceBlock).not.toHaveBeenCalled();
   });
 
+  it("removes decorative stem formatting by default and restores it on demand", async () => {
+    render({
+      questionRenderMode: "html",
+      renderQuestionContent: () => '<strong style="color: rgb(255, 0, 0); font-size: 30px">Important</strong>',
+    });
+    await flush();
+
+    const stem = document.querySelector<HTMLElement>(".stem")!;
+    const strong = stem.querySelector<HTMLElement>("strong")!;
+    expect(stem.classList).toContain("stem-styles-hidden");
+    expect(getComputedStyle(strong).fontWeight).toBe(getComputedStyle(stem).fontWeight);
+    expect(getComputedStyle(strong).fontSize).toBe(getComputedStyle(stem).fontSize);
+    expect(getComputedStyle(strong).color).toBe(getComputedStyle(stem).color);
+
+    await unmount(mounted!);
+    mounted = undefined;
+    document.body.innerHTML = "";
+    render({
+      questionRenderMode: "html",
+      showStemStyles: true,
+      renderQuestionContent: () => '<strong style="color: rgb(255, 0, 0); font-size: 30px">Important</strong>',
+    });
+    await flush();
+
+    const styledStem = document.querySelector<HTMLElement>(".stem")!;
+    const styledStrong = styledStem.querySelector<HTMLElement>("strong")!;
+    expect(styledStem.classList).not.toContain("stem-styles-hidden");
+    expect(getComputedStyle(styledStrong).fontSize).toBe("30px");
+    expect(getComputedStyle(styledStrong).color).toBe("rgb(255, 0, 0)");
+  });
+
   it("aligns the HTML stem and options without a narrow centered column", async () => {
     render({ questionRenderMode: "html" });
     await flush();

@@ -41,6 +41,7 @@
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let sourceEditingLocked = false;
+  export let showStemStyles = false;
   export let indefinitePracticeMode = false;
   export let renderQuestionContent: RenderMarkdown;
   export let mountSourceBlock: MountSourceBlock | undefined = undefined;
@@ -128,7 +129,7 @@
         <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="native-question-source">
+    <div class="native-question-source" class:stem-styles-hidden={!showStemStyles}>
       {#key currentQuestionBlockId}
         <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}></div>
       {/key}
@@ -158,7 +159,7 @@
         <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="embedded-question-source">
+    <div class="embedded-question-source" class:stem-styles-hidden={!showStemStyles}>
       {#key currentQuestionBlockId}
         <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}></div>
       {/key}
@@ -198,7 +199,7 @@
         <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="markdown native-content protyle-wysiwyg stem" contenteditable="false">{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
+    <div class="markdown native-content protyle-wysiwyg stem" class:stem-styles-hidden={!showStemStyles} contenteditable="false">{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
     {#if displayedOptions.length > 0}
       <div class="options">
         {#each displayedOptions as option (option.originalId)}
@@ -285,6 +286,40 @@
   .markdown :global(p:first-child) { margin-top: 0; }
   .markdown :global(p:last-child) { margin-bottom: 0; }
   .stem { margin-top: 14px; line-height: 1.75; }
+  .stem-styles-hidden :global(strong),
+  .stem-styles-hidden :global(b),
+  .stem-styles-hidden :global([data-type~="strong"]) { font-weight: inherit !important; }
+  .stem-styles-hidden :global(em),
+  .stem-styles-hidden :global(i),
+  .stem-styles-hidden :global([data-type~="em"]) { font-style: inherit !important; }
+  .stem-styles-hidden :global(s),
+  .stem-styles-hidden :global(del),
+  .stem-styles-hidden :global(u),
+  .stem-styles-hidden :global([data-type~="s"]),
+  .stem-styles-hidden :global([data-type~="u"]) { text-decoration: none !important; }
+  .stem-styles-hidden :global(mark),
+  .stem-styles-hidden :global([data-type~="mark"]) { color: inherit !important; background: transparent !important; }
+  .stem-styles-hidden :global(h1),
+  .stem-styles-hidden :global(h2),
+  .stem-styles-hidden :global(h3),
+  .stem-styles-hidden :global(h4),
+  .stem-styles-hidden :global(h5),
+  .stem-styles-hidden :global(h6),
+  .stem-styles-hidden :global([data-type="NodeHeading"]) {
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    letter-spacing: 0 !important;
+  }
+  .stem-styles-hidden :global([style]) {
+    color: inherit !important;
+    background-color: transparent !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-style: inherit !important;
+    font-weight: inherit !important;
+    letter-spacing: 0 !important;
+    text-decoration: none !important;
+  }
   .group-material { margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
   .group-material > strong { display: block; margin-bottom: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .embedded-question, .native-question { padding-top: 12px; }
