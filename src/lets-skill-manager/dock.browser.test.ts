@@ -31,7 +31,15 @@ const labels = {
   },
 };
 
-const config = { sourceRoot: "C:/Users/test/.skills-manager/skills", onlyChanged: true };
+const config = {
+  sourceRoot: "C:/Users/test/.skills-manager/skills",
+  onlyChanged: true,
+  syncOptions: {
+    backend: "chezmoi" as const,
+    chezmoiCommand: "chezmoi",
+    destinationRoot: "D:/SiYuan/data/storage/ai/agent/skills",
+  },
+};
 
 describe("skill manager dock", () => {
   it("loads a selected skill and saves its edited content", async () => {
@@ -56,6 +64,9 @@ describe("skill manager dock", () => {
 
     await expect.poll(() => target.querySelectorAll('[role="option"]').length).toBe(1);
     await expect.poll(() => (target.querySelector('textarea') as HTMLTextAreaElement).value).toBe("Original");
+    (target.querySelector('[aria-label="Update"]') as HTMLButtonElement).click();
+    await expect.poll(() => api.syncSkillFromRoot)
+      .toHaveBeenCalledWith(config.sourceRoot, "legal-marknote", config.syncOptions);
     const editor = target.querySelector('textarea') as HTMLTextAreaElement;
     editor.value = "Updated";
     (target.querySelector('[aria-label="Save"]') as HTMLButtonElement).click();
@@ -86,7 +97,8 @@ describe("skill manager dock", () => {
     await expect.poll(() => api.inspectSkillSourceRoot).toHaveBeenCalled();
     (target.querySelector('[aria-label="Sync all"]') as HTMLButtonElement).click();
 
-    await expect.poll(() => api.syncSkillSourceRoot).toHaveBeenCalledWith(config.sourceRoot, true);
+    await expect.poll(() => api.syncSkillSourceRoot)
+      .toHaveBeenCalledWith(config.sourceRoot, true, config.syncOptions);
     await expect.poll(() => target.querySelector('[role="status"]')?.textContent)
       .toBe("Synced 2; skipped 3; unreadable 1");
     cleanup();

@@ -10,6 +10,25 @@ const pluginMetadata: PluginMetadata = {
   settings: [
     ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }),
     {
+      type: "select",
+      title: "lets-skill-manager.syncBackendTitle",
+      description: "lets-skill-manager.syncBackendDescription",
+      key: "syncBackend",
+      value: "chezmoi",
+      options: {
+        chezmoi: "lets-skill-manager.syncBackendChezmoi",
+        builtin: "lets-skill-manager.syncBackendBuiltin",
+      },
+    },
+    {
+      type: "textinput",
+      title: "lets-skill-manager.chezmoiCommandTitle",
+      description: "lets-skill-manager.chezmoiCommandDescription",
+      key: "chezmoiCommand",
+      value: "chezmoi",
+      placeholder: "chezmoi",
+    },
+    {
       type: "textinput",
       title: "lets-skill-manager.sourceRootTitle",
       description: "lets-skill-manager.sourceRootDescription",

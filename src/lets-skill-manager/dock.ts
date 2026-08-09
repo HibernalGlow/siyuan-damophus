@@ -9,6 +9,7 @@ import {
   syncSkillSourceRoot,
   type SkillDocument,
   type SkillSummary,
+  type SkillSyncOptions,
   type SkillSyncResult,
   type SkillSyncState,
   type SkillSyncSummary,
@@ -39,6 +40,7 @@ export interface SkillManagerLabels {
 export interface SkillManagerConfig {
   sourceRoot: string;
   onlyChanged: boolean;
+  syncOptions: SkillSyncOptions;
 }
 
 export interface SkillManagerOperations {
@@ -48,8 +50,12 @@ export interface SkillManagerOperations {
   renameSkill(oldName: string, newName: string): Promise<void>;
   removeSkill(name: string): Promise<void>;
   inspectSkillSourceRoot(sourceRoot: string): Promise<SkillSyncSummary[]>;
-  syncSkillSourceRoot(sourceRoot: string, onlyChanged: boolean): Promise<SkillSyncResult>;
-  syncSkillFromRoot(sourceRoot: string, name: string): Promise<void>;
+  syncSkillSourceRoot(
+    sourceRoot: string,
+    onlyChanged: boolean,
+    options?: SkillSyncOptions,
+  ): Promise<SkillSyncResult>;
+  syncSkillFromRoot(sourceRoot: string, name: string, options?: SkillSyncOptions): Promise<void>;
 }
 
 const defaultOperations: SkillManagerOperations = {
@@ -254,7 +260,7 @@ export function renderSkillManagerDock(
 
   async function syncOneSkill(skillName: string): Promise<void> {
     try {
-      await operations.syncSkillFromRoot(config.sourceRoot, skillName);
+      await operations.syncSkillFromRoot(config.sourceRoot, skillName, config.syncOptions);
       setStatus(`${labels.synced}: ${skillName}`);
       await refreshSkills();
     } catch (error) {
@@ -264,7 +270,7 @@ export function renderSkillManagerDock(
 
   async function syncAllSkills(): Promise<void> {
     try {
-      const result = await operations.syncSkillSourceRoot(config.sourceRoot, config.onlyChanged);
+      const result = await operations.syncSkillSourceRoot(config.sourceRoot, config.onlyChanged, config.syncOptions);
       setStatus(labels.syncResult
         .replace("{synced}", String(result.synced))
         .replace("{skipped}", String(result.skipped))

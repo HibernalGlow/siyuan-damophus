@@ -1,6 +1,12 @@
 export const en = {
   "lets-skill-manager.displayName": "Skill manager",
   "lets-skill-manager.description": "Manage the skills used by SiYuan AI",
+  "lets-skill-manager.syncBackendTitle": "Synchronization backend",
+  "lets-skill-manager.syncBackendDescription": "ChezMoi writes real files by default. Use built-in copy when ChezMoi or the desktop runtime is unavailable.",
+  "lets-skill-manager.syncBackendChezmoi": "ChezMoi (recommended)",
+  "lets-skill-manager.syncBackendBuiltin": "Built-in copy (compatibility)",
+  "lets-skill-manager.chezmoiCommandTitle": "ChezMoi command",
+  "lets-skill-manager.chezmoiCommandDescription": "Executable name or full path used for ChezMoi synchronization.",
   "lets-skill-manager.menu": "Skills",
   "lets-skill-manager.refresh": "Refresh",
   "lets-skill-manager.openTab": "Open in new tab",
@@ -39,6 +45,12 @@ export const en = {
 };
 
 export const zhCN: typeof en = {
+  "lets-skill-manager.syncBackendTitle": "同步后端",
+  "lets-skill-manager.syncBackendDescription": "默认由 ChezMoi 写入真实文件；未安装 ChezMoi 或非桌面环境可改用内置复制。",
+  "lets-skill-manager.syncBackendChezmoi": "ChezMoi（推荐）",
+  "lets-skill-manager.syncBackendBuiltin": "内置复制（兼容）",
+  "lets-skill-manager.chezmoiCommandTitle": "ChezMoi 命令",
+  "lets-skill-manager.chezmoiCommandDescription": "用于同步的 ChezMoi 可执行文件名称或完整路径。",
   "lets-skill-manager.displayName": "技能管理",
   "lets-skill-manager.description": "管理思源 AI 使用的技能",
   "lets-skill-manager.menu": "技能",

@@ -1,4 +1,5 @@
 import { fetchSyncPost } from "siyuan";
+import { syncSkillsWithChezmoi, type SkillSyncBackend } from "./chezmoi-backend";
 
 export interface SkillSummary {
   name: string;
@@ -21,6 +22,12 @@ export interface SkillSyncResult {
   synced: number;
   skipped: number;
   unreadable: number;
+}
+
+export interface SkillSyncOptions {
+  backend?: SkillSyncBackend;
+  chezmoiCommand?: string;
+  destinationRoot?: string;
 }
 
 interface KernelResponse<T> {
@@ -196,7 +203,7 @@ export function inspectSkillSourceRoot(sourceRoot: string): Promise<SkillSyncSum
   return withStagedSourceRoot(sourceRoot, (stage) => inspectStagedRoot(stage, sourceRoot));
 }
 
-export function syncSkillSourceRoot(sourceRoot: string, onlyChanged = true): Promise<SkillSyncResult> {
+function syncSkillSourceRootBuiltin(sourceRoot: string, onlyChanged = true): Promise<SkillSyncResult> {
   return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
     const statuses = await inspectStagedRoot(stageRoot, sourceRoot);
     const result: SkillSyncResult = { synced: 0, skipped: 0, unreadable: 0 };
@@ -217,10 +224,50 @@ export function syncSkillSourceRoot(sourceRoot: string, onlyChanged = true): Pro
   });
 }
 
-export function syncSkillFromRoot(sourceRoot: string, name: string): Promise<void> {
+function syncSkillFromRootBuiltin(sourceRoot: string, name: string): Promise<void> {
   return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
     await readTextFile(`${stageRoot}/${name}/SKILL.md`);
     await replaceStagedSkill(`${stageRoot}/${name}`, name);
+  });
+}
+
+export async function syncSkillSourceRoot(
+  sourceRoot: string,
+  onlyChanged = true,
+  options: SkillSyncOptions = {},
+): Promise<SkillSyncResult> {
+  if (options.backend !== "chezmoi") return syncSkillSourceRootBuiltin(sourceRoot, onlyChanged);
+
+  const statuses = await inspectSkillSourceRoot(sourceRoot);
+  const unreadable = statuses.filter((skill) => skill.state === "unreadable").length;
+  const candidates = statuses.filter((skill) => skill.state !== "target-only" && skill.state !== "unreadable");
+  const selected = onlyChanged
+    ? candidates.filter((skill) => skill.state !== "synced")
+    : candidates;
+  await syncSkillsWithChezmoi({
+    command: options.chezmoiCommand || "chezmoi",
+    sourceRoot,
+    destinationRoot: options.destinationRoot || "",
+    skillNames: selected.map((skill) => skill.name),
+  });
+  return {
+    synced: selected.length,
+    skipped: onlyChanged ? candidates.length - selected.length : 0,
+    unreadable,
+  };
+}
+
+export function syncSkillFromRoot(
+  sourceRoot: string,
+  name: string,
+  options: SkillSyncOptions = {},
+): Promise<void> {
+  if (options.backend !== "chezmoi") return syncSkillFromRootBuiltin(sourceRoot, name);
+  return syncSkillsWithChezmoi({
+    command: options.chezmoiCommand || "chezmoi",
+    sourceRoot,
+    destinationRoot: options.destinationRoot || "",
+    skillNames: [name],
   });
 }
 

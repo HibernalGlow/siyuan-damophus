@@ -2,7 +2,7 @@ import { openTab, showMessage, type Menu } from "siyuan";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { plugin } from "@/utils";
-import { inspectSkillSourceRoot, syncSkillSourceRoot } from "./api";
+import { inspectSkillSourceRoot, syncSkillSourceRoot, type SkillSyncOptions } from "./api";
 import { renderSkillManagerDock } from "./dock";
 import { skillManagerTabTarget, skillManagerTabType } from "./tab-contract";
 import "./skill-manager.css";
@@ -49,7 +49,7 @@ export default class SkillManagerPlugin extends SubPluginBase {
     const sourceRoot = this.sourceRoot();
     try {
       if (this.getSetting("syncOnStartup") === true) {
-        const result = await syncSkillSourceRoot(sourceRoot, this.onlyChanged());
+        const result = await syncSkillSourceRoot(sourceRoot, this.onlyChanged(), this.syncOptions());
         if (result.synced > 0 || result.unreadable > 0) {
           showMessage(this.syncResultMessage(result.synced, result.skipped, result.unreadable), 5000);
         }
@@ -98,6 +98,7 @@ export default class SkillManagerPlugin extends SubPluginBase {
     return renderSkillManagerDock(target, this.labels(), {
       sourceRoot: this.sourceRoot(),
       onlyChanged: this.onlyChanged(),
+      syncOptions: this.syncOptions(),
     }, undefined, onOpenTab);
   }
 
@@ -121,6 +122,15 @@ export default class SkillManagerPlugin extends SubPluginBase {
 
   private onlyChanged(): boolean {
     return this.getSetting("updateMode") !== "all";
+  }
+
+  private syncOptions(): SkillSyncOptions {
+    const workspaceDir = String(window.siyuan?.config?.system?.workspaceDir ?? "").replace(/[\\/]+$/u, "");
+    return {
+      backend: this.getSetting("syncBackend") === "builtin" ? "builtin" : "chezmoi",
+      chezmoiCommand: String(this.getSetting("chezmoiCommand") ?? "chezmoi").trim() || "chezmoi",
+      destinationRoot: workspaceDir ? `${workspaceDir}/data/storage/ai/agent/skills` : "",
+    };
   }
 
   private syncResultMessage(synced: number, skipped: number, unreadable: number): string {
