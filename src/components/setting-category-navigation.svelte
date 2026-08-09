@@ -1,6 +1,23 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
-  import { ArrowLeft, BookOpenCheck, ChevronRight, Power, Puzzle, Settings2 } from "lucide-svelte";
+  import {
+    ArrowLeft,
+    BookOpenCheck,
+    Bot,
+    ChevronRight,
+    FileOutput,
+    Film,
+    GlassWater,
+    ImagePlay,
+    ListTree,
+    Network,
+    PanelRight,
+    Power,
+    Settings2,
+    Smartphone,
+    Sparkles,
+    Tags,
+  } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
   import "@/styles/lucide-outline.css";
 
@@ -14,6 +31,20 @@
   export let showCategories = false;
   export let backLabel = "Back";
 
+  const GROUP_ICONS = {
+    "lets-animated-image-replay.displayName": ImagePlay,
+    "lets-block-attr.displayName": Tags,
+    "lets-kramdown-export.displayName": FileOutput,
+    "lets-layout-actions.displayName": PanelRight,
+    "lets-list-merge.displayName": ListTree,
+    "lets-mobile-breadcrumb.displayName": Smartphone,
+    "lets-mobile-liquid-glass.displayName": GlassWater,
+    "lets-question-bank.displayName": BookOpenCheck,
+    "lets-skill-manager.displayName": Sparkles,
+    "lets-topic-relations.displayName": Network,
+    "lets-agent-bridge.displayName": Bot,
+  };
+
   const dispatch = createEventDispatcher<{ select: string; back: void }>();
 
   $: focusIcon = groupIcon(focusGroup, Math.max(0, groups.indexOf(focusGroup)));
@@ -25,9 +56,11 @@
   function groupIcon(group: string, index: number) {
     if (index === 0) return Power;
     if (index === 1) return Settings2;
+    const registeredIcon = GROUP_ICONS[group as keyof typeof GROUP_ICONS];
+    if (registeredIcon) return registeredIcon;
     const label = getGroupLabel(group).toLowerCase();
     if (label.includes("题库") || label.includes("question")) return BookOpenCheck;
-    return Puzzle;
+    return Film;
   }
 </script>
 

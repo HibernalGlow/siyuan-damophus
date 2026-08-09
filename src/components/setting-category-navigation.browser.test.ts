@@ -45,6 +45,45 @@ function render({
 }
 
 describe("setting category navigation", () => {
+  it("uses a distinct icon for every registered settings feature", async () => {
+    await page.viewport(900, 700);
+    const target = document.createElement("div");
+    target.className = "damophus-theme-root damophus-question-bank-theme";
+    document.body.appendChild(target);
+    mounted.push(mount(SettingCategoryNavigation, {
+      target,
+      props: {
+        groups: [
+          "寮€鍏?",
+          "璁剧疆",
+          "lets-animated-image-replay.displayName",
+          "lets-block-attr.displayName",
+          "lets-kramdown-export.displayName",
+          "lets-layout-actions.displayName",
+          "lets-list-merge.displayName",
+          "lets-mobile-breadcrumb.displayName",
+          "lets-mobile-liquid-glass.displayName",
+          "lets-question-bank.displayName",
+          "lets-skill-manager.displayName",
+          "lets-topic-relations.displayName",
+          "lets-agent-bridge.displayName",
+        ],
+        focusGroup: "寮€鍏?",
+        getGroupLabel: (group: string) => group,
+      },
+    }));
+    await tick();
+
+    const navigation = target.querySelector<HTMLElement>('[data-testid="setting-desktop-navigation"]');
+    if (!navigation) throw new Error("Missing desktop navigation");
+    const iconNames = [...navigation.querySelectorAll<SVGElement>("svg")]
+      .map((icon) => [...icon.classList].find(
+        (name) => name.startsWith("lucide-") && name !== "lucide-icon",
+      ));
+    expect(iconNames).toHaveLength(13);
+    expect(new Set(iconNames).size).toBe(iconNames.length);
+  });
+
   it("keeps the sidebar on desktop", async () => {
     const hostStyle = document.createElement("style");
     hostStyle.textContent = "svg { fill: currentColor; }";
