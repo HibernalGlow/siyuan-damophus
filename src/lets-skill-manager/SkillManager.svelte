@@ -30,6 +30,7 @@
   import type { SkillSyncState, SkillSyncSummary } from "./api";
   import type { SkillManagerConfig, SkillManagerLabels, SkillManagerOperations } from "./dock";
   import { enhanceSkillPreview } from "./native-preview";
+  import "@/styles/lucide-outline.css";
 
   type SortMode = "name-asc" | "name-desc" | "state";
 

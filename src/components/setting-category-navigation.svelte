@@ -2,6 +2,7 @@
   import { createEventDispatcher } from "svelte";
   import { ArrowLeft, BookOpenCheck, ChevronRight, Power, Puzzle, Settings2 } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
+  import "@/styles/lucide-outline.css";
 
   export let groups: string[] = [];
   export let focusGroup = "";

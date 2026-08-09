@@ -1,0 +1,5 @@
+:where([class*="damophus-"]) svg.lucide {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.75;
+}

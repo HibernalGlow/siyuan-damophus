@@ -46,6 +46,9 @@ function render({
 
 describe("setting category navigation", () => {
   it("keeps the sidebar on desktop", async () => {
+    const hostStyle = document.createElement("style");
+    hostStyle.textContent = "svg { fill: currentColor; }";
+    document.head.append(hostStyle);
     await page.viewport(900, 700);
     const { target } = render();
     await tick();
@@ -53,6 +56,11 @@ describe("setting category navigation", () => {
     expect(target.querySelector('[data-testid="setting-desktop-navigation"]')).not.toBeNull();
     expect(target.querySelector('[data-testid="setting-mobile-navigation"]')).toBeNull();
     expect(target.querySelector('button[aria-label="设置分类"]')).toBeNull();
+    const icon = target.querySelector<SVGElement>("svg.lucide");
+    expect(icon).not.toBeNull();
+    expect(getComputedStyle(icon!).fill).toBe("none");
+    expect(getComputedStyle(icon!).strokeWidth).toBe("1.75px");
+    hostStyle.remove();
   });
 
   it("shows a single-page category list in compact layouts", async () => {

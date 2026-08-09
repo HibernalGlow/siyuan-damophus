@@ -77,6 +77,10 @@ describe("skill manager dock", () => {
     await expect.poll(() => target.querySelectorAll('[role="option"]').length).toBe(1);
     await expect.poll(() => target.querySelector(".damophus-skill-manager__preview")?.textContent).toContain("Original");
     expect(markdownRenderer).toHaveBeenCalledWith("Original");
+    const actionIcon = target.querySelector<SVGElement>('.damophus-skill-manager__actions svg.lucide');
+    expect(actionIcon).not.toBeNull();
+    expect(getComputedStyle(actionIcon!).fill).toBe("none");
+    expect(getComputedStyle(actionIcon!).strokeWidth).toBe("1.75px");
     (target.querySelector('[aria-label="Update"]') as HTMLButtonElement).click();
     await expect.poll(() => api.syncSkillFromRoot)
       .toHaveBeenCalledWith(config.sourceRoot, "legal-marknote", config.syncOptions);
