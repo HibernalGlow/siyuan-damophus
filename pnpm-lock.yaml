@@ -20,6 +20,9 @@ importers:
       '@siyuan-community/siyuan-sdk':
         specifier: ^0.3.14
         version: 0.3.17(debug@4.4.3)
+      '@tanstack/svelte-table':
+        specifier: ^9.1.0
+        version: 9.1.0(svelte@5.56.8)
       bits-ui:
         specifier: ^2.16.3
         version: 2.18.1(@internationalized/date@3.12.3)(svelte@5.56.8)
@@ -813,6 +816,24 @@ packages:
     resolution: {integrity: sha512-yYU8cogLeSh/ms2jh8Fj7jaba/EWa7Ja6GoUqYZaraEuCI5YS6ms6ObZgjjedm+jm6XZjdNRWBpPP6Z86oOxcw==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
+
+  '@tanstack/store@0.11.1':
+    resolution: {integrity: sha512-mzTOBhypOuDJAy/D8n2MfUZ1HFkXnmSETviRyhqEC8LUE7/IZQExOTxMANj3KjTofYTkFNpBY67qaVrT41YccA==}
+
+  '@tanstack/svelte-store@0.12.1':
+    resolution: {integrity: sha512-ZFj8gyIWHZRYLv8RHp5jhnMhvw15g86KinotrUp9RfY7ygjkU3CcaMUytIdMJ4Xzq/9GqVlAphV9gFIGKRXWSw==}
+    peerDependencies:
+      svelte: ^5.0.0
+
+  '@tanstack/svelte-table@9.1.0':
+    resolution: {integrity: sha512-uWwvEjeru+3jLP59sfSknk1569ePH2EYoZALGxnDbScvgqKXveYoYB/Tc4CfwPKQhyg0koxvVg8ixY9fPMAW9g==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      svelte: ^5.0.0
+
+  '@tanstack/table-core@9.1.0':
+    resolution: {integrity: sha512-tvnnqdWlvF/l6P65yS4ca4keW2VCC3e+OTT8/pUM7ZF5OQBJ7zTVy67T0lLpWBpkELrZN8sFJxY5DHF05fLUDQ==}
+    engines: {node: '>=20'}
 
   '@tsconfig/node10@1.0.12':
     resolution: {integrity: sha512-UCYBaeFvM11aU2y3YPZ//O5Rhj+xKyzy7mvcIoAjASbigy8mHMryP5cK7dgjlz2hWxh1g5pLw084E0a/wlUSFQ==}
@@ -3046,6 +3067,23 @@ snapshots:
       '@tailwindcss/oxide': 4.3.3
       tailwindcss: 4.3.3
       vite: 8.2.0(@types/node@20.19.43)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.102.0)
+
+  '@tanstack/store@0.11.1': {}
+
+  '@tanstack/svelte-store@0.12.1(svelte@5.56.8)':
+    dependencies:
+      '@tanstack/store': 0.11.1
+      svelte: 5.56.8
+
+  '@tanstack/svelte-table@9.1.0(svelte@5.56.8)':
+    dependencies:
+      '@tanstack/svelte-store': 0.12.1(svelte@5.56.8)
+      '@tanstack/table-core': 9.1.0
+      svelte: 5.56.8
+
+  '@tanstack/table-core@9.1.0':
+    dependencies:
+      '@tanstack/store': 0.11.1
 
   '@tsconfig/node10@1.0.12': {}
 

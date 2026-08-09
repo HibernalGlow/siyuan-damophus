@@ -5,6 +5,18 @@ export async function fetchSyncPost(): Promise<{ code: number; data: unknown; ms
 export class Dialog {}
 export class Menu {}
 export class Plugin {}
+export class ProtyleMethod {
+  static highlightRender(): void {}
+  static mathRender(): void {}
+  static mermaidRender(): void {}
+  static flowchartRender(): void {}
+  static graphvizRender(): void {}
+  static chartRender(): void {}
+  static abcRender(): void {}
+  static mindmapRender(): void {}
+  static plantumlRender(): void {}
+  static htmlRender(): void {}
+}
 
 export function showMessage(): void {}
 export function globalCommand(): void {}
