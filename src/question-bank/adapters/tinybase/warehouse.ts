@@ -191,6 +191,18 @@ export class TinyBaseWarehouse {
     this.mergeLocalIntoRead("sessions");
   }
 
+  async refreshLocalSessions(): Promise<void> {
+    if (!this.local) {
+      await this.initializeLocal();
+      return;
+    }
+    this.local.sessions = await this.readRequired(
+      {deviceId: this.deviceId, storeKind: "sessions", shardId: "sessions"},
+      true,
+    );
+    this.readView = await this.buildReadView();
+  }
+
   async persistEventShard(shardId: string): Promise<void> {
     EventShardSchema.parse(shardId);
     const local = this.getLocalContribution();

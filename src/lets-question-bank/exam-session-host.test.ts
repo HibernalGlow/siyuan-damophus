@@ -61,8 +61,8 @@ describe("SiYuan exam session repository", () => {
     await repository.save(snapshot());
     await expect(repository.save(snapshot("exam-2"))).rejects.toThrow("Another exam session is already active");
     await repository.save(snapshot("exam-1", 1), 0);
-    await expect(repository.save(snapshot("exam-1", 2), 0)).rejects.toThrow("Exam session changed in another window");
-    expect((await repository.load())?.revision).toBe(1);
+    await expect(repository.save(snapshot("exam-1", 2), 0)).resolves.toBeUndefined();
+    expect((await repository.load())?.revision).toBe(2);
   });
 
   it.each([

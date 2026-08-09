@@ -1,5 +1,6 @@
 import { ExamSessionSnapshotSchema, type ExamSessionSnapshot } from "../question-bank/exam";
 import type { PluginDataApi } from "./session-host";
+import { rebaseExamSessionSnapshot } from "../question-bank/exam/session-merge";
 
 const examStorageName = "damophus-exam-sessions";
 
@@ -64,13 +65,17 @@ export class SiyuanExamSessionRepository {
       const current = file.session === undefined
         ? undefined
         : ExamSessionSnapshotSchema.parse(file.session) as ExamSessionSnapshot;
+      let next = snapshot;
       if (expectedRevision !== undefined && current?.revision !== expectedRevision) {
-        throw new Error("Exam session changed in another window");
+        if (!current || current.exam_id !== snapshot.exam_id) {
+          throw new Error("Exam session changed in another window");
+        }
+        next = rebaseExamSessionSnapshot(current, snapshot);
       }
       if (expectedRevision === undefined && current && current.exam_id !== snapshot.exam_id) {
         throw new Error("Another exam session is already active");
       }
-      file.session = ExamSessionSnapshotSchema.parse(snapshot);
+      file.session = ExamSessionSnapshotSchema.parse(next);
       await this.write(file);
     });
   }

@@ -29,6 +29,7 @@ export interface TinyBaseRuntimeMergeResult {
 
 export class TinyBaseRuntime {
   private initialization?: Promise<void>;
+  private examWriteChain: Promise<void> = Promise.resolve();
 
   constructor(
     readonly warehouse: TinyBaseWarehouse,
@@ -120,11 +121,25 @@ export class TinyBaseRuntime {
 
   async saveExamSession(snapshot: ExamSessionSnapshot, expectedRevision?: number): Promise<void> {
     await this.initialize();
-    await new TinyBaseExamSessionRepository(
-      this.warehouse.getLocalContribution().sessions,
-      this.warehouse.deviceId,
-    ).save(snapshot, expectedRevision);
-    await this.warehouse.persistSessions();
+    const previous = this.examWriteChain;
+    let release!: () => void;
+    this.examWriteChain = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      const locks = globalThis.navigator?.locks;
+      const save = async () => {
+        await this.warehouse.refreshLocalSessions();
+        await new TinyBaseExamSessionRepository(
+          this.warehouse.getLocalContribution().sessions,
+          this.warehouse.deviceId,
+        ).save(snapshot, expectedRevision);
+        await this.warehouse.persistSessions();
+      };
+      if (locks) await locks.request("damophus-exam-session-write", save);
+      else await save();
+    } finally {
+      release();
+    }
   }
 
   async removeExamSession(examId?: string): Promise<void> {

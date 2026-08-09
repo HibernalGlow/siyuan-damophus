@@ -12,6 +12,7 @@ import {
   type PracticeSessionSnapshotParseResult,
 } from "../../core/session-schema";
 import { ExamSessionSnapshotSchema, type ExamSessionSnapshot } from "../../exam/schema";
+import { rebaseExamSessionSnapshot } from "../../exam/session-merge";
 import { QuestionSetBlueprintSchema, type QuestionSetBlueprint } from "../../assembly/schema";
 import {
   QuestionAggregateRecordSchema,
@@ -420,16 +421,25 @@ export class TinyBaseExamSessionRepository implements ExamSessionRepository {
     const parsed = ExamSessionSnapshotSchema.parse(snapshot) as ExamSessionSnapshot;
     const rowId = sessionRowId(parsed.exam_id, this.deviceId);
     const currentRevision = optionalNumber(this.sessions.getCell(TABLE.examSessionVersions, rowId, "revision"));
+    const current = this.sessions.hasRow(TABLE.examSessionVersions, rowId)
+      ? ExamSessionSnapshotSchema.parse(JSON.parse(String(this.sessions.getCell(
+        TABLE.examSessionVersions,
+        rowId,
+        "snapshot_json",
+      )))) as ExamSessionSnapshot
+      : undefined;
+    let next = parsed;
     if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
-      throw new Error("Exam session changed in another window");
+      if (!current) throw new Error("Exam session changed in another window");
+      next = rebaseExamSessionSnapshot(current, parsed);
     }
     this.sessions.setRow(TABLE.examSessionVersions, rowId, compactRow({
-      exam_id: parsed.exam_id,
+      exam_id: next.exam_id,
       device_id: this.deviceId,
-      revision: parsed.revision,
-      status: parsed.status,
-      updated_at: parsed.updated_at,
-      snapshot_json: canonicalJson(parsed),
+      revision: next.revision,
+      status: next.status,
+      updated_at: next.updated_at,
+      snapshot_json: canonicalJson(next),
     }));
   }
 
