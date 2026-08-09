@@ -89,7 +89,6 @@ export default class AnimatedImageReplayPlugin extends SubPluginBase {
       hoverReplayDelayMs: this.settingNumber("hoverReplayDelayMs", 700, 100, 5000),
       replayBlobCacheSize: this.settingNumber("replayBlobCacheSize", 4, 1, 16),
       replayWhenOpenedLarge: this.getSetting("replayWhenOpenedLarge") !== false,
-      initialFrame: this.getSetting("initialFrame") === "first" ? "first" : "last",
       scanDocument: false,
     };
   }
