@@ -24,6 +24,7 @@ export interface SourceEmbedSelectionOptions {
 }
 
 export interface SourceEmbedChildrenLoader {
+  /** SiYuan getChildBlocks returns the complete descendant list in display order. */
   loadChildren(blockId: string): Promise<readonly { id: string }[] | null | undefined>;
   loadRows(blockIds: readonly string[]): Promise<readonly SourceEmbedBlockRow[]>;
 }
@@ -114,17 +115,11 @@ export async function loadSourceEmbedRows(
   questionBlockId: string,
   loader: SourceEmbedChildrenLoader,
 ): Promise<SourceEmbedBlockRow[]> {
-  const orderedIds: string[] = [];
-  const visited = new Set<string>([questionBlockId]);
-  const visit = async (parentId: string): Promise<void> => {
-    for (const child of await loader.loadChildren(parentId) ?? []) {
-      if (!nodeIdPattern.test(child.id) || visited.has(child.id)) continue;
-      visited.add(child.id);
-      orderedIds.push(child.id);
-      await visit(child.id);
-    }
-  };
-  await visit(questionBlockId);
+  const orderedIds = [...new Set(
+    (await loader.loadChildren(questionBlockId) ?? [])
+      .map((child) => child.id)
+      .filter((id) => nodeIdPattern.test(id) && id !== questionBlockId),
+  )];
 
   const rows = await loader.loadRows([questionBlockId, ...orderedIds]);
   const orderById = new Map(orderedIds.map((id, order) => [id, order]));

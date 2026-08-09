@@ -143,27 +143,29 @@ describe("source embed query", () => {
       { id: "20260806005231-c4lr18w", parent_id: "20260806005231-9llmnk4", type: "l", content: "Answer: B", ial: '{: custom-qb-section="solution"}' },
       { id: "20260806005231-1gxlpdc", parent_id: "20260806005231-9llmnk4", type: "l", content: "Explanation" },
     ];
-    const children = new Map<string, { id: string }[]>([
-      ["20260806005231-9llmnk4", [
-        { id: "20260806005231-p6dzb2p" },
-        { id: "20260806005231-c4lr18w" },
-        { id: "20260806005231-1gxlpdc" },
-      ]],
-      ["20260806005231-p6dzb2p", [
-        { id: "20260806005231-0pvujjo" },
-        { id: "20260806005231-gxm2xl5" },
-      ]],
-    ]);
+    const descendants = [
+      { id: "20260806005231-p6dzb2p" },
+      { id: "20260806005231-0pvujjo" },
+      { id: "20260806005231-gxm2xl5" },
+      { id: "20260806005231-c4lr18w" },
+      { id: "20260806005231-1gxlpdc" },
+    ];
+    let childLoads = 0;
     const requested: string[][] = [];
 
     const loaded = await loadSourceEmbedRows("20260806005231-9llmnk4", {
-      loadChildren: async (blockId) => children.get(blockId) ?? [],
+      loadChildren: async (blockId) => {
+        childLoads += 1;
+        expect(blockId).toBe("20260806005231-9llmnk4");
+        return descendants;
+      },
       loadRows: async (blockIds) => {
         requested.push([...blockIds]);
         return realRows.filter((row) => blockIds.includes(row.id));
       },
     });
 
+    expect(childLoads).toBe(1);
     expect(requested).toEqual([[
       "20260806005231-9llmnk4",
       "20260806005231-p6dzb2p",

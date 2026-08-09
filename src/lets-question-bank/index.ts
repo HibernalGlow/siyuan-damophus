@@ -448,9 +448,17 @@ export default class QuestionBankPlugin extends SubPluginBase {
     const loadSourceRows = (blockId: string): Promise<SourceEmbedBlockRow[]> => {
       const cached = sourceRowsCache.get(blockId);
       if (cached) return cached;
+      const startedAt = performance.now();
       const loading = loadSourceEmbedRows(blockId, {
         loadChildren: (id) => getChildBlocks(id),
         loadRows: loadRowsByIds,
+      }).then((rows) => {
+        log.debug("source subtree loaded", {
+          blockId,
+          blockCount: rows.length,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+        return rows;
       }).catch((error) => {
         sourceRowsCache.delete(blockId);
         throw error;
@@ -516,6 +524,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
           section: SourceEmbedSection = "stem",
           renderMode: "native" | "embed" = "embed",
         ) => {
+          const startedAt = performance.now();
           const binding = controller.getBinding();
           let temporaryEmbedId: string | undefined;
           if (renderMode === "embed" && binding?.systemDocumentId) {
@@ -554,30 +563,38 @@ export default class QuestionBankPlugin extends SubPluginBase {
             let stopBlockIsolation = () => {};
             let stopReadOnlyEnforcement = () => {};
             let defocusTimer: ReturnType<typeof setTimeout> | undefined;
+            let markReady = () => {};
+            const ready = new Promise<void>((resolve) => {
+              markReady = resolve;
+            });
             const editor = new Protyle(plugin.app, host, {
               mode: sourceBlockEditorMode,
               action: [...sourceBlockProtyleActions],
               blockId: mountedBlockId,
               after: (mountedEditor) => {
-                stopReadOnlyEnforcement();
-                if (!editable) {
-                  mountedEditor.disable();
-                  stopReadOnlyEnforcement = enforceSourceBlockReadOnly(
+                try {
+                  stopReadOnlyEnforcement();
+                  if (!editable) {
+                    mountedEditor.disable();
+                    stopReadOnlyEnforcement = enforceSourceBlockReadOnly(
+                      mountedEditor.protyle.wysiwyg.element,
+                    );
+                  }
+                  stopBlockIsolation();
+                  stopBlockIsolation = observeFocusedBlock(
                     mountedEditor.protyle.wysiwyg.element,
+                    mountedBlockId,
+                    sourceRows ? sourceEmbedSubtreeIds(sourceRows, mountedBlockId) : [mountedBlockId],
                   );
-                }
-                stopBlockIsolation();
-                stopBlockIsolation = observeFocusedBlock(
-                  mountedEditor.protyle.wysiwyg.element,
-                  mountedBlockId,
-                  sourceRows ? sourceEmbedSubtreeIds(sourceRows, mountedBlockId) : [mountedBlockId],
-                );
-                if (isMobile) {
-                  defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element);
-                  defocusTimer = setTimeout(
-                    () => defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element),
-                    0,
-                  );
+                  if (isMobile) {
+                    defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element);
+                    defocusTimer = setTimeout(
+                      () => defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element),
+                      0,
+                    );
+                  }
+                } finally {
+                  markReady();
                 }
               },
               render: {
@@ -593,11 +610,20 @@ export default class QuestionBankPlugin extends SubPluginBase {
               editor,
               stopBlockIsolation: () => stopBlockIsolation(),
               stopReadOnlyEnforcement: () => stopReadOnlyEnforcement(),
+              ready,
               cancelDefocus: () => {
                 if (defocusTimer !== undefined) clearTimeout(defocusTimer);
               },
             };
           }));
+          await Promise.all(editors.map((mounted) => mounted.ready));
+          log.debug("source editors ready", {
+            blockId,
+            section,
+            renderMode,
+            editorCount: editors.length,
+            durationMs: Math.round(performance.now() - startedAt),
+          });
           return async () => {
             for (const mounted of editors) {
               mounted.cancelDefocus();

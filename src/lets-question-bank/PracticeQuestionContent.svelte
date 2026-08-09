@@ -69,24 +69,40 @@
   }
 
   function sourceBlockMount(node: HTMLElement, params: SourceBlockMountParams) {
-    let disposed = false;
+    const fallback = node.querySelector<HTMLElement>("[data-source-fallback]");
+    const mountHost = node.querySelector<HTMLElement>("[data-source-mount]");
+    let generation = 0;
     let cleanup: (() => void) | undefined;
-    Promise.resolve(mountBlock(node, params)).then((dispose) => {
-      if (disposed) void dispose?.();
-      else cleanup = dispose;
-    });
+
+    const start = (next: SourceBlockMountParams) => {
+      const currentGeneration = ++generation;
+      void cleanup?.();
+      cleanup = undefined;
+      if (fallback) fallback.hidden = false;
+      const mountTarget = document.createElement("div");
+      mountTarget.className = "source-block-mount-target";
+      mountHost?.replaceChildren(mountTarget);
+      Promise.resolve(mountBlock(mountTarget, next)).then((dispose) => {
+        if (currentGeneration !== generation) {
+          void dispose?.();
+          return;
+        }
+        cleanup = dispose;
+        // Keep the immediate content visible when no source editor could be mounted
+        // (for example before the embed binding is ready).
+        if (fallback && mountTarget.childElementCount > 0) fallback.hidden = true;
+      }).catch((error) => {
+        if (currentGeneration === generation) console.warn("[Damophus] failed to mount source block", error);
+      });
+    };
+
+    start(params);
     return {
       update(next: SourceBlockMountParams) {
-        disposed = true;
-        void cleanup?.();
-        disposed = false;
-        Promise.resolve(mountBlock(node, next)).then((dispose) => {
-          if (disposed) void dispose?.();
-          else cleanup = dispose;
-        });
+        start(next);
       },
       destroy() {
-        disposed = true;
+        generation += 1;
         void cleanup?.();
       },
     };
@@ -131,7 +147,10 @@
     {/if}
     <div class="native-question-source" class:stem-styles-hidden={!showStemStyles}>
       {#key `${currentQuestionBlockId}:${indefinitePracticeMode}`}
-        <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}></div>
+        <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}>
+          <div class="source-block-fallback markdown native-content protyle-wysiwyg" data-source-fallback contenteditable="false">{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
+          <div class="source-block-mount" data-source-mount></div>
+        </div>
       {/key}
     </div>
     {#if displayedOptions.length > 0}
@@ -161,7 +180,10 @@
     {/if}
     <div class="embedded-question-source" class:stem-styles-hidden={!showStemStyles}>
       {#key `${currentQuestionBlockId}:${indefinitePracticeMode}`}
-        <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}></div>
+        <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}>
+          <div class="source-block-fallback markdown native-content protyle-wysiwyg" data-source-fallback contenteditable="false">{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
+          <div class="source-block-mount" data-source-mount></div>
+        </div>
       {/key}
     </div>
     {#if displayedOptions.length > 0}
@@ -244,13 +266,19 @@
     {#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
       <div class="native-answer-source" data-render-mode="native">
         {#key `${currentQuestionBlockId}:${questionRenderMode}`}
-          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "solution", renderMode: "native" }}></div>
+          <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "solution", renderMode: "native" }}>
+            <div class="source-block-fallback markdown native-content protyle-wysiwyg" data-source-fallback contenteditable="false">{@html renderQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
+            <div class="source-block-mount" data-source-mount></div>
+          </div>
         {/key}
       </div>
     {:else if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
       <div class="embedded-answer-source" data-render-mode="embed">
         {#key `${currentQuestionBlockId}:${questionRenderMode}:solution`}
-          <div use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "solution", renderMode: "embed" }}></div>
+          <div class="source-block-host" use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "solution", renderMode: "embed" }}>
+            <div class="source-block-fallback markdown native-content protyle-wysiwyg" data-source-fallback contenteditable="false">{@html renderQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
+            <div class="source-block-mount" data-source-mount></div>
+          </div>
         {/key}
       </div>
     {:else}
@@ -321,7 +349,8 @@
   .group-material { margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--b3-border-color); border-bottom: 1px solid var(--b3-border-color); }
   .group-material > strong { display: block; margin-bottom: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .embedded-question, .native-question { padding-top: 12px; }
-  .embedded-question-source, .native-question-source, .source-block-host { min-height: 0; overflow: visible; }
+  .embedded-question-source, .native-question-source, .source-block-host, .source-block-mount { min-height: 0; overflow: visible; }
+  .source-block-fallback { line-height: 1.75; }
   .source-block-host :global(.damophus-native-source-block) { min-height: 0; margin: 0; overflow: visible; }
   .source-block-host :global(.damophus-native-source-block + .damophus-native-source-block) { margin-top: 0; }
   .source-block-host :global(.damophus-native-source-block > .protyle),
