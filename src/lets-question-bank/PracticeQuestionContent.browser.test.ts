@@ -131,7 +131,7 @@ describe("PracticeQuestionContent", () => {
     const strong = stem.querySelector<HTMLElement>("strong")!;
     expect(stem.classList).toContain("stem-styles-hidden");
     expect(getComputedStyle(strong).fontWeight).toBe(getComputedStyle(stem).fontWeight);
-    expect(getComputedStyle(strong).fontSize).toBe(getComputedStyle(stem).fontSize);
+    expect(getComputedStyle(strong).fontSize).toBe("30px");
     expect(getComputedStyle(strong).color).toBe(getComputedStyle(stem).color);
 
     await unmount(mounted!);

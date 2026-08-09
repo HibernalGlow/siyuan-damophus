@@ -306,7 +306,6 @@
   .stem-styles-hidden :global(h5),
   .stem-styles-hidden :global(h6),
   .stem-styles-hidden :global([data-type="NodeHeading"]) {
-    font-size: inherit !important;
     font-weight: inherit !important;
     letter-spacing: 0 !important;
   }
@@ -314,7 +313,6 @@
     color: inherit !important;
     background-color: transparent !important;
     font-family: inherit !important;
-    font-size: inherit !important;
     font-style: inherit !important;
     font-weight: inherit !important;
     letter-spacing: 0 !important;
