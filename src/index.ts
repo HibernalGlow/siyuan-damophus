@@ -1,4 +1,4 @@
-import { Dialog, fetchSyncPost, globalCommand, Menu, Plugin, showMessage } from "siyuan";
+import { Dialog, fetchSyncPost, Menu, Plugin, showMessage } from "siyuan";
 import { registerPlugin } from "@frostime/siyuan-plugin-kits";
 import { mount, unmount } from "svelte";
 import "@/styles/damophus.css";
@@ -10,6 +10,12 @@ import { settings } from "@/settings";
 import { isMobile, setPlugin } from "@/utils";
 import { reloadPetal } from "@/plugin-reload";
 import { prepareToolbarIcon } from "@/toolbar-icon";
+import {
+  isMobileAppearanceShortcutEnabled,
+  MOBILE_APPEARANCE_SHORTCUT_CHANGED,
+  MOBILE_APPEARANCE_SHORTCUT_SETTING,
+  openMobileAppearanceMenu,
+} from "@/mobile-appearance";
 import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 
 const log = getLogger("index");
@@ -19,6 +25,9 @@ export default class PluginLetsGo extends Plugin {
   private readonly pluginRegistry = PluginRegistry.getInstance();
   private topBarElement?: HTMLElement;
   private mobileAppearanceElement?: HTMLElement;
+  private readonly handleMobileAppearanceShortcutChange = () => {
+    this.syncMobileAppearanceTopBar();
+  };
 
   private init(): void {
     const plugin = registerPlugin(this);
@@ -36,6 +45,10 @@ export default class PluginLetsGo extends Plugin {
     const debugLogging = settings.get("debugLogging") === true;
     enableLogging(debugLogging);
     await settings.initData();
+    window.addEventListener(
+      MOBILE_APPEARANCE_SHORTCUT_CHANGED,
+      this.handleMobileAppearanceShortcutChange,
+    );
     this.pluginRegistry.refreshEnabledStates();
     await this.pluginRegistry.initializeEnabledPlugins();
     log.info("plugin.loaded", {
@@ -48,7 +61,7 @@ export default class PluginLetsGo extends Plugin {
 
   override async onLayoutReady(): Promise<void> {
     this.registerTopBar();
-    this.registerMobileAppearanceTopBar();
+    this.syncMobileAppearanceTopBar();
     const plugins = this.pluginRegistry.getAllPlugins();
     log.info("plugin.layout.ready", {
       enabledModules: plugins.filter((plugin) => plugin.enabled).map((plugin) => plugin.name),
@@ -87,14 +100,20 @@ export default class PluginLetsGo extends Plugin {
     });
   }
 
-  private registerMobileAppearanceTopBar(): void {
-    if (!isMobile || this.mobileAppearanceElement) return;
-    const title = window.siyuan?.languages?.appearance ?? "Appearance";
+  private syncMobileAppearanceTopBar(): void {
+    if (!isMobile) return;
+    if (!isMobileAppearanceShortcutEnabled(settings.get(MOBILE_APPEARANCE_SHORTCUT_SETTING))) {
+      this.mobileAppearanceElement?.remove();
+      this.mobileAppearanceElement = undefined;
+      return;
+    }
+    if (this.mobileAppearanceElement) return;
+    const title = window.siyuan?.languages?.appearanceMode ?? "Appearance mode";
     this.mobileAppearanceElement = this.addTopBar({
       icon: "iconTheme",
       title,
       position: "right",
-      callback: () => globalCommand("appearance", this.app),
+      callback: openMobileAppearanceMenu,
     });
   }
 
@@ -172,6 +191,10 @@ export default class PluginLetsGo extends Plugin {
     this.topBarElement = undefined;
     this.mobileAppearanceElement?.remove();
     this.mobileAppearanceElement = undefined;
+    window.removeEventListener(
+      MOBILE_APPEARANCE_SHORTCUT_CHANGED,
+      this.handleMobileAppearanceShortcutChange,
+    );
   }
 
   openSetting(): void {
