@@ -95,6 +95,7 @@
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let indefinitePracticeMode = false;
+  export let onIndefinitePracticeModeChange: ((value: boolean) => void) | undefined = undefined;
   export let durationComparisonPosition: "answer" | "rating" | "header" = "rating";
   export let renderQuestionMarkdown: ((markdown: string, inheritStyles: boolean) => string | undefined) | undefined = undefined;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined = undefined;
@@ -1158,6 +1159,11 @@
   function toggleStemStyles(): void {
     showStemStyles = !showStemStyles;
   }
+
+  function toggleIndefinitePracticeMode(): void {
+    indefinitePracticeMode = !indefinitePracticeMode;
+    onIndefinitePracticeModeChange?.(indefinitePracticeMode);
+  }
 </script>
 
 <QuestionBankView
@@ -1169,7 +1175,7 @@
   {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
   {timingEnabled} {sessionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
-  {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles}
+  {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles} {toggleIndefinitePracticeMode}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
   {validDocument} {useCurrentDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}

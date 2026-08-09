@@ -611,6 +611,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         },
         onAutoSyncIndexChange: (value: boolean) => this.setSetting("autoSyncIndex", value),
         onAutoScanDocumentChange: (value: boolean) => this.setSetting("autoScanDocument", value),
+        onIndefinitePracticeModeChange: (value: boolean) => this.setSetting("indefinitePracticeMode", value),
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
           void this.openQuestionSource(blockId);

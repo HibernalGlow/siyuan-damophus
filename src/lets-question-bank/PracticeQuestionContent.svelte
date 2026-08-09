@@ -130,7 +130,7 @@
       </div>
     {/if}
     <div class="native-question-source" class:stem-styles-hidden={!showStemStyles}>
-      {#key currentQuestionBlockId}
+      {#key `${currentQuestionBlockId}:${indefinitePracticeMode}`}
         <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}></div>
       {/key}
     </div>
@@ -160,7 +160,7 @@
       </div>
     {/if}
     <div class="embedded-question-source" class:stem-styles-hidden={!showStemStyles}>
-      {#key currentQuestionBlockId}
+      {#key `${currentQuestionBlockId}:${indefinitePracticeMode}`}
         <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}></div>
       {/key}
     </div>

@@ -763,7 +763,7 @@ describe("question bank browser flow", () => {
     expect(option("Beta").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("treats a single-choice question as indefinite when the optional mode is enabled", async () => {
+  it("toggles indefinite mode live from the practice overflow menu", async () => {
     const singleQuestion: Question = {
       ...objectiveQuestion,
       type: "single",
@@ -771,11 +771,21 @@ describe("question bank browser flow", () => {
       answer: { kind: "options", optionIds: ["A"] },
     };
     const { controller } = mockController({ preview: makePreview([singleQuestion]) });
-    render(controller, { indefinitePracticeMode: true, questionRenderMode: "html", random: () => 0.99 });
+    const onIndefinitePracticeModeChange = vi.fn();
+    render(controller, { indefinitePracticeMode: false, onIndefinitePracticeModeChange, questionRenderMode: "html", random: () => 0.99 });
     await scanAndSync();
     await page.getByRole("button", { name: /Start practice/ }).click();
     await flush();
 
+    expect(document.querySelector('[data-question-type="single"]')).not.toBeNull();
+    document.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")?.click();
+    await flush();
+    const modeToggle = document.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]");
+    expect(modeToggle?.getAttribute("aria-checked")).toBe("false");
+    modeToggle?.click();
+    await flush();
+
+    expect(onIndefinitePracticeModeChange).toHaveBeenCalledWith(true);
     expect(document.querySelector("[data-question-type]")).toBeNull();
     expect(document.querySelector("h2")?.textContent).toBe("2015-3-82");
     option("Alpha").click();
@@ -783,6 +793,13 @@ describe("question bank browser flow", () => {
     await flush();
     expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
     expect(option("Beta").getAttribute("aria-pressed")).toBe("true");
+
+    document.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")?.click();
+    await flush();
+    document.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]")?.click();
+    await flush();
+    expect(onIndefinitePracticeModeChange).toHaveBeenLastCalledWith(false);
+    expect(document.querySelector('[data-question-type="single"]')).not.toBeNull();
   });
 
   it("does not run or persist timing when the timer setting is disabled", async () => {

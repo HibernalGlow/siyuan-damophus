@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, LocateFixed, LockKeyhole, Pause, Pencil, Play, Type, UnlockKeyhole, X } from "lucide-svelte";
+  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, ListChecks, LocateFixed, LockKeyhole, Pause, Pencil, Play, Type, UnlockKeyhole, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import { Button } from "@/components/ui/button";
   import {
@@ -52,6 +52,8 @@
   export let toggleSourceEditingLock: () => void = () => {};
   export let showStemStyles = false;
   export let toggleStemStyles: () => void = () => {};
+  export let indefinitePracticeMode = false;
+  export let toggleIndefinitePracticeMode: () => void = () => {};
   export let onCorrectAnswer: ((answer: ObjectiveAnswer) => void) | undefined = undefined;
 
   let correctionOpen = false;
@@ -223,6 +225,17 @@
         {#if overflowOpen}
           <button class="practice-overflow-backdrop" aria-label={label("closeMoreActions", "Close more actions")} onclick={() => overflowOpen = false}></button>
           <div class="practice-overflow-menu" role="menu" aria-label={label("moreActions", "More actions")}>
+            <Button
+              variant="ghost"
+              role="menuitemcheckbox"
+              aria-checked={indefinitePracticeMode}
+              data-toggle-indefinite-practice-mode
+              onclick={() => runOverflowAction(toggleIndefinitePracticeMode)}
+            >
+              <ListChecks size={16} aria-hidden="true" />
+              {label("indefinitePracticeMode", "Indefinite practice mode")}
+              {#if indefinitePracticeMode}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
+            </Button>
             <Button
               variant="ghost"
               role="menuitemcheckbox"

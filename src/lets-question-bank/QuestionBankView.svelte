@@ -156,6 +156,7 @@
   export let inheritSourceStyles: boolean;
   export let questionRenderMode: any;
   export let indefinitePracticeMode = false;
+  export let toggleIndefinitePracticeMode: any;
   export let sourceEditingLocked: boolean;
   export let toggleSourceEditingLock: any;
   export let showStemStyles: boolean;
@@ -227,6 +228,8 @@
     {toggleSourceEditingLock}
     {showStemStyles}
     {toggleStemStyles}
+    {indefinitePracticeMode}
+    {toggleIndefinitePracticeMode}
     onCorrectAnswer={correctCurrentAnswer}
     {previousQuestion}
     {nextQuestion}

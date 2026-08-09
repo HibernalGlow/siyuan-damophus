@@ -72,6 +72,7 @@ describe("practice header answer correction", () => {
     const openQuestionSource = vi.fn();
     const toggleSourceEditingLock = vi.fn();
     const toggleStemStyles = vi.fn();
+    const toggleIndefinitePracticeMode = vi.fn();
     const target = document.createElement("div");
     target.className = "question-bank";
     target.style.width = "600px";
@@ -97,6 +98,8 @@ describe("practice header answer correction", () => {
         toggleSourceEditingLock,
         showStemStyles: false,
         toggleStemStyles,
+        indefinitePracticeMode: false,
+        toggleIndefinitePracticeMode,
         previousQuestion: vi.fn(),
         nextQuestion: vi.fn(),
         togglePracticeTimer: vi.fn(),
@@ -117,6 +120,10 @@ describe("practice header answer correction", () => {
     overflow.click();
     await tick();
     const menu = target.querySelector<HTMLElement>('[role="menu"]');
+    const indefiniteMode = menu?.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]");
+    expect(indefiniteMode?.getAttribute("role")).toBe("menuitemcheckbox");
+    expect(indefiniteMode?.getAttribute("aria-checked")).toBe("false");
+    expect(indefiniteMode?.textContent).toContain("Indefinite practice mode");
     const stemStyles = menu?.querySelector<HTMLButtonElement>("[data-toggle-stem-styles]");
     expect(stemStyles?.getAttribute("role")).toBe("menuitemcheckbox");
     expect(stemStyles?.getAttribute("aria-checked")).toBe("false");
@@ -136,6 +143,13 @@ describe("practice header answer correction", () => {
     target.querySelector<HTMLButtonElement>("[data-toggle-stem-styles]")?.click();
     await tick();
     expect(toggleStemStyles).toHaveBeenCalledOnce();
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+
+    overflow.click();
+    await tick();
+    target.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]")?.click();
+    await tick();
+    expect(toggleIndefinitePracticeMode).toHaveBeenCalledOnce();
     expect(target.querySelector('[role="menu"]')).toBeNull();
   });
 
