@@ -7,6 +7,7 @@ const pluginMetadata: PluginMetadata = {
   version: "0.0.4",
   author: "HibernalGlow",
   enabled: true,
+  icon: "bot",
 };
 
 export default pluginMetadata;

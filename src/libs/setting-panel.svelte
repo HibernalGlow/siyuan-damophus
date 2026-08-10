@@ -16,6 +16,7 @@
       type={item.type}
       title={item.title}
       description={item.description}
+      icon={item.icon}
       settingKey={item.key}
       settingValue={item.value}
       placeholder={item?.placeholder}

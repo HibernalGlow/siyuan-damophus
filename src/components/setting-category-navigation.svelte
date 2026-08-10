@@ -1,26 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
   import type { PluginIconName } from "@/libs/plugin-icons";
-  import { skillManagerAppearance } from "@/lets-skill-manager/plugin";
-  import {
-    ArrowLeft,
-    BookOpenCheck,
-    Bot,
-    Brain,
-    ChevronRight,
-    FileOutput,
-    Film,
-    GlassWater,
-    ImagePlay,
-    ListTree,
-    Network,
-    PanelRight,
-    Power,
-    Settings2,
-    Smartphone,
-    Tags,
-  } from "lucide-svelte";
+  import { ArrowLeft, ChevronRight } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
+  import PluginIcon from "@/components/plugin-icon.svelte";
   import "@/styles/lucide-outline.css";
 
   export let groups: string[] = [];
@@ -32,46 +15,18 @@
   export let mobile = false;
   export let showCategories = false;
   export let backLabel = "Back";
-  const PLUGIN_ICONS = {
-    brain: Brain,
-  } satisfies Record<PluginIconName, typeof Brain>;
-
-  const PLUGIN_GROUP_ICONS: Partial<Record<string, PluginIconName>> = {
-    [skillManagerAppearance.displayName]: skillManagerAppearance.icon,
-  };
-
-  const GROUP_ICONS = {
-    "lets-animated-image-replay.displayName": ImagePlay,
-    "lets-block-attr.displayName": Tags,
-    "lets-kramdown-export.displayName": FileOutput,
-    "lets-layout-actions.displayName": PanelRight,
-    "lets-list-merge.displayName": ListTree,
-    "lets-mobile-breadcrumb.displayName": Smartphone,
-    "lets-mobile-liquid-glass.displayName": GlassWater,
-    "lets-question-bank.displayName": BookOpenCheck,
-    "lets-topic-relations.displayName": Network,
-    "lets-agent-bridge.displayName": Bot,
-  };
+  export let getGroupIcon: (group: string, index: number) => PluginIconName = (group) => (
+    group === "开关" ? "power" : group === "入口" ? "waypoints" : group === "设置" ? "settings" : "film"
+  );
 
   const dispatch = createEventDispatcher<{ select: string; back: void }>();
 
-  $: focusIcon = groupIcon(focusGroup, Math.max(0, groups.indexOf(focusGroup)));
+  $: focusIcon = getGroupIcon(focusGroup, Math.max(0, groups.indexOf(focusGroup)));
 
   function selectGroup(group: string) {
     dispatch("select", group);
   }
 
-  function groupIcon(group: string, index: number) {
-    if (index === 0) return Power;
-    if (index === 1) return Settings2;
-    const pluginIcon = PLUGIN_GROUP_ICONS[group];
-    const registeredIcon = (pluginIcon ? PLUGIN_ICONS[pluginIcon] : undefined)
-      ?? GROUP_ICONS[group as keyof typeof GROUP_ICONS];
-    if (registeredIcon) return registeredIcon;
-    const label = getGroupLabel(group).toLowerCase();
-    if (label.includes("题库") || label.includes("question")) return BookOpenCheck;
-    return Film;
-  }
 </script>
 
 {#if mobile}
@@ -84,7 +39,7 @@
       <p class="sr-only">{categoryDescription}</p>
       <nav class="mt-3 flex flex-col gap-1" aria-label={categoryLabel}>
         {#each groups as group, index}
-          {@const Icon = groupIcon(group, index)}
+          {@const icon = getGroupIcon(group, index)}
           <Button
             variant={group === focusGroup ? "secondary" : "ghost"}
             class={group === focusGroup
@@ -94,7 +49,7 @@
             onclick={() => selectGroup(group)}
           >
             <span class="flex min-w-0 items-center gap-3">
-              <svelte:component this={Icon} class="size-5 shrink-0" aria-hidden="true" />
+              <PluginIcon name={icon} className="size-5 shrink-0" />
               <span class="min-w-0 truncate">{getGroupLabel(group)}</span>
             </span>
             <ChevronRight class="size-4 shrink-0" aria-hidden="true" />
@@ -112,7 +67,7 @@
         onclick={() => dispatch("back")}
       >
         <ArrowLeft class="size-4 shrink-0" />
-        <svelte:component this={focusIcon} class="size-4 shrink-0 text-primary" aria-hidden="true" />
+        <PluginIcon name={focusIcon} className="size-4 shrink-0 text-primary" />
         <span class="min-w-0 truncate">{getGroupLabel(focusGroup)}</span>
       </Button>
     </header>
@@ -129,7 +84,7 @@
     </div>
     <ul class="m-0 flex list-none flex-col gap-1 p-0">
       {#each groups as group, index}
-        {@const Icon = groupIcon(group, index)}
+        {@const icon = getGroupIcon(group, index)}
         <li>
           <Button
             variant={group === focusGroup ? "secondary" : "ghost"}
@@ -139,7 +94,7 @@
             aria-current={group === focusGroup ? "page" : undefined}
             onclick={() => selectGroup(group)}
           >
-            <svelte:component this={Icon} class="size-4 shrink-0" aria-hidden="true" />
+            <PluginIcon name={icon} className="size-4 shrink-0" />
             <span class="min-w-0 truncate">{getGroupLabel(group)}</span>
           </Button>
         </li>

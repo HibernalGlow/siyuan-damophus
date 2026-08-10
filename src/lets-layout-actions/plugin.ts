@@ -8,6 +8,7 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-layout-actions.description",
   version: "1.0.0",
   enabled: true,
+  icon: "panelRight",
   settings: [
     ...createEntrySettings({ menu: true, command: true }),
     {

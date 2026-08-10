@@ -6,7 +6,7 @@ import { plugin } from "@/utils";
 import { inspectSkillSourceRoot, syncSkillSourceRoot, type SkillSyncOptions } from "./api";
 import { renderSkillManagerDock } from "./dock";
 import { skillManagerAppearance } from "./plugin";
-import { skillManagerTabTarget, skillManagerTabType } from "./tab-contract";
+import { skillManagerDockType, skillManagerTabTarget, skillManagerTabType } from "./tab-contract";
 import "./skill-manager.css";
 
 const skillManagerIcon = resolveSiyuanPluginIcon(skillManagerAppearance.icon);
@@ -41,7 +41,6 @@ export default class SkillManagerPlugin extends SubPluginBase {
   override onload(): void {
     if (!this.openEntry) {
       this.openEntry = this.createOpenEntry();
-      this.openEntry.registerDock();
     }
     this.openEntry.setSurfaces(this.configuredEntrySurfaces());
     this.openEntry.setEnabled(true);
@@ -164,7 +163,7 @@ export default class SkillManagerPlugin extends SubPluginBase {
           show: false,
         },
         data: {},
-        type: "damophus-skill-manager-dock",
+        type: skillManagerDockType,
         init: (target) => {
           this.dockTarget = target;
           this.renderDock();

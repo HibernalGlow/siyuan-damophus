@@ -1,4 +1,5 @@
 import type { PluginMetadata } from "@/types/plugin";
+import { createEntrySettings } from "../libs/plugin-entry-settings";
 
 const pluginMetadata: PluginMetadata = {
   name: "agentSurface",
@@ -6,7 +7,9 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-agent-surface.description",
   version: "1.0.0",
   enabled: true,
+  icon: "sparkles",
   settings: [
+    ...createEntrySettings({ menu: true, tab: true }, { central: true }),
     {
       type: "select",
       title: "lets-agent-surface.displayModeTitle",

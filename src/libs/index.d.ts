@@ -14,6 +14,9 @@ interface ISettingItem {
   type: TSettingItemType;
   title: string;
   description?: string;
+  icon?: import("./plugin-icons").PluginIconName;
+  entrySurface?: import("./plugin-entry-settings").ConfigurableEntrySurface;
+  entryManagement?: "central";
   placeholder?: string;
   height?: string;
   slider?: {

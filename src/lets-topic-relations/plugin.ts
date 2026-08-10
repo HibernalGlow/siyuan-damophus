@@ -11,6 +11,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-topic-relations.description",
   version: "1.0.0",
   enabled: true,
+  icon: "network",
   settings: [
     {
       type: "select",

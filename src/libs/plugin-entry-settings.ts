@@ -1,6 +1,11 @@
 import type { PluginSettingItem } from "@/types/plugin";
 
 export type PluginEntrySurface = "menu" | "dock" | "desktopDock" | "mobileDock" | "command" | "tab";
+export type ConfigurableEntrySurface = Exclude<PluginEntrySurface, "dock">;
+
+export interface EntrySettingsOptions {
+  central?: boolean;
+}
 
 const ENTRY_SETTING_KEYS: Record<PluginEntrySurface, string> = {
   menu: "entryMenu",
@@ -23,6 +28,7 @@ export function isMobileEntryFrontend(): boolean {
 
 export function createEntrySettings(
   surfaces: Partial<Record<PluginEntrySurface, boolean>>,
+  options: EntrySettingsOptions = {},
 ): PluginSettingItem[] {
   return (Object.entries(surfaces) as Array<[PluginEntrySurface, boolean]>).flatMap(([surface, value]) => {
     const configuredSurfaces = surface === "dock" ? ["desktopDock", "mobileDock"] as const : [surface];
@@ -32,6 +38,8 @@ export function createEntrySettings(
       description: `settings.entry.${configuredSurface}Description`,
       key: entrySettingKey(configuredSurface),
       value,
+      entrySurface: configuredSurface,
+      entryManagement: options.central ? "central" as const : undefined,
     }));
   });
 }

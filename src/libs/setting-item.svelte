@@ -4,6 +4,8 @@
   import { Input } from "@/components/ui/input";
   import { Slider } from "@/components/ui/slider";
   import { Switch } from "@/components/ui/switch";
+  import PluginIcon from "@/components/plugin-icon.svelte";
+  import type { PluginIconName } from "@/libs/plugin-icons";
   import { Textarea } from "@/components/ui/textarea";
   import * as Select from "@/components/ui/select";
   import { plugin } from "../utils";
@@ -12,6 +14,7 @@
   export let type: string;
   export let title: string;
   export let description: string;
+  export let icon: PluginIconName | undefined = undefined;
   export let settingKey: string;
   export let settingValue: any;
   export let height = "";
@@ -28,10 +31,11 @@
   }> = [];
 
   const dispatch = createEventDispatcher();
-  $: translatedTitle = plugin.i18n[title] || title;
-  $: translatedDescription = plugin.i18n[description] || description;
-  $: translatedPlaceholder = plugin.i18n[placeholder] || placeholder;
-  $: buttonLabel = type === "button" ? plugin.i18n[settingValue] || settingValue : settingValue;
+  $: i18n = plugin?.i18n ?? {};
+  $: translatedTitle = i18n[title] || title;
+  $: translatedDescription = i18n[description] || description;
+  $: translatedPlaceholder = i18n[placeholder] || placeholder;
+  $: buttonLabel = type === "button" ? i18n[settingValue] || settingValue : settingValue;
 
   function changed() {
     dispatch("changed", { key: settingKey, value: settingValue });
@@ -59,9 +63,12 @@
   </div>
 {:else}
   <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(180px,auto)] items-center gap-5 border-b border-border px-3 py-3 last:border-b-0 max-[640px]:grid-cols-1 max-[640px]:gap-3" class:damophus-setting-item-mobile={mobile}>
-    <div class="min-w-0">
-      <div class="text-sm font-medium">{@html translatedTitle}</div>
-      <div class="mt-1 text-xs leading-5 text-muted-foreground">{@html translatedDescription}</div>
+    <div class="flex min-w-0 items-start gap-3">
+      {#if icon}<PluginIcon name={icon} className="mt-0.5 size-4 shrink-0 text-muted-foreground" />{/if}
+      <div class="min-w-0">
+        <div class="text-sm font-medium">{@html translatedTitle}</div>
+        <div class="mt-1 text-xs leading-5 text-muted-foreground">{@html translatedDescription}</div>
+      </div>
     </div>
     <div class="flex min-w-0 justify-end max-[640px]:justify-start" class:damophus-setting-control-mobile={mobile}>
       {#if type === "checkbox"}
@@ -72,9 +79,9 @@
         <Button variant="outline" onclick={() => dispatch("click", { key: settingKey, value: settingValue })}>{buttonLabel}</Button>
       {:else if type === "select"}
         <Select.Root type="single" value={String(settingValue)} onValueChange={(value) => { settingValue = value; changed(); }}>
-          <Select.Trigger id={settingKey} class="w-52 max-w-full damophus-setting-select">{plugin.i18n[options[settingValue]] || options[settingValue] || settingValue}</Select.Trigger>
+          <Select.Trigger id={settingKey} class="w-52 max-w-full damophus-setting-select">{i18n[options[settingValue]] || options[settingValue] || settingValue}</Select.Trigger>
           <Select.Content>
-            <Select.Group>{#each Object.entries(options) as [value, text]}<Select.Item {value} label={plugin.i18n[text] || text} />{/each}</Select.Group>
+            <Select.Group>{#each Object.entries(options) as [value, text]}<Select.Item {value} label={i18n[text] || text} />{/each}</Select.Group>
           </Select.Content>
         </Select.Root>
       {:else if type === "slider"}

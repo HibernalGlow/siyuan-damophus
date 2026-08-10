@@ -11,6 +11,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-block-attr.description",
   version: "1.0.0",
   enabled: true,
+  icon: "tags",
   settings: [
     {
       type: "textarea",

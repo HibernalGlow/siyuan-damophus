@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import agentSurfaceStyles from "./agent-surface.css?raw";
+import pluginMetadata from "./plugin";
 import {
   displayMode,
   isAgentMenuTarget,
@@ -9,6 +10,14 @@ import {
 } from "./surface-helpers";
 
 describe("agent surface helpers", () => {
+  it("declares centrally managed menu and tab entry points", () => {
+    const entrySettings = pluginMetadata.settings?.filter((setting) => setting.entryManagement === "central");
+    expect(entrySettings?.map((setting) => [setting.entrySurface, setting.value])).toEqual([
+      ["menu", true],
+      ["tab", true],
+    ]);
+  });
+
   it("keeps the native mobile model close transform available", () => {
     expect(agentSurfaceStyles).not.toContain("transform: translateX(0)");
   });

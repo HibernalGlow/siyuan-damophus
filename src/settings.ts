@@ -19,18 +19,11 @@ function generateDefaultConfig(pluginRegistry: PluginRegistry) {
 
   // 为每个插件添加默认配置
   for (const pluginMeta of pluginConfigs) {
-    // 添加插件默认配置
-    if (pluginMeta.settings) {
-      const configKey = pluginMeta.name;
-
-      config[configKey] = {};
-      // 默认值通过settings来实现
-      pluginMeta.settings.forEach((setting) => {
-        config[configKey][setting.key] = setting.value;
-      });
-      // config[configKey]["enabled"] = false;
-      // config[configKey] = { ...pluginMeta.defaultConfig };
-    }
+    const configKey = pluginMeta.name;
+    config[configKey] = { enabled: pluginMeta.enabled ?? false };
+    pluginMeta.settings?.forEach((setting) => {
+      config[configKey][setting.key] = setting.value;
+    });
   }
   log.info("config", config);
   return config;

@@ -1,0 +1,90 @@
+import type { PluginIconName } from "./plugin-icons";
+import { resolvePluginIconName } from "./plugin-icons";
+import type { ConfigurableEntrySurface } from "./plugin-entry-settings";
+import type { PluginMetadata, PluginSettingItem } from "@/types/plugin";
+
+export const MODULE_ENABLED_SETTING_KEY = "enabled";
+
+export interface ResolvedPluginSettingItem extends PluginSettingItem {
+  value: unknown;
+  icon?: PluginIconName;
+  hasSetting?: boolean;
+}
+
+export interface ModuleSettingsModel {
+  switches: ResolvedPluginSettingItem[];
+  groups: Record<string, ResolvedPluginSettingItem[]>;
+  entries: ManagedEntryModule[];
+}
+
+export interface ManagedEntryModule {
+  pluginName: string;
+  group: string;
+  title: string;
+  description: string;
+  icon: PluginIconName;
+  enabled: boolean;
+  surfaces: Partial<Record<ConfigurableEntrySurface, ResolvedPluginSettingItem>>;
+}
+
+export function buildModuleSettings(
+  pluginConfigs: PluginMetadata[],
+  readSetting: (pluginName: string, key: string, fallback: unknown) => unknown,
+): ModuleSettingsModel {
+  const switches: ResolvedPluginSettingItem[] = [];
+  const groups: Record<string, ResolvedPluginSettingItem[]> = {};
+  const entries: ManagedEntryModule[] = [];
+
+  for (const pluginMeta of pluginConfigs) {
+    const enabled = Boolean(readSetting(
+      pluginMeta.name,
+      MODULE_ENABLED_SETTING_KEY,
+      pluginMeta.enabled ?? false,
+    ));
+    const icon = resolvePluginIconName(pluginMeta.name, pluginMeta.icon);
+
+    switches.push({
+      type: "checkbox",
+      title: pluginMeta.displayName || pluginMeta.name,
+      description: pluginMeta.description || "",
+      key: pluginMeta.name,
+      value: enabled,
+      icon,
+      hasSetting: true,
+    });
+
+    const resolvedSettings = (pluginMeta.settings ?? []).map((item) => ({
+      ...item,
+      value: readSetting(pluginMeta.name, item.key, item.value),
+    }));
+    const managedEntrySettings = resolvedSettings.filter(
+      (item) => item.entryManagement === "central" && item.entrySurface,
+    );
+
+    groups[pluginMeta.displayName] = [
+      {
+        type: "checkbox",
+        title: "settings.moduleEnabled",
+        description: "settings.moduleEnabledDescription",
+        key: MODULE_ENABLED_SETTING_KEY,
+        value: enabled,
+        icon,
+      },
+      ...resolvedSettings.filter((item) => item.entryManagement !== "central"),
+    ];
+
+    if (managedEntrySettings.length > 0) {
+      entries.push({
+        pluginName: pluginMeta.name,
+        group: pluginMeta.displayName,
+        title: pluginMeta.displayName || pluginMeta.name,
+        description: pluginMeta.description || "",
+        icon,
+        enabled,
+        surfaces: Object.fromEntries(managedEntrySettings.map((item) => [item.entrySurface, item])),
+      });
+    }
+  }
+
+  return { switches, groups, entries };
+}

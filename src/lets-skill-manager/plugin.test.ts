@@ -9,12 +9,15 @@ describe("skill manager settings", () => {
     expect(resolveSiyuanPluginIcon(skillManagerAppearance.icon)).toBe("iconBrain");
     expect(resolveSiyuanPluginIcon(skillManagerAppearance.icon)).not.toBe("iconSparkles");
     expect(pluginMetadata.displayName).toBe(skillManagerAppearance.displayName);
+    expect(pluginMetadata.icon).toBe(skillManagerAppearance.icon);
   });
 
   it("configures desktop and mobile Dock visibility independently", () => {
     const settings = new Map(pluginMetadata.settings?.map((setting) => [setting.key, setting]));
     expect(settings.get("entryDesktopDock")).toMatchObject({ type: "checkbox", value: true });
     expect(settings.get("entryMobileDock")).toMatchObject({ type: "checkbox", value: true });
+    expect(settings.get("entryDesktopDock")).toMatchObject({ entryManagement: "central" });
+    expect(settings.get("entryMobileDock")).toMatchObject({ entryManagement: "central" });
     expect(settings.has("entryDock")).toBe(false);
   });
 

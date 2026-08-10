@@ -65,7 +65,7 @@ export class UnifiedEntryPoint {
   }
 
   registerDock(): void {
-    if (this.dockRegistered || !this.definition.dock) return;
+    if (!this.enabled || !this.surfaces.dock || this.dockRegistered || !this.definition.dock) return;
     this.dockRegistered = true;
     const dock = this.definition.dock;
     const owner = this;
@@ -164,14 +164,14 @@ export class UnifiedEntryPoint {
   private syncDockVisibility(): void {
     const dockType = this.definition.dock?.type;
     if (!dockType) return;
+    const active = this.enabled && this.surfaces.dock;
+    if (active && !this.dockRegistered) this.registerDock();
+    if (!active && this.dockRegistered && this.dockKey && this.host.docks) {
+      delete this.host.docks[this.dockKey];
+      this.dockRegistered = false;
+      this.dockKey = undefined;
+    }
     if (isMobileEntryFrontend()) {
-      const active = this.enabled && this.surfaces.dock;
-      if (active && !this.dockRegistered) this.registerDock();
-      if (!active && this.dockRegistered && this.dockKey && this.host.docks) {
-        delete this.host.docks[this.dockKey];
-        this.dockRegistered = false;
-        this.dockKey = undefined;
-      }
       return;
     }
     if (typeof document === "undefined") return;
@@ -182,6 +182,12 @@ export class UnifiedEntryPoint {
         element.hidden = hidden;
         element.style.display = hidden ? "none" : "";
         element.setAttribute("aria-hidden", String(hidden));
+        const icon = this.definition.dock?.config.icon;
+        const use = icon ? element.querySelector<SVGUseElement>("svg use") : undefined;
+        if (use && icon) {
+          use.setAttribute("href", `#${icon}`);
+          use.setAttribute("xlink:href", `#${icon}`);
+        }
       });
     };
     apply();

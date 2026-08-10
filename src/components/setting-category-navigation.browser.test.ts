@@ -1,10 +1,34 @@
 import { mount, tick, unmount } from "svelte";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PluginIconName } from "@/libs/plugin-icons";
 import SettingCategoryNavigation from "./setting-category-navigation.svelte";
 
 let mounted: ReturnType<typeof mount>[] = [];
 type EventHandler = (event: any) => void;
+
+const moduleIcons: Record<string, PluginIconName> = {
+  "lets-animated-image-replay.displayName": "imagePlay",
+  "lets-block-attr.displayName": "tags",
+  "lets-kramdown-export.displayName": "fileOutput",
+  "lets-layout-actions.displayName": "panelRight",
+  "lets-list-merge.displayName": "listTree",
+  "lets-mobile-appearance.displayName": "sunMoon",
+  "lets-mobile-breadcrumb.displayName": "smartphone",
+  "lets-mobile-liquid-glass.displayName": "glassWater",
+  "lets-question-bank.displayName": "bookOpenCheck",
+  "lets-skill-manager.displayName": "brain",
+  "lets-topic-relations.displayName": "network",
+  "lets-agent-bridge.displayName": "bot",
+  "lets-agent-surface.displayName": "sparkles",
+};
+
+function getGroupIcon(group: string, index: number): PluginIconName {
+  if (group === "开关" || index === 0) return "power";
+  if (group === "入口") return "waypoints";
+  if (group === "设置" || index === 2) return "settings";
+  return moduleIcons[group] ?? "film";
+}
 
 afterEach(async () => {
   await Promise.all(mounted.map((component) => unmount(component)));
@@ -55,21 +79,25 @@ describe("setting category navigation", () => {
       props: {
         groups: [
           "寮€鍏?",
+          "入口",
           "璁剧疆",
           "lets-animated-image-replay.displayName",
           "lets-block-attr.displayName",
           "lets-kramdown-export.displayName",
           "lets-layout-actions.displayName",
           "lets-list-merge.displayName",
+          "lets-mobile-appearance.displayName",
           "lets-mobile-breadcrumb.displayName",
           "lets-mobile-liquid-glass.displayName",
           "lets-question-bank.displayName",
           "lets-skill-manager.displayName",
           "lets-topic-relations.displayName",
           "lets-agent-bridge.displayName",
+          "lets-agent-surface.displayName",
         ],
         focusGroup: "寮€鍏?",
         getGroupLabel: (group: string) => group,
+        getGroupIcon,
       },
     }));
     await tick();
@@ -80,10 +108,11 @@ describe("setting category navigation", () => {
       .map((icon) => [...icon.classList].find(
         (name) => name.startsWith("lucide-") && name !== "lucide-icon",
       ));
-    expect(iconNames).toHaveLength(13);
+    expect(iconNames).toHaveLength(16);
     expect(new Set(iconNames).size).toBe(iconNames.length);
-    const skillManagerIndex = 10;
-    expect(iconNames[skillManagerIndex]).toBe("lucide-brain");
+    const skillManagerButton = [...navigation.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes("lets-skill-manager.displayName"));
+    expect(skillManagerButton?.querySelector("svg")?.classList.contains("lucide-brain")).toBe(true);
   });
 
   it("keeps the sidebar on desktop", async () => {

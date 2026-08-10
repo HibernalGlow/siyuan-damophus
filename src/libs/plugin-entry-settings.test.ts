@@ -3,13 +3,19 @@ import { createEntrySettings, entrySettingKey, resolveEntrySetting } from "./plu
 
 describe("plugin entry settings", () => {
   it("creates only the surfaces declared by a module", () => {
-    const settings = createEntrySettings({ menu: true, dock: true, tab: false });
+    const settings = createEntrySettings({ menu: true, dock: true, tab: false }, { central: true });
 
     expect(settings.map((setting) => [setting.key, setting.value])).toEqual([
       ["entryMenu", true],
       ["entryDesktopDock", true],
       ["entryMobileDock", true],
       ["entryTab", false],
+    ]);
+    expect(settings.map((setting) => [setting.entrySurface, setting.entryManagement])).toEqual([
+      ["menu", "central"],
+      ["desktopDock", "central"],
+      ["mobileDock", "central"],
+      ["tab", "central"],
     ]);
   });
 

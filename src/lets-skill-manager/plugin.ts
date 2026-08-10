@@ -13,8 +13,9 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-skill-manager.description",
   version: "1.0.0",
   enabled: true,
+  icon: skillManagerAppearance.icon,
   settings: [
-    ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }),
+    ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }, { central: true }),
     {
       type: "select",
       title: "lets-skill-manager.syncBackendTitle",

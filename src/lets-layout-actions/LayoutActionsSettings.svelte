@@ -37,6 +37,7 @@
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Switch } from "@/components/ui/switch";
+  import SettingPanel from "@/libs/setting-panel.svelte";
   import * as Select from "@/components/ui/select";
   import {
     DEFAULT_ACTIONS,
@@ -52,6 +53,7 @@
 
   export let group: string;
   export let title: string;
+  export let moduleSettingItems: ISettingItem[] = [];
   export let actions: ConfiguredAction[] = [];
   export let showDock = false;
   export let dockPosition: TPluginDockPosition = "RightBottom";
@@ -118,6 +120,8 @@
   <header class="border-b border-border pb-4">
     <div class="text-lg font-semibold" role="heading" aria-level="2">{title}</div>
   </header>
+
+  <SettingPanel group={group} settingItems={moduleSettingItems} {mobile} on:changed />
 
   <div class="border-y border-border">
     <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-5 px-3 py-3 max-[640px]:grid-cols-1 max-[640px]:gap-3">

@@ -1,5 +1,6 @@
 import { en } from "../translations/en";
-import type { PluginEntrySurface } from "@/libs/plugin-entry-settings";
+import type { ConfigurableEntrySurface, PluginEntrySurface } from "@/libs/plugin-entry-settings";
+import type { PluginIconName } from "@/libs/plugin-icons";
 
 export type TranslationKey = keyof typeof en;
 
@@ -20,6 +21,8 @@ export interface PluginSettingItem {
     options?: Record<string, string>;
   }>;
   hasSetting?: boolean;
+  entrySurface?: ConfigurableEntrySurface;
+  entryManagement?: "central";
 }
 
 export interface PluginSettings {
@@ -58,6 +61,7 @@ export interface PluginMetadata {
   version?: string;
   author?: string;
   enabled?: boolean;
+  icon?: PluginIconName;
   /** Root setting key used by older releases for this module's enabled state. */
   legacyEnabledSetting?: string;
   defaultConfig?: Record<string, any>;

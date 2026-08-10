@@ -6,6 +6,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-animated-image-replay.description",
   version: "1.0.0",
   enabled: true,
+  icon: "imagePlay",
   settings: [
     {
       type: "checkbox",

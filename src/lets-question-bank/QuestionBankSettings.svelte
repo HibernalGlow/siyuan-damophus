@@ -35,6 +35,7 @@
 
   export let group: string;
   export let title: string;
+  export let moduleSettingItems: ISettingItem[] = [];
   export let settingItems: ISettingItem[] = [];
   export let labels: QuestionBankSettingsLabelsBundle;
   export let mobile = false;
@@ -146,6 +147,8 @@
       {/each}
     </nav>
   </header>
+
+  <SettingPanel group={group} settingItems={moduleSettingItems} {mobile} on:changed />
 
   <div class="question-bank-settings-list">
     {#each sections as section (section.id)}

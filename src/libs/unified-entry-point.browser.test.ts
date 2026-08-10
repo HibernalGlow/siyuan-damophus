@@ -6,6 +6,7 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     const dockButton = document.createElement("button");
     dockButton.className = "dock__item";
     dockButton.dataset.type = "siyuan-damophuslifecycle-test-dock";
+    dockButton.innerHTML = '<svg><use xlink:href="#iconOld"></use></svg>';
     document.body.append(dockButton);
 
     const entry = new UnifiedEntryPoint({
@@ -38,6 +39,7 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     expect(dockButton.hidden).toBe(false);
     expect(dockButton.style.display).toBe("");
     expect(dockButton.getAttribute("aria-hidden")).toBe("false");
+    expect(dockButton.querySelector("use")?.getAttribute("href")).toBe("#iconTest");
 
     entry.setSurfaces({ dock: false });
     expect(dockButton.style.display).toBe("none");
@@ -50,5 +52,38 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     expect(click).toHaveBeenCalledOnce();
 
     dockButton.remove();
+  });
+
+  it("does not register a Dock while its persisted surface setting is disabled", () => {
+    const addDock = vi.fn(() => ({ config: {} as never, model: {} as never }));
+    const entry = new UnifiedEntryPoint({
+      id: "disabled-on-start",
+      title: "Disabled on start",
+      icon: "iconTest",
+      execute: vi.fn(),
+      dock: {
+        type: "disabled-on-start-dock",
+        config: {
+          position: "RightBottom",
+          size: { width: 240, height: 0 },
+          icon: "iconBrain",
+          title: "Disabled on start",
+        },
+        data: {},
+        init: vi.fn(),
+      },
+    }, {
+      name: "siyuan-damophus",
+      docks: {},
+      addCommand: vi.fn(),
+      addDock,
+    });
+
+    entry.setSurfaces({ dock: false });
+    entry.registerDock();
+    expect(addDock).not.toHaveBeenCalled();
+
+    entry.setSurfaces({ dock: true });
+    expect(addDock).toHaveBeenCalledOnce();
   });
 });

@@ -3,8 +3,11 @@
   import { Info } from "lucide-svelte";
   import { showMessage } from "siyuan";
   import { Button } from "@/components/ui/button";
+  import EntryManagementSettings from "@/components/entry-management-settings.svelte";
   import { enableLogging } from "@/libs/logger";
+  import { buildModuleSettings, MODULE_ENABLED_SETTING_KEY } from "@/libs/module-settings";
   import { resolveEntrySetting } from "@/libs/plugin-entry-settings";
+  import { resolvePluginIconName, type PluginIconName } from "@/libs/plugin-icons";
   import { settings } from "@/settings";
   import { getHostColorMode, observeHostColorMode } from "@/theme/runtime";
   import { parseStoredThemes } from "@/theme/schema";
@@ -23,6 +26,7 @@
   import SettingCategoryNavigation from "./components/setting-category-navigation.svelte";
 
   const SWITCH_GROUP = "开关";
+  const ENTRY_GROUP = "入口";
   const GENERAL_GROUP = "设置";
   const BLOCK_ATTRIBUTE_PLUGIN = "quickAttr";
   const QUESTION_BANK_PLUGIN = "questionBank";
@@ -71,21 +75,10 @@
       ],
     };
 
-    for (const pluginMeta of pluginConfigs) {
-      dynamicSettings[SWITCH_GROUP].push({
-        type: "checkbox",
-        title: pluginMeta.displayName || pluginMeta.name,
-        description: pluginMeta.description || "",
-        key: pluginMeta.name,
-        value: settings.getBySpace(pluginMeta.name, "enabled") ?? pluginMeta.enabled ?? false,
-        hasSetting: Boolean(pluginMeta.settings),
-      });
-      const pluginSettings = pluginMeta.settings?.map((item) => ({
-        ...item,
-        value: storedPluginSetting(pluginMeta.name, item.key, item.value),
-      }));
-      if (pluginSettings?.length) dynamicSettings[pluginMeta.displayName] = pluginSettings;
-    }
+    const modules = buildModuleSettings(pluginConfigs, storedPluginSetting);
+    dynamicSettings[SWITCH_GROUP] = modules.switches;
+    dynamicSettings[ENTRY_GROUP] = modules.entries;
+    Object.assign(dynamicSettings, modules.groups);
     return dynamicSettings;
   }
 
@@ -119,9 +112,9 @@
 
   $: groups = [
     SWITCH_GROUP,
+    ENTRY_GROUP,
     GENERAL_GROUP,
     ...settingItems[SWITCH_GROUP]
-      .filter((item) => item.value === true && item.hasSetting)
       .map((item) => item.title),
   ];
   $: selectedTheme = findTheme(selectedThemeId, customThemes);
@@ -131,6 +124,14 @@
   $: showBlockAttributeSettings = focusedPlugin?.name === BLOCK_ATTRIBUTE_PLUGIN;
   $: showQuestionBankSettings = focusedPlugin?.name === QUESTION_BANK_PLUGIN;
   $: showLayoutActionsSettings = focusedPlugin?.name === LAYOUT_ACTIONS_PLUGIN;
+  $: showEntryManagement = focusGroup === ENTRY_GROUP;
+  $: focusedSettingItems = settingItems[focusGroup] ?? [];
+  $: moduleEnabledSettingItems = focusedPlugin
+    ? focusedSettingItems.filter((item) => item.key === MODULE_ENABLED_SETTING_KEY)
+    : [];
+  $: moduleSpecificSettingItems = focusedPlugin
+    ? focusedSettingItems.filter((item) => item.key !== MODULE_ENABLED_SETTING_KEY)
+    : focusedSettingItems;
   $: layoutActions = settingItems[focusGroup]?.find((item) => item.key === "actions")?.value ?? [];
   $: layoutActionsDockEnabled = Boolean(settingItems[focusGroup]?.find((item) => item.key === "showDock")?.value);
   $: layoutActionsDockPosition = settingItems[focusGroup]?.find((item) => item.key === "dockPosition")?.value ?? "RightBottom";
@@ -147,6 +148,32 @@
       (item) => item.displayName === groupName || item.name === groupName,
     );
     return found ? plugin.i18n[found.displayName] || found.displayName || found.name : groupName;
+  }
+
+  function getGroupIcon(groupName: string, _index: number): PluginIconName {
+    if (groupName === SWITCH_GROUP) return "power";
+    if (groupName === ENTRY_GROUP) return "waypoints";
+    if (groupName === GENERAL_GROUP) return "settings";
+    const found = PluginRegistry.getInstance().getPluginConfigs().find(
+      (item) => item.displayName === groupName || item.name === groupName,
+    );
+    return resolvePluginIconName(found?.name ?? groupName, found?.icon);
+  }
+
+  function translateKey(key: string) {
+    return plugin.i18n[key] || key;
+  }
+
+  function entryManagementLabels() {
+    return {
+      desktopDock: t("settings.entry.desktopDock", "Desktop sidebar"),
+      mobileDock: t("settings.entry.mobileDock", "Mobile Dock"),
+      menu: t("settings.entry.menu", "Plugin menu"),
+      command: t("settings.entry.command", "Command palette"),
+      tab: t("settings.entry.tab", "New tab"),
+      disabled: t("settings.entry.moduleDisabled", "Module disabled"),
+      unavailable: t("settings.entry.unavailable", "Not provided by this module"),
+    };
   }
 
   function getFocusedSettingValue(key: string, fallback: string) {
@@ -271,21 +298,32 @@
 
   async function onChanged({ detail }: CustomEvent<ChangeEvent>) {
     if (detail.group === SWITCH_GROUP) {
-      settings.setBySpace(detail.key, "enabled", detail.value);
-      if (detail.value) await PluginRegistry.getInstance().beginPlugin(detail.key);
-      else PluginRegistry.getInstance().unloadPlugin(detail.key);
+      await setModuleEnabled(detail.key, Boolean(detail.value));
       settingItems = initData();
     } else if (detail.group === GENERAL_GROUP) {
       settings.set(detail.key, detail.value);
       if (detail.key === "debugLogging") enableLogging(detail.value);
+      updateLocalSetting(detail.group, detail.key, detail.value);
     } else {
       const pluginSetting = settingItems[SWITCH_GROUP].find((item) => item.title === detail.group);
       if (!pluginSetting) return;
-      settings.setBySpace(pluginSetting.key, detail.key, detail.value);
-      await PluginRegistry.getInstance().beginPlugin(pluginSetting.key);
+      if (detail.key === MODULE_ENABLED_SETTING_KEY) {
+        await setModuleEnabled(pluginSetting.key, Boolean(detail.value));
+      } else {
+        settings.setBySpace(pluginSetting.key, detail.key, detail.value);
+        if (pluginSetting.value === true) {
+          await PluginRegistry.getInstance().beginPlugin(pluginSetting.key);
+        }
+      }
+      settingItems = initData();
     }
-    updateLocalSetting(detail.group, detail.key, detail.value);
     await settings.save();
+  }
+
+  async function setModuleEnabled(pluginName: string, enabled: boolean) {
+    settings.setBySpace(pluginName, MODULE_ENABLED_SETTING_KEY, enabled);
+    if (enabled) await PluginRegistry.getInstance().beginPlugin(pluginName);
+    else PluginRegistry.getInstance().unloadPlugin(pluginName);
   }
 
   function onPreview({ detail }: CustomEvent<ChangeEvent>) {
@@ -346,6 +384,7 @@
   <SettingCategoryNavigation
     {groups}
     {focusGroup}
+    {getGroupIcon}
     mobile={compactLayout}
     showCategories={showCompactCategories}
     getGroupLabel={getGroupLabel}
@@ -366,7 +405,24 @@
       {/if}
 
       <!-- Damophus theme settings are temporarily hidden; the panel follows SiYuan's theme. -->
-      {#if showBlockAttributeSettings}
+      {#if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings}
+        <SettingPanel
+          group={focusGroup}
+          settingItems={moduleEnabledSettingItems}
+          mobile={compactLayout}
+          on:changed={onChanged}
+        />
+      {/if}
+
+      {#if showEntryManagement}
+        <EntryManagementSettings
+          modules={settingItems[ENTRY_GROUP] ?? []}
+          labels={entryManagementLabels()}
+          translate={translateKey}
+          mobile={compactLayout}
+          on:changed={onChanged}
+        />
+      {:else if showBlockAttributeSettings}
         <BlockAttributeSettings
           customProperties={getFocusedSettingValue("customProperties", DEFAULT_CUSTOM_PROPERTIES)}
           customPropertyBlockTypes={getFocusedSettingValue("customPropertyBlockTypes", DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES)}
@@ -382,7 +438,8 @@
         <QuestionBankSettings
           group={focusGroup}
           title={getGroupLabel(focusGroup)}
-          settingItems={settingItems[focusGroup] ?? []}
+          moduleSettingItems={moduleEnabledSettingItems}
+          settingItems={moduleSpecificSettingItems}
           mobile={compactLayout}
           labels={questionBankSettingsLabels()}
           on:changed={onChanged}
@@ -393,6 +450,7 @@
         <LayoutActionsSettings
           group={focusGroup}
           title={getGroupLabel(focusGroup)}
+          moduleSettingItems={moduleEnabledSettingItems}
           actions={layoutActions}
           showDock={layoutActionsDockEnabled}
           dockPosition={layoutActionsDockPosition}
@@ -400,10 +458,10 @@
           labels={layoutActionsSettingsLabels()}
           on:changed={onChanged}
         />
-      {:else}
+      {:else if moduleSpecificSettingItems.length > 0}
         <SettingPanel
           group={focusGroup}
-          settingItems={settingItems[focusGroup] ?? []}
+          settingItems={moduleSpecificSettingItems}
           mobile={compactLayout}
           on:changed={onChanged}
           on:click={onClick}

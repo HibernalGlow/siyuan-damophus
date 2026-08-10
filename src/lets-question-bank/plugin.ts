@@ -9,8 +9,9 @@ const pluginMetadata: PluginMetadata = {
   version: "1.0.0",
   author: "HibernalGlow",
   enabled: true,
+  icon: "bookOpenCheck",
   settings: [
-    ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }),
+    ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }, { central: true }),
     {
       type: "number",
       title: "lets-question-bank.reviewThreshold",
