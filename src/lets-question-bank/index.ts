@@ -304,7 +304,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       return;
     }
     if (this.isEntryEnabled("dock")) {
-      document.querySelector<HTMLElement>('.dock__item[data-type="damophus-question-bank-dock"]')?.click();
+      this.openEntry?.openDock();
     }
   }
 

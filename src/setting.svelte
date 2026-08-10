@@ -4,6 +4,7 @@
   import { showMessage } from "siyuan";
   import { Button } from "@/components/ui/button";
   import { enableLogging } from "@/libs/logger";
+  import { resolveEntrySetting } from "@/libs/plugin-entry-settings";
   import { settings } from "@/settings";
   import { getHostColorMode, observeHostColorMode } from "@/theme/runtime";
   import { parseStoredThemes } from "@/theme/schema";
@@ -95,11 +96,25 @@
       });
       const pluginSettings = pluginMeta.settings?.map((item) => ({
         ...item,
-        value: settings.getBySpace(pluginMeta.name, item.key) ?? item.value,
+        value: storedPluginSetting(pluginMeta.name, item.key, item.value),
       }));
       if (pluginSettings?.length) dynamicSettings[pluginMeta.displayName] = pluginSettings;
     }
     return dynamicSettings;
+  }
+
+  function storedPluginSetting(pluginName: string, key: string, fallback: unknown) {
+    if (key === "entryDesktopDock" || key === "entryMobileDock") {
+      const surface = key === "entryDesktopDock" ? "desktopDock" : "mobileDock";
+      return resolveEntrySetting(
+        (settingKey) => settings.getBySpace(pluginName, settingKey),
+        surface,
+        Boolean(fallback),
+      );
+    }
+    const stored = settings.getBySpace(pluginName, key);
+    if (stored !== undefined && stored !== null) return stored;
+    return fallback;
   }
 
   let settingItems = initData();

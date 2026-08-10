@@ -5,7 +5,7 @@ describe("UnifiedEntryPoint Dock visibility", () => {
   it("hides its registered Dock button while disabled and restores it when enabled", () => {
     const dockButton = document.createElement("button");
     dockButton.className = "dock__item";
-    dockButton.dataset.type = "lifecycle-test-dock";
+    dockButton.dataset.type = "siyuan-damophuslifecycle-test-dock";
     document.body.append(dockButton);
 
     const entry = new UnifiedEntryPoint({
@@ -44,6 +44,10 @@ describe("UnifiedEntryPoint Dock visibility", () => {
 
     entry.setSurfaces({ dock: true });
     expect(dockButton.style.display).toBe("");
+
+    const click = vi.spyOn(dockButton, "click");
+    expect(entry.openDock()).toBe(true);
+    expect(click).toHaveBeenCalledOnce();
 
     dockButton.remove();
   });

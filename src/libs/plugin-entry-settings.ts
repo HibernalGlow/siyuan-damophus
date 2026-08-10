@@ -1,10 +1,12 @@
 import type { PluginSettingItem } from "@/types/plugin";
 
-export type PluginEntrySurface = "menu" | "dock" | "command" | "tab";
+export type PluginEntrySurface = "menu" | "dock" | "desktopDock" | "mobileDock" | "command" | "tab";
 
 const ENTRY_SETTING_KEYS: Record<PluginEntrySurface, string> = {
   menu: "entryMenu",
   dock: "entryDock",
+  desktopDock: "entryDesktopDock",
+  mobileDock: "entryMobileDock",
   command: "entryCommand",
   tab: "entryTab",
 };
@@ -13,16 +15,25 @@ export function entrySettingKey(surface: PluginEntrySurface): string {
   return ENTRY_SETTING_KEYS[surface];
 }
 
+export function isMobileEntryFrontend(): boolean {
+  if (typeof document === "undefined") return false;
+  const frontend = document.documentElement.dataset.frontend;
+  return frontend === "mobile" || frontend === "browser-mobile";
+}
+
 export function createEntrySettings(
   surfaces: Partial<Record<PluginEntrySurface, boolean>>,
 ): PluginSettingItem[] {
-  return (Object.entries(surfaces) as Array<[PluginEntrySurface, boolean]>).map(([surface, value]) => ({
-    type: "checkbox",
-    title: `settings.entry.${surface}`,
-    description: `settings.entry.${surface}Description`,
-    key: entrySettingKey(surface),
-    value,
-  }));
+  return (Object.entries(surfaces) as Array<[PluginEntrySurface, boolean]>).flatMap(([surface, value]) => {
+    const configuredSurfaces = surface === "dock" ? ["desktopDock", "mobileDock"] as const : [surface];
+    return configuredSurfaces.map((configuredSurface) => ({
+      type: "checkbox" as const,
+      title: `settings.entry.${configuredSurface}`,
+      description: `settings.entry.${configuredSurface}Description`,
+      key: entrySettingKey(configuredSurface),
+      value,
+    }));
+  });
 }
 
 export function resolveEntrySetting(
@@ -31,5 +42,10 @@ export function resolveEntrySetting(
   fallback = true,
 ): boolean {
   const value = getSetting(entrySettingKey(surface));
-  return typeof value === "boolean" ? value : fallback;
+  if (typeof value === "boolean") return value;
+  if (surface === "desktopDock") {
+    const legacyDock = getSetting(entrySettingKey("dock"));
+    if (typeof legacyDock === "boolean") return legacyDock;
+  }
+  return fallback;
 }

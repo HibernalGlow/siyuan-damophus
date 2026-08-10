@@ -1,5 +1,5 @@
 import type { ICommand, IMenu, IPluginDockTab, Menu, Plugin } from "siyuan";
-import type { PluginEntrySurface } from "./plugin-entry-settings";
+import { isMobileEntryFrontend, type PluginEntrySurface } from "./plugin-entry-settings";
 
 export interface UnifiedEntryDock {
   type: string;
@@ -21,8 +21,12 @@ export interface UnifiedEntryDefinition {
   dock?: UnifiedEntryDock;
 }
 
-type UnifiedEntryHost = Pick<Plugin, "addCommand" | "addDock"> & Partial<Pick<Plugin, "commands">>;
-type ManagedEntrySurface = Exclude<PluginEntrySurface, "tab">;
+type UnifiedEntryHost = Pick<Plugin, "addCommand" | "addDock"> & {
+  commands?: ICommand[];
+  docks?: Record<string, unknown>;
+  name?: string;
+};
+type ManagedEntrySurface = Extract<PluginEntrySurface, "menu" | "dock" | "command">;
 
 /**
  * Declares one user-facing action once, then exposes it consistently through
@@ -32,6 +36,7 @@ export class UnifiedEntryPoint {
   private commandRegistered = false;
   private registeredCommand?: ICommand;
   private dockRegistered = false;
+  private dockKey?: string;
   private dockTarget?: HTMLElement;
   private dockInitialized = false;
   private enabled = true;
@@ -78,7 +83,20 @@ export class UnifiedEntryPoint {
         owner.dockTarget = undefined;
       },
     });
+    this.dockKey = this.resolveDockKey(dock.type);
     this.syncDockVisibility();
+  }
+
+  openDock(): boolean {
+    if (!this.enabled || !this.surfaces.dock || typeof document === "undefined" || isMobileEntryFrontend()) return false;
+    const dockType = this.definition.dock?.type;
+    const dock = dockType
+      ? [...document.querySelectorAll<HTMLElement>(".dock__item[data-type]")]
+        .find((element) => this.matchesDockType(element.dataset.type, dockType))
+      : undefined;
+    if (!dock) return false;
+    dock.click();
+    return true;
   }
 
   addMenuItem(menu: Menu): void {
@@ -145,11 +163,22 @@ export class UnifiedEntryPoint {
 
   private syncDockVisibility(): void {
     const dockType = this.definition.dock?.type;
-    if (!dockType || typeof document === "undefined") return;
+    if (!dockType) return;
+    if (isMobileEntryFrontend()) {
+      const active = this.enabled && this.surfaces.dock;
+      if (active && !this.dockRegistered) this.registerDock();
+      if (!active && this.dockRegistered && this.dockKey && this.host.docks) {
+        delete this.host.docks[this.dockKey];
+        this.dockRegistered = false;
+        this.dockKey = undefined;
+      }
+      return;
+    }
+    if (typeof document === "undefined") return;
     const hidden = !this.enabled || !this.surfaces.dock;
     const apply = () => {
       document.querySelectorAll<HTMLElement>(".dock__item[data-type]").forEach((element) => {
-        if (element.dataset.type !== dockType) return;
+        if (!this.matchesDockType(element.dataset.type, dockType)) return;
         element.hidden = hidden;
         element.style.display = hidden ? "none" : "";
         element.setAttribute("aria-hidden", String(hidden));
@@ -157,5 +186,15 @@ export class UnifiedEntryPoint {
     };
     apply();
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(apply);
+  }
+
+  private matchesDockType(actualType: string | undefined, dockType: string): boolean {
+    return actualType === dockType || actualType?.endsWith(dockType) === true;
+  }
+
+  private resolveDockKey(dockType: string): string | undefined {
+    const dockKeys = this.host.docks ? Object.keys(this.host.docks) : [];
+    return dockKeys.find((key) => this.matchesDockType(key, dockType))
+      ?? (this.host.name ? `${this.host.name}${dockType}` : undefined);
   }
 }

@@ -3,10 +3,12 @@ import { createEntrySettings, entrySettingKey, resolveEntrySetting } from "./plu
 
 describe("plugin entry settings", () => {
   it("creates only the surfaces declared by a module", () => {
-    const settings = createEntrySettings({ menu: true, tab: false });
+    const settings = createEntrySettings({ menu: true, dock: true, tab: false });
 
     expect(settings.map((setting) => [setting.key, setting.value])).toEqual([
       ["entryMenu", true],
+      ["entryDesktopDock", true],
+      ["entryMobileDock", true],
       ["entryTab", false],
     ]);
   });
@@ -15,5 +17,15 @@ describe("plugin entry settings", () => {
     expect(entrySettingKey("command")).toBe("entryCommand");
     expect(resolveEntrySetting(() => undefined, "dock", false)).toBe(false);
     expect(resolveEntrySetting(() => true, "dock", false)).toBe(true);
+  });
+
+  it("migrates the legacy shared Dock value to desktop while keeping the mobile default independent", () => {
+    const legacySettings = new Map<string, unknown>([["entryDock", false]]);
+    expect(resolveEntrySetting((key) => legacySettings.get(key), "desktopDock")).toBe(false);
+    expect(resolveEntrySetting((key) => legacySettings.get(key), "mobileDock")).toBe(true);
+
+    legacySettings.set("entryMobileDock", false);
+    expect(resolveEntrySetting((key) => legacySettings.get(key), "desktopDock")).toBe(false);
+    expect(resolveEntrySetting((key) => legacySettings.get(key), "mobileDock")).toBe(false);
   });
 });

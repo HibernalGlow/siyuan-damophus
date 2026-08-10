@@ -1,5 +1,9 @@
 import type { SubPlugin, TranslationKey } from "../types/plugin";
-import { resolveEntrySetting, type PluginEntrySurface } from "./plugin-entry-settings";
+import {
+  isMobileEntryFrontend,
+  resolveEntrySetting,
+  type PluginEntrySurface,
+} from "./plugin-entry-settings";
 
 /**
  * 子插件基类
@@ -20,7 +24,10 @@ export class SubPluginBase implements SubPlugin {
   setSetting!: (key: string, value: any) => void;
 
   isEntryEnabled(surface: PluginEntrySurface, fallback = true): boolean {
-    return resolveEntrySetting((key) => this.getSetting(key), surface, fallback);
+    const resolvedSurface = surface === "dock"
+      ? (isMobileEntryFrontend() ? "mobileDock" : "desktopDock")
+      : surface;
+    return resolveEntrySetting((key) => this.getSetting(key), resolvedSurface, fallback);
   }
 
   registerModels(): void {}

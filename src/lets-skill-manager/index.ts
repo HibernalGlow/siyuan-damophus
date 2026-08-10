@@ -187,9 +187,7 @@ export default class SkillManagerPlugin extends SubPluginBase {
 
   private openConfiguredSurface(): void {
     if (this.isEntryEnabled("dock")) {
-      const dock = document.querySelector<HTMLElement>('.dock__item[data-type="damophus-skill-manager-dock"]');
-      if (dock) {
-        dock.click();
+      if (this.openEntry?.openDock()) {
         return;
       }
     }
