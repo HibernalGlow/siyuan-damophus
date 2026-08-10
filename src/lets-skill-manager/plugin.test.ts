@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import pluginMetadata from "./plugin";
+import { skillManagerIcon } from "./tab-contract";
 
 describe("skill manager settings", () => {
+  it("uses a dedicated icon distinct from the agent surface", () => {
+    expect(skillManagerIcon).toBe("iconListTree");
+    expect(skillManagerIcon).not.toBe("iconSparkles");
+  });
+
   it("configures desktop and mobile Dock visibility independently", () => {
     const settings = new Map(pluginMetadata.settings?.map((setting) => [setting.key, setting]));
     expect(settings.get("entryDesktopDock")).toMatchObject({ type: "checkbox", value: true });

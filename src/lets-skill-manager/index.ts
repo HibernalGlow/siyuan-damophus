@@ -4,7 +4,7 @@ import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { plugin } from "@/utils";
 import { inspectSkillSourceRoot, syncSkillSourceRoot, type SkillSyncOptions } from "./api";
 import { renderSkillManagerDock } from "./dock";
-import { skillManagerTabTarget, skillManagerTabType } from "./tab-contract";
+import { skillManagerIcon, skillManagerTabTarget, skillManagerTabType } from "./tab-contract";
 import "./skill-manager.css";
 
 export default class SkillManagerPlugin extends SubPluginBase {
@@ -106,7 +106,7 @@ export default class SkillManagerPlugin extends SubPluginBase {
     void openTab({
       app: plugin.app,
       custom: {
-        icon: "iconSparkles",
+        icon: skillManagerIcon,
         title: this.t("lets-skill-manager.displayName"),
         ...skillManagerTabTarget(plugin.name),
       },
@@ -148,14 +148,14 @@ export default class SkillManagerPlugin extends SubPluginBase {
     return new UnifiedEntryPoint({
       id: "skill-manager.open",
       title: this.t("lets-skill-manager.menu"),
-      icon: "iconSparkles",
+      icon: skillManagerIcon,
       execute: () => this.openConfiguredSurface(),
       command: { langKey: "lets-skill-manager.commandOpen" },
       dock: {
         config: {
           position: "RightBottom",
           size: { width: 380, height: 0 },
-          icon: "iconSparkles",
+          icon: skillManagerIcon,
           title: this.t("lets-skill-manager.displayName"),
           show: false,
         },
