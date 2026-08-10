@@ -1,5 +1,25 @@
 # siyuan-damophus
 
+## 0.2.0
+
+### Minor Changes
+
+- 9e20850: - 技能管理：可在插件中查看、编辑、重命名、删除和同步思源 AI 技能。
+  - 技能同步：命令行现在可将软链接管理的技能展开为真实文件后写入思源。
+- 9ebc6cc: - 题库新增可选的不定项模式：练习时隐藏单选、多选提示，并允许原单选题选择多个选项。
+- 3e14260: - 技能管理配置移入插件设置侧栏，并支持启动检测、启动同步、批量同步、源/目标内容状态显示和新标签页管理。
+- 510a520: - 新增可配置快捷操作，可选择思源系统命令、插件命令或编辑器命令，并自行决定是否显示在 Damophus 菜单或可选 Dock 中；题库入口复用同一套命令、菜单和跨端 Dock 注册接口。
+- 30a55cc: - 新增考点关系栏：题目可查看对应考点笔记，考点笔记也可分组查看其他同考点笔记和关联题目，并支持思源原生悬浮预览与移动端底部面板。
+- c95186c: - 技能管理默认通过 ChezMoi 将更新写入思源，确保技能保持为真实文件；移动端或未安装 ChezMoi 的环境仍可切换到内置同步。
+- 7aa0a25: Add TanStack-powered skill search, status filtering and sorting, and render read-only skill previews through SiYuan Lute.
+
+### Patch Changes
+
+- 869b9e2: Keep Damophus Lucide icons outlined under SiYuan's global SVG fill rule and compact scaling.
+- 1358f20: Give every Damophus settings category a distinct Lucide icon.
+- 62b96b9: - 修复子模块停用后菜单和 Dock 入口残留，并在移动端插件栏增加原生外观快捷入口；题库界面不再显示悬浮大纲插件。
+- ebbd737: - 不定项模式现在可以在答题页的“更多”菜单中实时开关，并会记住最新选择。
+
 ## 0.1.0
 
 ### Minor Changes

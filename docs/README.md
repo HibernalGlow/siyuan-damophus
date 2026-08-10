@@ -8,8 +8,11 @@
 - [UI theming plan](ui-theming-plan.md)
 - [Reference sources](reference-sources.md)
 - [User guide](user-guide.md)
+- [Exam mode](exam-mode.md)
 - [Migration guide](migration.md)
 - [Kramdown export](kramdown-export.md)
+- [Agent bridge](agent-bridge.md)
+- [Skill management](skill-management.md)
 - [Architecture decisions](adr/)
 
 Current editor projection decisions include [ADR 0009: reusable virtual topic

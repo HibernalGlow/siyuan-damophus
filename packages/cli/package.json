@@ -1,6 +1,6 @@
 {
   "name": "@hibernalglow/damophus-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Command-line bridge for Damophus and SiYuan",
   "type": "module",
   "license": "WTFPL",
@@ -11,7 +11,9 @@
   "bin": {
     "damophus": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
