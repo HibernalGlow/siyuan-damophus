@@ -1,0 +1,372 @@
+import { fetchSyncPost, getFrontend, openTab, showMessage, type Menu } from "siyuan";
+import { SubPluginBase } from "@/libs/sub-plugin-base";
+import { plugin } from "@/utils";
+import { getLogger } from "@/libs/logger";
+import {
+  isAgentMenuTarget,
+  isMobileAgentEntryTarget,
+  resolveAgentSurface,
+  selectedBlockIds,
+} from "./surface-helpers";
+import "./agent-surface.css";
+
+const log = getLogger("lets-agent-surface");
+const AGENT_TAB_TYPE = "damophus-agent-surface-tab";
+type AgentModel = {
+  panelElement?: HTMLElement;
+  insertBlockMentions?: (mentions: BlockMention[]) => void;
+};
+type BlockMention = { id: string; label: string };
+type DockHost = {
+  layout?: { element?: HTMLElement };
+  data?: Record<string, AgentModel | undefined>;
+};
+
+function desktopDockHosts(): DockHost[] {
+  const layout = (window.siyuan as unknown as {
+    layout?: { leftDock?: DockHost; rightDock?: DockHost; bottomDock?: DockHost };
+  }).layout;
+  return [layout?.leftDock, layout?.rightDock, layout?.bottomDock].filter(
+    (host): host is DockHost => Boolean(host),
+  );
+}
+
+function agentModel(): AgentModel | undefined {
+  if (getFrontend() === "mobile" || getFrontend() === "browser-mobile") {
+    return (window.siyuan as unknown as { mobile?: { agentChat?: AgentModel } }).mobile?.agentChat;
+  }
+  for (const host of desktopDockHosts()) {
+    const model = host.data?.agentChat;
+    if (model) return model;
+  }
+  return undefined;
+}
+
+export default class AgentSurfacePlugin extends SubPluginBase {
+  private listening = false;
+  private tabRegistered = false;
+  private allowingNativeDockClick = false;
+  private allowingNativeMobileAgentClick = false;
+  private panelOrigin?: { parent: Node; nextSibling: ChildNode | null };
+  private floatingHost?: HTMLElement;
+  private readonly tabTargets = new Set<HTMLElement>();
+  private readonly handleDocumentClick = (event: MouseEvent): void => {
+    const agentDock = event.target instanceof Element
+      ? event.target.closest('.dock__item[data-type="agentChat"]')
+      : null;
+    if (agentDock && !this.allowingNativeDockClick) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void this.openAgent();
+      return;
+    }
+    const mobileFrontend = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
+    if (mobileFrontend && !this.allowingNativeMobileAgentClick
+      && isMobileAgentEntryTarget(event.target)) {
+      window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
+      return;
+    }
+    if (!this.shouldIntercept()) return;
+    if (!isAgentMenuTarget(event.target)) return;
+
+    if (resolveAgentSurface(getFrontend(), this.getSetting("displayMode")) === "desktop-tab") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.closeNativeMenu();
+      void this.openAgent(selectedBlockIds());
+      return;
+    }
+    // The native action keeps ownership of the reference insertion. We only
+    // restyle the native surface after it has opened.
+    window.setTimeout(() => {
+      if (mobileFrontend) this.applyMobileDropdownSurface();
+      else this.applyFloatingSurface();
+    }, 0);
+  };
+
+  override registerModels(): void {
+    if (this.tabRegistered) return;
+    this.tabRegistered = true;
+    const owner = this;
+    plugin.addTab({
+      type: AGENT_TAB_TYPE,
+      init() {
+        const target = this.element as HTMLElement;
+        target.classList.add("damophus-agent-tab-host");
+        void owner.attachTab(target);
+      },
+      destroy() {
+        owner.detachTab(this.element as HTMLElement);
+      },
+    });
+  }
+
+  override onload(): void {
+    if (!this.listening) {
+      this.listening = true;
+      document.addEventListener("click", this.handleDocumentClick, true);
+    }
+  }
+
+  override onLayoutReady(): void {
+  }
+
+  override onunload(): void {
+    if (this.listening) {
+      document.removeEventListener("click", this.handleDocumentClick, true);
+      this.listening = false;
+    }
+    this.closeDesktopFloating();
+    document.querySelectorAll<HTMLElement>(".damophus-agent-floating-layout").forEach((element) => {
+      element.classList.remove("damophus-agent-floating-layout");
+    });
+    this.closeNativeMobileAgent();
+    document.getElementById("model")?.classList.remove("damophus-agent-floating-mobile", "damophus-agent-dropdown-mobile");
+    for (const target of this.tabTargets) this.detachTab(target);
+    this.panelOrigin = undefined;
+  }
+
+  addMenuItem(menu: Menu): void {
+    menu.addItem({
+      icon: "iconSparkles",
+      label: this.t("lets-agent-surface.open"),
+      click: () => void this.openAgent(),
+    });
+  }
+
+  private shouldIntercept(): boolean {
+    return this.getSetting("interceptAddToAgent") !== false;
+  }
+
+  private closeNativeMenu(): void {
+    const menus = (window.siyuan as unknown as {
+      menus?: { menu?: { close?: () => void; remove?: () => void } };
+    }).menus;
+    if (typeof menus?.menu?.close === "function") menus.menu.close();
+    else menus?.menu?.remove?.();
+  }
+
+  private async openAgent(ids: string[] = []): Promise<void> {
+    const surface = resolveAgentSurface(getFrontend(), this.getSetting("displayMode"));
+    if (surface === "mobile-dropdown") {
+      this.openMobileAgent();
+      if (ids.length > 0) {
+        window.setTimeout(() => this.insertBlockMentions(ids), 120);
+      }
+      return;
+    }
+    if (surface === "desktop-tab") {
+      await this.openAgentTab(ids);
+      return;
+    }
+    await this.openDesktopFloating();
+    if (ids.length > 0) window.setTimeout(() => this.insertBlockMentions(ids), 80);
+  }
+
+  private openDesktopAgent(applyFloating = true): void {
+    const item = document.querySelector<HTMLElement>('.dock__item[data-type="agentChat"]');
+    if (!item) {
+      showMessage(this.t("lets-agent-surface.unavailable"), 3000, "error");
+      return;
+    }
+    if (!item.classList.contains("dock__item--active")) this.clickNativeAgentDock(item);
+    if (applyFloating) window.setTimeout(() => this.applyFloatingSurface(), 0);
+  }
+
+  private clickNativeAgentDock(item: HTMLElement): void {
+    this.allowingNativeDockClick = true;
+    try {
+      item.click();
+    } finally {
+      this.allowingNativeDockClick = false;
+    }
+  }
+
+  private openMobileAgent(): void {
+    const nativeMenuItem = document.querySelector<HTMLElement>("#menuAgentChat");
+    if (nativeMenuItem) {
+      this.clickNativeMobileAgentEntry(nativeMenuItem);
+      window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
+      return;
+    }
+    const menuButton = document.querySelector<HTMLElement>(
+      '#toolbarMore, #toolbar [data-type="menu"], #toolbar [data-type="more"], #toolbar .toolbar__icon[aria-label*="Menu"]',
+    );
+    if (!menuButton) {
+      showMessage(this.t("lets-agent-surface.mobileUnavailable"), 3000, "error");
+      return;
+    }
+    menuButton.click();
+    window.setTimeout(() => {
+      const item = document.querySelector<HTMLElement>("#menuAgentChat");
+      if (item) this.clickNativeMobileAgentEntry(item);
+      window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
+    }, 0);
+  }
+
+  private clickNativeMobileAgentEntry(item: HTMLElement): void {
+    this.allowingNativeMobileAgentClick = true;
+    try {
+      item.click();
+    } finally {
+      this.allowingNativeMobileAgentClick = false;
+    }
+  }
+
+  private closeNativeMobileAgent(): void {
+    const model = document.getElementById("model");
+    if (model && model.getBoundingClientRect().left < window.innerWidth) {
+      document.getElementById("modelClose")?.dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+      }));
+    }
+    model?.classList.remove("damophus-agent-floating-mobile", "damophus-agent-dropdown-mobile");
+  }
+
+  private async openAgentTab(ids: string[]): Promise<void> {
+    if (!await this.ensureDesktopAgentModel()) return;
+    await openTab({
+      app: plugin.app,
+      custom: {
+        id: `${plugin.name}${AGENT_TAB_TYPE}`,
+        icon: "iconSparkles",
+        title: this.t("lets-agent-surface.displayName"),
+      },
+    });
+    if (ids.length > 0) window.setTimeout(() => this.insertBlockMentions(ids), 80);
+  }
+
+  private async ensureDesktopAgentModel(): Promise<AgentModel | undefined> {
+    const existing = agentModel();
+    if (existing?.panelElement) return existing;
+    this.openDesktopAgent(false);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 25));
+      const model = agentModel();
+      if (model?.panelElement) return model;
+    }
+    log.warn("native agent model did not become available");
+    return undefined;
+  }
+
+  private async attachTab(target: HTMLElement): Promise<void> {
+    const model = await this.ensureDesktopAgentModel();
+    const panel = model?.panelElement;
+    if (!panel) return;
+    if (panel.parentElement === target) return;
+    this.rememberPanelOrigin(panel);
+    this.floatingHost?.remove();
+    this.floatingHost = undefined;
+    target.replaceChildren(panel);
+    this.tabTargets.add(target);
+    this.collapseNativeAgentDock();
+  }
+
+  private detachTab(target: HTMLElement): void {
+    const panel = target.querySelector<HTMLElement>(".sy__agentChat");
+    if (panel) this.restorePanel(panel);
+    this.tabTargets.delete(target);
+  }
+
+  private async openDesktopFloating(): Promise<void> {
+    const model = await this.ensureDesktopAgentModel();
+    const panel = model?.panelElement;
+    if (!panel) return;
+    if (panel.parentElement === this.floatingHost) {
+      this.collapseNativeAgentDock();
+      return;
+    }
+    this.rememberPanelOrigin(panel);
+
+    const host = this.createDesktopFloatingHost();
+    host.append(panel);
+    if (!host.isConnected) document.body.append(host);
+    this.floatingHost = host;
+    this.collapseNativeAgentDock();
+  }
+
+  private createDesktopFloatingHost(): HTMLElement {
+    const existing = this.floatingHost;
+    if (existing) return existing;
+    const host = document.createElement("section");
+    host.className = "damophus-agent-floating-host";
+    host.setAttribute("role", "dialog");
+    host.setAttribute("aria-label", this.t("lets-agent-surface.displayName"));
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "block__icon b3-tooltips__w damophus-agent-floating-close";
+    close.setAttribute("aria-label", this.t("lets-agent-surface.close"));
+    close.dataset.position = "west";
+    close.innerHTML = '<svg><use href="#iconClose"></use></svg>';
+    close.addEventListener("click", () => this.closeDesktopFloating());
+    host.append(close);
+    return host;
+  }
+
+  private closeDesktopFloating(): void {
+    const host = this.floatingHost;
+    if (!host) return;
+    const panel = host.querySelector<HTMLElement>(".sy__agentChat");
+    if (panel) this.restorePanel(panel);
+    host.remove();
+    this.floatingHost = undefined;
+    this.collapseNativeAgentDock();
+  }
+
+  private rememberPanelOrigin(panel: HTMLElement): void {
+    if (this.panelOrigin || !panel.parentNode) return;
+    this.panelOrigin = { parent: panel.parentNode, nextSibling: panel.nextSibling };
+  }
+
+  private restorePanel(panel: HTMLElement): void {
+    const origin = this.panelOrigin;
+    if (!origin) return;
+    const nextSibling = origin.nextSibling?.parentNode === origin.parent ? origin.nextSibling : null;
+    origin.parent.insertBefore(panel, nextSibling);
+  }
+
+  private collapseNativeAgentDock(): void {
+    const item = document.querySelector<HTMLElement>('.dock__item[data-type="agentChat"]');
+    if (item?.classList.contains("dock__item--active")) this.clickNativeAgentDock(item);
+  }
+
+  private async insertBlockMentions(ids: string[]): Promise<void> {
+    const mentions = await Promise.all(ids.map(async (id): Promise<BlockMention> => {
+      try {
+        const response = await fetchSyncPost("/api/block/getRefText", { id });
+        if (typeof response?.data === "string" && response.data) {
+          return { id, label: response.data };
+        }
+      } catch (error) {
+        log.warn("failed to resolve block mention label", { id, error });
+      }
+      return { id, label: id };
+    }));
+    const model = agentModel();
+    model?.insertBlockMentions?.(mentions);
+  }
+
+  private applyFloatingSurface(): void {
+    if (getFrontend() === "mobile" || getFrontend() === "browser-mobile") {
+      this.applyMobileDropdownSurface();
+      return;
+    }
+    void this.openDesktopFloating();
+  }
+
+  private applyMobileDropdownSurface(): void {
+    if (getFrontend() === "mobile" || getFrontend() === "browser-mobile") {
+      const model = document.getElementById("model");
+      // `#model` is the native mobile Agent host, but its inner class changed
+      // between SiYuan releases. The call site is reached only after the
+      // Agent entry has been activated, so do not gate the layout on a brittle
+      // version-specific child selector.
+      if (model) model.classList.add("damophus-agent-dropdown-mobile");
+      return;
+    }
+  }
+}
+
+export { AGENT_TAB_TYPE };
