@@ -31,7 +31,7 @@ TinyBase introduces a storage and synchronization adapter, but confines that com
 ## Consequences
 
 - Cross-document catalog and filtering are implemented against TinyBase rather than first being built on AV.
-- Topic identity is derived from IAL references and anchors; there is no separately editable topic table or topic-management UI.
+- Topic identity is derived from IAL references and anchors. ADR 0010 adds a separate shared display-name dictionary and maintenance UI without turning names into identity keys.
 - Aggregate values are caches rebuilt from events. Legacy rollups are comparison evidence during migration, never imported facts.
 - Question Index and Topic Index projections may be refreshed independently for personal filtering, but stale or missing projection rows never block question-bank workflows.
 - The implementation must budget explicitly for file parsing, annual-shard growth, Worker merges, migration verification, and damaged-file recovery.

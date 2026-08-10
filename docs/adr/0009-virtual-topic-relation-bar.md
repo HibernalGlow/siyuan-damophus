@@ -44,10 +44,10 @@ SiYuan block IDs are runtime navigation targets only.
 
 ## Labels and source ordering
 
-The visible topic label is derived from the highest-priority available note
-anchor. If no anchor exists, the stable topic ID remains visible together with
-an unresolved state. Damophus does not create a second editable topic name in
-question content.
+The visible topic label first uses the confirmed shared topic-dictionary name,
+then the highest-priority available note anchor. If neither exists, the stable
+topic ID remains visible together with an unresolved state. Topic names are
+maintained outside question content as defined by ADR 0010.
 
 All declared note anchors remain available. Configurable path-keyword rules
 only sort providers; they never hide a provider or change its identity. The

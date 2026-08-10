@@ -9,7 +9,7 @@ import {
   parseTopicIds,
   type TopicDictionaryCandidate,
   type TopicDictionaryDocument,
-} from "../topic-dictionary";
+} from "../../topic-dictionary";
 import type { StoreFileIO } from "../tinybase/file-persistence";
 import type { SiyuanKernelClient } from "./types";
 
@@ -83,7 +83,7 @@ export function candidatesFromRows(rows: readonly TopicDictionarySqlRow[]): Topi
 }
 
 export class TopicDictionaryStore {
-  private writeChain: Promise<void> = Promise.resolve();
+  private mutationChain: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly io: StoreFileIO,
@@ -103,44 +103,58 @@ export class TopicDictionaryStore {
     }
   }
 
+  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.mutationChain.then(operation, operation);
+    this.mutationChain = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  private async write(document: TopicDictionaryDocument): Promise<void> {
+    await this.io.write(TOPIC_DICTIONARY_PATH, serializeTopicDictionary(document));
+  }
+
   async save(document: TopicDictionaryDocument): Promise<void> {
-    const content = serializeTopicDictionary(document);
-    this.writeChain = this.writeChain.then(() => this.io.write(TOPIC_DICTIONARY_PATH, content));
-    await this.writeChain;
+    await this.enqueue(() => this.write(document));
   }
 
   async scan(): Promise<TopicDictionaryScanResult> {
-    const rows = await this.client.request<TopicDictionarySqlRow[]>("/api/query/sql", {
-      stmt: buildTopicDictionarySql(),
+    return this.enqueue(async () => {
+      const rows = await this.client.request<TopicDictionarySqlRow[]>("/api/query/sql", {
+        stmt: buildTopicDictionarySql(),
+      });
+      const current = await this.load();
+      const candidates = candidatesFromRows(rows);
+      const next = mergeTopicDictionaryScan(current, candidates, this.now().toISOString());
+      await this.write(next);
+      const discovered = new Set(candidates.map((candidate) => candidate.topicId));
+      const newTopicIds = candidates
+        .map((candidate) => candidate.topicId)
+        .filter((topicId) => !current.entries[topicId]);
+      return {
+        document: next,
+        discoveredCount: discovered.size,
+        presentCount: Object.values(next.entries).filter((entry) => entry.state === "present").length,
+        retiredCount: Object.values(next.entries).filter((entry) => entry.state === "retired").length,
+        newTopicIds,
+      };
     });
-    const current = await this.load();
-    const candidates = candidatesFromRows(rows);
-    const next = mergeTopicDictionaryScan(current, candidates, this.now().toISOString());
-    await this.save(next);
-    const discovered = new Set(candidates.map((candidate) => candidate.topicId));
-    const newTopicIds = candidates
-      .map((candidate) => candidate.topicId)
-      .filter((topicId) => !current.entries[topicId]);
-    return {
-      document: next,
-      discoveredCount: discovered.size,
-      presentCount: Object.values(next.entries).filter((entry) => entry.state === "present").length,
-      retiredCount: Object.values(next.entries).filter((entry) => entry.state === "retired").length,
-      newTopicIds,
-    };
   }
 
   async saveLabel(topicId: string, displayName: string): Promise<TopicDictionaryDocument> {
-    const current = await this.load();
-    const next = updateTopicDictionaryLabel(current, topicId, displayName, this.now().toISOString());
-    await this.save(next);
-    return next;
+    return this.enqueue(async () => {
+      const current = await this.load();
+      const next = updateTopicDictionaryLabel(current, topicId, displayName, this.now().toISOString());
+      await this.write(next);
+      return next;
+    });
   }
 
   async saveLabels(labels: Readonly<Record<string, string>>): Promise<TopicDictionaryDocument> {
-    const current = await this.load();
-    const next = updateTopicDictionaryLabels(current, labels, this.now().toISOString());
-    if (next !== current) await this.save(next);
-    return next;
+    return this.enqueue(async () => {
+      const current = await this.load();
+      const next = updateTopicDictionaryLabels(current, labels, this.now().toISOString());
+      if (next !== current) await this.write(next);
+      return next;
+    });
   }
 }

@@ -49,6 +49,12 @@ Topic attempt count, wrong count, and wrong rate are rebuilt from immutable Atte
 
 ## Editor Topic Relations
 
+Open **Topic Dictionary** from the Damophus menu to maintain Chinese display
+names for stable topic IDs. Opening the view only loads the existing shared
+dictionary. Select **Scan updates** to discover current IDs and classifications;
+topics that disappeared from the current question bank are retained as
+historical entries. Automatic scan-on-open is optional and disabled by default.
+
 Damophus adds a virtual topic relation bar to loaded editor blocks that already
 carry topic attributes:
 

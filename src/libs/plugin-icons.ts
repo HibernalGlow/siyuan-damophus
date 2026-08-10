@@ -22,6 +22,7 @@ export type PluginIconName = typeof pluginIconNames[number];
 
 const SIYUAN_PLUGIN_ICONS: Partial<Record<PluginIconName, string>> = {
   brain: "iconBrain",
+  tags: "iconTags",
 };
 
 const FALLBACK_PLUGIN_ICONS: Record<string, PluginIconName> = {

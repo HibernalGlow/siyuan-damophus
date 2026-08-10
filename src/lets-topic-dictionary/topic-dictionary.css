@@ -1,0 +1,172 @@
+.damophus-topic-dictionary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.damophus-topic-dictionary__toolbar,
+.damophus-topic-dictionary__controls,
+.damophus-topic-dictionary__summary,
+.damophus-topic-dictionary__metadata,
+.damophus-topic-dictionary__auto-scan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.damophus-topic-dictionary__toolbar,
+.damophus-topic-dictionary__controls,
+.damophus-topic-dictionary__summary {
+  flex-wrap: wrap;
+}
+
+.damophus-topic-dictionary__toolbar h2 {
+  min-width: 150px;
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.damophus-topic-dictionary__search {
+  position: relative;
+  display: flex;
+  min-width: 180px;
+  flex: 1 1 280px;
+}
+
+.damophus-topic-dictionary__search > svg {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 9px;
+  width: 15px;
+  height: 15px;
+  color: var(--b3-theme-on-surface-light);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.damophus-topic-dictionary__search input {
+  padding-left: 30px;
+}
+
+.damophus-topic-dictionary__summary {
+  min-height: 28px;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.damophus-topic-dictionary__auto-scan {
+  margin-left: auto;
+  color: var(--b3-theme-on-background);
+}
+
+.damophus-topic-dictionary__content {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border-top: 1px solid var(--b3-border-color);
+}
+
+.damophus-topic-dictionary__group > header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--b3-border-color);
+  background: var(--b3-theme-background);
+}
+
+.damophus-topic-dictionary__group > header h3 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.damophus-topic-dictionary__group > header span {
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.damophus-topic-dictionary__row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.15fr) minmax(180px, 0.85fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 8px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.damophus-topic-dictionary__row[data-state="retired"] {
+  opacity: 0.72;
+}
+
+.damophus-topic-dictionary__identity {
+  min-width: 0;
+}
+
+.damophus-topic-dictionary__identity code {
+  display: block;
+  overflow: hidden;
+  color: var(--b3-theme-on-background);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.damophus-topic-dictionary__metadata {
+  min-width: 0;
+  margin-top: 5px;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 11px;
+}
+
+.damophus-topic-dictionary__metadata > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.damophus-topic-dictionary__empty {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 13px;
+}
+
+.damophus-topic-dictionary__status {
+  min-height: 18px;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 12px;
+}
+
+.damophus-topic-dictionary[data-status="error"] .damophus-topic-dictionary__status {
+  color: var(--b3-theme-error);
+}
+
+@media (max-width: 640px) {
+  .damophus-topic-dictionary {
+    padding: 10px;
+  }
+
+  .damophus-topic-dictionary__auto-scan {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .damophus-topic-dictionary__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+}
