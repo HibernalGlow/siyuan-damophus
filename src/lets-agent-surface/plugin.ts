@@ -11,15 +11,11 @@ const pluginMetadata: PluginMetadata = {
   settings: [
     ...createEntrySettings({ menu: true, tab: true }, { central: true }),
     {
-      type: "select",
-      title: "lets-agent-surface.displayModeTitle",
-      description: "lets-agent-surface.displayModeDescription",
-      key: "displayMode",
-      value: "tab",
-      options: {
-        floating: "lets-agent-surface.displayModeFloating",
-        tab: "lets-agent-surface.displayModeTab",
-      },
+      type: "checkbox",
+      title: "lets-agent-surface.openInNewTabTitle",
+      description: "lets-agent-surface.openInNewTabDescription",
+      key: "openInNewTab",
+      value: true,
     },
     {
       type: "checkbox",

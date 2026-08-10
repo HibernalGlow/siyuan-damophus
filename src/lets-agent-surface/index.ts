@@ -7,6 +7,7 @@ import {
   isMobileAgentEntryTarget,
   resolveAgentSurface,
   selectedBlockIds,
+  shouldOpenInNewTab,
 } from "./surface-helpers";
 import "./agent-surface.css";
 
@@ -48,7 +49,6 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   private allowingNativeDockClick = false;
   private allowingNativeMobileAgentClick = false;
   private panelOrigin?: { parent: Node; nextSibling: ChildNode | null };
-  private floatingHost?: HTMLElement;
   private readonly tabTargets = new Set<HTMLElement>();
   private readonly handleDocumentClick = (event: MouseEvent): void => {
     const agentDock = event.target instanceof Element
@@ -69,19 +69,15 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     if (!this.shouldIntercept()) return;
     if (!isAgentMenuTarget(event.target)) return;
 
-    if (resolveAgentSurface(getFrontend(), this.getSetting("displayMode")) === "desktop-tab") {
+    if (resolveAgentSurface(getFrontend(), this.openInNewTab()) === "desktop-tab") {
       event.preventDefault();
       event.stopImmediatePropagation();
       this.closeNativeMenu();
       void this.openAgent(selectedBlockIds());
       return;
     }
-    // The native action keeps ownership of the reference insertion. We only
-    // restyle the native surface after it has opened.
-    window.setTimeout(() => {
-      if (mobileFrontend) this.applyMobileDropdownSurface();
-      else this.applyFloatingSurface();
-    }, 0);
+    // Native mode keeps ownership of both opening and reference insertion.
+    if (mobileFrontend) window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
   };
   private readonly handleMobileSidebarBack = (event: MouseEvent): void => {
     if (getFrontend() !== "mobile" && getFrontend() !== "browser-mobile") return;
@@ -135,12 +131,8 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       document.removeEventListener("click", this.handleMobileSidebarBack, true);
       this.listening = false;
     }
-    this.closeDesktopFloating();
-    document.querySelectorAll<HTMLElement>(".damophus-agent-floating-layout").forEach((element) => {
-      element.classList.remove("damophus-agent-floating-layout");
-    });
     this.closeNativeMobileAgent();
-    document.getElementById("model")?.classList.remove("damophus-agent-floating-mobile", "damophus-agent-dropdown-mobile");
+    document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
     for (const target of this.tabTargets) this.detachTab(target);
     this.panelOrigin = undefined;
   }
@@ -158,6 +150,13 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     return this.getSetting("interceptAddToAgent") !== false;
   }
 
+  private openInNewTab(): boolean {
+    return shouldOpenInNewTab(
+      this.getSetting("openInNewTab"),
+      this.getSetting("displayMode"),
+    );
+  }
+
   private closeNativeMenu(): void {
     const menus = (window.siyuan as unknown as {
       menus?: { menu?: { close?: () => void; remove?: () => void } };
@@ -167,7 +166,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 
   private async openAgent(ids: string[] = []): Promise<void> {
-    const surface = resolveAgentSurface(getFrontend(), this.getSetting("displayMode"));
+    const surface = resolveAgentSurface(getFrontend(), this.openInNewTab());
     if (surface === "mobile-dropdown") {
       this.openMobileAgent();
       if (ids.length > 0) {
@@ -179,18 +178,17 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       await this.openAgentTab(ids);
       return;
     }
-    await this.openDesktopFloating();
+    this.openDesktopAgent();
     if (ids.length > 0) window.setTimeout(() => this.insertBlockMentions(ids), 80);
   }
 
-  private openDesktopAgent(applyFloating = true): void {
+  private openDesktopAgent(): void {
     const item = document.querySelector<HTMLElement>('.dock__item[data-type="agentChat"]');
     if (!item) {
       showMessage(this.t("lets-agent-surface.unavailable"), 3000, "error");
       return;
     }
     if (!item.classList.contains("dock__item--active")) this.clickNativeAgentDock(item);
-    if (applyFloating) window.setTimeout(() => this.applyFloatingSurface(), 0);
   }
 
   private clickNativeAgentDock(item: HTMLElement): void {
@@ -241,7 +239,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
         cancelable: true,
       }));
     }
-    model?.classList.remove("damophus-agent-floating-mobile", "damophus-agent-dropdown-mobile");
+    model?.classList.remove("damophus-agent-dropdown-mobile");
   }
 
   private async openAgentTab(ids: string[]): Promise<void> {
@@ -260,7 +258,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   private async ensureDesktopAgentModel(): Promise<AgentModel | undefined> {
     const existing = agentModel();
     if (existing?.panelElement) return existing;
-    this.openDesktopAgent(false);
+    this.openDesktopAgent();
     for (let attempt = 0; attempt < 40; attempt += 1) {
       await new Promise<void>((resolve) => window.setTimeout(resolve, 25));
       const model = agentModel();
@@ -276,8 +274,6 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     if (!panel) return;
     if (panel.parentElement === target) return;
     this.rememberPanelOrigin(panel);
-    this.floatingHost?.remove();
-    this.floatingHost = undefined;
     target.replaceChildren(panel);
     this.tabTargets.add(target);
     this.collapseNativeAgentDock();
@@ -287,52 +283,6 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     const panel = target.querySelector<HTMLElement>(".sy__agentChat");
     if (panel) this.restorePanel(panel);
     this.tabTargets.delete(target);
-  }
-
-  private async openDesktopFloating(): Promise<void> {
-    const model = await this.ensureDesktopAgentModel();
-    const panel = model?.panelElement;
-    if (!panel) return;
-    if (panel.parentElement === this.floatingHost) {
-      this.collapseNativeAgentDock();
-      return;
-    }
-    this.rememberPanelOrigin(panel);
-
-    const host = this.createDesktopFloatingHost();
-    host.append(panel);
-    if (!host.isConnected) document.body.append(host);
-    this.floatingHost = host;
-    this.collapseNativeAgentDock();
-  }
-
-  private createDesktopFloatingHost(): HTMLElement {
-    const existing = this.floatingHost;
-    if (existing) return existing;
-    const host = document.createElement("section");
-    host.className = "damophus-agent-floating-host";
-    host.setAttribute("role", "dialog");
-    host.setAttribute("aria-label", this.t("lets-agent-surface.displayName"));
-
-    const close = document.createElement("button");
-    close.type = "button";
-    close.className = "block__icon b3-tooltips__w damophus-agent-floating-close";
-    close.setAttribute("aria-label", this.t("lets-agent-surface.close"));
-    close.dataset.position = "west";
-    close.innerHTML = '<svg><use href="#iconClose"></use></svg>';
-    close.addEventListener("click", () => this.closeDesktopFloating());
-    host.append(close);
-    return host;
-  }
-
-  private closeDesktopFloating(): void {
-    const host = this.floatingHost;
-    if (!host) return;
-    const panel = host.querySelector<HTMLElement>(".sy__agentChat");
-    if (panel) this.restorePanel(panel);
-    host.remove();
-    this.floatingHost = undefined;
-    this.collapseNativeAgentDock();
   }
 
   private rememberPanelOrigin(panel: HTMLElement): void {
@@ -366,14 +316,6 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     }));
     const model = agentModel();
     model?.insertBlockMentions?.(mentions);
-  }
-
-  private applyFloatingSurface(): void {
-    if (getFrontend() === "mobile" || getFrontend() === "browser-mobile") {
-      this.applyMobileDropdownSurface();
-      return;
-    }
-    void this.openDesktopFloating();
   }
 
   private applyMobileDropdownSurface(): void {

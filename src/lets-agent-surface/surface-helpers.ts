@@ -1,12 +1,14 @@
-export function displayMode(value: unknown): "floating" | "tab" {
-  return value === "tab" ? "tab" : "floating";
+export type AgentSurface = "desktop-native" | "desktop-tab" | "mobile-dropdown";
+
+export function shouldOpenInNewTab(value: unknown, legacyDisplayMode?: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (legacyDisplayMode === "floating") return false;
+  return true;
 }
 
-export type AgentSurface = "desktop-floating" | "desktop-tab" | "mobile-dropdown";
-
-export function resolveAgentSurface(frontend: string, configuredMode: unknown): AgentSurface {
+export function resolveAgentSurface(frontend: string, openInNewTab: unknown): AgentSurface {
   if (frontend === "mobile" || frontend === "browser-mobile") return "mobile-dropdown";
-  return displayMode(configuredMode) === "tab" ? "desktop-tab" : "desktop-floating";
+  return openInNewTab === true ? "desktop-tab" : "desktop-native";
 }
 
 export function selectedBlockIds(root: ParentNode = document): string[] {

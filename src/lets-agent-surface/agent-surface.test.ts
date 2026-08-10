@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import agentSurfaceStyles from "./agent-surface.css?raw";
 import pluginMetadata from "./plugin";
 import {
-  displayMode,
   isAgentMenuTarget,
   isMobileAgentEntryTarget,
   resolveAgentSurface,
   selectedBlockIds,
+  shouldOpenInNewTab,
 } from "./surface-helpers";
 
 describe("agent surface helpers", () => {
@@ -22,17 +22,24 @@ describe("agent surface helpers", () => {
     expect(agentSurfaceStyles).not.toContain("transform: translateX(0)");
   });
 
-  it("normalizes unknown display modes to the floating surface", () => {
-    expect(displayMode("floating")).toBe("floating");
-    expect(displayMode("tab")).toBe("tab");
-    expect(displayMode("native")).toBe("floating");
+  it("shares one opener while selecting platform-specific surfaces", () => {
+    expect(resolveAgentSurface("desktop", true)).toBe("desktop-tab");
+    expect(resolveAgentSurface("browser-desktop", false)).toBe("desktop-native");
+    expect(resolveAgentSurface("mobile", true)).toBe("mobile-dropdown");
+    expect(resolveAgentSurface("browser-mobile", false)).toBe("mobile-dropdown");
   });
 
-  it("shares one opener while selecting platform-specific surfaces", () => {
-    expect(resolveAgentSurface("desktop", "tab")).toBe("desktop-tab");
-    expect(resolveAgentSurface("browser-desktop", "floating")).toBe("desktop-floating");
-    expect(resolveAgentSurface("mobile", "tab")).toBe("mobile-dropdown");
-    expect(resolveAgentSurface("browser-mobile", "floating")).toBe("mobile-dropdown");
+  it("uses one boolean setting to switch native and tab opening", () => {
+    const toggle = pluginMetadata.settings?.find((setting) => setting.key === "openInNewTab");
+    expect(toggle).toMatchObject({ type: "checkbox", value: true });
+    expect(pluginMetadata.settings?.some((setting) => setting.key === "displayMode")).toBe(false);
+  });
+
+  it("maps the removed floating mode to native while preserving tab upgrades", () => {
+    expect(shouldOpenInNewTab(false, "tab")).toBe(false);
+    expect(shouldOpenInNewTab(undefined, "floating")).toBe(false);
+    expect(shouldOpenInNewTab(undefined, "tab")).toBe(true);
+    expect(shouldOpenInNewTab(undefined)).toBe(true);
   });
 
   it("recognizes the native Add to Agent menu item", () => {
