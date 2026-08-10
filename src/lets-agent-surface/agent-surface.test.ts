@@ -54,6 +54,24 @@ describe("agent surface helpers", () => {
     }));
   });
 
+  it("enables YOLO approvals and new-session draft preservation by default", () => {
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "yoloMode",
+      type: "checkbox",
+      value: true,
+    }));
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "yoloNotifyBeforeApproval",
+      type: "checkbox",
+      value: false,
+    }));
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "preserveNewSessionDraft",
+      type: "checkbox",
+      value: true,
+    }));
+  });
+
   it("recognizes the native Add to Agent menu item", () => {
     const selected = { closest: () => ({}) };
     const unrelated = { closest: () => null };

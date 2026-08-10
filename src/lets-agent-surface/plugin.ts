@@ -31,6 +31,34 @@ const pluginMetadata: PluginMetadata = {
       key: "interceptAddToAgent",
       value: true,
     },
+    {
+      type: "checkbox",
+      title: "lets-agent-surface.yoloModeTitle",
+      description: "lets-agent-surface.yoloModeDescription",
+      key: "yoloMode",
+      value: true,
+    },
+    {
+      type: "checkbox",
+      title: "lets-agent-surface.yoloNotifyBeforeApprovalTitle",
+      description: "lets-agent-surface.yoloNotifyBeforeApprovalDescription",
+      key: "yoloNotifyBeforeApproval",
+      value: false,
+    },
+    {
+      type: "number",
+      title: "lets-agent-surface.yoloApprovalDelaySecondsTitle",
+      description: "lets-agent-surface.yoloApprovalDelaySecondsDescription",
+      key: "yoloApprovalDelaySeconds",
+      value: 3,
+    },
+    {
+      type: "checkbox",
+      title: "lets-agent-surface.preserveNewSessionDraftTitle",
+      description: "lets-agent-surface.preserveNewSessionDraftDescription",
+      key: "preserveNewSessionDraft",
+      value: true,
+    },
   ],
 };
 

@@ -9,10 +9,12 @@ import {
   resolveAgentSurface,
   selectedBlockIds,
 } from "./surface-helpers";
+import { AgentAutomationController, type AgentApprovalNotice } from "./agent-automation";
 import "./agent-surface.css";
 
 const log = getLogger("lets-agent-surface");
 const AGENT_TAB_TYPE = "damophus-agent-surface-tab";
+const MAX_YOLO_APPROVAL_DELAY_SECONDS = 300;
 type AgentModel = {
   panelElement?: HTMLElement;
   insertBlockMentions?: (mentions: BlockMention[]) => void;
@@ -46,6 +48,7 @@ function agentModel(): AgentModel | undefined {
 export default class AgentSurfacePlugin extends SubPluginBase {
   private listening = false;
   private tabRegistered = false;
+  private automation?: AgentAutomationController;
   private allowingNativeDockClick = false;
   private allowingNativeMobileAgentClick = false;
   private panelOrigin?: { parent: Node; nextSibling: ChildNode | null };
@@ -120,6 +123,15 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       document.addEventListener("click", this.handleDocumentClick, true);
       document.addEventListener("click", this.handleMobileSidebarBack, true);
     }
+    if (!this.automation && document.body) {
+      this.automation = new AgentAutomationController(document.body, {
+        isYoloEnabled: () => this.yoloMode(),
+        approvalDelayMs: () => this.yoloApprovalDelayMs(),
+        notifyApproval: (notice) => this.notifyYoloApproval(notice),
+        preserveNewSessionDraft: () => this.preserveNewSessionDraft(),
+      });
+      this.automation.start();
+    }
   }
 
   override onLayoutReady(): void {
@@ -131,6 +143,8 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       document.removeEventListener("click", this.handleMobileSidebarBack, true);
       this.listening = false;
     }
+    this.automation?.stop();
+    this.automation = undefined;
     this.closeNativeMobileAgent();
     document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
     for (const target of this.tabTargets) this.detachTab(target);
@@ -150,6 +164,12 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       this.t(mobileFrontend ? "lets-agent-surface.mobileDropdownMenu" : "lets-agent-surface.openInNewTabMenu"),
       (value) => this.setSetting(mobileFrontend ? "mobileDropdown" : "openInNewTab", value),
     ));
+    menu.addItem({
+      icon: "iconCheck",
+      label: this.t("lets-agent-surface.yoloModeMenu"),
+      checked: this.yoloMode(),
+      click: () => this.setSetting("yoloMode", !this.yoloMode()),
+    });
   }
 
   private shouldIntercept(): boolean {
@@ -162,6 +182,45 @@ export default class AgentSurfacePlugin extends SubPluginBase {
 
   private mobileDropdown(): boolean {
     return this.getSetting("mobileDropdown") !== false;
+  }
+
+  private yoloMode(): boolean {
+    return this.getSetting("yoloMode") !== false;
+  }
+
+  private preserveNewSessionDraft(): boolean {
+    return this.getSetting("preserveNewSessionDraft") !== false;
+  }
+
+  private yoloApprovalDelayMs(): number {
+    if (this.getSetting("yoloNotifyBeforeApproval") !== true) return 0;
+    const seconds = Number(this.getSetting("yoloApprovalDelaySeconds"));
+    return Math.min(
+      MAX_YOLO_APPROVAL_DELAY_SECONDS,
+      Math.max(1, Number.isFinite(seconds) ? seconds : 3),
+    ) * 1000;
+  }
+
+  private notifyYoloApproval(notice: AgentApprovalNotice): void {
+    const seconds = String(Math.max(1, Math.ceil(notice.delayMs / 1000)));
+    const request = this.escapeToastText(
+      notice.description || this.t("lets-agent-surface.yoloUnknownRequest"),
+    );
+    showMessage(
+      this.t("lets-agent-surface.yoloApprovalNotice")
+        .replace("{seconds}", seconds)
+        .replace("{request}", request),
+      notice.delayMs + 1500,
+    );
+  }
+
+  private escapeToastText(value: string): string {
+    return value
+      .replace(/&/gu, "&amp;")
+      .replace(/</gu, "&lt;")
+      .replace(/>/gu, "&gt;")
+      .replace(/"/gu, "&quot;")
+      .replace(/'/gu, "&#39;");
   }
 
   private closeNativeMenu(): void {
