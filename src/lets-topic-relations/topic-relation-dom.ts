@@ -8,6 +8,7 @@ import {
 } from "./topic-relations";
 
 export type TopicRelationPanelGroup = "notes" | "questions";
+export type TopicRelationScope = "all" | "document" | "external";
 
 export interface TopicRelationLabels {
   topics: string;
@@ -20,6 +21,9 @@ export interface TopicRelationLabels {
   retry: string;
   openRelations: string;
   more: string;
+  all: string;
+  currentDocument: string;
+  outsideDocument: string;
 }
 
 export interface TopicRelationRenderOptions {
@@ -33,6 +37,7 @@ export interface TopicRelationRenderOptions {
     group: TopicRelationGroup,
     hostBlockId: string,
     preferredGroup?: TopicRelationPanelGroup,
+    scope?: TopicRelationScope,
   ) => void;
 }
 
@@ -101,6 +106,50 @@ function createCountButton(
   const button = createTopicButton(replaceCount(label, count), title, onClick);
   button.classList.add("damophus-topic-relations__count-button");
   return button;
+}
+
+function entriesForScope(
+  entries: readonly TopicRelationEntry[],
+  target: TopicRelationTarget,
+  scope: TopicRelationScope,
+): TopicRelationEntry[] {
+  if (scope === "all" || !target.documentId) return [...entries];
+  return entries.filter((entry) => scope === "document"
+    ? entry.rootId === target.documentId
+    : entry.rootId !== target.documentId);
+}
+
+function appendScopedCountButtons(
+  row: HTMLElement,
+  entries: readonly TopicRelationEntry[],
+  target: TopicRelationTarget,
+  labels: TopicRelationLabels,
+  onOpen: TopicRelationRenderOptions["onOpen"],
+  group: TopicRelationGroup,
+  hostBlockId: string,
+  preferredGroup: TopicRelationPanelGroup,
+): void {
+  const scopes: Array<{ scope: TopicRelationScope; icon: string; label: string }> = [
+    { scope: "all", icon: "iconList", label: labels.all },
+    { scope: "document", icon: "iconFile", label: labels.currentDocument },
+    { scope: "external", icon: "iconFiles", label: labels.outsideDocument },
+  ];
+  scopes.forEach(({ scope, icon, label }) => {
+    const scopedEntries = entriesForScope(entries, target, scope);
+    if (scopedEntries.length === 0) return;
+    appendSeparator(row);
+    const button = createCountButton(
+      `${label} {count}`,
+      scopedEntries.length,
+      label,
+      (clicked) => onOpen(clicked, group, hostBlockId, preferredGroup, scope),
+    );
+    if (!button) return;
+    button.dataset.topicScope = scope;
+    button.dataset.topicIcon = icon;
+    button.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${icon}"></use></svg><span class="damophus-topic-relations__count-label">${label}</span><span class="damophus-topic-relations__count-number">${scopedEntries.length}</span>`;
+    row.append(button);
+  });
 }
 
 function appendSeparator(container: HTMLElement): void {
@@ -214,29 +263,38 @@ function appendQuestionTopic(
   }
 
   if (options.displayMode === "summary") {
-    const more = createCountButton(
-      options.labels.more,
-      Math.max(0, notes.length - 1),
-      options.labels.topicNotes,
-      (button) => options.onOpen(button, group, target.blockId, "notes"),
+    appendScopedCountButtons(
+      row,
+      notes,
+      target,
+      options.labels,
+      options.onOpen,
+      group,
+      target.blockId,
+      "notes",
     );
-    if (more) row.append(more);
   } else if (options.displayMode === "compact") {
-    const noteCount = createCountButton(
-      `${options.labels.topicNotes} {count}`,
-      Math.max(0, notes.length - 1),
-      options.labels.topicNotes,
-      (button) => options.onOpen(button, group, target.blockId, "notes"),
+    appendScopedCountButtons(
+      row,
+      notes,
+      target,
+      options.labels,
+      options.onOpen,
+      group,
+      target.blockId,
+      "notes",
     );
-    if (noteCount) row.append(noteCount);
   }
-  const questionCount = createCountButton(
-    `${options.labels.relatedQuestions} {count}`,
-    questions.length,
-    options.labels.relatedQuestions,
-    (button) => options.onOpen(button, group, target.blockId, "questions"),
+  appendScopedCountButtons(
+    row,
+    questions,
+    target,
+    options.labels,
+    options.onOpen,
+    group,
+    target.blockId,
+    "questions",
   );
-  if (questionCount) row.append(questionCount);
 }
 
 function renderMarker(
@@ -272,26 +330,8 @@ function renderMarker(
     row.append(label);
     const otherNotes = group.notes.filter((entry) => entry.blockId !== target.blockId);
     const questions = group.questions.filter((entry) => entry.blockId !== target.blockId);
-    const noteCount = createCountButton(
-      `${options.labels.otherTopicNotes} {count}`,
-      otherNotes.length,
-      options.labels.otherTopicNotes,
-      (button) => options.onOpen(button, group, target.blockId, "notes"),
-    );
-    const questionCount = createCountButton(
-      `${options.labels.relatedQuestions} {count}`,
-      questions.length,
-      options.labels.relatedQuestions,
-      (button) => options.onOpen(button, group, target.blockId, "questions"),
-    );
-    if (noteCount) {
-      appendSeparator(row);
-      row.append(noteCount);
-    }
-    if (questionCount) {
-      appendSeparator(row);
-      row.append(questionCount);
-    }
+    appendScopedCountButtons(row, otherNotes, target, options.labels, options.onOpen, group, target.blockId, "notes");
+    appendScopedCountButtons(row, questions, target, options.labels, options.onOpen, group, target.blockId, "questions");
     marker.append(row);
 
     if (options.displayMode === "expanded") {

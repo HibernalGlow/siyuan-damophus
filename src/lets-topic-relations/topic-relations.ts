@@ -1,3 +1,8 @@
+import {
+  resolveTopicDictionaryLabel,
+  type TopicDictionaryDocument,
+} from "@/question-bank/topic-dictionary";
+
 export const QUESTION_TOPICS_ATTRIBUTE = "custom-qb-question-topic-ids";
 export const NOTE_TOPIC_ATTRIBUTE = "custom-qb-note-topic-id";
 export const TOPIC_RELATION_MARKER_CLASS = "damophus-topic-relations";
@@ -54,6 +59,7 @@ export interface TopicRelationGroup {
 export interface TopicRelationTarget {
   element: HTMLElement;
   blockId: string;
+  documentId?: string;
   questionTopicIds: string[];
   noteTopicId?: string;
 }
@@ -61,6 +67,16 @@ export interface TopicRelationTarget {
 export interface TopicRelationSurfaceCandidate {
   element: HTMLElement;
   blockId: string;
+  documentId?: string;
+}
+
+function documentIdForElement(element: HTMLElement): string | undefined {
+  const protyle = element.closest(".protyle");
+  const titleId = protyle?.querySelector<HTMLElement>(".protyle-title[data-node-id]")
+    ?.getAttribute("data-node-id");
+  if (titleId) return titleId;
+  return protyle?.querySelector<HTMLElement>(".protyle-breadcrumb__item[data-node-id]")
+    ?.getAttribute("data-node-id") ?? undefined;
 }
 
 export function parseTopicIds(value: unknown): string[] {
@@ -96,7 +112,7 @@ export function relationTargetFromElement(element: HTMLElement): TopicRelationTa
   const questionTopicIds = parseTopicIds(element.getAttribute(QUESTION_TOPICS_ATTRIBUTE));
   const noteTopicId = parseTopicIds(element.getAttribute(NOTE_TOPIC_ATTRIBUTE))[0];
   if (questionTopicIds.length === 0 && !noteTopicId) return undefined;
-  return { element, blockId, questionTopicIds, noteTopicId };
+  return { element, blockId, documentId: documentIdForElement(element), questionTopicIds, noteTopicId };
 }
 
 function isExcludedSurface(element: HTMLElement): boolean {
@@ -160,7 +176,7 @@ export function findTopicRelationSurfaceCandidates(
     orderedIds.forEach((blockId) => {
       if (!blockId || seen.has(blockId) || visibleBlockIds.has(blockId)) return;
       seen.add(blockId);
-      candidates.push({ element: title, blockId });
+      candidates.push({ element: title, blockId, documentId: title.getAttribute("data-node-id") ?? undefined });
     });
   });
   return candidates;
@@ -303,14 +319,20 @@ function compareEntries(
   return content !== 0 ? content : left.blockId.localeCompare(right.blockId);
 }
 
-function visibleLabel(entry: TopicRelationEntry | undefined, topicId: string): string {
-  return entry?.content || entry?.markdown.replace(/^#{1,6}\s+/u, "").trim() || topicId;
+function visibleLabel(
+  entry: TopicRelationEntry | undefined,
+  topicId: string,
+  dictionary?: TopicDictionaryDocument,
+): string {
+  const fallback = entry?.content || entry?.markdown.replace(/^#{1,6}\s+/u, "").trim() || topicId;
+  return dictionary ? resolveTopicDictionaryLabel(dictionary, topicId, fallback) : fallback;
 }
 
 export function buildTopicRelationIndex(
   topicIds: readonly string[],
   rows: readonly TopicRelationSqlRow[],
   priorityRules: readonly string[][],
+  dictionary?: TopicDictionaryDocument,
 ): Map<string, TopicRelationGroup> {
   const normalized = parseTopicIds(topicIds.join(","));
   const requested = new Set(normalized);
@@ -342,7 +364,7 @@ export function buildTopicRelationIndex(
   for (const group of groups.values()) {
     group.notes.sort((left, right) => compareEntries(left, right, priorityRules));
     group.questions.sort((left, right) => compareEntries(left, right, []));
-    group.label = visibleLabel(group.notes[0], group.topicId);
+    group.label = visibleLabel(group.notes[0], group.topicId, dictionary);
   }
   return groups;
 }

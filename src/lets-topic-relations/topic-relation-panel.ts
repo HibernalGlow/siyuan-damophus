@@ -6,6 +6,7 @@ import {
 import {
   createNativeBlockRef,
   type TopicRelationPanelGroup,
+  type TopicRelationScope,
 } from "./topic-relation-dom";
 
 export interface TopicRelationPanelLabels {
@@ -105,6 +106,7 @@ export class TopicRelationPanel {
     hostBlockId: string,
     preferredGroup: TopicRelationPanelGroup | undefined,
     options: TopicRelationPanelOptions,
+    scope: TopicRelationScope = "all",
   ): void {
     this.close();
     if (options.mobile) releaseEditorFocus();
@@ -147,8 +149,16 @@ export class TopicRelationPanel {
 
     const content = document.createElement("div");
     content.className = "damophus-topic-relations__panel-content";
-    const notes = group.notes.filter((entry) => entry.blockId !== hostBlockId);
-    const questions = group.questions.filter((entry) => entry.blockId !== hostBlockId);
+    const documentId = this.anchor?.closest(".protyle")
+      ?.querySelector<HTMLElement>(".protyle-title[data-node-id]")
+      ?.getAttribute("data-node-id");
+    const inScope = (entry: TopicRelationEntry): boolean => (
+      scope === "all"
+      || !documentId
+      || (scope === "document" ? entry.rootId === documentId : entry.rootId !== documentId)
+    );
+    const notes = group.notes.filter((entry) => entry.blockId !== hostBlockId && inScope(entry));
+    const questions = group.questions.filter((entry) => entry.blockId !== hostBlockId && inScope(entry));
     content.append(
       createPanelGroup(
         hostBlockId && group.notes.some((entry) => entry.blockId === hostBlockId)

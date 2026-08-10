@@ -30,6 +30,9 @@ export const en = {
   "lets-topic-relations.close": "Close",
   "lets-topic-relations.more": "+{count}",
   "lets-topic-relations.count": "{count}",
+  "lets-topic-relations.all": "All",
+  "lets-topic-relations.currentDocument": "This document",
+  "lets-topic-relations.outsideDocument": "Other documents",
 };
 
 export const zhCN: typeof en = {
@@ -64,4 +67,7 @@ export const zhCN: typeof en = {
   "lets-topic-relations.close": "关闭",
   "lets-topic-relations.more": "+{count}",
   "lets-topic-relations.count": "{count}",
+  "lets-topic-relations.all": "全部",
+  "lets-topic-relations.currentDocument": "本文档",
+  "lets-topic-relations.outsideDocument": "文档外",
 };

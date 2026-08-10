@@ -33,6 +33,12 @@ import {
 } from "./topic-relation-dom";
 import { TopicRelationPanel, type TopicRelationPanelOptions } from "./topic-relation-panel";
 import { buildTopicRelationStyles } from "./topic-relation-styles";
+import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyuan-file-io";
+import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
+import {
+  TOPIC_DICTIONARY_UPDATED_EVENT,
+  TopicDictionaryStore,
+} from "@/question-bank/adapters/siyuan/topic-dictionary";
 
 const log = getLogger("lets-topic-relations");
 const STYLE_ID = "damophus-topic-relations-style";
@@ -80,8 +86,13 @@ export default class TopicRelationsPlugin extends SubPluginBase {
   private cache?: Promise<Map<string, TopicRelationGroup>>;
   private trackedBlockIds = new Set<string>();
   private listening = false;
+  private readonly dictionaryStore = new TopicDictionaryStore(
+    new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
+    siyuanKernelClient,
+  );
   private readonly handleEditorLoaded = (): void => this.scheduleRefresh();
   private readonly handleSyncEnd = (): void => this.invalidateAndRefresh();
+  private readonly handleDictionaryUpdated = (): void => this.invalidateAndRefresh();
   private readonly handleWsMain = (event: CustomEvent<IEventBusMap["ws-main"]>): void => {
     if (transactionTouchesTrackedBlock(event.detail, this.trackedBlockIds)) this.invalidateAndRefresh(180);
   };
@@ -142,6 +153,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     plugin.eventBus.on("switch-protyle", this.handleEditorLoaded);
     plugin.eventBus.on("sync-end", this.handleSyncEnd);
     plugin.eventBus.on("ws-main", this.handleWsMain);
+    window.addEventListener(TOPIC_DICTIONARY_UPDATED_EVENT, this.handleDictionaryUpdated);
   }
 
   private unlisten(): void {
@@ -151,6 +163,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     plugin.eventBus.off("switch-protyle", this.handleEditorLoaded);
     plugin.eventBus.off("sync-end", this.handleSyncEnd);
     plugin.eventBus.off("ws-main", this.handleWsMain);
+    window.removeEventListener(TOPIC_DICTIONARY_UPDATED_EVENT, this.handleDictionaryUpdated);
     this.listening = false;
   }
 
@@ -195,6 +208,9 @@ export default class TopicRelationsPlugin extends SubPluginBase {
       retry: this.t("lets-topic-relations.retry"),
       openRelations: this.t("lets-topic-relations.openRelations"),
       more: this.t("lets-topic-relations.more"),
+      all: this.t("lets-topic-relations.all"),
+      currentDocument: this.t("lets-topic-relations.currentDocument"),
+      outsideDocument: this.t("lets-topic-relations.outsideDocument"),
     };
   }
 
@@ -248,8 +264,8 @@ export default class TopicRelationsPlugin extends SubPluginBase {
         nativeHover: this.getSetting("nativeHover") !== false,
         labels: this.labels(),
         onRetry: () => this.invalidateAndRefresh(),
-        onOpen: (anchor, group, hostBlockId, preferredGroup) => {
-          this.panel.open(anchor, group, hostBlockId, preferredGroup, this.panelOptions());
+        onOpen: (anchor, group, hostBlockId, preferredGroup, scope) => {
+          this.panel.open(anchor, group, hostBlockId, preferredGroup, this.panelOptions(), scope);
         },
       });
     } catch (error) {
@@ -271,11 +287,18 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     const key = `${normalizedIds.join(",")}::${String(prioritySource)}`;
     if (this.cache && this.cacheKey === key) return this.cache;
     this.cacheKey = key;
-    this.cache = this.queryRows(normalizedIds)
-      .then((rows) => buildTopicRelationIndex(
+    this.cache = Promise.all([
+      this.queryRows(normalizedIds),
+      this.dictionaryStore.load().catch((error) => {
+        log.warn("topic-dictionary.load-failed", error);
+        return undefined;
+      }),
+    ])
+      .then(([rows, dictionary]) => buildTopicRelationIndex(
         normalizedIds,
         rows,
         parsePriorityRules(prioritySource),
+        dictionary,
       ))
       .catch((error) => {
         this.invalidateCache();

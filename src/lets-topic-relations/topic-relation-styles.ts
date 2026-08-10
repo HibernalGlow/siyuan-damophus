@@ -9,8 +9,10 @@ export function buildTopicRelationStyles(customStyle: unknown): string {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
+  container-type: inline-size;
+  container-name: damophus-topic-relations;
   margin: 3px 0 2px;
   padding: 2px 0 2px 8px;
   border: 0;
@@ -77,8 +79,28 @@ export function buildTopicRelationStyles(customStyle: unknown): string {
 }
 
 .damophus-topic-relations__count-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   color: var(--b3-theme-on-surface-light, #5f6368);
   font-size: 11px;
+  white-space: nowrap;
+}
+
+.damophus-topic-relations__count-button svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+}
+
+.damophus-topic-relations__count-number {
+  font-variant-numeric: tabular-nums;
+}
+
+@container damophus-topic-relations (max-width: 420px) {
+  .damophus-topic-relations__count-label {
+    display: none;
+  }
 }
 
 .damophus-topic-relations__expanded-group {
