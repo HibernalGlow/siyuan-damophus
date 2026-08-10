@@ -152,11 +152,11 @@ export class TopicRelationPanel {
     const documentId = this.anchor?.closest(".protyle")
       ?.querySelector<HTMLElement>(".protyle-title[data-node-id]")
       ?.getAttribute("data-node-id");
-    const inScope = (entry: TopicRelationEntry): boolean => (
-      scope === "all"
-      || !documentId
-      || (scope === "document" ? entry.rootId === documentId : entry.rootId !== documentId)
-    );
+    const inScope = (entry: TopicRelationEntry): boolean => {
+      if (scope === "all") return true;
+      if (!documentId) return false;
+      return scope === "document" ? entry.rootId === documentId : entry.rootId !== documentId;
+    };
     const notes = group.notes.filter((entry) => entry.blockId !== hostBlockId && inScope(entry));
     const questions = group.questions.filter((entry) => entry.blockId !== hostBlockId && inScope(entry));
     content.append(

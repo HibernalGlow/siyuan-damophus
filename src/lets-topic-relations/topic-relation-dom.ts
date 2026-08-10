@@ -113,7 +113,8 @@ function entriesForScope(
   target: TopicRelationTarget,
   scope: TopicRelationScope,
 ): TopicRelationEntry[] {
-  if (scope === "all" || !target.documentId) return [...entries];
+  if (scope === "all") return [...entries];
+  if (!target.documentId) return [];
   return entries.filter((entry) => scope === "document"
     ? entry.rootId === target.documentId
     : entry.rootId !== target.documentId);
@@ -201,6 +202,7 @@ function markerSignature(
     }).join("|");
   return [
     target.blockId,
+    target.documentId,
     target.noteTopicId,
     target.questionTopicIds.join(","),
     options.displayMode,

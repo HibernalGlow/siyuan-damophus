@@ -25,6 +25,9 @@ const labels: TopicRelationLabels = {
   retry: "Retry",
   openRelations: "Open relations",
   more: "+{count}",
+  all: "All",
+  currentDocument: "This document",
+  outsideDocument: "Other documents",
 };
 
 const group: TopicRelationGroup = {
@@ -79,6 +82,7 @@ afterEach(() => {
 function installEditor(): void {
   document.body.innerHTML = `
     <div class="protyle">
+      <div class="protyle-title" data-node-id="20260808000100-root001"></div>
       <div class="protyle-wysiwyg">
         <div id="note" data-node-id="20260808000100-note001" data-type="NodeHeading"
           custom-qb-note-topic-id="civil-topic-a"><div class="protyle-attr"></div></div>
@@ -117,19 +121,58 @@ describe("topic relation editor projection", () => {
     expect(noteMarker.textContent).toContain("Topic note");
     expect(noteMarker.textContent).toContain("Other topic notes");
     expect(noteMarker.textContent).toContain("Related questions");
+    expect(noteMarker.querySelector('[data-topic-scope="all"]')?.textContent).toBe("All1");
+    expect(noteMarker.querySelector('[data-topic-scope="document"]')).toBeNull();
+    expect(noteMarker.querySelector('[data-topic-scope="external"]')?.textContent)
+      .toBe("Other documents1");
     expect(noteMarker.querySelector(".damophus-topic-relations__row")?.textContent)
       .not.toContain("Detailed topic");
     expect(questionMarker.textContent).toContain("Topics");
     expect(questionMarker.querySelectorAll('[data-type="block-ref"]')).toHaveLength(2);
     expect(noteMarker.querySelector('[data-id="20260808000100-note001"]')).toBeNull();
 
-    noteMarker.querySelector<HTMLButtonElement>(".damophus-topic-relations__topic-button")?.click();
+    noteMarker.querySelector<HTMLButtonElement>('[data-topic-scope="all"]')?.click();
     expect(open).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       group,
       "20260808000100-note001",
       "notes",
+      "all",
     );
+
+  });
+
+  it("opens all, current-document, and outside-document relation scopes", () => {
+    installEditor();
+    const open = vi.fn();
+    syncTopicRelationMarkers(
+      document,
+      findTopicRelationTargets(document),
+      new Map([[group.topicId, group]]),
+      {
+        displayMode: "compact",
+        nativeHover: true,
+        labels,
+        onRetry: vi.fn(),
+        onOpen: open,
+      },
+    );
+    const question = document.querySelector<HTMLElement>("#question");
+    if (!question) throw new Error("Missing question block");
+    const marker = relationMarkerAfter(question);
+
+    for (const scope of ["all", "document", "external"] as const) {
+      const button = marker.querySelector<HTMLButtonElement>(`[data-topic-scope="${scope}"]`);
+      expect(button).not.toBeNull();
+      button?.click();
+      expect(open).toHaveBeenLastCalledWith(
+        expect.any(HTMLElement),
+        group,
+        "20260808000100-question1",
+        "notes",
+        scope,
+      );
+    }
   });
 
   it("keeps virtual relation HTML outside editable blocks and migrates legacy placement", () => {
@@ -195,7 +238,7 @@ describe("topic relation editor projection", () => {
     expect(document.querySelector(".protyle-title .damophus-topic-relations")?.textContent)
       .toContain("Topic note");
     expect(document.querySelector(".protyle-title .damophus-topic-relations")?.textContent)
-      .toContain("Related questions");
+      .toContain("Other documents");
   });
 
   it("uses the native SiYuan block-reference contract and can disable only its popover", () => {
@@ -249,6 +292,69 @@ describe("topic relation editor projection", () => {
     expect(document.activeElement).not.toBe(editor);
     expect(window.getSelection()?.rangeCount).toBe(0);
     panel.destroy();
+  });
+
+  it("filters the relation panel to the selected document scope", () => {
+    installEditor();
+    const anchor = document.createElement("button");
+    document.querySelector(".protyle-wysiwyg")?.append(anchor);
+    const panel = new TopicRelationPanel();
+    const options = {
+      mobile: false,
+      mobileHeight: 72,
+      nativeHover: true,
+      labels: {
+        topicNotes: "Topic notes",
+        otherTopicNotes: "Other topic notes",
+        relatedQuestions: "Related questions",
+        empty: "Empty",
+        pin: "Pin",
+        unpin: "Unpin",
+        close: "Close",
+      },
+    };
+
+    panel.open(anchor, group, "", "notes", options, "document");
+    let surface = document.querySelector<HTMLElement>('[data-topic-relations-surface]');
+    expect(surface?.querySelector('[data-id="20260808000100-note001"]')).not.toBeNull();
+    expect(surface?.querySelector('[data-id="20260808000100-note002"]')).toBeNull();
+    expect(surface?.querySelector('[data-id="20260808000100-question1"]')).toBeNull();
+
+    panel.open(anchor, group, "", "notes", options, "external");
+    surface = document.querySelector<HTMLElement>('[data-topic-relations-surface]');
+    expect(surface?.querySelector('[data-id="20260808000100-note001"]')).toBeNull();
+    expect(surface?.querySelector('[data-id="20260808000100-note002"]')).not.toBeNull();
+    expect(surface?.querySelector('[data-id="20260808000100-question1"]')).not.toBeNull();
+    panel.destroy();
+  });
+
+  it("hides count descriptions in narrow containers and keeps them in wide containers", async () => {
+    installEditor();
+    const style = document.createElement("style");
+    style.id = "topic-relations-test-style";
+    style.textContent = buildTopicRelationStyles("");
+    document.head.append(style);
+    const protyle = document.querySelector<HTMLElement>(".protyle");
+    if (!protyle) throw new Error("Missing editor");
+    protyle.style.width = "360px";
+
+    syncTopicRelationMarkers(document, findTopicRelationTargets(document), new Map([[group.topicId, group]]), {
+      displayMode: "compact",
+      nativeHover: true,
+      labels,
+      onRetry: vi.fn(),
+      onOpen: vi.fn(),
+    });
+    const label = document.querySelector<HTMLElement>(".damophus-topic-relations__count-label");
+    const number = document.querySelector<HTMLElement>(".damophus-topic-relations__count-number");
+    if (!label || !number) throw new Error("Missing count control");
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(getComputedStyle(label).display).toBe("none");
+    expect(getComputedStyle(number).display).not.toBe("none");
+
+    protyle.style.width = "640px";
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(getComputedStyle(label).display).not.toBe("none");
   });
 
   it("prevents relation controls from focusing the surrounding editor", () => {
