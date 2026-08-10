@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  EMPTY_SOURCE_EMBED_SQL,
   loadSourceEmbedRows,
   sourceEmbedBlockIds,
   sourceEmbedSubtreeIds,
+  sourceEmbedSubtreeSql,
   sourceEmbedSql,
   type SourceEmbedBlockRow,
 } from "./source-embed-query";
@@ -151,7 +153,7 @@ describe("source embed query", () => {
       { id: "20260806005231-1gxlpdc" },
     ];
     let childLoads = 0;
-    const requested: string[][] = [];
+    let rowLoads = 0;
 
     const loaded = await loadSourceEmbedRows("20260806005231-9llmnk4", {
       loadChildren: async (blockId) => {
@@ -159,21 +161,15 @@ describe("source embed query", () => {
         expect(blockId).toBe("20260806005231-9llmnk4");
         return descendants;
       },
-      loadRows: async (blockIds) => {
-        requested.push([...blockIds]);
-        return realRows.filter((row) => blockIds.includes(row.id));
+      loadRows: async (blockId) => {
+        rowLoads += 1;
+        expect(blockId).toBe("20260806005231-9llmnk4");
+        return realRows;
       },
     });
 
     expect(childLoads).toBe(1);
-    expect(requested).toEqual([[
-      "20260806005231-9llmnk4",
-      "20260806005231-p6dzb2p",
-      "20260806005231-0pvujjo",
-      "20260806005231-gxm2xl5",
-      "20260806005231-c4lr18w",
-      "20260806005231-1gxlpdc",
-    ]]);
+    expect(rowLoads).toBe(1);
     expect(sourceEmbedBlockIds(loaded, "20260806005231-9llmnk4", "stem")).toEqual([
       "20260806005231-0pvujjo",
     ]);
@@ -181,5 +177,44 @@ describe("source embed query", () => {
       "20260806005231-c4lr18w",
       "20260806005231-1gxlpdc",
     ]);
+  });
+
+  it("keeps list-backed options and the answer heading out of the mounted stem", async () => {
+    const questionId = "20260809005727-cnx38hy";
+    const completeRows: SourceEmbedBlockRow[] = [
+      { id: questionId, type: "h", content: "203.", ial: '{: custom-qb-id="q203"}' },
+      { id: "20260809005727-hsg494h", parent_id: questionId, type: "l", content: "Question and options" },
+      { id: "20260809005726-1cxkcn9", parent_id: "20260809005727-hsg494h", type: "i", content: "Question and options" },
+      { id: "20260809005727-m5k0zhb", parent_id: "20260809005726-1cxkcn9", sort: 10, type: "p", content: "Question stem" },
+      { id: "20260809005727-t47p9ga", parent_id: "20260809005726-1cxkcn9", sort: 20, type: "l", content: "A. First B. Second" },
+      { id: "20260809005727-eint8q2", parent_id: questionId, type: "h", content: "答案与解析" },
+      { id: "20260809005727-44axzp5", parent_id: "20260809005727-eint8q2", type: "l", content: "正确答案：D。", ial: '{: custom-qb-section="solution"}' },
+      { id: "20260809005727-2w076cu", parent_id: "20260809005727-eint8q2", type: "p", content: "Explanation" },
+    ];
+    const visibleOrder = completeRows
+      .filter((row) => !["20260809005726-1cxkcn9", "20260809005727-m5k0zhb", "20260809005727-t47p9ga"].includes(row.id))
+      .slice(1)
+      .map(({ id }) => ({ id }));
+
+    const loaded = await loadSourceEmbedRows(questionId, {
+      loadChildren: async () => visibleOrder,
+      loadRows: async () => completeRows,
+    });
+
+    expect(sourceEmbedBlockIds(loaded, questionId, "stem")).toEqual([
+      "20260809005727-m5k0zhb",
+    ]);
+    expect(sourceEmbedBlockIds(loaded, questionId, "solution")).toEqual([
+      "20260809005727-eint8q2",
+    ]);
+    expect(sourceEmbedSql(loaded, questionId, "stem")).not.toContain("20260809005727-hsg494h");
+    expect(sourceEmbedSql(loaded, questionId, "solution")).not.toBe(EMPTY_SOURCE_EMBED_SQL);
+  });
+
+  it("builds one recursive query for the complete question subtree", () => {
+    const query = sourceEmbedSubtreeSql("20260809005727-cnx38hy");
+    expect(query).toContain("WITH RECURSIVE subtree");
+    expect(query).toContain("b.parent_id = parent.id");
+    expect(query).toContain("id = '20260809005727-cnx38hy'");
   });
 });

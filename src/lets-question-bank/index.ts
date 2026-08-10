@@ -32,6 +32,7 @@ import {
   loadSourceEmbedRows,
   sourceEmbedBlockIds,
   sourceEmbedSubtreeIds,
+  sourceEmbedSubtreeSql,
   sourceEmbedSql,
   type SourceEmbedBlockRow,
   type SourceEmbedSection,
@@ -434,24 +435,13 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
     const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceQueryCache = new Map<string, Promise<string>>();
-    const loadRowsByIds = async (blockIds: readonly string[]): Promise<SourceEmbedBlockRow[]> => {
-      const rows: SourceEmbedBlockRow[] = [];
-      for (let offset = 0; offset < blockIds.length; offset += 48) {
-        const chunk = blockIds.slice(offset, offset + 48);
-        const quotedIds = chunk.map((id) => `'${id.replace(/'/gu, "''")}'`).join(", ");
-        rows.push(...await sql(
-          `SELECT id, root_id, parent_id, sort, path, type, subtype, content, markdown, ial FROM blocks WHERE id IN (${quotedIds}) LIMIT ${chunk.length}`,
-        ) as SourceEmbedBlockRow[]);
-      }
-      return rows;
-    };
     const loadSourceRows = (blockId: string): Promise<SourceEmbedBlockRow[]> => {
       const cached = sourceRowsCache.get(blockId);
       if (cached) return cached;
       const startedAt = performance.now();
       const loading = loadSourceEmbedRows(blockId, {
         loadChildren: (id) => getChildBlocks(id),
-        loadRows: loadRowsByIds,
+        loadRows: (id) => sql(sourceEmbedSubtreeSql(id)) as Promise<SourceEmbedBlockRow[]>,
       }).then((rows) => {
         log.debug("source subtree loaded", {
           blockId,
