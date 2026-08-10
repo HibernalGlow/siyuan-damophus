@@ -46,14 +46,6 @@ class AgentBridgeError extends Error {
   }
 }
 
-function hasUnsupportedLocalAsset(markdown: string): boolean {
-  const references = [
-    ...Array.from(markdown.matchAll(/!\[[^\]]*\]\(([^)\s]+)[^)]*\)/gu), (match) => match[1]),
-    ...Array.from(markdown.matchAll(/<(?:img|video|audio|source)\b[^>]*\bsrc=["']([^"']+)["']/giu), (match) => match[1]),
-  ];
-  return references.some((reference) => !/^(?:https?:|data:|assets\/|\/assets\/)/iu.test(reference));
-}
-
 function parseRequest(value: unknown): AgentRequest {
   return agentRequestSchema.parse(value);
 }
@@ -193,9 +185,6 @@ export class AgentBridgeWorker {
     const completedItems: Array<{ itemId: string; documentId: string; targetPath?: string }> = [];
     let failedItemId: string | undefined;
     try {
-      if (request.items.some((item) => hasUnsupportedLocalAsset(item.markdown))) {
-        throw new AgentBridgeError("UNSUPPORTED_LOCAL_ASSET", "Relative local assets are not supported yet");
-      }
       let sequence = 1;
       await this.emit(request.requestId, sequence++, "resolving-target", "Resolving paste target", undefined, 0, request.items.length);
       const preparedItems: PreparedPasteItem[] = [];
