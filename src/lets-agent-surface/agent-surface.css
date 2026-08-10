@@ -46,7 +46,6 @@
   min-height: 0 !important;
   max-width: none !important;
   max-height: none !important;
-  transform: translateX(0) !important;
   border: 1px solid var(--b3-border-color);
   border-radius: var(--b3-border-radius-b) var(--b3-border-radius-b) 0 0;
   box-shadow: var(--b3-dialog-shadow);

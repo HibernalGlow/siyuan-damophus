@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import agentSurfaceStyles from "./agent-surface.css?raw";
 import {
   displayMode,
   isAgentMenuTarget,
@@ -8,6 +9,10 @@ import {
 } from "./surface-helpers";
 
 describe("agent surface helpers", () => {
+  it("keeps the native mobile model close transform available", () => {
+    expect(agentSurfaceStyles).not.toContain("transform: translateX(0)");
+  });
+
   it("normalizes unknown display modes to the floating surface", () => {
     expect(displayMode("floating")).toBe("floating");
     expect(displayMode("tab")).toBe("tab");
