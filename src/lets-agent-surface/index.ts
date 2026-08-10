@@ -3,11 +3,11 @@ import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { plugin } from "@/utils";
 import { getLogger } from "@/libs/logger";
 import {
+  createAgentModeToggle,
   isAgentMenuTarget,
   isMobileAgentEntryTarget,
   resolveAgentSurface,
   selectedBlockIds,
-  shouldOpenInNewTab,
 } from "./surface-helpers";
 import "./agent-surface.css";
 
@@ -144,6 +144,13 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       label: this.t("lets-agent-surface.open"),
       click: () => void this.openAgent(),
     });
+    if (getFrontend() !== "mobile" && getFrontend() !== "browser-mobile") {
+      menu.addItem(createAgentModeToggle(
+        this.openInNewTab(),
+        this.t("lets-agent-surface.openInNewTabMenu"),
+        (value) => this.setSetting("openInNewTab", value),
+      ));
+    }
   }
 
   private shouldIntercept(): boolean {
@@ -151,10 +158,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 
   private openInNewTab(): boolean {
-    return shouldOpenInNewTab(
-      this.getSetting("openInNewTab"),
-      this.getSetting("displayMode"),
-    );
+    return this.getSetting("openInNewTab") === true;
   }
 
   private closeNativeMenu(): void {

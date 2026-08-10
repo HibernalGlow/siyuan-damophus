@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import agentSurfaceStyles from "./agent-surface.css?raw";
 import pluginMetadata from "./plugin";
 import {
+  createAgentModeToggle,
   isAgentMenuTarget,
   isMobileAgentEntryTarget,
   resolveAgentSurface,
   selectedBlockIds,
-  shouldOpenInNewTab,
 } from "./surface-helpers";
 
 describe("agent surface helpers", () => {
@@ -35,11 +35,15 @@ describe("agent surface helpers", () => {
     expect(pluginMetadata.settings?.some((setting) => setting.key === "displayMode")).toBe(false);
   });
 
-  it("maps the removed floating mode to native while preserving tab upgrades", () => {
-    expect(shouldOpenInNewTab(false, "tab")).toBe(false);
-    expect(shouldOpenInNewTab(undefined, "floating")).toBe(false);
-    expect(shouldOpenInNewTab(undefined, "tab")).toBe(true);
-    expect(shouldOpenInNewTab(undefined)).toBe(true);
+  it("adds a menu checkbox that switches mode without opening the Agent", () => {
+    const setOpenInNewTab = vi.fn();
+    const item = createAgentModeToggle(true, "Open in tab", setOpenInNewTab);
+    expect(item).toMatchObject({
+      label: "Open in tab",
+      checked: true,
+    });
+    item.click();
+    expect(setOpenInNewTab).toHaveBeenCalledWith(false);
   });
 
   it("recognizes the native Add to Agent menu item", () => {

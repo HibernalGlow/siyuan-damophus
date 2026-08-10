@@ -1,9 +1,16 @@
 export type AgentSurface = "desktop-native" | "desktop-tab" | "mobile-dropdown";
 
-export function shouldOpenInNewTab(value: unknown, legacyDisplayMode?: unknown): boolean {
-  if (typeof value === "boolean") return value;
-  if (legacyDisplayMode === "floating") return false;
-  return true;
+export function createAgentModeToggle(
+  openInNewTab: boolean,
+  label: string,
+  setOpenInNewTab: (value: boolean) => void,
+) {
+  return {
+    icon: "iconLayout",
+    label,
+    checked: openInNewTab,
+    click: () => setOpenInNewTab(!openInNewTab),
+  };
 }
 
 export function resolveAgentSurface(frontend: string, openInNewTab: unknown): AgentSurface {
