@@ -5,6 +5,7 @@
   export let group: string;
   export let settingItems: ISettingItem[];
   export let display = true;
+  export let mobile = false;
 
   const dispatch = createEventDispatcher();
 </script>
@@ -22,6 +23,7 @@
       columns={item?.columns}
       slider={item?.slider}
       height={item?.height}
+      {mobile}
       on:click={(event) => dispatch("click", { group, ...event.detail })}
       on:changed={(event) => dispatch("changed", { group, ...event.detail })}
       on:preview={(event) => dispatch("preview", { group, ...event.detail })}

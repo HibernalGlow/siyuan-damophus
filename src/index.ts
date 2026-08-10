@@ -209,6 +209,8 @@ export default class PluginLetsGo extends Plugin {
         if (panel) void unmount(panel);
       },
     });
+    dialog.element.classList.add("damophus-settings-dialog");
+    if (mobileSetting) dialog.element.classList.add("damophus-settings-dialog--mobile");
     const target = dialog.element.querySelector<HTMLElement>("#damophus-setting-panel");
     if (!target) return;
     panel = mount(SettingPanel, { target });

@@ -19,8 +19,8 @@ describe("mobile breadcrumb toolbar actions", () => {
       <div id="editor">
         <div class="protyle-breadcrumb">
           <button data-type="mobile-menu"></button>
-          <button class="block__icon" data-type="readonly"></button>
-          <button class="block__icon" data-type="doc"></button>
+          <button class="block__icon" data-type="readonly"><svg><use href="#iconLock"></use></svg></button>
+          <button class="block__icon" data-type="doc"><svg><use href="#iconFile"></use></svg></button>
           <button class="block__icon" data-type="more"><svg><use href="#iconMore"></use></svg></button>
         </div>
       </div>
@@ -39,12 +39,21 @@ describe("mobile breadcrumb toolbar actions", () => {
 
     expect(getComputedStyle(lock).position).toBe("fixed");
     expect(getComputedStyle(lock).top).toBe("4px");
+    expect(getComputedStyle(lock).display).toBe("flex");
+    expect(getComputedStyle(lock).height).toBe("40px");
     expect(getComputedStyle(lock).width).toBe("32px");
     expect(getComputedStyle(lock).right).toBe("168px");
     expect(getComputedStyle(doc).position).toBe("fixed");
     expect(getComputedStyle(doc).right).toBe("134px");
     expect(getComputedStyle(more).position).toBe("fixed");
     expect(getComputedStyle(more).right).toBe("100px");
+    for (const action of [lock, doc, more]) {
+      const icon = action.querySelector<SVGElement>("svg")!;
+      expect(action.getBoundingClientRect().top + action.getBoundingClientRect().height / 2).toBe(24);
+      expect(getComputedStyle(icon).display).toBe("block");
+      expect(getComputedStyle(icon).width).toBe("20px");
+      expect(getComputedStyle(icon).height).toBe("20px");
+    }
     expect(getComputedStyle(more.querySelector("svg")!).transform).not.toBe("none");
     expect(getComputedStyle(title).marginInlineEnd).toBe("120px");
     expect(getComputedStyle(toolbar).pointerEvents).toBe("none");

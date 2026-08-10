@@ -15,6 +15,7 @@
   export let settingKey: string;
   export let settingValue: any;
   export let height = "";
+  export let mobile = false;
   export let placeholder = "";
   export let options: Record<string | number, string> = {};
   export let slider = { min: 0, max: 100, step: 1 };
@@ -38,7 +39,7 @@
 </script>
 
 {#if type === "textarea" || type === "list"}
-  <div class="flex flex-col gap-3 border-b border-border px-3 py-4 last:border-b-0">
+  <div class="flex flex-col gap-3 border-b border-border px-3 py-4 last:border-b-0" class:damophus-setting-item-mobile={mobile}>
     <div>
       <div class="text-sm font-medium">{@html translatedTitle}</div>
       <div class="mt-1 text-xs text-muted-foreground">{@html translatedDescription}</div>
@@ -57,27 +58,27 @@
     {/if}
   </div>
 {:else}
-  <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(180px,auto)] items-center gap-5 border-b border-border px-3 py-3 last:border-b-0 max-[640px]:grid-cols-1 max-[640px]:gap-3">
+  <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(180px,auto)] items-center gap-5 border-b border-border px-3 py-3 last:border-b-0 max-[640px]:grid-cols-1 max-[640px]:gap-3" class:damophus-setting-item-mobile={mobile}>
     <div class="min-w-0">
       <div class="text-sm font-medium">{@html translatedTitle}</div>
       <div class="mt-1 text-xs leading-5 text-muted-foreground">{@html translatedDescription}</div>
     </div>
-    <div class="flex min-w-0 justify-end max-[640px]:justify-start">
+    <div class="flex min-w-0 justify-end max-[640px]:justify-start" class:damophus-setting-control-mobile={mobile}>
       {#if type === "checkbox"}
         <Switch checked={Boolean(settingValue)} onCheckedChange={(checked) => { settingValue = checked; changed(); }} aria-label={translatedTitle} />
       {:else if type === "textinput" || type === "number"}
-        <Input class="w-52 max-w-full" id={settingKey} type={type === "number" ? "number" : "text"} placeholder={translatedPlaceholder} bind:value={settingValue} onchange={changed} />
+        <Input class="w-52 max-w-full damophus-setting-input" id={settingKey} type={type === "number" ? "number" : "text"} placeholder={translatedPlaceholder} bind:value={settingValue} onchange={changed} />
       {:else if type === "button"}
         <Button variant="outline" onclick={() => dispatch("click", { key: settingKey, value: settingValue })}>{buttonLabel}</Button>
       {:else if type === "select"}
         <Select.Root type="single" value={String(settingValue)} onValueChange={(value) => { settingValue = value; changed(); }}>
-          <Select.Trigger id={settingKey} class="w-52 max-w-full">{plugin.i18n[options[settingValue]] || options[settingValue] || settingValue}</Select.Trigger>
+          <Select.Trigger id={settingKey} class="w-52 max-w-full damophus-setting-select">{plugin.i18n[options[settingValue]] || options[settingValue] || settingValue}</Select.Trigger>
           <Select.Content>
             <Select.Group>{#each Object.entries(options) as [value, text]}<Select.Item {value} label={plugin.i18n[text] || text} />{/each}</Select.Group>
           </Select.Content>
         </Select.Root>
       {:else if type === "slider"}
-        <div class="grid w-56 max-w-full grid-cols-[1fr_42px] items-center gap-3">
+        <div class="grid w-56 max-w-full grid-cols-[1fr_42px] items-center gap-3 damophus-setting-slider">
           <Slider type="single" min={slider.min} max={slider.max} step={slider.step} bind:value={settingValue} onValueChange={changed} aria-label={translatedTitle} />
           <output class="text-right font-mono text-xs">{settingValue}</output>
         </div>

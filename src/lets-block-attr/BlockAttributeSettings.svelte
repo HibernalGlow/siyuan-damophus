@@ -76,6 +76,7 @@
   export let theme: DamophusTheme;
   export let mode: ColorMode;
   export let labels: BlockAttributeSettingsLabels;
+  export let mobile = false;
 
   const dispatch = createEventDispatcher<{
     changed: SettingChange;
@@ -146,7 +147,7 @@
   }
 </script>
 
-<div class="flex min-w-0 flex-col gap-5">
+<div class="flex min-w-0 flex-col gap-5" class:damophus-block-attribute-settings-mobile={mobile}>
   <BlockAttributePreview
     {customProperties}
     {customStyle}
@@ -198,7 +199,7 @@
       </details>
     {/if}
     <div class="mt-3 flex flex-wrap items-start gap-2">
-      <div class="min-w-48 flex-1">
+      <div class="min-w-48 flex-1 max-[640px]:min-w-0">
         <Input
           bind:value={newProperty}
           placeholder="custom-qb-..."
@@ -212,7 +213,7 @@
         />
         {#if propertyError}<p class="mt-1 text-xs text-destructive">{propertyError}</p>{/if}
       </div>
-      <Button variant="outline" onclick={addProperty}>
+      <Button variant="outline" class="max-[640px]:w-full" onclick={addProperty}>
         <Plus data-icon="inline-start" />
         {labels.addProperty}
       </Button>
