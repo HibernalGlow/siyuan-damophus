@@ -134,6 +134,22 @@ describe("source embed query", () => {
     ]);
   });
 
+  it("excludes options nested below an unlabeled list root", () => {
+    const nestedOptionRows: SourceEmbedBlockRow[] = [
+      { id: "20260806040000-q000001", type: "h" },
+      { id: "20260806040001-body001", parent_id: "20260806040000-q000001", type: "l", content: "" },
+      { id: "20260806040002-stem001", parent_id: "20260806040001-body001", type: "p", content: "Question stem" },
+      { id: "20260806040003-opts001", parent_id: "20260806040001-body001", type: "l", content: "" },
+      { id: "20260806040004-opta001", parent_id: "20260806040003-opts001", type: "i", content: "A. First" },
+      { id: "20260806040005-optb001", parent_id: "20260806040003-opts001", type: "i", content: "B. Second" },
+      { id: "20260806040006-ans001", parent_id: "20260806040000-q000001", type: "l", content: "Answer: A", ial: '{: custom-qb-section="solution"}' },
+    ];
+
+    expect(sourceEmbedBlockIds(nestedOptionRows, "20260806040000-q000001", "stem")).toEqual([
+      "20260806040002-stem001",
+    ]);
+  });
+
   it("loads a real question subtree instead of relying on a truncated document query", async () => {
     const realRows: SourceEmbedBlockRow[] = [
       { id: "20260806005231-9llmnk4", parent_id: "20260806005231-nib2w11", type: "h", content: "145.", ial: '{: custom-qb-id="q145"}' },

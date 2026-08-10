@@ -50,4 +50,32 @@ describe("source embed read-only enforcement", () => {
     expect(root.querySelector('[data-node-id="unrelated-late"]')).toBeNull();
     stop();
   });
+
+  it("prunes full-document cb-get-all output around a nested stem paragraph", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="question-heading">
+        <div data-node-id="question-list">
+          <div data-node-id="question-item">
+            <div data-node-id="stem">Question stem</div>
+            <div data-node-id="options"><div data-node-id="option-a">A. First</div></div>
+          </div>
+        </div>
+      </div>
+      <div data-node-id="answer-heading">
+        <div data-node-id="answer-body">Answer</div>
+      </div>
+      <div data-node-id="next-question">Next question</div>
+    `;
+
+    const stop = observeFocusedBlock(root, "stem", ["stem"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(root.querySelector('[data-node-id="stem"]')).not.toBeNull();
+    expect(root.querySelector('[data-node-id="question-item"]')).not.toBeNull();
+    expect(root.querySelector('[data-node-id="options"]')).toBeNull();
+    expect(root.querySelector('[data-node-id="answer-heading"]')).toBeNull();
+    expect(root.querySelector('[data-node-id="next-question"]')).toBeNull();
+    stop();
+  });
 });

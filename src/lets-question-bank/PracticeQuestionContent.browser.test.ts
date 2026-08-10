@@ -151,6 +151,21 @@ describe("PracticeQuestionContent", () => {
     expect(getComputedStyle(styledStrong).color).toBe("rgb(255, 0, 0)");
   });
 
+  it("applies stem style masking to mounted native source content", async () => {
+    const mountSourceBlock = (target: HTMLElement) => {
+      target.innerHTML = '<span data-type="strong" style="color: rgb(255, 0, 0); font-weight: 700">Important</span>';
+      return () => {};
+    };
+    render({ questionRenderMode: "native", mountSourceBlock });
+    await flush();
+
+    const source = document.querySelector<HTMLElement>(".native-question-source")!;
+    const strong = source.querySelector<HTMLElement>("[data-type~='strong']")!;
+    expect(source.classList).toContain("stem-styles-hidden");
+    expect(getComputedStyle(strong).fontWeight).toBe(getComputedStyle(source).fontWeight);
+    expect(getComputedStyle(strong).color).toBe(getComputedStyle(source).color);
+  });
+
   it("aligns the HTML stem and options without a narrow centered column", async () => {
     render({ questionRenderMode: "html" });
     await flush();

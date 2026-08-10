@@ -24,6 +24,7 @@ export interface SourceEmbedSelectionOptions {
 }
 
 export interface SourceEmbedChildrenLoader {
+  /** SiYuan getChildBlocks returns the complete descendant list in display order. */
   loadChildren(blockId: string): Promise<readonly { id: string }[] | null | undefined>;
   loadRows(blockIds: readonly string[]): Promise<readonly SourceEmbedBlockRow[]>;
 }

@@ -332,6 +332,23 @@ function isLikelySolutionStart(block: MarkdownBlock): boolean {
   return /^(?:综合考向|答案(?:与解析)?|参考答案|正确答案|解析|参考解析|评分要点)\s*(?:[:：]|为|是|$)/iu.test(text);
 }
 
+/**
+ * SiYuan commonly stores the solution marker on the first child below an
+ * answer heading. Keep that heading in the solution instead of leaking it
+ * into the stem markdown.
+ */
+function solutionBoundaryIndex(
+  blocks: readonly MarkdownBlock[],
+  explicitIndex: number,
+): number {
+  let boundary = explicitIndex;
+  for (let index = explicitIndex - 1; index >= 0; index -= 1) {
+    if (!isHeading(blocks[index].node) || !isLikelySolutionStart(blocks[index])) break;
+    boundary = index;
+  }
+  return boundary;
+}
+
 function answersEqual(left: ObjectiveAnswer, right: ObjectiveAnswer): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind === "boolean" && right.kind === "boolean") return left.value === right.value;
@@ -536,7 +553,9 @@ function buildQuestion(
     });
     return undefined;
   }
-  let solutionIndex = solutionIndexes[0];
+  let solutionIndex = solutionIndexes[0] === undefined
+    ? undefined
+    : solutionBoundaryIndex(bodyBlocks, solutionIndexes[0]);
   if (solutionIndex === undefined && type !== "group") {
     solutionIndex = bodyBlocks.findIndex(isLikelySolutionStart);
     if (solutionIndex >= 0) {

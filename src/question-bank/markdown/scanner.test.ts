@@ -486,4 +486,26 @@ C. 第三项。
       level: 6,
     }));
   });
+
+  it("keeps an answer heading with the solution when its child owns the marker", () => {
+    const markdown = `##### 202. （单）
+{: custom-qb-id="nested-solution-heading" custom-qb-type="single" custom-qb-answer="A"}
+
+- 张三起诉李四要求离婚
+  - [ ] A. 张三可以提起上诉
+  - [ ] B. 张三可以申请再审
+
+###### 答案与解析
+
+- 正确答案：A。
+{: custom-qb-section="solution"}
+
+解析正文。`;
+    const report = scanQuestionMarkdown(markdown);
+    const question = report.document.questions[0];
+
+    expect(question.stemMarkdown).not.toContain("答案与解析");
+    expect(question.solutionMarkdown).toContain("###### 答案与解析");
+    expect(question.solutionMarkdown).toContain("正确答案：A");
+  });
 });
