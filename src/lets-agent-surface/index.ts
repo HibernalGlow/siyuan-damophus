@@ -83,6 +83,23 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       else this.applyFloatingSurface();
     }, 0);
   };
+  private readonly handleMobileSidebarBack = (event: MouseEvent): void => {
+    if (getFrontend() !== "mobile" && getFrontend() !== "browser-mobile") return;
+    const target = event.target instanceof Element ? event.target : undefined;
+    if (!target?.closest("#sidebar > .toolbar--border > svg:last-child")) return;
+    const sidebar = document.getElementById("sidebar");
+    const model = document.getElementById("model");
+    if (sidebar?.style.transform !== "translateX(0px)" || model?.style.transform !== "translateX(0px)") return;
+
+    // SiYuan's mobile back handler checks #model before #sidebar. When both
+    // are open, keep the Agent conversation alive and close only the sidebar.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    sidebar.style.transform = "";
+    const mask = document.querySelector<HTMLElement>(".side-mask");
+    mask?.classList.add("fn__none");
+    if (mask) mask.style.opacity = "";
+  };
 
   override registerModels(): void {
     if (this.tabRegistered) return;
@@ -105,6 +122,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     if (!this.listening) {
       this.listening = true;
       document.addEventListener("click", this.handleDocumentClick, true);
+      document.addEventListener("click", this.handleMobileSidebarBack, true);
     }
   }
 
@@ -114,6 +132,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   override onunload(): void {
     if (this.listening) {
       document.removeEventListener("click", this.handleDocumentClick, true);
+      document.removeEventListener("click", this.handleMobileSidebarBack, true);
       this.listening = false;
     }
     this.closeDesktopFloating();
@@ -127,6 +146,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 
   addMenuItem(menu: Menu): void {
+    if (!this.isEntryEnabled("menu")) return;
     menu.addItem({
       icon: "iconSparkles",
       label: this.t("lets-agent-surface.open"),
@@ -155,7 +175,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       }
       return;
     }
-    if (surface === "desktop-tab") {
+    if (surface === "desktop-tab" && this.isEntryEnabled("tab")) {
       await this.openAgentTab(ids);
       return;
     }
