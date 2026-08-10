@@ -85,6 +85,28 @@ export function buildTopicRelationStyles(customStyle: unknown): string {
   white-space: nowrap;
 }
 
+.damophus-topic-relations__count-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.damophus-topic-relations__count-kind {
+  display: inline-flex;
+  align-items: center;
+  color: var(--b3-theme-primary, #3573f0);
+}
+
+.damophus-topic-relations__count-kind svg {
+  width: 12px;
+  height: 12px;
+}
+
+.damophus-topic-relations__count-group + .damophus-topic-relations__separator {
+  margin-left: 2px;
+}
+
 .damophus-topic-relations__count-button svg {
   width: 12px;
   height: 12px;

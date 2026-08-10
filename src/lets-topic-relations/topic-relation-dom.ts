@@ -125,6 +125,8 @@ function appendScopedCountButtons(
   entries: readonly TopicRelationEntry[],
   target: TopicRelationTarget,
   labels: TopicRelationLabels,
+  relationLabel: string,
+  relationIcon: string,
   onOpen: TopicRelationRenderOptions["onOpen"],
   group: TopicRelationGroup,
   hostBlockId: string,
@@ -144,24 +146,37 @@ function appendScopedCountButtons(
       : availableScopes.filter(({ scope }) => (
         documentEntries.length > 0 ? scope === "document" : scope === "external"
       ));
+  if (entries.length === 0) return;
+  const countGroup = document.createElement("span");
+  countGroup.className = "damophus-topic-relations__count-group";
+  countGroup.dataset.relationGroup = preferredGroup;
+  const kind = document.createElement("span");
+  kind.className = "damophus-topic-relations__count-kind ariaLabel";
+  kind.setAttribute("aria-label", relationLabel);
+  kind.title = relationLabel;
+  kind.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${relationIcon}"></use></svg>`;
+  countGroup.append(kind);
   scopes.forEach(({ scope, icon, label }) => {
     const scopedEntries = entriesForScope(entries, target, scope);
     if (scopedEntries.length === 0) return;
-    appendSeparator(row);
+    const tooltip = `${relationLabel} · ${label} ${scopedEntries.length}`;
     const button = createCountButton(
       `${label} {count}`,
       scopedEntries.length,
-      `${label} ${scopedEntries.length}`,
+      tooltip,
       (clicked) => onOpen(clicked, group, hostBlockId, preferredGroup, scope),
     );
     if (!button) return;
     button.classList.add("ariaLabel");
-    button.setAttribute("aria-label", `${label} ${scopedEntries.length}`);
+    button.setAttribute("aria-label", tooltip);
     button.dataset.topicScope = scope;
     button.dataset.topicIcon = icon;
     button.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${icon}"></use></svg><span class="damophus-topic-relations__count-number">${scopedEntries.length}</span>`;
-    row.append(button);
+    countGroup.append(button);
   });
+  if (countGroup.childElementCount <= 1) return;
+  appendSeparator(row);
+  row.append(countGroup);
 }
 
 function appendSeparator(container: HTMLElement): void {
@@ -281,6 +296,8 @@ function appendQuestionTopic(
       notes,
       target,
       options.labels,
+      options.labels.topicNotes,
+      "iconBook",
       options.onOpen,
       group,
       target.blockId,
@@ -292,6 +309,8 @@ function appendQuestionTopic(
       notes,
       target,
       options.labels,
+      options.labels.topicNotes,
+      "iconBook",
       options.onOpen,
       group,
       target.blockId,
@@ -303,6 +322,8 @@ function appendQuestionTopic(
     questions,
     target,
     options.labels,
+    options.labels.relatedQuestions,
+    "iconHelp",
     options.onOpen,
     group,
     target.blockId,
@@ -343,8 +364,30 @@ function renderMarker(
     row.append(label);
     const otherNotes = group.notes.filter((entry) => entry.blockId !== target.blockId);
     const questions = group.questions.filter((entry) => entry.blockId !== target.blockId);
-    appendScopedCountButtons(row, otherNotes, target, options.labels, options.onOpen, group, target.blockId, "notes");
-    appendScopedCountButtons(row, questions, target, options.labels, options.onOpen, group, target.blockId, "questions");
+    appendScopedCountButtons(
+      row,
+      otherNotes,
+      target,
+      options.labels,
+      options.labels.otherTopicNotes,
+      "iconBook",
+      options.onOpen,
+      group,
+      target.blockId,
+      "notes",
+    );
+    appendScopedCountButtons(
+      row,
+      questions,
+      target,
+      options.labels,
+      options.labels.relatedQuestions,
+      "iconHelp",
+      options.onOpen,
+      group,
+      target.blockId,
+      "questions",
+    );
     marker.append(row);
 
     if (options.displayMode === "expanded") {

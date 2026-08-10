@@ -125,6 +125,13 @@ describe("topic relation editor projection", () => {
     expect(noteMarker.querySelector('[data-topic-scope="document"]')).toBeNull();
     expect(noteMarker.querySelector('[data-topic-scope="external"]')?.textContent)
       .toBe("1");
+    expect(Array.from(noteMarker.querySelectorAll<HTMLElement>("[data-relation-group]"))
+      .map((element) => element.dataset.relationGroup)).toEqual(["notes", "questions"]);
+    expect(Array.from(noteMarker.querySelectorAll<HTMLElement>(".damophus-topic-relations__count-kind"))
+      .map((element) => element.getAttribute("aria-label"))).toEqual([
+      "Other topic notes",
+      "Related questions",
+    ]);
     expect(noteMarker.querySelector(".damophus-topic-relations__row")?.textContent)
       .not.toContain("Detailed topic");
     expect(questionMarker.textContent).toContain("Topics");
@@ -269,8 +276,10 @@ describe("topic relation editor projection", () => {
       '.protyle-title .damophus-topic-relations [data-topic-scope="external"]',
     );
     expect(scopeButtons).toHaveLength(2);
-    expect(Array.from(scopeButtons).every((button) => button.getAttribute("aria-label") === "Other documents 1"))
-      .toBe(true);
+    expect(Array.from(scopeButtons).map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Other topic notes · Other documents 1",
+      "Related questions · Other documents 1",
+    ]);
   });
 
   it("uses the native SiYuan block-reference contract and can disable only its popover", () => {
@@ -373,8 +382,8 @@ describe("topic relation editor projection", () => {
     expect(button?.textContent).toBe("1");
     expect(button?.querySelector(".damophus-topic-relations__count-label")).toBeNull();
     expect(button?.classList.contains("ariaLabel")).toBe(true);
-    expect(button?.getAttribute("aria-label")).toBe("Other documents 1");
-    expect(button?.title).toBe("Other documents 1");
+    expect(button?.getAttribute("aria-label")).toBe("Other topic notes · Other documents 1");
+    expect(button?.title).toBe("Other topic notes · Other documents 1");
   });
 
   it("prevents relation controls from focusing the surrounding editor", () => {
