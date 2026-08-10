@@ -39,7 +39,8 @@
   right: 0 !important;
   bottom: 0 !important;
   left: 0 !important;
-  z-index: 120 !important;
+  /* Keep the Agent above the document, but below SiYuan's mobile sidebars. */
+  z-index: 6 !important;
   width: auto !important;
   height: 80dvh !important;
   min-height: 0 !important;
