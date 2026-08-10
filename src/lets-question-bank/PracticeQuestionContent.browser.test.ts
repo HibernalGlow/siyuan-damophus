@@ -225,54 +225,6 @@ describe("PracticeQuestionContent", () => {
     expect(cleanup).toHaveBeenCalledTimes(3);
   });
 
-  it("shows the stem immediately while the native editor is still loading", async () => {
-    let finishMount: ((cleanup: () => void) => void) | undefined;
-    const cleanup = vi.fn();
-    const mountSourceBlock = vi.fn((target: HTMLElement) => {
-      target.innerHTML = '<div data-hydrated-source="stem">Hydrated stem</div>';
-      return new Promise<() => void>((resolve) => {
-        finishMount = resolve;
-      });
-    });
-
-    render({ questionRenderMode: "native", mountSourceBlock });
-    await tick();
-
-    const fallback = document.querySelector<HTMLElement>(".native-question-source [data-source-fallback]");
-    expect(fallback?.hidden).toBe(false);
-    expect(fallback?.textContent).toContain("Select the correct options.");
-
-    finishMount?.(cleanup);
-    await flush();
-
-    expect(fallback?.hidden).toBe(true);
-    expect(document.querySelectorAll('[data-hydrated-source="stem"]')).toHaveLength(1);
-  });
-
-  it("shows the answer immediately and swaps it after solution hydration", async () => {
-    const pending = new Map<string, (cleanup: () => void) => void>();
-    const mountSourceBlock = vi.fn((target: HTMLElement, _sourceBlockId: string, _editable: boolean, section?: "stem" | "solution") => {
-      const mountedSection = section ?? "stem";
-      target.innerHTML = `<div data-hydrated-source="${mountedSection}">Hydrated ${mountedSection}</div>`;
-      return new Promise<() => void>((resolve) => {
-        pending.set(mountedSection, resolve);
-      });
-    });
-
-    render({ revealed: true, questionRenderMode: "embed", mountSourceBlock });
-    await tick();
-
-    const answerFallback = document.querySelector<HTMLElement>(".embedded-answer-source [data-source-fallback]");
-    expect(answerFallback?.hidden).toBe(false);
-    expect(answerFallback?.textContent).toContain("**Answer:** A");
-
-    pending.get("solution")?.(() => {});
-    await flush();
-
-    expect(answerFallback?.hidden).toBe(true);
-    expect(document.querySelectorAll('[data-hydrated-source="solution"]')).toHaveLength(1);
-  });
-
   it("locks source editing only when the practice toolbar lock is enabled", async () => {
     const mountSourceBlock = vi.fn(() => () => {});
     render({

@@ -24,10 +24,8 @@ export interface SourceEmbedSelectionOptions {
 }
 
 export interface SourceEmbedChildrenLoader {
-  /** SiYuan getChildBlocks supplies authoritative display order for visible blocks. */
   loadChildren(blockId: string): Promise<readonly { id: string }[] | null | undefined>;
-  /** Load the complete database subtree, including list-item descendants omitted by getChildBlocks. */
-  loadRows(blockId: string): Promise<readonly SourceEmbedBlockRow[]>;
+  loadRows(blockIds: readonly string[]): Promise<readonly SourceEmbedBlockRow[]>;
 }
 
 function sortValue(value: number | string | undefined): number {
@@ -111,32 +109,24 @@ function quote(value: string): string {
   return `'${value.replace(/'/gu, "''")}'`;
 }
 
-export function sourceEmbedSubtreeSql(questionBlockId: string): string {
-  if (!nodeIdPattern.test(questionBlockId)) return EMPTY_SOURCE_EMBED_SQL;
-  const rootId = quote(questionBlockId);
-  const columns = "id, root_id, parent_id, sort, path, type, subtype, content, markdown, ial";
-  return `WITH RECURSIVE subtree(${columns}) AS (`
-    + `SELECT ${columns} FROM blocks WHERE id = ${rootId} `
-    + `UNION SELECT b.id, b.root_id, b.parent_id, b.sort, b.path, b.type, b.subtype, b.content, b.markdown, b.ial `
-    + "FROM blocks b JOIN subtree parent ON b.parent_id = parent.id"
-    + `) SELECT ${columns} FROM subtree`;
-}
-
 /** Load only the selected question subtree, preserving SiYuan's actual child order. */
 export async function loadSourceEmbedRows(
   questionBlockId: string,
   loader: SourceEmbedChildrenLoader,
 ): Promise<SourceEmbedBlockRow[]> {
-  const [children, rows] = await Promise.all([
-    loader.loadChildren(questionBlockId),
-    loader.loadRows(questionBlockId),
-  ]);
-  const orderedIds = [...new Set(
-    (children ?? [])
-      .map((child) => child.id)
-      .filter((id) => nodeIdPattern.test(id) && id !== questionBlockId),
-  )];
+  const orderedIds: string[] = [];
+  const visited = new Set<string>([questionBlockId]);
+  const visit = async (parentId: string): Promise<void> => {
+    for (const child of await loader.loadChildren(parentId) ?? []) {
+      if (!nodeIdPattern.test(child.id) || visited.has(child.id)) continue;
+      visited.add(child.id);
+      orderedIds.push(child.id);
+      await visit(child.id);
+    }
+  };
+  await visit(questionBlockId);
 
+  const rows = await loader.loadRows([questionBlockId, ...orderedIds]);
   const orderById = new Map(orderedIds.map((id, order) => [id, order]));
   return rows.map((row) => ({ ...row, order: orderById.get(row.id) }));
 }

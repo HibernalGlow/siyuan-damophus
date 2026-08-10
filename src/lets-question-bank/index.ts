@@ -32,7 +32,6 @@ import {
   loadSourceEmbedRows,
   sourceEmbedBlockIds,
   sourceEmbedSubtreeIds,
-  sourceEmbedSubtreeSql,
   sourceEmbedSql,
   type SourceEmbedBlockRow,
   type SourceEmbedSection,
@@ -305,7 +304,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       return;
     }
     if (this.isEntryEnabled("dock")) {
-      this.openEntry?.openDock();
+      document.querySelector<HTMLElement>('.dock__item[data-type="damophus-question-bank-dock"]')?.click();
     }
   }
 
@@ -435,20 +434,23 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
     const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceQueryCache = new Map<string, Promise<string>>();
+    const loadRowsByIds = async (blockIds: readonly string[]): Promise<SourceEmbedBlockRow[]> => {
+      const rows: SourceEmbedBlockRow[] = [];
+      for (let offset = 0; offset < blockIds.length; offset += 48) {
+        const chunk = blockIds.slice(offset, offset + 48);
+        const quotedIds = chunk.map((id) => `'${id.replace(/'/gu, "''")}'`).join(", ");
+        rows.push(...await sql(
+          `SELECT id, root_id, parent_id, sort, path, type, subtype, content, markdown, ial FROM blocks WHERE id IN (${quotedIds}) LIMIT ${chunk.length}`,
+        ) as SourceEmbedBlockRow[]);
+      }
+      return rows;
+    };
     const loadSourceRows = (blockId: string): Promise<SourceEmbedBlockRow[]> => {
       const cached = sourceRowsCache.get(blockId);
       if (cached) return cached;
-      const startedAt = performance.now();
       const loading = loadSourceEmbedRows(blockId, {
         loadChildren: (id) => getChildBlocks(id),
-        loadRows: (id) => sql(sourceEmbedSubtreeSql(id)) as Promise<SourceEmbedBlockRow[]>,
-      }).then((rows) => {
-        log.debug("source subtree loaded", {
-          blockId,
-          blockCount: rows.length,
-          durationMs: Math.round(performance.now() - startedAt),
-        });
-        return rows;
+        loadRows: loadRowsByIds,
       }).catch((error) => {
         sourceRowsCache.delete(blockId);
         throw error;
@@ -514,7 +516,6 @@ export default class QuestionBankPlugin extends SubPluginBase {
           section: SourceEmbedSection = "stem",
           renderMode: "native" | "embed" = "embed",
         ) => {
-          const startedAt = performance.now();
           const binding = controller.getBinding();
           let temporaryEmbedId: string | undefined;
           if (renderMode === "embed" && binding?.systemDocumentId) {
@@ -553,38 +554,30 @@ export default class QuestionBankPlugin extends SubPluginBase {
             let stopBlockIsolation = () => {};
             let stopReadOnlyEnforcement = () => {};
             let defocusTimer: ReturnType<typeof setTimeout> | undefined;
-            let markReady = () => {};
-            const ready = new Promise<void>((resolve) => {
-              markReady = resolve;
-            });
             const editor = new Protyle(plugin.app, host, {
               mode: sourceBlockEditorMode,
               action: [...sourceBlockProtyleActions],
               blockId: mountedBlockId,
               after: (mountedEditor) => {
-                try {
-                  stopReadOnlyEnforcement();
-                  if (!editable) {
-                    mountedEditor.disable();
-                    stopReadOnlyEnforcement = enforceSourceBlockReadOnly(
-                      mountedEditor.protyle.wysiwyg.element,
-                    );
-                  }
-                  stopBlockIsolation();
-                  stopBlockIsolation = observeFocusedBlock(
+                stopReadOnlyEnforcement();
+                if (!editable) {
+                  mountedEditor.disable();
+                  stopReadOnlyEnforcement = enforceSourceBlockReadOnly(
                     mountedEditor.protyle.wysiwyg.element,
-                    mountedBlockId,
-                    sourceRows ? sourceEmbedSubtreeIds(sourceRows, mountedBlockId) : [mountedBlockId],
                   );
-                  if (isMobile) {
-                    defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element);
-                    defocusTimer = setTimeout(
-                      () => defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element),
-                      0,
-                    );
-                  }
-                } finally {
-                  markReady();
+                }
+                stopBlockIsolation();
+                stopBlockIsolation = observeFocusedBlock(
+                  mountedEditor.protyle.wysiwyg.element,
+                  mountedBlockId,
+                  sourceRows ? sourceEmbedSubtreeIds(sourceRows, mountedBlockId) : [mountedBlockId],
+                );
+                if (isMobile) {
+                  defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element);
+                  defocusTimer = setTimeout(
+                    () => defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element),
+                    0,
+                  );
                 }
               },
               render: {
@@ -600,20 +593,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
               editor,
               stopBlockIsolation: () => stopBlockIsolation(),
               stopReadOnlyEnforcement: () => stopReadOnlyEnforcement(),
-              ready,
               cancelDefocus: () => {
                 if (defocusTimer !== undefined) clearTimeout(defocusTimer);
               },
             };
           }));
-          await Promise.all(editors.map((mounted) => mounted.ready));
-          log.debug("source editors ready", {
-            blockId,
-            section,
-            renderMode,
-            editorCount: editors.length,
-            durationMs: Math.round(performance.now() - startedAt),
-          });
           return async () => {
             for (const mounted of editors) {
               mounted.cancelDefocus();
