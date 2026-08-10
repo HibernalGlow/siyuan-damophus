@@ -121,23 +121,23 @@ describe("topic relation editor projection", () => {
     expect(noteMarker.textContent).toContain("Topic note");
     expect(noteMarker.textContent).toContain("Other topic notes");
     expect(noteMarker.textContent).toContain("Related questions");
-    expect(noteMarker.querySelector('[data-topic-scope="all"]')?.textContent).toBe("All1");
+    expect(noteMarker.querySelector('[data-topic-scope="all"]')).toBeNull();
     expect(noteMarker.querySelector('[data-topic-scope="document"]')).toBeNull();
     expect(noteMarker.querySelector('[data-topic-scope="external"]')?.textContent)
-      .toBe("Other documents1");
+      .toBe("1");
     expect(noteMarker.querySelector(".damophus-topic-relations__row")?.textContent)
       .not.toContain("Detailed topic");
     expect(questionMarker.textContent).toContain("Topics");
     expect(questionMarker.querySelectorAll('[data-type="block-ref"]')).toHaveLength(2);
     expect(noteMarker.querySelector('[data-id="20260808000100-note001"]')).toBeNull();
 
-    noteMarker.querySelector<HTMLButtonElement>('[data-topic-scope="all"]')?.click();
+    noteMarker.querySelector<HTMLButtonElement>('[data-topic-scope="external"]')?.click();
     expect(open).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       group,
       "20260808000100-note001",
       "notes",
-      "all",
+      "external",
     );
 
   });
@@ -173,6 +173,34 @@ describe("topic relation editor projection", () => {
         scope,
       );
     }
+  });
+
+  it("shows only the current-document count when every relation is in the document", () => {
+    installEditor();
+    const currentDocumentGroup: TopicRelationGroup = {
+      ...group,
+      notes: [group.notes[0]],
+      questions: [],
+    };
+    syncTopicRelationMarkers(
+      document,
+      findTopicRelationTargets(document),
+      new Map([[currentDocumentGroup.topicId, currentDocumentGroup]]),
+      {
+        displayMode: "compact",
+        nativeHover: true,
+        labels,
+        onRetry: vi.fn(),
+        onOpen: vi.fn(),
+      },
+    );
+    const question = document.querySelector<HTMLElement>("#question");
+    if (!question) throw new Error("Missing question block");
+    const marker = relationMarkerAfter(question);
+
+    expect(marker.querySelector('[data-topic-scope="all"]')).toBeNull();
+    expect(marker.querySelector('[data-topic-scope="document"]')?.textContent).toBe("1");
+    expect(marker.querySelector('[data-topic-scope="external"]')).toBeNull();
   });
 
   it("keeps virtual relation HTML outside editable blocks and migrates legacy placement", () => {
@@ -237,8 +265,12 @@ describe("topic relation editor projection", () => {
     ]);
     expect(document.querySelector(".protyle-title .damophus-topic-relations")?.textContent)
       .toContain("Topic note");
-    expect(document.querySelector(".protyle-title .damophus-topic-relations")?.textContent)
-      .toContain("Other documents");
+    const scopeButtons = document.querySelectorAll<HTMLButtonElement>(
+      '.protyle-title .damophus-topic-relations [data-topic-scope="external"]',
+    );
+    expect(scopeButtons).toHaveLength(2);
+    expect(Array.from(scopeButtons).every((button) => button.getAttribute("aria-label") === "Other documents 1"))
+      .toBe(true);
   });
 
   it("uses the native SiYuan block-reference contract and can disable only its popover", () => {
@@ -328,16 +360,8 @@ describe("topic relation editor projection", () => {
     panel.destroy();
   });
 
-  it("hides count descriptions in narrow containers and keeps them in wide containers", async () => {
+  it("keeps count labels in tooltips instead of visible button text", () => {
     installEditor();
-    const style = document.createElement("style");
-    style.id = "topic-relations-test-style";
-    style.textContent = buildTopicRelationStyles("");
-    document.head.append(style);
-    const protyle = document.querySelector<HTMLElement>(".protyle");
-    if (!protyle) throw new Error("Missing editor");
-    protyle.style.width = "360px";
-
     syncTopicRelationMarkers(document, findTopicRelationTargets(document), new Map([[group.topicId, group]]), {
       displayMode: "compact",
       nativeHover: true,
@@ -345,16 +369,12 @@ describe("topic relation editor projection", () => {
       onRetry: vi.fn(),
       onOpen: vi.fn(),
     });
-    const label = document.querySelector<HTMLElement>(".damophus-topic-relations__count-label");
-    const number = document.querySelector<HTMLElement>(".damophus-topic-relations__count-number");
-    if (!label || !number) throw new Error("Missing count control");
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    expect(getComputedStyle(label).display).toBe("none");
-    expect(getComputedStyle(number).display).not.toBe("none");
-
-    protyle.style.width = "640px";
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    expect(getComputedStyle(label).display).not.toBe("none");
+    const button = document.querySelector<HTMLButtonElement>('[data-topic-scope="external"]');
+    expect(button?.textContent).toBe("1");
+    expect(button?.querySelector(".damophus-topic-relations__count-label")).toBeNull();
+    expect(button?.classList.contains("ariaLabel")).toBe(true);
+    expect(button?.getAttribute("aria-label")).toBe("Other documents 1");
+    expect(button?.title).toBe("Other documents 1");
   });
 
   it("prevents relation controls from focusing the surrounding editor", () => {

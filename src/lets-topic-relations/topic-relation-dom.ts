@@ -130,11 +130,20 @@ function appendScopedCountButtons(
   hostBlockId: string,
   preferredGroup: TopicRelationPanelGroup,
 ): void {
-  const scopes: Array<{ scope: TopicRelationScope; icon: string; label: string }> = [
+  const availableScopes: Array<{ scope: TopicRelationScope; icon: string; label: string }> = [
     { scope: "all", icon: "iconList", label: labels.all },
     { scope: "document", icon: "iconFile", label: labels.currentDocument },
     { scope: "external", icon: "iconFiles", label: labels.outsideDocument },
   ];
+  const documentEntries = entriesForScope(entries, target, "document");
+  const externalEntries = entriesForScope(entries, target, "external");
+  const scopes = !target.documentId
+    ? availableScopes.filter(({ scope }) => scope === "all")
+    : documentEntries.length > 0 && externalEntries.length > 0
+      ? availableScopes
+      : availableScopes.filter(({ scope }) => (
+        documentEntries.length > 0 ? scope === "document" : scope === "external"
+      ));
   scopes.forEach(({ scope, icon, label }) => {
     const scopedEntries = entriesForScope(entries, target, scope);
     if (scopedEntries.length === 0) return;
@@ -142,13 +151,15 @@ function appendScopedCountButtons(
     const button = createCountButton(
       `${label} {count}`,
       scopedEntries.length,
-      label,
+      `${label} ${scopedEntries.length}`,
       (clicked) => onOpen(clicked, group, hostBlockId, preferredGroup, scope),
     );
     if (!button) return;
+    button.classList.add("ariaLabel");
+    button.setAttribute("aria-label", `${label} ${scopedEntries.length}`);
     button.dataset.topicScope = scope;
     button.dataset.topicIcon = icon;
-    button.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${icon}"></use></svg><span class="damophus-topic-relations__count-label">${label}</span><span class="damophus-topic-relations__count-number">${scopedEntries.length}</span>`;
+    button.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${icon}"></use></svg><span class="damophus-topic-relations__count-number">${scopedEntries.length}</span>`;
     row.append(button);
   });
 }
