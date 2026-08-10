@@ -58,6 +58,8 @@ export interface PluginMetadata {
   version?: string;
   author?: string;
   enabled?: boolean;
+  /** Root setting key used by older releases for this module's enabled state. */
+  legacyEnabledSetting?: string;
   defaultConfig?: Record<string, any>;
   settings?: PluginSettingItem[];
   reference?: string;

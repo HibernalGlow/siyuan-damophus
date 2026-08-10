@@ -1,6 +1,7 @@
 import { deepMerge, plugin } from "./utils";
 import { PluginRegistry } from "./plugin-registry";
 import { getLogger } from "@/libs/logger";
+import { migrateLegacyModuleSettings } from "./settings-migrations";
 const log = getLogger("settings");
 // import { template } from "@siyuan-community/siyuan-sdk/dist/types/kernel/api";
 
@@ -66,6 +67,12 @@ class Settings {
     } else {
       // //log.info("loadData", plugin.data[CONFIG]);
       await this.load();
+    }
+
+    const data = plugin.data[config];
+    if (data && migrateLegacyModuleSettings(data, this.pluginRegistry.getPluginConfigs())) {
+      await plugin.saveData(config, data);
+      await this.load(config);
     }
   }
 

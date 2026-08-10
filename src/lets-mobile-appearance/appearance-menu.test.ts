@@ -19,10 +19,7 @@ vi.mock("siyuan", () => ({
   },
 }));
 
-import {
-  isMobileAppearanceShortcutEnabled,
-  openMobileAppearanceMenu,
-} from "./mobile-appearance";
+import { openMobileAppearanceMenu } from "./appearance-menu";
 
 describe("mobile appearance shortcut", () => {
   beforeEach(() => {
@@ -42,12 +39,6 @@ describe("mobile appearance shortcut", () => {
         },
       },
     });
-  });
-
-  it("is enabled by default and respects an explicit off setting", () => {
-    expect(isMobileAppearanceShortcutEnabled(undefined)).toBe(true);
-    expect(isMobileAppearanceShortcutEnabled(true)).toBe(true);
-    expect(isMobileAppearanceShortcutEnabled(false)).toBe(false);
   });
 
   it("opens all native appearance choices and applies the selected mode", () => {

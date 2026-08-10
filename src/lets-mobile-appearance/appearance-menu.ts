@@ -1,13 +1,6 @@
 import { fetchPost, Menu } from "siyuan";
 
-export const MOBILE_APPEARANCE_SHORTCUT_SETTING = "showMobileAppearanceShortcut";
-export const MOBILE_APPEARANCE_SHORTCUT_CHANGED = "damophus-mobile-appearance-shortcut-changed";
-
 type AppearanceMode = 0 | 1 | 2;
-
-export function isMobileAppearanceShortcutEnabled(value: unknown): boolean {
-  return value !== false;
-}
 
 function applyAppearanceMode(value: AppearanceMode): void {
   const appearance = window.siyuan?.config?.appearance;

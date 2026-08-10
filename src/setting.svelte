@@ -21,11 +21,6 @@
   import { PluginRegistry } from "./plugin-registry";
   import { isMobile, plugin } from "./utils";
   import SettingCategoryNavigation from "./components/setting-category-navigation.svelte";
-  import {
-    isMobileAppearanceShortcutEnabled,
-    MOBILE_APPEARANCE_SHORTCUT_CHANGED,
-    MOBILE_APPEARANCE_SHORTCUT_SETTING,
-  } from "./mobile-appearance";
 
   const SWITCH_GROUP = "开关";
   const GENERAL_GROUP = "设置";
@@ -51,15 +46,6 @@
           description: "settings.debugLoggingDesc",
           key: "debugLogging",
           value: settings.get("debugLogging") || false,
-        },
-        {
-          type: "checkbox",
-          title: "settings.mobileAppearanceShortcut",
-          description: "settings.mobileAppearanceShortcutDesc",
-          key: MOBILE_APPEARANCE_SHORTCUT_SETTING,
-          value: isMobileAppearanceShortcutEnabled(
-            settings.get(MOBILE_APPEARANCE_SHORTCUT_SETTING),
-          ),
         },
         {
           type: "textinput",
@@ -292,9 +278,6 @@
     } else if (detail.group === GENERAL_GROUP) {
       settings.set(detail.key, detail.value);
       if (detail.key === "debugLogging") enableLogging(detail.value);
-      if (detail.key === MOBILE_APPEARANCE_SHORTCUT_SETTING) {
-        window.dispatchEvent(new CustomEvent(MOBILE_APPEARANCE_SHORTCUT_CHANGED));
-      }
     } else {
       const pluginSetting = settingItems[SWITCH_GROUP].find((item) => item.title === detail.group);
       if (!pluginSetting) return;
