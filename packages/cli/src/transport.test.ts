@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AGENT_PROTOCOL_VERSION } from "@hibernalglow/damophus-agent-contract";
-import { discoverBridge, readFreshHeartbeat, waitForResult, writeApproval } from "./transport";
+import {
+  discoverBridge,
+  readBridgeEnabled,
+  readFreshHeartbeat,
+  setBridgeEnabled,
+  waitForResult,
+  writeApproval,
+} from "./transport";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -30,6 +37,68 @@ describe("bridge transport", () => {
       supportedPasteModes: ["create"],
     }));
     expect((await readFreshHeartbeat({ endpoint: "", workspace: root, root })).pluginVersion).toBe("0.0.4");
+  });
+
+  it("reads the Agent Bridge module state from the Damophus config", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      questionBank: { enabled: true },
+      agentBridge: { enabled: false },
+    }))));
+    await expect(readBridgeEnabled({ endpoint: "http://127.0.0.1:6806", workspace: "D:/SiYuan", root: "" }))
+      .resolves.toBe(false);
+  });
+
+  it("rejects SiYuan's HTTP 202 file error envelope", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      code: 404,
+      msg: "file not found",
+      data: null,
+    }), { status: 202 })));
+    await expect(readBridgeEnabled({ endpoint: "http://127.0.0.1:6806", workspace: "D:/SiYuan", root: "" }))
+      .rejects.toThrow("file not found");
+  });
+
+  it("updates only the Agent Bridge setting and reloads Damophus", async () => {
+    const calls: Array<{ url: string; body?: unknown }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, body: init?.body });
+      if (url.endsWith("/api/file/getFile")) {
+        return new Response(JSON.stringify({
+          questionBank: { enabled: true, reviewThreshold: 2 },
+          agentBridge: { enabled: false },
+        }));
+      }
+      return new Response(JSON.stringify({ code: 0, msg: "", data: null }), {
+        headers: { "content-type": "application/json" },
+      });
+    }));
+
+    const location = { endpoint: "http://127.0.0.1:6806", workspace: "D:/SiYuan", root: "" };
+    await expect(setBridgeEnabled(location, true)).resolves.toEqual({ changed: true, enabled: true });
+
+    expect(calls.map((call) => call.url)).toEqual([
+      "http://127.0.0.1:6806/api/file/getFile",
+      "http://127.0.0.1:6806/api/file/putFile",
+      "http://127.0.0.1:6806/api/petal/setPetalEnabled",
+      "http://127.0.0.1:6806/api/petal/setPetalEnabled",
+    ]);
+    const form = calls[1].body as FormData;
+    const file = form.get("file") as Blob;
+    expect(JSON.parse(await file.text())).toEqual({
+      questionBank: { enabled: true, reviewThreshold: 2 },
+      agentBridge: { enabled: true },
+    });
+    expect(JSON.parse(String(calls[2].body))).toEqual({ packageName: "siyuan-damophus", enabled: false });
+    expect(JSON.parse(String(calls[3].body))).toEqual({ packageName: "siyuan-damophus", enabled: true });
+  });
+
+  it("does not rewrite or reload when the requested bridge state is already stored", async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ agentBridge: { enabled: false } })));
+    vi.stubGlobal("fetch", fetch);
+    await expect(setBridgeEnabled({ endpoint: "http://127.0.0.1:6806", workspace: "D:/SiYuan", root: "" }, false))
+      .resolves.toEqual({ changed: false, enabled: false });
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it("streams events before returning the receipt", async () => {

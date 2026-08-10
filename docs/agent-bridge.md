@@ -16,9 +16,22 @@ The CLI is the only user-facing interface. The plugin worker is required because
 
 Neither the CLI nor Agent Bridge imports the question-bank core. The CLI does not import Svelte or XR packages. Clack is confined to the TTY reporter; machine-readable mode never initializes it.
 
+Agent Bridge is disabled by default because its filesystem polling and heartbeat are only needed during CLI-driven paste or export work. Enable it on demand and disable it again when the session is finished:
+
+```bash
+damophus bridge status
+damophus bridge enable
+damophus bridge disable
+```
+
+The commands update only `agentBridge.enabled` in the existing Damophus configuration and reload the Damophus petal through SiYuan's plugin API. Other module settings are preserved.
+
 ## Command Surface
 
 ```text
+damophus bridge status [--endpoint <url>] [--json]
+damophus bridge enable [--endpoint <url>] [--json]
+damophus bridge disable [--endpoint <url>] [--json]
 damophus doctor [--endpoint <url>] [--json]
 damophus status <request-id> [--endpoint <url>] [--json]
 damophus export --document <id> [--output <file>]
@@ -36,6 +49,7 @@ damophus paste --manifest <manifest.json>
 Defaults:
 
 - Endpoint: `DAMOPHUS_SIYUAN_URL`, then `http://127.0.0.1:6806`.
+- Agent Bridge is disabled until `damophus bridge enable` is run.
 - `--close-active=ask` in an interactive terminal.
 - `--close-active=never` outside an interactive terminal.
 - Commands wait for a final receipt unless `--no-wait` is supplied.

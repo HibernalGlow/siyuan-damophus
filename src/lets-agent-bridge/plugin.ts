@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-agent-bridge.description",
   version: "0.0.4",
   author: "HibernalGlow",
-  enabled: true,
+  enabled: false,
   icon: "bot",
 };
 

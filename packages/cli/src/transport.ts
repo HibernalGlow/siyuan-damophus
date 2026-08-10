@@ -19,6 +19,8 @@ const BRIDGE_RELATIVE_PATH = join(
   "siyuan-damophus",
   "agent-bridge",
 );
+const DAMOPHUS_CONFIG_PATH = "/data/storage/petal/siyuan-damophus/hqweay-go-config";
+const DAMOPHUS_PACKAGE_NAME = "siyuan-damophus";
 const HEARTBEAT_MAX_AGE_MS = 30_000;
 
 export class BridgeTransportError extends Error {
@@ -42,12 +44,163 @@ export interface WaitOptions {
   onEvent?: (event: AgentEvent) => void | Promise<void>;
 }
 
+interface KernelEnvelope<T = unknown> {
+  code?: number;
+  msg?: string;
+  data?: T;
+}
+
 function normalizeEndpoint(endpoint: string): string {
   return endpoint.replace(/\/+$/u, "");
 }
 
 async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function readKernelFile(endpoint: string, path: string): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(`${endpoint}/api/file/getFile`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path }),
+      signal: AbortSignal.timeout(3_000),
+    });
+  } catch (error) {
+    throw new BridgeTransportError(
+      "PLUGIN_UNAVAILABLE",
+      `Unable to read Damophus configuration: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const content = await response.text();
+  if (response.status === 200) return content;
+  let message = `SiYuan returned HTTP ${response.status}`;
+  try {
+    message = (JSON.parse(content) as KernelEnvelope).msg || message;
+  } catch {
+    // Keep the HTTP status when the error response is not JSON.
+  }
+  throw new BridgeTransportError("PLUGIN_UNAVAILABLE", `Unable to read Damophus configuration: ${message}`);
+}
+
+async function writeKernelFile(endpoint: string, path: string, content: string): Promise<void> {
+  const form = new FormData();
+  form.append("path", path);
+  form.append("isDir", "false");
+  form.append("modTime", Math.floor(Date.now() / 1_000).toString());
+  form.append("file", new Blob([content], { type: "application/json" }), "hqweay-go-config");
+  let response: Response;
+  try {
+    response = await fetch(`${endpoint}/api/file/putFile`, {
+      method: "POST",
+      body: form,
+      signal: AbortSignal.timeout(3_000),
+    });
+  } catch (error) {
+    throw new BridgeTransportError(
+      "INTERNAL_ERROR",
+      `Unable to write Damophus configuration: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const envelope = await response.json() as KernelEnvelope;
+  if (!response.ok || envelope.code !== 0) {
+    throw new BridgeTransportError(
+      "INTERNAL_ERROR",
+      `Unable to write Damophus configuration: ${envelope.msg || `HTTP ${response.status}`}`,
+    );
+  }
+}
+
+async function setPetalEnabled(endpoint: string, enabled: boolean): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${endpoint}/api/petal/setPetalEnabled`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ packageName: DAMOPHUS_PACKAGE_NAME, enabled }),
+      signal: AbortSignal.timeout(3_000),
+    });
+  } catch (error) {
+    throw new BridgeTransportError(
+      "INTERNAL_ERROR",
+      `Unable to ${enabled ? "enable" : "disable"} Damophus: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const envelope = await response.json() as KernelEnvelope;
+  if (!response.ok || envelope.code !== 0) {
+    throw new BridgeTransportError(
+      "INTERNAL_ERROR",
+      `Unable to ${enabled ? "enable" : "disable"} Damophus: ${envelope.msg || `HTTP ${response.status}`}`,
+    );
+  }
+}
+
+async function readDamophusConfig(location: BridgeLocation): Promise<Record<string, unknown>> {
+  let config: unknown;
+  try {
+    config = JSON.parse(await readKernelFile(location.endpoint, DAMOPHUS_CONFIG_PATH));
+  } catch (error) {
+    if (error instanceof BridgeTransportError) throw error;
+    throw new BridgeTransportError(
+      "INVALID_REQUEST",
+      `Damophus configuration is invalid: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new BridgeTransportError("INVALID_REQUEST", "Damophus configuration must be a JSON object");
+  }
+  return config as Record<string, unknown>;
+}
+
+export async function readBridgeEnabled(location: BridgeLocation): Promise<boolean> {
+  const config = await readDamophusConfig(location);
+  const bridge = config.agentBridge;
+  return Boolean(bridge && typeof bridge === "object" && !Array.isArray(bridge)
+    && (bridge as Record<string, unknown>).enabled === true);
+}
+
+export async function reloadDamophus(location: BridgeLocation): Promise<void> {
+  await setPetalEnabled(location.endpoint, false);
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  await setPetalEnabled(location.endpoint, true);
+}
+
+export async function setBridgeEnabled(location: BridgeLocation, enabled: boolean): Promise<{ changed: boolean; enabled: boolean }> {
+  const config = await readDamophusConfig(location);
+  const current = config.agentBridge;
+  const bridge = current && typeof current === "object" && !Array.isArray(current)
+    ? { ...(current as Record<string, unknown>) }
+    : {};
+  const changed = bridge.enabled !== enabled;
+  if (!changed) return { changed: false, enabled };
+  bridge.enabled = enabled;
+  config.agentBridge = bridge;
+  await writeKernelFile(location.endpoint, DAMOPHUS_CONFIG_PATH, JSON.stringify(config));
+  await reloadDamophus(location);
+  return { changed: true, enabled };
+}
+
+export async function waitForFreshHeartbeat(
+  location: BridgeLocation,
+  startedAt = Date.now(),
+  timeoutMs = 10_000,
+): Promise<AgentHeartbeat> {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+  while (Date.now() < deadline) {
+    try {
+      const heartbeat = await readFreshHeartbeat(location);
+      if (Date.parse(heartbeat.updatedAt) >= startedAt - 1_000) return heartbeat;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new BridgeTransportError(
+    "PLUGIN_UNAVAILABLE",
+    `Damophus Agent Bridge did not start in time${lastError instanceof Error ? `: ${lastError.message}` : ""}`,
+  );
 }
 
 async function atomicWrite(path: string, content: string): Promise<void> {

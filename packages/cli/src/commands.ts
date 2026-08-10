@@ -21,10 +21,15 @@ import {
 } from "./skill-client";
 import { syncSkill } from "./skill-sync";
 import {
+  BridgeTransportError,
   discoverBridge,
   inspectTask,
+  readBridgeEnabled,
   readFreshHeartbeat,
+  reloadDamophus,
+  setBridgeEnabled,
   submitRequest,
+  waitForFreshHeartbeat,
   writeApproval,
   waitForResult,
 } from "./transport";
@@ -43,6 +48,16 @@ const connectionArgs = {
     default: false,
   },
 };
+
+async function requireBridgeHeartbeat(location: Awaited<ReturnType<typeof discoverBridge>>) {
+  if (!await readBridgeEnabled(location)) {
+    throw new BridgeTransportError(
+      "PLUGIN_UNAVAILABLE",
+      "Damophus Agent Bridge is disabled. Run `damophus bridge enable` first.",
+    );
+  }
+  return readFreshHeartbeat(location);
+}
 
 function resolveCloseActive(value: string | undefined, json: boolean): CloseActive {
   if (value === "ask" || value === "always" || value === "never") return value;
@@ -119,7 +134,7 @@ export const doctorCommand = defineCommand({
     const reporter = createReporter(args.json);
     try {
       const location = await discoverBridge(args.endpoint);
-      const heartbeat = await readFreshHeartbeat(location);
+      const heartbeat = await requireBridgeHeartbeat(location);
       await reporter.info({
         status: "ready",
         endpoint: location.endpoint,
@@ -214,7 +229,7 @@ export const pasteCommand = defineCommand({
         items,
       });
       const location = await discoverBridge(args.endpoint);
-      const heartbeat = await readFreshHeartbeat(location);
+      const heartbeat = await requireBridgeHeartbeat(location);
       const modes = [...new Set(items.map((item) => item.target.mode))];
       const unsupportedMode = modes.find((mode) => !heartbeat.supportedPasteModes.includes(mode));
       if (unsupportedMode) {
@@ -277,7 +292,7 @@ export const exportCommand = defineCommand({
         },
       });
       const location = await discoverBridge(args.endpoint);
-      const heartbeat = await readFreshHeartbeat(location);
+      const heartbeat = await requireBridgeHeartbeat(location);
       if (!heartbeat.supportedCommands.includes("export")) {
         throw new Error("The installed Agent Bridge does not support Kramdown export");
       }
@@ -309,6 +324,106 @@ export const exportCommand = defineCommand({
       await reporter.error(error instanceof Error ? error : new Error(String(error)));
       process.exitCode = 1;
     }
+  },
+});
+
+const bridgeEnableCommand = defineCommand({
+  meta: { name: "enable", description: "Enable the Damophus Agent Bridge module" },
+  args: connectionArgs,
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const location = await discoverBridge(args.endpoint);
+      const startedAt = Date.now();
+      const alreadyEnabled = await readBridgeEnabled(location);
+      if (alreadyEnabled) {
+        try {
+          const heartbeat = await readFreshHeartbeat(location);
+          await reporter.info({
+            status: "ready",
+            enabled: true,
+            changed: false,
+            pluginVersion: heartbeat.pluginVersion,
+          });
+          return;
+        } catch {
+          await reloadDamophus(location);
+        }
+      } else {
+        await setBridgeEnabled(location, true);
+      }
+      const heartbeat = await waitForFreshHeartbeat(location, startedAt);
+      await reporter.info({
+        status: "ready",
+        enabled: true,
+        changed: !alreadyEnabled,
+        pluginVersion: heartbeat.pluginVersion,
+      });
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+const bridgeDisableCommand = defineCommand({
+  meta: { name: "disable", description: "Disable the Damophus Agent Bridge module" },
+  args: connectionArgs,
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const location = await discoverBridge(args.endpoint);
+      const result = await setBridgeEnabled(location, false);
+      await reporter.info({ status: "disabled", ...result });
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+const bridgeStatusCommand = defineCommand({
+  meta: { name: "status", description: "Show the Damophus Agent Bridge module state" },
+  args: connectionArgs,
+  async run({ args }) {
+    const reporter = createReporter(args.json);
+    try {
+      const location = await discoverBridge(args.endpoint);
+      const enabled = await readBridgeEnabled(location);
+      if (!enabled) {
+        await reporter.info({ status: "disabled", enabled: false, workspace: location.workspace });
+        return;
+      }
+      try {
+        const heartbeat = await readFreshHeartbeat(location);
+        await reporter.info({
+          status: "ready",
+          enabled: true,
+          workspace: location.workspace,
+          pluginVersion: heartbeat.pluginVersion,
+          protocolVersion: heartbeat.protocolVersion,
+        });
+      } catch (error) {
+        await reporter.info({
+          status: "unavailable",
+          enabled: true,
+          workspace: location.workspace,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } catch (error) {
+      await reporter.error(error instanceof Error ? error : new Error(String(error)));
+      process.exitCode = 1;
+    }
+  },
+});
+
+export const bridgeCommand = defineCommand({
+  meta: { name: "bridge", description: "Manage the on-demand Damophus Agent Bridge" },
+  subCommands: {
+    enable: bridgeEnableCommand,
+    disable: bridgeDisableCommand,
+    status: bridgeStatusCommand,
   },
 });
 
