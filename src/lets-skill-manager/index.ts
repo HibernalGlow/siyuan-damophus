@@ -1,11 +1,15 @@
 import { openTab, showMessage, type Menu } from "siyuan";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
+import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 import { plugin } from "@/utils";
 import { inspectSkillSourceRoot, syncSkillSourceRoot, type SkillSyncOptions } from "./api";
 import { renderSkillManagerDock } from "./dock";
-import { skillManagerIcon, skillManagerTabTarget, skillManagerTabType } from "./tab-contract";
+import { skillManagerAppearance } from "./plugin";
+import { skillManagerTabTarget, skillManagerTabType } from "./tab-contract";
 import "./skill-manager.css";
+
+const skillManagerIcon = resolveSiyuanPluginIcon(skillManagerAppearance.icon);
 
 export default class SkillManagerPlugin extends SubPluginBase {
   private tabRegistered = false;

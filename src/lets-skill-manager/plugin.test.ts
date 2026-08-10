@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { resolveSiyuanPluginIcon } from "../libs/plugin-icons";
 
-import pluginMetadata from "./plugin";
-import { skillManagerIcon } from "./tab-contract";
+import pluginMetadata, { skillManagerAppearance } from "./plugin";
 
 describe("skill manager settings", () => {
   it("uses a dedicated icon distinct from the agent surface", () => {
-    expect(skillManagerIcon).toBe("iconListTree");
-    expect(skillManagerIcon).not.toBe("iconSparkles");
+    expect(skillManagerAppearance.icon).toBe("brain");
+    expect(resolveSiyuanPluginIcon(skillManagerAppearance.icon)).toBe("iconBrain");
+    expect(resolveSiyuanPluginIcon(skillManagerAppearance.icon)).not.toBe("iconSparkles");
+    expect(pluginMetadata.displayName).toBe(skillManagerAppearance.displayName);
   });
 
   it("configures desktop and mobile Dock visibility independently", () => {

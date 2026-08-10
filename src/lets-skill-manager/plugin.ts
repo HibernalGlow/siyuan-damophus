@@ -1,9 +1,15 @@
 import type { PluginMetadata } from "@/types/plugin";
+import type { PluginIconName } from "@/libs/plugin-icons";
 import { createEntrySettings } from "../libs/plugin-entry-settings";
+
+export const skillManagerAppearance = {
+  displayName: "lets-skill-manager.displayName",
+  icon: "brain",
+} as const satisfies { displayName: string; icon: PluginIconName };
 
 const pluginMetadata: PluginMetadata = {
   name: "skillManager",
-  displayName: "lets-skill-manager.displayName",
+  displayName: skillManagerAppearance.displayName,
   description: "lets-skill-manager.description",
   version: "1.0.0",
   enabled: true,

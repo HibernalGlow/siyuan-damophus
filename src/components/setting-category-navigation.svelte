@@ -1,9 +1,12 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
+  import type { PluginIconName } from "@/libs/plugin-icons";
+  import { skillManagerAppearance } from "@/lets-skill-manager/plugin";
   import {
     ArrowLeft,
     BookOpenCheck,
     Bot,
+    Brain,
     ChevronRight,
     FileOutput,
     Film,
@@ -15,7 +18,6 @@
     Power,
     Settings2,
     Smartphone,
-    Sparkles,
     Tags,
   } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
@@ -30,6 +32,13 @@
   export let mobile = false;
   export let showCategories = false;
   export let backLabel = "Back";
+  const PLUGIN_ICONS = {
+    brain: Brain,
+  } satisfies Record<PluginIconName, typeof Brain>;
+
+  const PLUGIN_GROUP_ICONS: Partial<Record<string, PluginIconName>> = {
+    [skillManagerAppearance.displayName]: skillManagerAppearance.icon,
+  };
 
   const GROUP_ICONS = {
     "lets-animated-image-replay.displayName": ImagePlay,
@@ -40,7 +49,6 @@
     "lets-mobile-breadcrumb.displayName": Smartphone,
     "lets-mobile-liquid-glass.displayName": GlassWater,
     "lets-question-bank.displayName": BookOpenCheck,
-    "lets-skill-manager.displayName": Sparkles,
     "lets-topic-relations.displayName": Network,
     "lets-agent-bridge.displayName": Bot,
   };
@@ -56,7 +64,9 @@
   function groupIcon(group: string, index: number) {
     if (index === 0) return Power;
     if (index === 1) return Settings2;
-    const registeredIcon = GROUP_ICONS[group as keyof typeof GROUP_ICONS];
+    const pluginIcon = PLUGIN_GROUP_ICONS[group];
+    const registeredIcon = (pluginIcon ? PLUGIN_ICONS[pluginIcon] : undefined)
+      ?? GROUP_ICONS[group as keyof typeof GROUP_ICONS];
     if (registeredIcon) return registeredIcon;
     const label = getGroupLabel(group).toLowerCase();
     if (label.includes("题库") || label.includes("question")) return BookOpenCheck;

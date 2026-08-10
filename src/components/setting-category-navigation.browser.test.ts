@@ -82,6 +82,8 @@ describe("setting category navigation", () => {
       ));
     expect(iconNames).toHaveLength(13);
     expect(new Set(iconNames).size).toBe(iconNames.length);
+    const skillManagerIndex = 10;
+    expect(iconNames[skillManagerIndex]).toBe("lucide-brain");
   });
 
   it("keeps the sidebar on desktop", async () => {
