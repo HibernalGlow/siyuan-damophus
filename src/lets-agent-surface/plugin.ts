@@ -19,6 +19,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-agent-surface.mobileDropdownTitle",
+      description: "lets-agent-surface.mobileDropdownDescription",
+      key: "mobileDropdown",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-agent-surface.interceptAddToAgentTitle",
       description: "lets-agent-surface.interceptAddToAgentDescription",
       key: "interceptAddToAgent",

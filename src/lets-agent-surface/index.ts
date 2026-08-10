@@ -63,7 +63,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     const mobileFrontend = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
     if (mobileFrontend && !this.allowingNativeMobileAgentClick
       && isMobileAgentEntryTarget(event.target)) {
-      window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
+      if (this.mobileDropdown()) window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
       return;
     }
     if (!this.shouldIntercept()) return;
@@ -77,7 +77,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       return;
     }
     // Native mode keeps ownership of both opening and reference insertion.
-    if (mobileFrontend) window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
+    if (mobileFrontend && this.mobileDropdown()) window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
   };
   private readonly handleMobileSidebarBack = (event: MouseEvent): void => {
     if (getFrontend() !== "mobile" && getFrontend() !== "browser-mobile") return;
@@ -144,13 +144,12 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       label: this.t("lets-agent-surface.open"),
       click: () => void this.openAgent(),
     });
-    if (getFrontend() !== "mobile" && getFrontend() !== "browser-mobile") {
-      menu.addItem(createAgentModeToggle(
-        this.openInNewTab(),
-        this.t("lets-agent-surface.openInNewTabMenu"),
-        (value) => this.setSetting("openInNewTab", value),
-      ));
-    }
+    const mobileFrontend = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
+    menu.addItem(createAgentModeToggle(
+      mobileFrontend ? this.mobileDropdown() : this.openInNewTab(),
+      this.t(mobileFrontend ? "lets-agent-surface.mobileDropdownMenu" : "lets-agent-surface.openInNewTabMenu"),
+      (value) => this.setSetting(mobileFrontend ? "mobileDropdown" : "openInNewTab", value),
+    ));
   }
 
   private shouldIntercept(): boolean {
@@ -159,6 +158,10 @@ export default class AgentSurfacePlugin extends SubPluginBase {
 
   private openInNewTab(): boolean {
     return this.getSetting("openInNewTab") === true;
+  }
+
+  private mobileDropdown(): boolean {
+    return this.getSetting("mobileDropdown") !== false;
   }
 
   private closeNativeMenu(): void {
@@ -170,8 +173,8 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 
   private async openAgent(ids: string[] = []): Promise<void> {
-    const surface = resolveAgentSurface(getFrontend(), this.openInNewTab());
-    if (surface === "mobile-dropdown") {
+    const surface = resolveAgentSurface(getFrontend(), this.openInNewTab(), this.mobileDropdown());
+    if (surface === "mobile-dropdown" || surface === "mobile-native") {
       this.openMobileAgent();
       if (ids.length > 0) {
         window.setTimeout(() => this.insertBlockMentions(ids), 120);
@@ -208,7 +211,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     const nativeMenuItem = document.querySelector<HTMLElement>("#menuAgentChat");
     if (nativeMenuItem) {
       this.clickNativeMobileAgentEntry(nativeMenuItem);
-      window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
+      if (this.mobileDropdown()) window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
       return;
     }
     const menuButton = document.querySelector<HTMLElement>(
@@ -222,7 +225,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     window.setTimeout(() => {
       const item = document.querySelector<HTMLElement>("#menuAgentChat");
       if (item) this.clickNativeMobileAgentEntry(item);
-      window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
+      if (this.mobileDropdown()) window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
     }, 0);
   }
 

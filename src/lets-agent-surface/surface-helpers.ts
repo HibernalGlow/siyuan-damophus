@@ -1,4 +1,4 @@
-export type AgentSurface = "desktop-native" | "desktop-tab" | "mobile-dropdown";
+export type AgentSurface = "desktop-native" | "desktop-tab" | "mobile-native" | "mobile-dropdown";
 
 export function createAgentModeToggle(
   openInNewTab: boolean,
@@ -13,8 +13,10 @@ export function createAgentModeToggle(
   };
 }
 
-export function resolveAgentSurface(frontend: string, openInNewTab: unknown): AgentSurface {
-  if (frontend === "mobile" || frontend === "browser-mobile") return "mobile-dropdown";
+export function resolveAgentSurface(frontend: string, openInNewTab: unknown, mobileDropdown = true): AgentSurface {
+  if (frontend === "mobile" || frontend === "browser-mobile") {
+    return mobileDropdown ? "mobile-dropdown" : "mobile-native";
+  }
   return openInNewTab === true ? "desktop-tab" : "desktop-native";
 }
 

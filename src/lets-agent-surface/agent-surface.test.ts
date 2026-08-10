@@ -25,8 +25,8 @@ describe("agent surface helpers", () => {
   it("shares one opener while selecting platform-specific surfaces", () => {
     expect(resolveAgentSurface("desktop", true)).toBe("desktop-tab");
     expect(resolveAgentSurface("browser-desktop", false)).toBe("desktop-native");
-    expect(resolveAgentSurface("mobile", true)).toBe("mobile-dropdown");
-    expect(resolveAgentSurface("browser-mobile", false)).toBe("mobile-dropdown");
+    expect(resolveAgentSurface("mobile", true, true)).toBe("mobile-dropdown");
+    expect(resolveAgentSurface("browser-mobile", false, false)).toBe("mobile-native");
   });
 
   it("uses one boolean setting to switch native and tab opening", () => {
@@ -44,6 +44,14 @@ describe("agent surface helpers", () => {
     });
     item.click();
     expect(setOpenInNewTab).toHaveBeenCalledWith(false);
+  });
+
+  it("declares the mobile dropdown switch", () => {
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "mobileDropdown",
+      type: "checkbox",
+      value: true,
+    }));
   });
 
   it("recognizes the native Add to Agent menu item", () => {
