@@ -82,6 +82,18 @@
   .practice-section-heading > svg { width: 20px; height: 20px; flex: 0 0 20px; color: var(--b3-theme-primary); }
   .practice-section-heading h2 { font-size: 16px; text-wrap: balance; }
   .practice-section-heading span { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .statistics-heatmap-scroll { overflow-x: auto; padding-bottom: 2px; }
+  .statistics-heatmap-months, .statistics-heatmap-grid { display: grid; min-width: 560px; gap: 3px; }
+  .statistics-heatmap-months { height: 16px; gap: 3px; }
+  .statistics-heatmap-months span { min-width: 0; overflow: visible; font-size: 10px; white-space: nowrap; }
+  .statistics-heatmap-column { display: grid; grid-template-rows: repeat(7, 1fr); gap: 3px; }
+  .statistics-heatmap-cell { display: block; width: 12px; height: 12px; border-radius: 2px; background: color-mix(in srgb, var(--b3-theme-on-surface) 9%, transparent); }
+  .statistics-heatmap-cell.level-1 { background: color-mix(in srgb, var(--b3-theme-primary) 28%, transparent); }
+  .statistics-heatmap-cell.level-2 { background: color-mix(in srgb, var(--b3-theme-primary) 48%, transparent); }
+  .statistics-heatmap-cell.level-3 { background: color-mix(in srgb, var(--b3-theme-primary) 68%, transparent); }
+  .statistics-heatmap-cell.level-4 { background: var(--b3-theme-primary); }
+  .statistics-heatmap-legend { display: flex; align-items: center; gap: 4px; margin-top: 7px; }
+  .statistics-heatmap-legend .statistics-heatmap-cell { width: 11px; height: 11px; }
   .practice-settings { padding: 16px 0 0; display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr) minmax(320px, 1.6fr) auto; gap: 14px; align-items: end; }
   .session-recovery { grid-column: 1 / -1; padding: 12px; border: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .session-recovery > div:first-child { display: flex; align-items: baseline; gap: 10px; }

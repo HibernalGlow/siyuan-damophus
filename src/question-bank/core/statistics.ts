@@ -68,6 +68,14 @@ export interface StatisticsRecentAttempt {
   durationMs?: number;
 }
 
+export interface StatisticsHeatmapDay {
+  date: string;
+  attempts: number;
+  objectiveAttempts: number;
+  correct: number;
+  accuracy: number;
+}
+
 export interface StatisticsSnapshot {
   range: StatisticsRange;
   timezone: "Asia/Shanghai";
@@ -77,6 +85,7 @@ export interface StatisticsSnapshot {
   distributions: StatisticsDistribution[];
   weakQuestions: WeakQuestion[];
   recentAttempts: StatisticsRecentAttempt[];
+  heatmap: StatisticsHeatmapDay[];
 }
 
 const DIMENSIONS: readonly StatisticsDimension[] = [
@@ -168,6 +177,45 @@ function rangeStart(now: number, range: StatisticsRange): number | undefined {
 function inRange(attempt: AttemptEvent, start: number | undefined, now: number): boolean {
   const timestamp = Date.parse(attempt.answered_at);
   return Number.isFinite(timestamp) && timestamp <= now && (start === undefined || timestamp >= start);
+}
+
+/** Builds a contiguous Beijing-calendar series so the UI can render empty days too. */
+export function buildStatisticsHeatmap(
+  attempts: readonly AttemptEvent[],
+  now = Date.now(),
+  dayCount = 365,
+): StatisticsHeatmapDay[] {
+  const safeDayCount = Math.max(1, Math.floor(dayCount));
+  const today = beijingDate(now);
+  const [year, month, day] = today.split("-").map(Number);
+  const start = new Date(Date.UTC(year, month - 1, day));
+  start.setUTCDate(start.getUTCDate() - (safeDayCount - 1));
+  const byDate = new Map<string, { attempts: number; objectiveAttempts: number; correct: number }>();
+  for (const attempt of attempts) {
+    const timestamp = Date.parse(attempt.answered_at);
+    if (!Number.isFinite(timestamp) || timestamp > now) continue;
+    const key = beijingDate(attempt.answered_at);
+    const item = byDate.get(key) ?? { attempts: 0, objectiveAttempts: 0, correct: 0 };
+    item.attempts += 1;
+    if (attempt.objective_correct !== null) {
+      item.objectiveAttempts += 1;
+      if (attempt.objective_correct) item.correct += 1;
+    }
+    byDate.set(key, item);
+  }
+  return Array.from({ length: safeDayCount }, (_, index) => {
+    const cursor = new Date(start);
+    cursor.setUTCDate(start.getUTCDate() + index);
+    const date = cursor.toISOString().slice(0, 10);
+    const item = byDate.get(date) ?? { attempts: 0, objectiveAttempts: 0, correct: 0 };
+    return {
+      date,
+      ...item,
+      accuracy: item.objectiveAttempts > 0
+        ? Math.round((item.correct / item.objectiveAttempts) * 1000) / 10
+        : 0,
+    };
+  });
 }
 
 function metricForQuestions(
@@ -308,5 +356,6 @@ export function buildStatistics(
     distributions,
     weakQuestions: weakQuestions.slice(0, 50),
     recentAttempts,
+    heatmap: buildStatisticsHeatmap(attempts, now),
   };
 }

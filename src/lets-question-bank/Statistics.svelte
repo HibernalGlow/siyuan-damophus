@@ -2,6 +2,7 @@
   import { BarChart3, CalendarRange, Clock3, Filter, History, Target, TrendingUp } from "lucide-svelte";
   import * as Select from "@/components/ui/select";
   import { Badge } from "@/components/ui/badge";
+  import StatisticsHeatmap from "./StatisticsHeatmap.svelte";
   import type {
     StatisticsDimension,
     StatisticsRange,
@@ -173,6 +174,8 @@
         {/if}
       </section>
     </div>
+
+    <StatisticsHeatmap days={snapshot.heatmap} {label} />
 
     <section class="statistics-panel mt-4 border p-3" aria-labelledby="statistics-distribution-heading">
       <div class="flex items-center gap-2"><BarChart3 size={16} aria-hidden="true" /><h3 id="statistics-distribution-heading" class="font-semibold">{label("statisticsDistribution", "Distribution")}</h3></div>

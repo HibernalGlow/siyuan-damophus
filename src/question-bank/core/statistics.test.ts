@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStatistics, beijingDate, type StatisticsQuestion } from "./statistics";
+import { buildStatistics, buildStatisticsHeatmap, beijingDate, type StatisticsQuestion } from "./statistics";
 import type { AttemptEvent } from "./types";
 
 const questions: StatisticsQuestion[] = [
@@ -28,6 +28,17 @@ describe("statistics", () => {
   it("uses Beijing calendar days at the UTC boundary", () => {
     expect(beijingDate("2026-08-05T15:59:59.000Z")).toBe("2026-08-05");
     expect(beijingDate("2026-08-05T16:00:00.000Z")).toBe("2026-08-06");
+  });
+
+  it("builds a contiguous activity heatmap from immutable attempts", () => {
+    const now = Date.parse("2026-08-06T02:00:00.000Z");
+    const heatmap = buildStatisticsHeatmap([
+      attempt({ attempt_id: "a1", question_id: "q-civil", answered_at: "2026-08-05T16:00:00.000Z", objective_correct: true }),
+      attempt({ attempt_id: "a2", question_id: "q-civil", answered_at: "2026-08-05T17:00:00.000Z", objective_correct: false }),
+    ], now, 3);
+    expect(heatmap.map((day) => day.date)).toEqual(["2026-08-04", "2026-08-05", "2026-08-06"]);
+    expect(heatmap[2]).toMatchObject({ attempts: 2, objectiveAttempts: 2, correct: 1, accuracy: 50 });
+    expect(heatmap[0].attempts).toBe(0);
   });
 
   it("builds all-library overview, trend and distributions", () => {
