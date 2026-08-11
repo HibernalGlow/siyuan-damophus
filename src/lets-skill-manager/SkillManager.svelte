@@ -102,6 +102,7 @@
     initialState: { sorting: [{ id: "name", desc: false }] },
   });
   const visibleRows = $derived(table.getRowModel().rows);
+  const updateCount = $derived(skills.filter((skill) => skill.state === "update").length);
   const previewHtml = $derived.by(() => {
     try {
       return markdownRenderer(content);
@@ -271,6 +272,22 @@
     }
   }
 
+  async function updateAllSkills(): Promise<void> {
+    busy = true;
+    try {
+      const result = await operations.updateSkillSourceRoot(config.sourceRoot, config.syncOptions);
+      setStatus(labels.updateResult
+        .replace("{updated}", String(result.synced))
+        .replace("{skipped}", String(result.skipped))
+        .replace("{unreadable}", String(result.unreadable)));
+      await refreshSkills();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    } finally {
+      busy = false;
+    }
+  }
+
   void refreshSkills();
 </script>
 
@@ -278,6 +295,7 @@
   <header class="damophus-skill-manager__toolbar">
     <h2>{labels.title}</h2>
     <Button variant="outline" aria-label={labels.newSkill} onclick={createSkill} disabled={busy}><PlusIcon />{labels.newSkill}</Button>
+    <Button variant="outline" aria-label={labels.updateAll} onclick={() => void updateAllSkills()} disabled={busy || updateCount === 0}><DownloadIcon />{labels.updateAll} ({updateCount})</Button>
     <Button variant="outline" aria-label={labels.syncAll} onclick={() => void syncAllSkills()} disabled={busy}><UploadCloudIcon />{labels.syncAll}</Button>
     <Button variant="outline" size="icon" title={labels.refresh} aria-label={labels.refresh} onclick={() => void refreshSkills()} disabled={busy}>
       <RefreshCwIcon class={busy ? "animate-spin" : ""} />

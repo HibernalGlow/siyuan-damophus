@@ -10,6 +10,7 @@ import {
   saveSkill,
   syncSkillFromRoot,
   syncSkillSourceRoot,
+  updateSkillSourceRoot,
   type SkillDocument,
   type SkillSummary,
   type SkillSyncOptions,
@@ -24,6 +25,7 @@ export interface SkillManagerLabels {
   openTab: string;
   source: string;
   syncAll: string;
+  updateAll: string;
   update: string;
   newSkill: string;
   select: string;
@@ -35,6 +37,7 @@ export interface SkillManagerLabels {
   saved: string;
   synced: string;
   syncResult: string;
+  updateResult: string;
   failed: string;
   confirmRemove: string;
   search: string;
@@ -68,6 +71,7 @@ export interface SkillManagerOperations {
     onlyChanged: boolean,
     options?: SkillSyncOptions,
   ): Promise<SkillSyncResult>;
+  updateSkillSourceRoot(sourceRoot: string, options?: SkillSyncOptions): Promise<SkillSyncResult>;
   syncSkillFromRoot(sourceRoot: string, name: string, options?: SkillSyncOptions): Promise<void>;
 }
 
@@ -79,6 +83,7 @@ const defaultOperations: SkillManagerOperations = {
   removeSkill,
   inspectSkillSourceRoot,
   syncSkillSourceRoot,
+  updateSkillSourceRoot,
   syncSkillFromRoot,
 };
 

@@ -1,5 +1,6 @@
 import { fetchSyncPost } from "siyuan";
 import { syncSkillsWithChezmoi, type SkillSyncBackend } from "./chezmoi-backend";
+import { planSkillUpdates } from "./skill-update-plan";
 
 export interface SkillSummary {
   name: string;
@@ -224,6 +225,17 @@ function syncSkillSourceRootBuiltin(sourceRoot: string, onlyChanged = true): Pro
   });
 }
 
+function updateSkillSourceRootBuiltin(sourceRoot: string): Promise<SkillSyncResult> {
+  return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
+    const statuses = await inspectStagedRoot(stageRoot, sourceRoot);
+    const plan = planSkillUpdates(statuses);
+    for (const skill of plan.updates) {
+      await replaceStagedSkill(`${stageRoot}/${skill.name}`, skill.name);
+    }
+    return { synced: plan.updates.length, skipped: plan.skipped, unreadable: plan.unreadable };
+  });
+}
+
 function syncSkillFromRootBuiltin(sourceRoot: string, name: string): Promise<void> {
   return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
     await readTextFile(`${stageRoot}/${name}/SKILL.md`);
@@ -254,6 +266,27 @@ export async function syncSkillSourceRoot(
     synced: selected.length,
     skipped: onlyChanged ? candidates.length - selected.length : 0,
     unreadable,
+  };
+}
+
+export async function updateSkillSourceRoot(
+  sourceRoot: string,
+  options: SkillSyncOptions = {},
+): Promise<SkillSyncResult> {
+  if (options.backend !== "chezmoi") return updateSkillSourceRootBuiltin(sourceRoot);
+
+  const statuses = await inspectSkillSourceRoot(sourceRoot);
+  const plan = planSkillUpdates(statuses);
+  await syncSkillsWithChezmoi({
+    command: options.chezmoiCommand || "chezmoi",
+    sourceRoot,
+    destinationRoot: options.destinationRoot || "",
+    skillNames: plan.updates.map((skill) => skill.name),
+  });
+  return {
+    synced: plan.updates.length,
+    skipped: plan.skipped,
+    unreadable: plan.unreadable,
   };
 }
 

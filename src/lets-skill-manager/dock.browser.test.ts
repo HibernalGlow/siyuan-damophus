@@ -9,6 +9,7 @@ const labels = {
   refresh: "Refresh",
   openTab: "Open in new tab",
   source: "Skill source",
+  updateAll: "Update all",
   syncAll: "Sync all",
   update: "Update",
   newSkill: "New skill",
@@ -21,6 +22,7 @@ const labels = {
   saved: "Skill saved",
   synced: "Skill synced",
   syncResult: "Synced {synced}; skipped {skipped}; unreadable {unreadable}",
+  updateResult: "Updated {updated}; skipped {skipped}; unreadable {unreadable}",
   failed: "Operation failed",
   confirmRemove: "Remove this skill from SiYuan?",
   search: "Search skills",
@@ -67,6 +69,7 @@ describe("skill manager dock", () => {
         state: "update" as const,
       }]),
       syncSkillSourceRoot: vi.fn(async () => ({ synced: 1, skipped: 0, unreadable: 0 })),
+      updateSkillSourceRoot: vi.fn(async () => ({ synced: 1, skipped: 0, unreadable: 0 })),
       syncSkillFromRoot: vi.fn(async () => undefined),
     };
     const target = document.createElement("div");
@@ -113,6 +116,7 @@ describe("skill manager dock", () => {
       removeSkill: vi.fn(async () => undefined),
       inspectSkillSourceRoot: vi.fn(async () => summaries),
       syncSkillSourceRoot: vi.fn(async () => ({ synced: 0, skipped: 0, unreadable: 0 })),
+      updateSkillSourceRoot: vi.fn(async () => ({ synced: 0, skipped: 0, unreadable: 0 })),
       syncSkillFromRoot: vi.fn(async () => undefined),
     };
     const target = document.createElement("div");
@@ -157,6 +161,7 @@ describe("skill manager dock", () => {
       removeSkill: vi.fn(async () => undefined),
       inspectSkillSourceRoot: vi.fn(async () => []),
       syncSkillSourceRoot: vi.fn(async () => ({ synced: 2, skipped: 3, unreadable: 1 })),
+      updateSkillSourceRoot: vi.fn(async () => ({ synced: 2, skipped: 3, unreadable: 1 })),
       syncSkillFromRoot: vi.fn(async () => undefined),
     };
     const target = document.createElement("div");
@@ -170,6 +175,47 @@ describe("skill manager dock", () => {
       .toHaveBeenCalledWith(config.sourceRoot, true, config.syncOptions);
     await expect.poll(() => target.querySelector('[role="status"]')?.textContent)
       .toBe("Synced 2; skipped 3; unreadable 1");
+    cleanup();
+    target.remove();
+  });
+
+  it("updates all installed skills with source changes", async () => {
+    const api = {
+      listSkills: vi.fn(async () => [{ name: "changed", description: "Changed" }]),
+      getSkill: vi.fn(async () => ({ name: "changed", content: "# Changed" })),
+      saveSkill: vi.fn(async () => undefined),
+      renameSkill: vi.fn(async () => undefined),
+      removeSkill: vi.fn(async () => undefined),
+      inspectSkillSourceRoot: vi.fn(async () => [{
+        name: "changed",
+        description: "Changed",
+        sourcePath: `${config.sourceRoot}/changed`,
+        state: "update" as const,
+      }, {
+        name: "new-skill",
+        description: "New",
+        sourcePath: `${config.sourceRoot}/new-skill`,
+        state: "missing" as const,
+      }]),
+      syncSkillSourceRoot: vi.fn(async () => ({ synced: 0, skipped: 0, unreadable: 0 })),
+      updateSkillSourceRoot: vi.fn(async () => ({ synced: 1, skipped: 1, unreadable: 0 })),
+      syncSkillFromRoot: vi.fn(async () => undefined),
+    };
+    const target = document.createElement("div");
+    document.body.append(target);
+    const cleanup = renderSkillManagerDock(target, labels, config, api, undefined, (markdown) => markdown);
+
+    await expect.poll(() => target.querySelector('[aria-label="Update all"]')).not.toBeNull();
+    const updateAllButton = target.querySelector('[aria-label="Update all"]') as HTMLButtonElement;
+    await expect.poll(() => updateAllButton.disabled).toBe(false);
+    expect(updateAllButton.textContent).toContain("Update all (1)");
+    updateAllButton.click();
+
+    await expect.poll(() => api.updateSkillSourceRoot)
+      .toHaveBeenCalledWith(config.sourceRoot, config.syncOptions);
+    expect(api.syncSkillSourceRoot).not.toHaveBeenCalled();
+    await expect.poll(() => target.querySelector('[role="status"]')?.textContent)
+      .toBe("Updated 1; skipped 1; unreadable 0");
     cleanup();
     target.remove();
   });
