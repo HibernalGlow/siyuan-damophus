@@ -260,6 +260,10 @@ export async function getChildBlocks(id: BlockId): Promise<IResGetChildBlock[]> 
     return request(url, data);
 }
 
+export async function getHeadingChildrenIDs(id: BlockId): Promise<BlockId[]> {
+    return requestStrict<BlockId[]>('/api/block/getHeadingChildrenIDs', { id });
+}
+
 export interface BlockBreadcrumbItem {
     id: string;
     name: string;
@@ -307,6 +311,16 @@ export async function getBlockAttrs(id: BlockId): Promise<{ [key: string]: strin
     return request(url, data);
 }
 
+export async function batchSetBlockAttrsStrict(
+    blockAttrs: Array<{ id: BlockId; attrs: { [key: string]: string } }>,
+): Promise<void> {
+    await requestStrict<null>('/api/attr/batchSetBlockAttrs', { blockAttrs });
+}
+
+export async function getBlockAttrsStrict(id: BlockId): Promise<{ [key: string]: string }> {
+    return requestStrict<{ [key: string]: string }>('/api/attr/getBlockAttrs', { id });
+}
+
 // **************************************** SQL ****************************************
 
 const sqlCacheMap = new Map<string, {data: any[], expire: number}>();
@@ -338,6 +352,10 @@ export async function sql(stmt: string, useCache: boolean = false, ttlSeconds: n
         sqlCacheMap.set(stmt, {data: res, expire: Date.now() + ttlSeconds * 1000});
     }
     return res;
+}
+
+export async function sqlStrict<T = any[]>(stmt: string): Promise<T> {
+    return requestStrict<T>('/api/query/sql', { stmt });
 }
 
 export async function getBlockByID(blockId: string): Promise<Block> {
