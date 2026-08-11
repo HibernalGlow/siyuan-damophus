@@ -150,8 +150,10 @@ describe("MobileAgentDropdownController", () => {
 
   it("uses the existing native close controls and reapplies the remembered pin on reopen", () => {
     const { model, nativeClose, controller } = renderDropdown();
+    model.style.transform = "translateX(0px)";
     model.querySelector<HTMLElement>('.block__icon[data-type="close"]')!.click();
     expect(model.classList.contains("damophus-agent-dropdown-pinned")).toBe(false);
+    expect(model.style.transform).toBe("");
 
     controller.attach(model);
     expect(model.classList.contains("damophus-agent-dropdown-pinned")).toBe(true);

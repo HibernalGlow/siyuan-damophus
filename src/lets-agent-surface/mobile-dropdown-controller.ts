@@ -141,12 +141,13 @@ export class MobileAgentDropdownController {
     if (!target?.closest('.sy__agentChat .block__icon[data-type="close"], .sy__agentChat .block__icon[data-type="min"]')) return;
 
     // SiYuan's Agent close control only exits the inner view. On mobile that
-    // reveals #model's generic toolbar (and its second close button). Treat
-    // it as the explicit close for this pinned dropdown instead.
+    // reveals #model's generic toolbar (and its second close button). Apply
+    // the same state transition as SiYuan's closeModel() instead.
     event.preventDefault();
     event.stopImmediatePropagation();
     this.prepareForManualClose();
-    this.model?.querySelector<HTMLElement>("#modelClose")?.click();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (this.model) this.model.style.transform = "";
   };
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
