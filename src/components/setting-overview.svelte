@@ -142,13 +142,13 @@
       <div
         class={mode === "navigation"
           ? "!grid min-h-11 grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2"
-          : "!grid min-h-12 grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 px-2.5 py-2"}
+          : "!grid min-h-12 grid-cols-[1rem_1.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2"}
         data-testid="overview-category-header"
       >
         {#if mode === "overview"}
           <span
             use:dragHandle
-            class="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-muted-foreground active:cursor-grabbing"
+            class="relative flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-muted-foreground/50 transition-colors before:absolute before:-inset-x-1 before:inset-y-0 hover:bg-accent hover:text-muted-foreground active:cursor-grabbing"
             title={reorderHint}
             aria-label={`${reorderHint}: ${category.label}`}
           >
@@ -191,7 +191,7 @@
               {#if mode === "overview"}
                 <span
                   use:dragHandle
-                  class="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/35 opacity-60 transition-[color,background-color,opacity] hover:bg-accent hover:text-muted-foreground group-hover:opacity-100 active:cursor-grabbing"
+                  class="relative flex h-8 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-muted-foreground/35 opacity-60 transition-[color,background-color,opacity] before:absolute before:-inset-x-1 before:inset-y-0 hover:bg-accent hover:text-muted-foreground group-hover:opacity-100 active:cursor-grabbing"
                   title={reorderHint}
                   aria-label={`${reorderHint}: ${module.label}`}
                 >

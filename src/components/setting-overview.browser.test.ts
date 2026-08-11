@@ -74,6 +74,12 @@ function expectCategoryHeaderOnOneRow(card: HTMLElement) {
   expect(Math.max(...verticalCenters) - Math.min(...verticalCenters)).toBeLessThan(2);
 }
 
+function expectCompactDragHandles(target: HTMLElement) {
+  const handles = [...target.querySelectorAll<HTMLElement>('[aria-label^="拖动调整顺序"]')];
+  expect(handles.length).toBeGreaterThan(0);
+  expect(handles.every((handle) => handle.getBoundingClientRect().width <= 16)).toBe(true);
+}
+
 describe("setting overview", () => {
   it("renders every category as a card with icons, counts, and modules", async () => {
     await page.viewport(1100, 800);
@@ -94,6 +100,7 @@ describe("setting overview", () => {
     expect(target.querySelector("svg.lucide-book-open-check")).not.toBeNull();
     expectCategoryHeaderOnOneRow(target.querySelector<HTMLElement>('[data-testid="overview-category-core"]')!);
     expectCategoryHeaderOnOneRow(target.querySelector<HTMLElement>('[data-testid="overview-category-study"]')!);
+    expectCompactDragHandles(target);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 
@@ -110,6 +117,7 @@ describe("setting overview", () => {
     expect(getComputedStyle(board).gridTemplateColumns.split(" ")).toHaveLength(1);
     expect(cards.every((card) => card.getBoundingClientRect().width <= board.getBoundingClientRect().width)).toBe(true);
     cards.forEach(expectCategoryHeaderOnOneRow);
+    expectCompactDragHandles(target);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 
