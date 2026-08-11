@@ -1,15 +1,21 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { getLogger } from "@/libs/logger";
 import { plugin } from "@/utils";
-import { showMessage, type ICommand, type IEventBusMap, type IOperation, type IProtyle, type IMenu } from "siyuan";
+import { Dialog, showMessage, type ICommand, type IEventBusMap, type IOperation, type IProtyle, type IMenu } from "siyuan";
 import {
   applyListMergeDom,
   buildListMergeTransaction,
   createListMergePlan,
   hasMixedListTypes,
   resolveListMergeSelection,
+  applyListNumberingDom,
+  buildListNumberingTransaction,
+  createListNumberingPlan,
+  currentListNumberingStart,
+  resolveListNumberingSelection,
   type ListMergePlan,
   type ListMergeSelection,
+  type ListNumberingSelection,
   type ListSubtype,
 } from "./list-merge";
 import {
@@ -23,6 +29,15 @@ import {
 
 const log = getLogger("lets-list-merge");
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/gu, "&amp;")
+    .replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;")
+    .replace(/"/gu, "&quot;")
+    .replace(/'/gu, "&#039;");
+}
+
 export default class ListMergePlugin extends SubPluginBase {
   private listening = false;
   private commandEntries: ICommand[] = [];
@@ -31,6 +46,11 @@ export default class ListMergePlugin extends SubPluginBase {
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
     if (!this.isEntryEnabled("menu")) return;
+    const numberingSelection = resolveListNumberingSelection(event.detail.blockElements);
+    if (numberingSelection) {
+      event.detail.menu.addItem(this.numberingMenuItem(numberingSelection, event.detail.protyle));
+      return;
+    }
     const listSelection = resolveListMergeSelection(event.detail.blockElements);
     if (listSelection) {
       event.detail.menu.addItem(this.menuItem(listSelection, event.detail.protyle));
@@ -161,6 +181,90 @@ export default class ListMergePlugin extends SubPluginBase {
         subtype === "o" ? "lets-list-merge.mergeOrdered" : "lets-list-merge.mergeUnordered",
       )),
     };
+  }
+
+  private numberingMenuItem(selection: ListNumberingSelection, protyle: IProtyle): IMenu {
+    return {
+      icon: "iconOrderedList",
+      label: this.t("lets-list-merge.numbering"),
+      submenu: [
+        {
+          icon: "iconEdit",
+          label: this.t("lets-list-merge.setNumberingStart"),
+          click: () => this.openNumberingDialog(selection, protyle),
+        },
+        {
+          icon: "iconOrderedList",
+          label: this.t("lets-list-merge.resetNumberingStart"),
+          click: () => this.executeNumbering(selection, protyle, 1),
+        },
+      ],
+    };
+  }
+
+  private openNumberingDialog(selection: ListNumberingSelection, protyle: IProtyle): void {
+    const dialog = new Dialog({
+      title: this.t("lets-list-merge.setNumberingStart"),
+      width: "min(420px, 92vw)",
+      content: `
+        <div class="b3-dialog__content">
+          <label class="fn__flex-column">
+            <span class="b3-label">${escapeHtml(this.t("lets-list-merge.numberingStartLabel"))}</span>
+            <input class="b3-text-field fn__block" type="number" min="1" step="1" data-field="start">
+          </label>
+        </div>
+        <div class="b3-dialog__action">
+          <button class="b3-button b3-button--cancel" data-action="cancel">${escapeHtml(this.t("lets-list-merge.cancel"))}</button>
+          <button class="b3-button b3-button--text" data-action="apply">${escapeHtml(this.t("lets-list-merge.apply"))}</button>
+        </div>
+      `,
+    });
+    const input = dialog.element.querySelector<HTMLInputElement>('[data-field="start"]');
+    if (!input) {
+      dialog.destroy();
+      return;
+    }
+    input.value = String(currentListNumberingStart(selection));
+    dialog.element.querySelector<HTMLButtonElement>('[data-action="cancel"]')
+      ?.addEventListener("click", () => dialog.destroy());
+    dialog.element.querySelector<HTMLButtonElement>('[data-action="apply"]')
+      ?.addEventListener("click", () => {
+        const start = Number(input.value);
+        if (!Number.isSafeInteger(start) || start < 1) {
+          showMessage(this.t("lets-list-merge.invalidNumberingStart"), 5000, "error");
+          return;
+        }
+        dialog.destroy();
+        this.executeNumbering(selection, protyle, start);
+      });
+    dialog.bindInput(input, () => {
+      dialog.element.querySelector<HTMLButtonElement>('[data-action="apply"]')?.click();
+    });
+    input.focus();
+    input.select();
+  }
+
+  private executeNumbering(
+    selection: ListNumberingSelection,
+    protyle: IProtyle,
+    start: number,
+  ): void {
+    try {
+      const plan = createListNumberingPlan(selection, start);
+      if (!plan) return;
+      const transaction = buildListNumberingTransaction(plan, selection);
+      applyListNumberingDom(plan, selection);
+      protyle.getInstance().transaction(
+        transaction.doOperations as IOperation[],
+        transaction.undoOperations as IOperation[],
+      );
+      showMessage(this.t("lets-list-merge.numberingSuccess")
+        .replace("{start}", String(start))
+        .replace("{count}", String(transaction.result.itemCount)));
+    } catch (error) {
+      log.error("list-numbering.failed", error);
+      showMessage(this.t("lets-list-merge.numberingFailure"), 7000, "error");
+    }
   }
 
   private preferredSubtype(): ListSubtype {

@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   applyListMergeDom,
+  applyListNumberingDom,
+  buildListNumberingTransaction,
   buildListMergeTransaction,
+  createListNumberingPlan,
   createListMergePlan,
+  currentListNumberingStart,
   hasMixedListTypes,
+  resolveListNumberingSelection,
   resolveListMergeSelection,
   type ListMergeOperation,
 } from "./list-merge";
@@ -117,6 +122,39 @@ describe("resolveListMergeSelection", () => {
     expect(resolveListMergeSelection([first, second])).toBeUndefined();
     firstEditor.remove();
     secondEditor.remove();
+  });
+});
+
+describe("list numbering", () => {
+  it("renumbers a standalone ordered list from a requested start and can undo it", () => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    const target = list("target", "o", [
+      item("target-1", "o", "7.", "A"),
+      item("target-2", "o", "8.", "B"),
+    ]);
+    editor.append(target);
+    document.body.append(editor);
+
+    const selection = resolveListNumberingSelection([target]);
+    expect(selection).toBeDefined();
+    expect(currentListNumberingStart(selection!)).toBe(7);
+    const plan = createListNumberingPlan(selection!, 12);
+    expect(plan).toEqual({ listId: "target", start: 12 });
+    const transaction = buildListNumberingTransaction(plan!, selection!);
+    expect(transaction.doOperations.map((operation) => {
+      const dom = new DOMParser().parseFromString(operation.data!, "text/html")
+        .body.firstElementChild as HTMLElement;
+      return dom.dataset.marker;
+    })).toEqual(["12.", "13."]);
+
+    applyListNumberingDom(plan!, selection!);
+    expect(Array.from(target.querySelectorAll<HTMLElement>(":scope > [data-type='NodeListItem']"))
+      .map((element) => element.dataset.marker)).toEqual(["12.", "13."]);
+    expect(transaction.undoOperations.map((operation) => operation.data))
+      .toEqual(expect.arrayContaining([expect.stringContaining('data-marker="7."'), expect.stringContaining('data-marker="8."')]));
+    expect(createListNumberingPlan(selection!, 0)).toBeUndefined();
+    editor.remove();
   });
 });
 

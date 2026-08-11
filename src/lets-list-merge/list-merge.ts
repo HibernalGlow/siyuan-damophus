@@ -40,6 +40,27 @@ export interface ListMergeTransaction {
   result: ListMergeResult;
 }
 
+export interface ListNumberingSelection {
+  list: SelectedList;
+}
+
+export interface ListNumberingPlan {
+  listId: string;
+  start: number;
+}
+
+export interface ListNumberingResult {
+  listId: string;
+  itemCount: number;
+  start: number;
+}
+
+export interface ListNumberingTransaction {
+  doOperations: ListMergeOperation[];
+  undoOperations: ListMergeOperation[];
+  result: ListNumberingResult;
+}
+
 const LIST_BLOCK_TYPE = "NodeList";
 const MERGEABLE_LIST_SUBTYPES = new Set<ListSubtype>(["o", "u"]);
 
@@ -84,6 +105,26 @@ export function resolveListMergeSelection(
       subtype: listSubtype(list)!,
       element: list,
     })),
+  };
+}
+
+export function resolveListNumberingSelection(
+  blockElements: readonly HTMLElement[],
+): ListNumberingSelection | undefined {
+  if (blockElements.length !== 1) return undefined;
+  const [list] = blockElements;
+  if (
+    list.dataset.nodeId === undefined
+    || list.dataset.type !== LIST_BLOCK_TYPE
+    || listSubtype(list) !== "o"
+    || !list.closest(".protyle-wysiwyg")
+  ) return undefined;
+  return {
+    list: {
+      id: list.dataset.nodeId,
+      subtype: "o",
+      element: list,
+    },
   };
 }
 
@@ -150,13 +191,13 @@ function insertSourceOperation(list: HTMLElement, rootId?: string): ListMergeOpe
   return { action: "insert", id, data: sourceShell(list), parentID };
 }
 
-function applyListItemSubtype(item: HTMLElement, subtype: ListSubtype, index: number): void {
+function applyListItemSubtype(item: HTMLElement, subtype: ListSubtype, index: number, start = 1): void {
   const action = item.querySelector<HTMLElement>(":scope > .protyle-action");
   if (!action) throw new Error(`List item ${item.dataset.nodeId ?? "unknown"} has no marker`);
   item.dataset.subtype = subtype;
   action.setAttribute("draggable", "true");
   if (subtype === "o") {
-    const marker = `${index + 1}.`;
+    const marker = `${start + index}.`;
     item.dataset.marker = marker;
     action.className = "protyle-action protyle-action--order";
     action.setAttribute("contenteditable", "false");
@@ -169,11 +210,71 @@ function applyListItemSubtype(item: HTMLElement, subtype: ListSubtype, index: nu
   }
 }
 
-function normalizedListItem(item: HTMLElement, subtype: ListSubtype, index: number): string {
+function normalizedListItem(item: HTMLElement, subtype: ListSubtype, index: number, start = 1): string {
   const clone = item.cloneNode(true) as HTMLElement;
   clone.classList.remove("protyle-wysiwyg--select");
-  applyListItemSubtype(clone, subtype, index);
+  applyListItemSubtype(clone, subtype, index, start);
   return clone.outerHTML;
+}
+
+export function currentListNumberingStart(selection: ListNumberingSelection): number {
+  const firstItem = selection.list.element?.querySelector<HTMLElement>(
+    ':scope > [data-type="NodeListItem"]',
+  );
+  const marker = firstItem?.dataset.marker ?? "";
+  const parsed = Number(/^\d+\.$/u.test(marker) ? marker.slice(0, -1) : Number.NaN);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export function createListNumberingPlan(
+  selection: ListNumberingSelection,
+  start: number,
+): ListNumberingPlan | undefined {
+  if (!Number.isSafeInteger(start) || start < 1) return undefined;
+  return { listId: selection.list.id, start };
+}
+
+export function buildListNumberingTransaction(
+  plan: ListNumberingPlan,
+  selection: ListNumberingSelection,
+): ListNumberingTransaction {
+  if (selection.list.id !== plan.listId || !selection.list.element) {
+    throw new Error(`List ${plan.listId} is no longer available`);
+  }
+  const items = directListItems(selection.list.element);
+  if (!Number.isSafeInteger(plan.start + items.length - 1)) {
+    throw new Error(`List ${plan.listId} numbering exceeds the safe integer range`);
+  }
+  const doOperations = items.map((item, index) => ({
+    action: "update" as const,
+    id: item.dataset.nodeId!,
+    data: normalizedListItem(item, "o", index, plan.start),
+  }));
+  return {
+    doOperations,
+    undoOperations: items.map((item) => ({
+      action: "update" as const,
+      id: item.dataset.nodeId!,
+      data: item.outerHTML,
+    })),
+    result: {
+      listId: plan.listId,
+      itemCount: items.length,
+      start: plan.start,
+    },
+  };
+}
+
+export function applyListNumberingDom(
+  plan: ListNumberingPlan,
+  selection: ListNumberingSelection,
+): void {
+  if (selection.list.id !== plan.listId || !selection.list.element) {
+    throw new Error(`List ${plan.listId} is no longer available`);
+  }
+  directListItems(selection.list.element).forEach((item, index) => {
+    applyListItemSubtype(item, "o", index, plan.start);
+  });
 }
 
 export function applyListMergeDom(plan: ListMergePlan, selection: ListMergeSelection): void {
