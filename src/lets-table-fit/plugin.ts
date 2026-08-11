@@ -7,6 +7,15 @@ export const pluginMetadata: PluginMetadata = {
   version: "1.0.0",
   enabled: true,
   icon: "tableProperties",
+  settings: [
+    {
+      type: "checkbox",
+      title: "lets-table-fit.enabledTitle",
+      description: "lets-table-fit.enabledDescription",
+      key: "fitEnabled",
+      value: true,
+    },
+  ],
 };
 
 export default pluginMetadata;

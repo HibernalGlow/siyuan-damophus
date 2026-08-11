@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
+import TableFitPlugin from "./index";
+import pluginMetadata from "./plugin";
 import {
   TABLE_FIT_CSS,
   TABLE_FIT_STYLE_ID,
@@ -76,5 +78,48 @@ describe("table fit", () => {
     expect(document.getElementById(TABLE_FIT_STYLE_ID)).toBeNull();
     expect(document.getElementById("unrelated-style")).toBe(unrelated);
     unrelated.remove();
+  });
+
+  it("toggles the persisted layout setting immediately from the plugin menu", () => {
+    let fitEnabled = true;
+    const setSetting = vi.fn((key: string, value: boolean) => {
+      if (key === "fitEnabled") fitEnabled = value;
+    });
+    const plugin = new TableFitPlugin();
+    plugin.getSetting = () => fitEnabled;
+    plugin.setSetting = setSetting;
+    plugin.t = () => "Responsive Tables";
+    plugin.onload();
+
+    const addItem = vi.fn();
+    plugin.addMenuItem({ addItem } as never);
+    const enabledItem = addItem.mock.calls[0][0];
+    expect(enabledItem).toMatchObject({
+      icon: "iconTable",
+      label: "Responsive Tables",
+      checked: true,
+    });
+
+    enabledItem.click();
+    expect(setSetting).toHaveBeenLastCalledWith("fitEnabled", false);
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)).toBeNull();
+
+    addItem.mockClear();
+    plugin.addMenuItem({ addItem } as never);
+    const disabledItem = addItem.mock.calls[0][0];
+    expect(disabledItem.checked).toBe(false);
+    disabledItem.click();
+    expect(setSetting).toHaveBeenLastCalledWith("fitEnabled", true);
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)).not.toBeNull();
+
+    plugin.onunload();
+  });
+
+  it("declares the quick toggle as enabled by default", () => {
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "fitEnabled",
+      type: "checkbox",
+      value: true,
+    }));
   });
 });
