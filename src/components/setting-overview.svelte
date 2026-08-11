@@ -23,7 +23,7 @@
 </script>
 
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, tick } from "svelte";
   import { flip } from "svelte/animate";
   import { fade } from "svelte/transition";
   import { dragHandle, dragHandleZone, type DndEvent } from "svelte-dnd-action";
@@ -52,6 +52,7 @@
   const flipDurationMs = 160;
   let renderedCategories = categories;
   let sourceCategories = categories;
+  let overviewRoot: HTMLDivElement;
 
   $: if (categories !== sourceCategories) {
     sourceCategories = categories;
@@ -60,9 +61,14 @@
   $: activeCategory = renderedCategories.find((category) =>
     category.modules.some((module) => module.selectId === activeSelectId),
   ) ?? renderedCategories[0];
-  $: visibleCategories = mode === "navigation"
+  $: visibleCategories = mode === "navigation" && compact
     ? activeCategory ? [activeCategory] : []
     : renderedCategories;
+  $: if (mode === "navigation" && !compact && overviewRoot && activeSelectId) {
+    void tick().then(() => {
+      overviewRoot.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+    });
+  }
 
   function visibleModules(category: OverviewCategory) {
     if (mode !== "navigation" || !compact) return category.modules;
@@ -111,6 +117,7 @@
     </div>
   {/if}
   <div
+    bind:this={overviewRoot}
     class={mode === "navigation"
       ? "flex min-w-0 flex-col gap-2"
       : "grid grid-cols-1 items-start gap-3 min-[680px]:grid-cols-2 min-[1160px]:grid-cols-3"}
@@ -129,10 +136,11 @@
   >
   {#each visibleCategories as category (category.id)}
     {@const categoryModules = visibleModules(category)}
+    {@const categoryIsActive = category.modules.some((module) => module.selectId === activeSelectId)}
     <section
       role="group"
       aria-label={category.label}
-      class={mode === "navigation"
+      class={mode === "navigation" && categoryIsActive
         ? "min-w-0 overflow-hidden rounded-lg border border-primary/30 bg-card shadow-sm transition-[border-color,box-shadow]"
         : "min-w-0 overflow-hidden rounded-lg border border-border bg-card/70 shadow-sm transition-[border-color,box-shadow]"}
       data-testid={`overview-category-${category.id}`}
@@ -142,17 +150,17 @@
       <div
         class={mode === "navigation"
           ? "!grid min-h-11 grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2"
-          : "!grid min-h-12 grid-cols-[1rem_1.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2"}
+          : "!grid min-h-12 grid-cols-[0.5rem_1.75rem_minmax(0,1fr)_auto] items-center gap-1.5 px-2.5 py-2"}
         data-testid="overview-category-header"
       >
         {#if mode === "overview"}
           <span
             use:dragHandle
-            class="relative flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-muted-foreground/50 transition-colors before:absolute before:-inset-x-1 before:inset-y-0 hover:bg-accent hover:text-muted-foreground active:cursor-grabbing"
+            class="relative flex h-7 w-2 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/50 transition-colors before:absolute before:-inset-x-1.5 before:inset-y-0 hover:text-muted-foreground active:cursor-grabbing"
             title={reorderHint}
             aria-label={`${reorderHint}: ${category.label}`}
           >
-            <GripVertical class="size-4" aria-hidden="true" />
+            <GripVertical class="h-3.5 w-2" aria-hidden="true" />
           </span>
         {/if}
         <span class="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -191,11 +199,11 @@
               {#if mode === "overview"}
                 <span
                   use:dragHandle
-                  class="relative flex h-8 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded-sm text-muted-foreground/35 opacity-60 transition-[color,background-color,opacity] before:absolute before:-inset-x-1 before:inset-y-0 hover:bg-accent hover:text-muted-foreground group-hover:opacity-100 active:cursor-grabbing"
+                  class="relative flex h-8 w-2 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/35 opacity-60 transition-[color,opacity] before:absolute before:-inset-x-1.5 before:inset-y-0 hover:text-muted-foreground group-hover:opacity-100 active:cursor-grabbing"
                   title={reorderHint}
                   aria-label={`${reorderHint}: ${module.label}`}
                 >
-                  <GripVertical class="size-3.5" aria-hidden="true" />
+                  <GripVertical class="h-3.5 w-2" aria-hidden="true" />
                 </span>
               {/if}
               <Button

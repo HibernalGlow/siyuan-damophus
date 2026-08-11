@@ -77,7 +77,8 @@ function expectCategoryHeaderOnOneRow(card: HTMLElement) {
 function expectCompactDragHandles(target: HTMLElement) {
   const handles = [...target.querySelectorAll<HTMLElement>('[aria-label^="拖动调整顺序"]')];
   expect(handles.length).toBeGreaterThan(0);
-  expect(handles.every((handle) => handle.getBoundingClientRect().width <= 16)).toBe(true);
+  expect(handles.every((handle) => handle.getBoundingClientRect().width <= 8)).toBe(true);
+  expect(handles.every((handle) => handle.querySelector("svg")!.getBoundingClientRect().width <= 8)).toBe(true);
 }
 
 describe("setting overview", () => {
@@ -152,15 +153,16 @@ describe("setting overview", () => {
     expect(select).not.toHaveBeenCalled();
   });
 
-  it("morphs into the selected category card for detail navigation", async () => {
+  it("morphs the complete board into detail navigation", async () => {
     await page.viewport(1100, 800);
     const { target, overview } = render({ mode: "navigation", activeSelectId: "题库" });
     target.style.width = "256px";
     await tick();
 
     expect(target.querySelector('[data-testid="setting-overview-shell"]')?.getAttribute("data-mode")).toBe("navigation");
-    expect(target.querySelector('[data-testid="overview-category-core"]')).toBeNull();
+    expect(target.querySelector('[data-testid="overview-category-core"]')).not.toBeNull();
     expect(target.querySelector('[data-testid="overview-category-study"]')).not.toBeNull();
+    expect(target.querySelectorAll('[data-testid="overview-module-zone-core"] li')).toHaveLength(2);
     expect(target.querySelectorAll('[data-testid="overview-module-zone-study"] li')).toHaveLength(2);
     expect(target.querySelector('[aria-current="page"]')?.textContent).toContain("题库");
     expect(target.querySelector('[aria-label^="拖动调整顺序"]')).toBeNull();
