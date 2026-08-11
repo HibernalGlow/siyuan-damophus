@@ -1,6 +1,7 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
+import { createAttemptRatingEvent } from "@/question-bank/core/rating-corrections";
 import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/core/recovery";
-import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent, ObjectiveAnswer, Question } from "@/question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent, MasteryRating, ObjectiveAnswer, Question } from "@/question-bank/core/types";
 import type { ExamSessionSnapshot } from "@/question-bank/exam";
 import type { StatisticsQuestion } from "@/question-bank/core/statistics";
 import {
@@ -83,6 +84,7 @@ export interface QuestionBankUiController {
   loadExamEvents?: () => Promise<ExamSummaryEvent[]>;
   submitExamEvent?: (event: ExamSummaryEvent) => Promise<"created" | "duplicate">;
   submitExamAttempt?: (event: AttemptEvent) => Promise<"created" | "duplicate">;
+  correctAttemptRating?(attempt: AttemptEvent, rating: MasteryRating, dueCard?: RiffCard): Promise<AttemptEvent>;
   loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]>;
   previewSync(documentId: string): Promise<QuestionIndexPreview>;
   confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
@@ -278,7 +280,7 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]> {
-    return (await this.requireTinyBase().listAttemptEvents())
+    return (await this.requireTinyBase().listEffectiveAttemptEvents())
       .filter((event) => event.session_id === sessionId);
   }
 
@@ -395,7 +397,27 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async loadAttemptEvents(): Promise<AttemptEvent[]> {
-    return this.requireTinyBase().listAttemptEvents();
+    return this.requireTinyBase().listEffectiveAttemptEvents();
+  }
+
+  async correctAttemptRating(attempt: AttemptEvent, rating: MasteryRating, dueCard?: RiffCard): Promise<AttemptEvent> {
+    if (attempt.mastery_rating === rating) return attempt;
+    const event = createAttemptRatingEvent({
+      eventId: this.uuid(),
+      attemptId: attempt.attempt_id,
+      masteryRating: rating,
+    });
+    const status = await this.requireTinyBase().appendAttemptRating(event);
+    if (status !== "created") throw new Error(`Rating correction '${event.event_id}' already exists`);
+    if (dueCard) {
+      try {
+        await submitRiffRating(this.client, dueCard, rating);
+      } catch (error) {
+        // The immutable local correction is already durable; a Riff failure must not hide it.
+        log.warn(`Rating corrected locally, but Riff rating failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return { ...attempt, mastery_rating: rating };
   }
 
   async loadDueCards(

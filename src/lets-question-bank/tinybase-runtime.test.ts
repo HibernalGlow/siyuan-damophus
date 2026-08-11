@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createAttemptEvent } from "../question-bank/core/attempts";
+import { createAttemptRatingEvent } from "../question-bank/core/rating-corrections";
 import { createPracticeSessionSnapshot } from "../question-bank/core/session-schema";
 import {
   readStoreEnvelope,
@@ -68,6 +69,33 @@ describe("TinyBase runtime", () => {
     });
     expect(coreFile.store.getCell(TABLE.questionAggregates, "question-1", "attempts")).toBe(1);
     expect((await runtime.loadAggregates()).get("question-1")?.objectiveCorrect).toBe(1);
+  });
+
+  it("persists rating corrections without counting another attempt", async () => {
+    const files = new MemoryFiles();
+    const runtime = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-a"));
+    await runtime.appendAttempt(attempt());
+    const correction = createAttemptRatingEvent({
+      eventId: "rating-1",
+      attemptId: "attempt-1",
+      masteryRating: "hard",
+      changedAt: "2026-08-08T08:01:00.000Z",
+    });
+
+    await expect(runtime.appendAttemptRating(correction)).resolves.toBe("created");
+    await expect(runtime.appendAttemptRating(correction)).resolves.toBe("duplicate");
+    expect((await runtime.listAttemptEvents())[0].mastery_rating).toBe("good");
+    expect((await runtime.listEffectiveAttemptEvents())[0].mastery_rating).toBe("hard");
+    expect(await runtime.loadAggregates()).toEqual(new Map([
+      ["question-1", expect.objectContaining({attempts: 1, latestRating: "hard"})],
+    ]));
+
+    const eventFile = await readStoreEnvelope(files, {
+      deviceId: "device-a",
+      storeKind: "events",
+      shardId: "2026",
+    });
+    expect(eventFile.store.hasRow(TABLE.attemptRatingEvents, "rating-1")).toBe(true);
   });
 
   it("keeps a remotely completed practice session absent after both devices merge", async () => {

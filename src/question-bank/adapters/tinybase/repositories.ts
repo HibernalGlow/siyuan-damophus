@@ -1,10 +1,11 @@
 import type { Cell, MergeableStore } from "tinybase";
 import {
   AttemptEventSchema,
+  AttemptRatingEventSchema,
   ExamSummaryEventSchema,
 } from "../../core/schema";
 import { aggregateAttemptEvents } from "../../core/attempts";
-import type { AttemptEvent, ExamSummaryEvent } from "../../core/types";
+import type { AttemptEvent, AttemptRatingEvent, ExamSummaryEvent } from "../../core/types";
 import {
   parsePracticeSessionSnapshot,
   PracticeSessionSnapshotSchema,
@@ -29,6 +30,7 @@ import {
 import type {
   AggregateRepository,
   AttemptEventRepository,
+  AttemptRatingEventRepository,
   CoreCatalogRepository,
   ExamEventRepository,
   ExamSessionRepository,
@@ -101,6 +103,17 @@ function materializeAttempt(row: Record<string, Cell>): AttemptEvent {
     subjective_score: optionalNumber(row.subjective_score),
     duration_ms: optionalNumber(row.duration_ms),
   }) as AttemptEvent;
+}
+
+function materializeAttemptRating(row: Record<string, Cell>): AttemptRatingEvent {
+  return AttemptRatingEventSchema.parse({
+    schema_version: row.schema_version,
+    event_kind: row.event_kind,
+    event_id: row.event_id,
+    attempt_id: row.attempt_id,
+    mastery_rating: row.mastery_rating,
+    changed_at: row.changed_at,
+  }) as AttemptRatingEvent;
 }
 
 function materializeExamEvent(row: Record<string, Cell>): ExamSummaryEvent {
@@ -206,7 +219,7 @@ interface ImportResult {
   conflicts: string[];
 }
 
-abstract class TinyBaseImmutableEventRepository<Event extends {attempt_id: string; answered_at: string}> {
+abstract class TinyBaseImmutableEventRepository<Event> {
   constructor(
     protected readonly eventStores: Map<string, MergeableStore>,
     protected readonly router: ShardRouter,
@@ -216,26 +229,29 @@ abstract class TinyBaseImmutableEventRepository<Event extends {attempt_id: strin
   protected abstract parse(value: unknown): Event;
   protected abstract toRow(value: Event): ScalarRow;
   protected abstract fromRow(value: Record<string, Cell>): Event;
+  protected abstract eventId(value: Event): string;
+  protected abstract eventTime(value: Event): string;
 
   protected all(): Event[] {
     return [...this.eventStores.values()].flatMap((store) => (
       rows(store, this.tableId).map(([, row]) => this.fromRow(row))
-    )).sort((left, right) => left.answered_at.localeCompare(right.answered_at));
+    )).sort((left, right) => this.eventTime(left).localeCompare(this.eventTime(right)));
   }
 
   async appendEvent(value: Event): Promise<"created" | "duplicate"> {
     const event = this.parse(value);
-    const existing = this.all().find((item) => item.attempt_id === event.attempt_id);
+    const id = this.eventId(event);
+    const existing = this.all().find((item) => this.eventId(item) === id);
     if (existing) {
       if (canonicalJson(existing) !== canonicalJson(event)) {
-        throw new Error(`Immutable event conflict for '${event.attempt_id}'`);
+        throw new Error(`Immutable event conflict for '${id}'`);
       }
       return "duplicate";
     }
-    const shardId = this.router.routeAttempt(event.answered_at);
+    const shardId = this.router.routeAttempt(this.eventTime(event));
     const store = this.eventStores.get(shardId) ?? createDamophusStore(`events:${shardId}`);
     this.eventStores.set(shardId, store);
-    store.setRow(this.tableId, event.attempt_id, this.toRow(event));
+    store.setRow(this.tableId, id, this.toRow(event));
     return "created";
   }
 
@@ -262,10 +278,27 @@ export class TinyBaseAttemptEventRepository
   protected parse(value: unknown): AttemptEvent { return AttemptEventSchema.parse(value) as AttemptEvent; }
   protected toRow(value: AttemptEvent): ScalarRow { return eventRow(value); }
   protected fromRow(value: Record<string, Cell>): AttemptEvent { return materializeAttempt(value); }
+  protected eventId(value: AttemptEvent): string { return value.attempt_id; }
+  protected eventTime(value: AttemptEvent): string { return value.answered_at; }
   append(event: AttemptEvent): Promise<"created" | "duplicate"> { return this.appendEvent(event); }
   async list(): Promise<AttemptEvent[]> { return this.all(); }
   import(events: readonly AttemptEvent[]): Promise<ImportResult> { return this.importEvents(events); }
   export(): Promise<AttemptEvent[]> { return this.list(); }
+}
+
+export class TinyBaseAttemptRatingEventRepository
+  extends TinyBaseImmutableEventRepository<AttemptRatingEvent>
+  implements AttemptRatingEventRepository {
+  constructor(stores: Map<string, MergeableStore>, router: ShardRouter) {
+    super(stores, router, TABLE.attemptRatingEvents);
+  }
+  protected parse(value: unknown): AttemptRatingEvent { return AttemptRatingEventSchema.parse(value) as AttemptRatingEvent; }
+  protected toRow(value: AttemptRatingEvent): ScalarRow { return compactRow({...value}); }
+  protected fromRow(value: Record<string, Cell>): AttemptRatingEvent { return materializeAttemptRating(value); }
+  protected eventId(value: AttemptRatingEvent): string { return value.event_id; }
+  protected eventTime(value: AttemptRatingEvent): string { return value.changed_at; }
+  append(event: AttemptRatingEvent): Promise<"created" | "duplicate"> { return this.appendEvent(event); }
+  async list(): Promise<AttemptRatingEvent[]> { return this.all(); }
 }
 
 export class TinyBaseExamEventRepository
@@ -277,6 +310,8 @@ export class TinyBaseExamEventRepository
   protected parse(value: unknown): ExamSummaryEvent { return ExamSummaryEventSchema.parse(value) as ExamSummaryEvent; }
   protected toRow(value: ExamSummaryEvent): ScalarRow { return compactRow({...value}); }
   protected fromRow(value: Record<string, Cell>): ExamSummaryEvent { return materializeExamEvent(value); }
+  protected eventId(value: ExamSummaryEvent): string { return value.attempt_id; }
+  protected eventTime(value: ExamSummaryEvent): string { return value.answered_at; }
   append(event: ExamSummaryEvent): Promise<"created" | "duplicate"> { return this.appendEvent(event); }
   async list(): Promise<ExamSummaryEvent[]> { return this.all(); }
   import(events: readonly ExamSummaryEvent[]): Promise<ImportResult> { return this.importEvents(events); }

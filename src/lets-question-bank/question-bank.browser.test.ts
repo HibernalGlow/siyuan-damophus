@@ -555,6 +555,9 @@ describe("question bank browser flow", () => {
     expect(prepareSourceBlock).not.toHaveBeenCalledWith(sourceIds[2]);
     await vi.waitFor(() => expect(mountSourceBlock).toHaveBeenCalledOnce());
     expect(document.querySelector(".embedded-answer-source")).toBeNull();
+    option("Alpha").click();
+    await flush();
+    expect(mountSourceBlock).toHaveBeenCalledOnce();
 
     button("Next question").click();
     await new Promise((resolve) => setTimeout(resolve, 450));
@@ -741,10 +744,42 @@ describe("question bank browser flow", () => {
     await flush();
     expect(option("Alpha").disabled).toBe(true);
     expect(button("Return to summary")).toBeDefined();
-    expect(document.querySelector(".attempt-metadata")?.textContent).toContain("good");
+    expect(document.querySelector(".attempt-metadata")?.textContent?.toLocaleLowerCase()).toContain("good");
+    button("hard").click();
+    await flush();
+    expect(document.querySelector(".attempt-metadata")?.textContent?.toLocaleLowerCase()).toContain("hard");
+    expect(vi.mocked(controller.correctAttemptRating!)).toHaveBeenCalledWith(
+      expect.objectContaining({attempt_id: "attempt-1", mastery_rating: "good"}),
+      "hard",
+      undefined,
+    );
     button("Return to summary").click();
     await flush();
     expect(document.body.textContent).toContain("Practice complete");
+  });
+
+  it("returns to an answered question during an active session and adjusts its rating", async () => {
+    const { controller } = mockController({ preview: makePreview([objectiveQuestion, subjectiveQuestion]) });
+    render(controller, { random: () => 0.99 });
+    await scanAndSync();
+    button("Start practice").click();
+    await flush();
+    option("Alpha").click();
+    option("Gamma").click();
+    button("Reveal answer").click();
+    await flush();
+    button("good").click();
+    await flush();
+
+    button("Answer card").click();
+    await flush();
+    button("Question 1").click();
+    await flush();
+    expect(document.body.textContent).toContain("Answer: A and C");
+    expect(option("Alpha").disabled).toBe(true);
+    button("easy").click();
+    await flush();
+    expect(document.querySelector(".attempt-metadata")?.textContent?.toLocaleLowerCase()).toContain("easy");
   });
 
   it("shows the indefinite type and allows selecting more than one option", async () => {

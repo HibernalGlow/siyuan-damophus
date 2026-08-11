@@ -236,6 +236,7 @@
       readOnlyQuestion,
       submitting,
       timingEnabled,
+      currentAttempt,
       indefinitePracticeMode,
       previewBlockIds: preview?.scan.blockIdsByQuestionId,
       sessionId,
@@ -967,6 +968,7 @@
   const resetQuestionTimer = practiceActions.resetQuestionTimer;
   const changeSubjectiveScore = practiceActions.changeSubjectiveScore;
   const submitRating = practiceActions.submitRating;
+  const correctRating = practiceActions.correctRating;
   function pausePractice(): void {
     if (!practiceRuntime || !practiceState?.matches("active")) return;
     void run(async () => {
@@ -1175,7 +1177,7 @@
   bind:endConfirmation bind:answerCardOpen
   {currentQuestion} {topicResources} {persistTopicResource} {persistingTopicResourceIdentity} {persistedTopicResourceIdentities}
   {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
-  {timingEnabled} {sessionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
+  {timingEnabled} {sessionElapsedMs} {questionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
   {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles} {toggleIndefinitePracticeMode}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
@@ -1194,8 +1196,8 @@
   {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
   {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {indefinitePracticeMode} {renderedQuestionContent}
   {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}
-  {questionElapsedMs} {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
+  {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
   {correctCurrentAnswer}
-  {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {sessionAttempts}
+  {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {correctRating} {sessionAttempts}
   {completionCorrect} {completionDurationMs} {touchedDrafts} {resetPractice}
 />

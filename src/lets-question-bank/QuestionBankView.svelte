@@ -25,6 +25,7 @@
   export let completedQuestionIndices: number[];
   export let timingEnabled: boolean;
   export let sessionElapsedMs: number;
+  export let questionElapsedMs: number;
   export let breadcrumbItems: any[];
   export let currentQuestionBlockId: string | undefined;
   export let mobileBreadcrumb: boolean;
@@ -169,7 +170,6 @@
   export let toggleOption: any;
   export let changeSubjectiveScore: any;
   export let correctCurrentAnswer: any;
-  export let questionElapsedMs: number;
   export let resetQuestionTimer: any;
   export let endConfirmation: boolean;
   export let confirmEndPractice: any;
@@ -182,6 +182,7 @@
   export let revealAnswer: any;
   export let retry: any;
   export let submitRating: any;
+  export let correctRating: any;
   export let sessionAttempts: any[];
   export let completionCorrect: number;
   export let completionDurationMs: number;
@@ -208,7 +209,7 @@
     queueLength={queue.length}
     completedCount={completedQuestionIndices.length}
     {timingEnabled}
-    {sessionElapsedMs}
+    {questionElapsedMs}
     {durationComparisons}
     {durationComparisonPosition}
     {breadcrumbItems}
@@ -415,7 +416,7 @@
       {toggleOption}
       {changeSubjectiveScore}
       {timingEnabled}
-      {questionElapsedMs}
+      {sessionElapsedMs}
       {resetQuestionTimer}
       bind:endConfirmation
       {confirmEndPractice}
@@ -428,13 +429,12 @@
       {questionIndex}
       {completedQuestionIndices}
       {goToQuestion}
-      {previousQuestion}
-      {nextQuestion}
       {submitting}
       {suggestedRating}
       {revealAnswer}
       {retry}
       {submitRating}
+      {correctRating}
     />
 
   {:else if complete}

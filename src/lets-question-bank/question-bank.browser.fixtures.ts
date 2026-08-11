@@ -279,6 +279,12 @@ export function mockController(options: {
       sessionAttempts.push(result.event);
       return result;
     }),
+    correctAttemptRating: vi.fn(async (event, rating) => {
+      const corrected = { ...event, mastery_rating: rating };
+      const index = sessionAttempts.findIndex((item) => item.attempt_id === event.attempt_id);
+      if (index >= 0) sessionAttempts[index] = corrected;
+      return corrected;
+    }),
     getRecentScope: () => recent,
     saveRecentScope,
     getPracticePreferences: () => practicePreferences,
@@ -333,8 +339,11 @@ export async function flush(): Promise<void> {
 }
 
 export function button(name: string): HTMLButtonElement {
+  const normalizedName = name.trim().toLocaleLowerCase();
   const result = [...document.querySelectorAll<HTMLButtonElement>("button")]
-    .find((item) => item.textContent?.trim() === name || item.getAttribute("aria-label") === name);
+    .find((item) => item.textContent?.trim().toLocaleLowerCase() === normalizedName
+      || item.getAttribute("aria-label") === name
+      || item.querySelector("strong")?.textContent?.trim().toLocaleLowerCase() === normalizedName);
   if (!result) throw new Error(`Missing button '${name}'`);
   return result;
 }

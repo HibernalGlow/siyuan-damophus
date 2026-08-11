@@ -327,4 +327,41 @@ describe("PracticeQuestionContent", () => {
     expect(document.querySelector('[data-benchmark="average"]')).toBeNull();
   });
 
+  it("animates the wrong selection and correct options while keeping wide answer tables scrollable", async () => {
+    render({
+      revealed: true,
+      objectiveCorrect: false,
+      selectedOptionIds: ["B"],
+      questionRenderMode: "html",
+      renderQuestionContent: (markdown: string) => markdown === question.solutionMarkdown
+        ? '<div data-type="NodeTable" class="table"><table style="width: 1200px"><tbody><tr><td>Wide</td></tr></tbody></table></div>'
+        : markdown,
+    });
+    await flush();
+
+    const alpha = [...document.querySelectorAll<HTMLElement>("button.option")].find((item) => item.textContent?.includes("Alpha"));
+    const beta = [...document.querySelectorAll<HTMLElement>("button.option")].find((item) => item.textContent?.includes("Beta"));
+    expect(alpha?.classList).toContain("option--correct");
+    expect(beta?.classList).toContain("option--incorrect-selected");
+    expect(document.querySelector('[data-answer-result="incorrect"]')).not.toBeNull();
+    const table = document.querySelector<HTMLElement>('.solution [data-type="NodeTable"]');
+    expect(table?.getAttribute("style")).toContain("overflow: auto");
+    expect(table && getComputedStyle(table).overflowX).toBe("auto");
+    expect(table?.scrollWidth).toBeGreaterThan(table?.clientWidth ?? 0);
+  });
+
+  it("animates an exact option match as a correct result", async () => {
+    render({
+      revealed: true,
+      objectiveCorrect: true,
+      selectedOptionIds: ["A"],
+      questionRenderMode: "html",
+    });
+    await flush();
+
+    expect(document.querySelector('[data-answer-result="correct"]')).not.toBeNull();
+    expect(document.querySelector("button.option.option--correct")?.textContent).toContain("Alpha");
+    expect(document.querySelector("button.option.option--incorrect-selected")).toBeNull();
+  });
+
 });

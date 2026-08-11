@@ -130,6 +130,15 @@ export const AttemptEventSchema = z.object({
   }
 });
 
+export const AttemptRatingEventSchema = z.object({
+  schema_version: z.literal(1),
+  event_kind: z.literal("attempt_rating_changed"),
+  event_id: z.string().min(1),
+  attempt_id: z.string().min(1),
+  mastery_rating: MasteryRatingSchema,
+  changed_at: z.iso.datetime({ offset: true }),
+});
+
 export const ExamSummaryEventSchema = z.object({
   schema_version: z.literal(1),
   event_kind: z.enum(["exam_submitted", "exam_finalized", "exam_abandoned"]),

@@ -1,6 +1,7 @@
 import { aggregateAttemptEvents } from "../question-bank/core/attempts";
+import { applyAttemptRatingEvents } from "../question-bank/core/rating-corrections";
 import { parseAttemptArchive } from "../question-bank/core/recovery";
-import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent } from "../question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, AttemptRatingEvent, ExamSummaryEvent } from "../question-bank/core/types";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "../question-bank/core";
 import type { ExamSessionSnapshot } from "../question-bank/exam";
 import type { QuestionSetBlueprint } from "../question-bank/assembly";
@@ -11,6 +12,7 @@ import {
 } from "../question-bank/application/recovery";
 import {
   TinyBaseAttemptEventRepository,
+  TinyBaseAttemptRatingEventRepository,
   TinyBaseExamEventRepository,
   TinyBaseExamSessionRepository,
   TinyBasePracticeSessionRepository,
@@ -166,6 +168,15 @@ export class TinyBaseRuntime {
     return new TinyBaseAttemptEventRepository(this.warehouse.getReadView().events, this.router).list();
   }
 
+  async listAttemptRatingEvents(): Promise<AttemptRatingEvent[]> {
+    await this.initialize();
+    return new TinyBaseAttemptRatingEventRepository(this.warehouse.getReadView().events, this.router).list();
+  }
+
+  async listEffectiveAttemptEvents(): Promise<AttemptEvent[]> {
+    return applyAttemptRatingEvents(await this.listAttemptEvents(), await this.listAttemptRatingEvents());
+  }
+
   async listExamEvents(): Promise<ExamSummaryEvent[]> {
     await this.initialize();
     return new TinyBaseExamEventRepository(this.warehouse.getReadView().events, this.router).list();
@@ -194,6 +205,23 @@ export class TinyBaseRuntime {
     return "created";
   }
 
+  async appendAttemptRating(event: AttemptRatingEvent): Promise<"created" | "duplicate"> {
+    await this.initialize();
+    const existing = await this.listAttemptRatingEvents();
+    const match = existing.find((item) => item.event_id === event.event_id);
+    if (match) {
+      if (canonicalJson(match) !== canonicalJson(event)) {
+        throw new Error(`Immutable event conflict for '${event.event_id}'`);
+      }
+      return "duplicate";
+    }
+    const local = this.warehouse.getLocalContribution();
+    await new TinyBaseAttemptRatingEventRepository(local.events, this.router).append(event);
+    await this.persistEventShard(this.router.routeAttempt(event.changed_at));
+    await this.rebuildAggregateCache();
+    return "created";
+  }
+
   async appendExamEvent(event: ExamSummaryEvent): Promise<"created" | "duplicate"> {
     await this.initialize();
     const status = await this.assertImmutableEvent(event, await this.listExamEvents());
@@ -205,11 +233,11 @@ export class TinyBaseRuntime {
   }
 
   async loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>> {
-    return aggregateAttemptEvents(await this.listAttemptEvents());
+    return aggregateAttemptEvents(await this.listEffectiveAttemptEvents());
   }
 
   private async rebuildAggregateCache(): Promise<void> {
-    const events = await this.listAttemptEvents();
+    const events = await this.listEffectiveAttemptEvents();
     const aggregates = aggregateAttemptEvents(events);
     const core = this.warehouse.getLocalContribution().core;
     core.delTable(TABLE.questionAggregates);

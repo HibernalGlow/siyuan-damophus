@@ -41,7 +41,7 @@
   export let toggleOption: (optionId: string) => void;
   export let changeSubjectiveScore: (event: Event) => void;
   export let timingEnabled = true;
-  export let questionElapsedMs = 0;
+  export let sessionElapsedMs = 0;
   export let resetQuestionTimer: () => void;
   export let endConfirmation = false;
   export let confirmEndPractice: () => void;
@@ -54,13 +54,12 @@
   export let questionIndex = 0;
   export let completedQuestionIndices: number[] = [];
   export let goToQuestion: (index: number) => void;
-  export let previousQuestion: () => void;
-  export let nextQuestion: () => void;
   export let submitting = false;
   export let suggestedRating: MasteryRating | undefined;
   export let revealAnswer: () => void;
   export let retry: () => void;
   export let submitRating: (rating: MasteryRating) => void;
+  export let correctRating: (rating: MasteryRating) => void = () => {};
 </script>
 
 <section class="practice min-h-0 flex-1 overflow-hidden" aria-live="polite">
@@ -158,14 +157,22 @@
   </ScrollArea.Root>
 
   {#if readOnlyQuestion}
-    <div class="action-bar review-navigation">
-      <Button variant="outline" disabled={questionIndex === 0} onclick={previousQuestion}>{label("previous", "Previous question")}</Button>
-      <Button variant="outline" disabled={questionIndex >= queue.length - 1} onclick={nextQuestion}>{label("next", "Next question")}</Button>
+    <div class="rating-bar rating-bar--review" aria-label={label("adjustRating", "Adjust difficulty rating")}>
+      {#if timingEnabled}<span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>{/if}
+      {#each ["again", "hard", "good", "easy"] as rating}
+        <Button
+          variant={currentAttempt?.mastery_rating === rating ? "secondary" : "outline"}
+          class="min-w-0 px-1"
+          disabled={submitting}
+          aria-pressed={currentAttempt?.mastery_rating === rating}
+          onclick={() => correctRating(rating as MasteryRating)}
+        >{label(rating, rating)}</Button>
+      {/each}
     </div>
   {:else if !revealed}
     <div class="action-bar">
       {#if timingEnabled}
-        <span class="question-timer">{formatDuration(questionElapsedMs)}</span>
+        <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
         <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
           <RotateCcw size={16} aria-hidden="true" />
         </Button>
@@ -182,6 +189,7 @@
       </div>
     {/if}
     <div class="rating-bar">
+      {#if timingEnabled}<span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>{/if}
       <Button variant="outline" size="icon" class="mr-1" title={label("retry", "Undo and retry")} aria-label={label("retry", "Undo and retry")} disabled={submitting} onclick={retry}>
         <svg aria-hidden="true"><use href="#iconUndo"></use></svg>
       </Button>
@@ -194,7 +202,9 @@
 
 <style>
   .rating-duration-row { min-height: 30px; padding: 4px 20px 3px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); }
+  .rating-bar--review { grid-template-columns: auto repeat(4, minmax(76px, 112px)); }
   @media (max-width: 750px) {
     .rating-duration-row { padding-inline: 8px; }
+    .rating-bar--review { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
   }
 </style>

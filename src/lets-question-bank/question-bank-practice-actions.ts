@@ -1,5 +1,5 @@
 import { gradeQuestion, normalizeOptionIds } from "@/question-bank/core/answer";
-import type { MasteryRating, Question } from "@/question-bank/core/types";
+import type { AttemptEvent, MasteryRating, Question } from "@/question-bank/core/types";
 import type { PracticeSessionRuntime } from "@/question-bank/application";
 import type { QuestionBankUiController } from "./controller";
 
@@ -12,6 +12,7 @@ export interface PracticeActionState {
   readOnlyQuestion: boolean;
   submitting: boolean;
   timingEnabled: boolean;
+  currentAttempt?: AttemptEvent;
   indefinitePracticeMode?: boolean;
   previewBlockIds: ReadonlyMap<string, string> | undefined;
   sessionId: string;
@@ -149,5 +150,23 @@ export function createPracticeActions(deps: {
     }).finally(() => deps.setSubmitting(false));
   }
 
-  return { toggleOption, revealAnswer, retry, resetQuestionTimer, changeSubjectiveScore, submitRating };
+  function correctRating(rating: MasteryRating): void {
+    const current = state();
+    const attempt = current.currentAttempt;
+    if (!attempt || !current.practiceRuntime || current.submitting || !deps.controller.correctAttemptRating) return;
+    if (attempt.mastery_rating === rating) return;
+    deps.setSubmitting(true);
+    deps.setError("");
+    void deps.controller.correctAttemptRating(
+      attempt,
+      rating,
+      current.filter === "due" ? current.dueCards.get(attempt.question_id) : undefined,
+    ).then((corrected) => {
+      current.practiceRuntime?.actor.send({ type: "RATING_CORRECTED", attempt: corrected });
+    }).catch((reason) => {
+      deps.setError(reason instanceof Error ? reason.message : String(reason));
+    }).finally(() => deps.setSubmitting(false));
+  }
+
+  return { toggleOption, revealAnswer, retry, resetQuestionTimer, changeSubjectiveScore, submitRating, correctRating };
 }

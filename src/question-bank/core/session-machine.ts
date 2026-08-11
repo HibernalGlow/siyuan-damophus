@@ -30,6 +30,7 @@ export type PracticeSessionMachineEvent =
   | { type: "BEGIN_SUBMIT"; questionId: string; now: number }
   | { type: "SUBMIT_SUCCEEDED"; attempt: AttemptEvent; now: number }
   | { type: "SUBMIT_FAILED"; message: string; now: number }
+  | { type: "RATING_CORRECTED"; attempt: AttemptEvent }
   | { type: "REVIEW"; questionId: string; now: number }
   | { type: "EXIT_REVIEW"; now: number };
 
@@ -241,6 +242,18 @@ const machineSetup = setup({
         error: event.message,
       };
     }),
+    correctRating: assign(({ context, event }) => {
+      if (event.type !== "RATING_CORRECTED") return context;
+      const current = context.attemptsByQuestionId[event.attempt.question_id];
+      if (!current || current.attempt_id !== event.attempt.attempt_id) return context;
+      return {
+        ...context,
+        attemptsByQuestionId: {
+          ...context.attemptsByQuestionId,
+          [event.attempt.question_id]: event.attempt,
+        },
+      };
+    }),
     exitReview: assign(({ context, event }) => event.type === "EXIT_REVIEW" ? {
       ...context,
       activeSinceMs: undefined,
@@ -284,6 +297,7 @@ export const practiceSessionMachine = machineSetup.createMachine({
           actions: "beginSubmission",
         },
         RESET_QUESTION_TIMER: { actions: "resetQuestionTimer" },
+        RATING_CORRECTED: { actions: "correctRating" },
       },
     },
     submitting: {
@@ -314,6 +328,7 @@ export const practiceSessionMachine = machineSetup.createMachine({
     reviewing: {
       on: {
         NAVIGATE: { guard: "validNavigation", actions: "navigate" },
+        RATING_CORRECTED: { actions: "correctRating" },
         EXIT_REVIEW: { target: "completed", actions: "exitReview" },
         END: { target: "ended", actions: "end" },
       },

@@ -11,6 +11,7 @@ export const TABLE = {
   practiceSessionVersions: "practice_session_versions",
   examSessionVersions: "exam_session_versions",
   attemptEvents: "attempt_events",
+  attemptRatingEvents: "attempt_rating_events",
   examEvents: "exam_events",
 } as const;
 
@@ -64,6 +65,10 @@ export const DAMOPHUS_TABLES_SCHEMA: TablesSchema = {
     selected_option_ids: stringCell, objective_correct: stringCell, mastery_rating: stringCell,
     session_mode: stringCell, rating_source: stringCell, subjective_score: numberCell,
     duration_ms: numberCell,
+  },
+  [TABLE.attemptRatingEvents]: {
+    schema_version: numberCell, event_kind: stringCell, event_id: stringCell,
+    attempt_id: stringCell, mastery_rating: stringCell, changed_at: stringCell,
   },
   [TABLE.examEvents]: {
     schema_version: numberCell, event_kind: stringCell, attempt_id: stringCell,

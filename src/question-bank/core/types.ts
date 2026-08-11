@@ -104,6 +104,15 @@ export interface AttemptEvent {
   duration_ms?: number;
 }
 
+export interface AttemptRatingEvent {
+  schema_version: 1;
+  event_kind: "attempt_rating_changed";
+  event_id: string;
+  attempt_id: string;
+  mastery_rating: MasteryRating;
+  changed_at: string;
+}
+
 export interface ExamSummaryEvent {
   schema_version: 1;
   event_kind: "exam_submitted" | "exam_finalized" | "exam_abandoned";

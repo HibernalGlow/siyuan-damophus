@@ -1,5 +1,5 @@
 import type { MergeableStore } from "tinybase/mergeable-store";
-import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent } from "../core/types";
+import type { AttemptAggregate, AttemptEvent, AttemptRatingEvent, ExamSummaryEvent } from "../core/types";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "../core/session-schema";
 import type { ExamSessionSnapshot } from "../exam/schema";
 import type { QuestionSetBlueprint } from "../assembly/schema";
@@ -31,6 +31,11 @@ export interface AttemptEventRepository {
   list(): Promise<AttemptEvent[]>;
   import(events: readonly AttemptEvent[]): Promise<{ created: number; duplicates: number; conflicts: string[] }>;
   export(): Promise<AttemptEvent[]>;
+}
+
+export interface AttemptRatingEventRepository {
+  append(event: AttemptRatingEvent): Promise<"created" | "duplicate">;
+  list(): Promise<AttemptRatingEvent[]>;
 }
 
 export interface ExamEventRepository {

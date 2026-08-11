@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { CheckCircle2, XCircle } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
@@ -71,12 +72,18 @@
   function sourceBlockMount(node: HTMLElement, params: SourceBlockMountParams) {
     let disposed = false;
     let cleanup: (() => void) | undefined;
+    let currentParams = params;
     Promise.resolve(mountBlock(node, params)).then((dispose) => {
       if (disposed) void dispose?.();
       else cleanup = dispose;
     });
     return {
       update(next: SourceBlockMountParams) {
+        if (next.blockId === currentParams.blockId
+          && next.editable === currentParams.editable
+          && next.section === currentParams.section
+          && next.renderMode === currentParams.renderMode) return;
+        currentParams = next;
         disposed = true;
         void cleanup?.();
         disposed = false;
@@ -90,6 +97,39 @@
         void cleanup?.();
       },
     };
+  }
+
+  function correctOptionIds(): ReadonlySet<string> {
+    const answer = currentQuestion.answer;
+    if (!answer) return new Set();
+    if (answer.kind === "boolean") return new Set([String(answer.value)]);
+    return new Set(answer.optionIds);
+  }
+
+  function optionResultClass(optionId: string): string {
+    if (!revealed) return "";
+    const correctIds = correctOptionIds();
+    if (correctIds.has(optionId)) return "option--correct";
+    return selectedOptionIds.includes(optionId) ? "option--incorrect-selected" : "";
+  }
+
+  function scrollableTables(node: HTMLElement) {
+    const apply = () => {
+      node.querySelectorAll<HTMLElement>('[data-type="NodeTable"].table, table').forEach((table) => {
+        const tableBlock = table.matches('[data-type="NodeTable"].table');
+        table.style.maxWidth = tableBlock ? "100%" : "none";
+        if (tableBlock) table.style.display = "block";
+        table.style.overflowX = "auto";
+        table.style.overflowY = "hidden";
+        table.style.overscrollBehaviorX = "contain";
+        table.style.touchAction = "pan-x";
+        (table.style as CSSStyleDeclaration & { webkitOverflowScrolling?: string }).webkitOverflowScrolling = "touch";
+      });
+    };
+    const observer = new MutationObserver(apply);
+    observer.observe(node, { childList: true, subtree: true });
+    apply();
+    return { destroy: () => observer.disconnect() };
   }
 
   function maskQuestionTypeMarkers(node: HTMLElement, enabled: boolean) {
@@ -139,7 +179,7 @@
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-            class="option"
+            class={`option ${optionResultClass(option.originalId)}`}
             disabled={revealed || readOnlyQuestion}
             aria-pressed={selectedOptionIds.includes(option.originalId)}
             onclick={() => toggleOption(option.originalId)}
@@ -169,7 +209,7 @@
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-            class="option"
+            class={`option ${optionResultClass(option.originalId)}`}
             disabled={revealed || readOnlyQuestion}
             aria-pressed={selectedOptionIds.includes(option.originalId)}
             onclick={() => toggleOption(option.originalId)}
@@ -205,7 +245,7 @@
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
-            class="option"
+            class={`option ${optionResultClass(option.originalId)}`}
             disabled={revealed || readOnlyQuestion}
             aria-pressed={selectedOptionIds.includes(option.originalId)}
             onclick={() => toggleOption(option.originalId)}
@@ -228,11 +268,12 @@
 />
 
 {#if revealed}
-  <section class="answer">
+  <section class="answer" use:scrollableTables>
     {#if objectiveCorrect !== null || (durationComparisonPosition === "answer" && durationComparisons.length > 0)}
       <div class="answer-summary">
         {#if objectiveCorrect !== null}
-          <strong class:correct={objectiveCorrect} class:incorrect={!objectiveCorrect}>
+          <strong class:correct={objectiveCorrect} class:incorrect={!objectiveCorrect} data-answer-result={objectiveCorrect ? "correct" : "incorrect"}>
+            {#if objectiveCorrect}<CheckCircle2 size={17} aria-hidden="true" />{:else}<XCircle size={17} aria-hidden="true" />{/if}
             {objectiveCorrect ? label("correct", "Correct") : label("incorrect", "Incorrect")}
           </strong>
         {/if}
@@ -368,6 +409,27 @@
     outline-offset: 1px;
   }
   .options > :global(button.option:disabled) { cursor: default; }
+  .options > :global(button.option:active) { transform: none; }
+  .options > :global(button.option.option--correct) {
+    border-color: color-mix(in srgb, var(--b3-theme-success) 76%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-success) 13%, var(--b3-theme-background));
+    animation: damophus-option-correct 560ms ease-out both;
+  }
+  .options > :global(button.option.option--incorrect-selected) {
+    border-color: color-mix(in srgb, var(--b3-theme-error) 76%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-error) 11%, var(--b3-theme-background));
+    animation: damophus-option-incorrect 420ms ease-out both;
+  }
+  :global(.options > button.option.option--correct) .option-label {
+    border-color: var(--b3-theme-success);
+    background: var(--b3-theme-success);
+    color: var(--b3-theme-on-success, #fff);
+  }
+  :global(.options > button.option.option--incorrect-selected) .option-label {
+    border-color: var(--b3-theme-error);
+    background: var(--b3-theme-error);
+    color: var(--b3-theme-on-error, #fff);
+  }
   .option-label { width: 22px; height: 22px; border: 1px solid color-mix(in srgb, var(--b3-border-color) 90%, transparent); border-radius: 5px; display: grid; place-items: center; color: var(--b3-theme-on-surface); font-size: 12px; font-weight: 650; line-height: 1; }
   :global(.options > button.option[aria-pressed="true"]) .option-label { border-color: var(--b3-theme-primary); background: var(--b3-theme-primary); color: var(--b3-theme-on-primary); }
   .option-content { align-self: center; width: 100%; min-width: 0; line-height: 1.4; }
@@ -384,7 +446,9 @@
   .incorrect { color: var(--b3-theme-error); }
   .answer-summary { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
   .answer-summary::-webkit-scrollbar { display: none; }
-  .answer-summary > strong { flex: 0 0 auto; white-space: nowrap; }
+  .answer-summary > strong { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .answer-summary > strong[data-answer-result="correct"] { animation: damophus-answer-correct 620ms ease-out both; }
+  .answer-summary > strong[data-answer-result="incorrect"] { animation: damophus-answer-incorrect 420ms ease-out both; }
   .native-answer-source, .embedded-answer-source { margin-top: 12px; min-height: 0; overflow: visible; }
   .native-answer-source :global(.damophus-native-source-block),
   .embedded-answer-source :global(.damophus-native-source-block) { min-height: 0; margin: 0; overflow: visible; }
@@ -404,7 +468,61 @@
     padding: 0 !important;
     overflow: visible;
   }
+  :global(.native-answer-source [data-type="NodeTable"].table),
+  :global(.embedded-answer-source [data-type="NodeTable"].table),
+  :global(.solution [data-type="NodeTable"].table),
+  :global(.solution table) {
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
+  :global(.native-answer-source [data-type="NodeTable"].table table),
+  :global(.embedded-answer-source [data-type="NodeTable"].table table) { max-width: none !important; }
+  :global([data-type="NodeTable"].table) {
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
+  :global([data-type="NodeTable"].table > div:first-child) {
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
   .attempt-metadata { margin-top: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
+
+  @keyframes damophus-option-correct {
+    0% { transform: scale(0.985); box-shadow: 0 0 0 0 color-mix(in srgb, var(--b3-theme-success) 30%, transparent); }
+    55% { transform: scale(1.006); box-shadow: 0 0 0 4px color-mix(in srgb, var(--b3-theme-success) 12%, transparent); }
+    100% { transform: scale(1); box-shadow: none; }
+  }
+  @keyframes damophus-option-incorrect {
+    0%, 100% { transform: translateX(0); }
+    28% { transform: translateX(-4px); }
+    56% { transform: translateX(3px); }
+    78% { transform: translateX(-1px); }
+  }
+  @keyframes damophus-answer-correct {
+    0% { opacity: 0; transform: translateY(3px) scale(0.96); }
+    60% { opacity: 1; transform: translateY(0) scale(1.04); }
+    100% { transform: scale(1); }
+  }
+  @keyframes damophus-answer-incorrect {
+    0% { opacity: 0; transform: translateX(-3px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .options > :global(button.option.option--correct),
+    .options > :global(button.option.option--incorrect-selected),
+    .answer-summary > strong[data-answer-result] { animation: none; }
+  }
 
   @container (max-width: 960px) {
     .question { padding: 12px 14px 6px; }

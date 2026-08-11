@@ -25,7 +25,7 @@
   export let queueLength = 0;
   export let completedCount = 0;
   export let timingEnabled = true;
-  export let sessionElapsedMs = 0;
+  export let questionElapsedMs = 0;
   export let durationComparisons: AttemptDurationComparison[] = [];
   export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let breadcrumbItems: BlockBreadcrumbItem[] = [];
@@ -128,9 +128,9 @@
           <span class="submitted-copy"> · {completedCount} {label("submitted", "submitted")}</span>
         </span>
         {#if timingEnabled}
-          <span class="timer" title={label("sessionElapsed", "Session elapsed time")}>
+          <span class="timer" title={label("questionElapsed", "Question elapsed time")}>
             <svg aria-hidden="true"><use href="#iconClock"></use></svg>
-            {formatDuration(sessionElapsedMs)}
+            {formatDuration(questionElapsedMs)}
           </span>
         {/if}
       </div>
