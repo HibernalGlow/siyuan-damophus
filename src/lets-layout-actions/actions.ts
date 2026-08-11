@@ -1,3 +1,5 @@
+import { PANEL_LAYOUT_ICONS } from "./icons";
+
 export type ActionKind = "system" | "plugin" | "editor";
 export type ActionPlacement = "menu" | "dock" | "both";
 
@@ -22,7 +24,7 @@ export const DEFAULT_ACTIONS: ConfiguredAction[] = [
   {
     id: "switch-left-dock",
     title: "lets-layout-actions.switchLeft",
-    icon: "iconLeft",
+    icon: PANEL_LAYOUT_ICONS.switchLeftDock,
     kind: "system",
     value: "switchLeftDock",
     placement: "menu",
@@ -31,7 +33,7 @@ export const DEFAULT_ACTIONS: ConfiguredAction[] = [
   {
     id: "switch-right-dock",
     title: "lets-layout-actions.switchRight",
-    icon: "iconRight",
+    icon: PANEL_LAYOUT_ICONS.switchRightDock,
     kind: "system",
     value: "switchRightDock",
     placement: "menu",
@@ -40,7 +42,7 @@ export const DEFAULT_ACTIONS: ConfiguredAction[] = [
   {
     id: "switch-bottom-dock",
     title: "lets-layout-actions.switchBottom",
-    icon: "iconDown",
+    icon: PANEL_LAYOUT_ICONS.switchBottomDock,
     kind: "system",
     value: "switchBottomDock",
     placement: "menu",
@@ -67,13 +69,23 @@ export function normalizeConfiguredActions(value: unknown): ConfiguredAction[] {
         ? candidate.id.trim()
         : `custom-action-${index + 1}`,
       title: title || `Custom action ${index + 1}`,
-      icon: normalizeIcon(candidate.icon),
+      icon: normalizeBuiltInIcon(candidate, normalizeIcon(candidate.icon)),
       kind,
       value: command,
       placement,
       enabled: candidate.enabled !== false,
     }];
   });
+}
+
+function normalizeBuiltInIcon(candidate: Partial<ConfiguredAction>, icon: string): string {
+  const migrations: Record<string, { value: string; from: string; to: string }> = {
+    "switch-left-dock": { value: "switchLeftDock", from: "iconLeft", to: PANEL_LAYOUT_ICONS.switchLeftDock },
+    "switch-right-dock": { value: "switchRightDock", from: "iconRight", to: PANEL_LAYOUT_ICONS.switchRightDock },
+    "switch-bottom-dock": { value: "switchBottomDock", from: "iconDown", to: PANEL_LAYOUT_ICONS.switchBottomDock },
+  };
+  const migration = migrations[candidate.id ?? ""];
+  return migration && candidate.value === migration.value && icon === migration.from ? migration.to : icon;
 }
 
 export function actionAppearsOn(action: ConfiguredAction, surface: "menu" | "dock"): boolean {

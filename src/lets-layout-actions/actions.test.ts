@@ -5,6 +5,7 @@ import {
   normalizeConfiguredActions,
   type ActionRuntime,
 } from "./actions";
+import { PANEL_LAYOUT_ICONS } from "./icons";
 
 function runtime(): ActionRuntime {
   return {
@@ -41,6 +42,16 @@ describe("configured actions", () => {
       placement: "both",
       enabled: true,
     }]);
+  });
+
+  it("migrates the original arrow icons to panel-collapse icons", () => {
+    const actions = normalizeConfiguredActions([
+      { id: "switch-left-dock", title: "Left", value: "switchLeftDock", icon: "iconLeft" },
+      { id: "custom", title: "Custom", value: "switchLeftDock", icon: "iconLeft" },
+    ]);
+
+    expect(actions[0].icon).toBe(PANEL_LAYOUT_ICONS.switchLeftDock);
+    expect(actions[1].icon).toBe("iconLeft");
   });
 
   it("executes system, plugin, and editor commands through one runtime interface", () => {

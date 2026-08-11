@@ -86,4 +86,51 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     entry.setSurfaces({ dock: true });
     expect(addDock).toHaveBeenCalledOnce();
   });
+
+  it("executes an action Dock without allowing SiYuan to open a panel", () => {
+    const execute = vi.fn();
+    const nativeDockClick = vi.fn();
+    const dockButton = document.createElement("button");
+    dockButton.className = "dock__item";
+    dockButton.dataset.type = "siyuan-damophusdirect-action-dock";
+    window.addEventListener("click", nativeDockClick);
+    document.body.append(dockButton);
+
+    const entry = new UnifiedEntryPoint({
+      id: "direct-action",
+      title: "Direct action",
+      icon: "iconTest",
+      execute,
+      dock: {
+        type: "direct-action-dock",
+        activation: "action",
+        config: {
+          position: "LeftTop",
+          size: { width: 240, height: 0 },
+          icon: "iconTest",
+          title: "Direct action",
+        },
+        data: {},
+        init: vi.fn(),
+      },
+    }, {
+      addCommand: vi.fn(),
+      addDock: vi.fn(() => ({ config: {} as never, model: {} as never })),
+    });
+
+    entry.registerDock();
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    dockButton.dispatchEvent(event);
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(nativeDockClick).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
+
+    entry.setEnabled(false);
+    dockButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(execute).toHaveBeenCalledOnce();
+    expect(nativeDockClick).toHaveBeenCalledOnce();
+    window.removeEventListener("click", nativeDockClick);
+    dockButton.remove();
+  });
 });

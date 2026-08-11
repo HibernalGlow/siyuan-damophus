@@ -10,14 +10,7 @@ const pluginMetadata: PluginMetadata = {
   enabled: true,
   icon: "panelRight",
   settings: [
-    ...createEntrySettings({ menu: true, command: true }),
-    {
-      type: "checkbox",
-      title: "lets-layout-actions.dockEnabled",
-      description: "lets-layout-actions.dockEnabledDescription",
-      key: "showDock",
-      value: false,
-    },
+    ...createEntrySettings({ menu: true, desktopDock: true, command: true }, { central: true }),
     {
       type: "select",
       title: "lets-layout-actions.dockPosition",

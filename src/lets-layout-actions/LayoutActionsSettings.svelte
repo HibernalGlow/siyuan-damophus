@@ -1,7 +1,5 @@
 <script lang="ts" module>
   export interface LayoutActionsSettingsLabels {
-    dockEnabled: string;
-    dockEnabledDescription: string;
     dockPosition: string;
     actions: string;
     addAction: string;
@@ -55,7 +53,6 @@
   export let title: string;
   export let moduleSettingItems: ISettingItem[] = [];
   export let actions: ConfiguredAction[] = [];
-  export let showDock = false;
   export let dockPosition: TPluginDockPosition = "RightBottom";
   export let labels: LayoutActionsSettingsLabels;
   export let mobile = false;
@@ -124,15 +121,7 @@
   <SettingPanel group={group} settingItems={moduleSettingItems} {mobile} on:changed />
 
   <div class="border-y border-border">
-    <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-5 px-3 py-3 max-[640px]:grid-cols-1 max-[640px]:gap-3">
-      <div class="min-w-0">
-        <div class="text-sm font-medium">{labels.dockEnabled}</div>
-        <div class="mt-1 text-xs leading-5 text-muted-foreground">{labels.dockEnabledDescription}</div>
-      </div>
-      <Switch checked={showDock} onCheckedChange={(checked) => { showDock = checked; changed("showDock", checked); }} aria-label={labels.dockEnabled} />
-    </div>
-
-    <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(180px,auto)] items-center gap-5 border-t border-border px-3 py-3 max-[640px]:grid-cols-1 max-[640px]:gap-3">
+    <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(180px,auto)] items-center gap-5 px-3 py-3 max-[640px]:grid-cols-1 max-[640px]:gap-3">
       <div class="text-sm font-medium">{labels.dockPosition}</div>
       <Select.Root type="single" value={dockPosition} onValueChange={(value) => { dockPosition = value as TPluginDockPosition; changed("dockPosition", dockPosition); }}>
         <Select.Trigger class="w-52 max-w-full">{{

@@ -1,4 +1,5 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
+import { isMobileEntryFrontend } from "@/libs/plugin-entry-settings";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { plugin } from "@/utils";
 import { showMessage, type Menu, type TPluginDockPosition } from "siyuan";
@@ -10,9 +11,8 @@ import {
   resolveActionTitle,
   type ConfiguredAction,
 } from "./actions";
-import { renderConfiguredActionsDock } from "./dock";
+import { PANEL_LAYOUT_ICON_SYMBOLS } from "./icons";
 import { createActionRuntime } from "./runtime";
-import "./layout-actions.css";
 
 const DOCK_POSITIONS = new Set<TPluginDockPosition>([
   "LeftTop",
@@ -25,32 +25,27 @@ const DOCK_POSITIONS = new Set<TPluginDockPosition>([
 
 export default class LayoutActionsPlugin extends SubPluginBase {
   private commandEntries?: UnifiedEntryPoint[];
-  private dockEntry?: UnifiedEntryPoint;
-  private dockTarget?: HTMLElement;
-  private cleanupDock?: () => void;
+  private dockEntries: UnifiedEntryPoint[] = [];
+  private iconsRegistered = false;
 
   override onload(): void {
+    this.registerIcons();
     this.registerBuiltInCommands();
     for (const entry of this.commandEntries ?? []) {
       entry.setSurfaces({ command: this.isEntryEnabled("command") });
       entry.setEnabled(true);
     }
-    this.ensureOptionalDock();
-    this.renderDock();
+    this.syncActionDocks();
   }
 
   onDataChanged(): void {
-    this.ensureOptionalDock();
-    this.renderDock();
+    this.syncActionDocks();
   }
 
   override onunload(): void {
     for (const entry of this.commandEntries ?? []) entry.setEnabled(false);
-    this.cleanupDock?.();
-    this.cleanupDock = undefined;
-    this.dockTarget = undefined;
-    this.dockEntry?.destroyDockContent();
-    this.dockEntry?.setEnabled(false);
+    for (const entry of this.dockEntries) entry.setEnabled(false);
+    this.dockEntries = [];
   }
 
   addMenuItem(menu: Menu): void {
@@ -82,56 +77,41 @@ export default class LayoutActionsPlugin extends SubPluginBase {
     for (const entry of this.commandEntries) entry.registerCommand();
   }
 
-  private ensureOptionalDock(): void {
-    if (this.dockEntry) {
-      this.dockEntry.setEnabled(this.getSetting("showDock") === true);
-      return;
-    }
-    if (this.getSetting("showDock") !== true) return;
-    const position = this.dockPosition();
-    this.dockEntry = new UnifiedEntryPoint({
-      id: "layout-actions.dock",
-      title: this.t("lets-layout-actions.displayName"),
-      icon: "iconMenu",
-      execute: () => undefined,
-      dock: {
-        type: "damophus-layout-actions-dock",
-        config: {
-          position,
-          size: { width: 240, height: 0 },
-          icon: "iconMenu",
-          title: this.t("lets-layout-actions.displayName"),
-          show: false,
-        },
-        data: {},
-        init: (target) => {
-          this.dockTarget = target;
-          this.renderDock();
-        },
-        destroy: () => {
-          this.cleanupDock?.();
-          this.cleanupDock = undefined;
-          this.dockTarget = undefined;
-        },
-      },
-    }, plugin);
-    this.dockEntry.registerDock();
-    this.dockEntry.setEnabled(true);
+  private registerIcons(): void {
+    if (this.iconsRegistered) return;
+    plugin.addIcons(PANEL_LAYOUT_ICON_SYMBOLS);
+    this.iconsRegistered = true;
   }
 
-  private renderDock(): void {
-    if (!this.dockTarget) return;
-    this.cleanupDock?.();
-    this.cleanupDock = undefined;
-    if (this.getSetting("showDock") !== true) {
-      this.dockTarget.replaceChildren();
-      return;
-    }
-    this.cleanupDock = renderConfiguredActionsDock(
-      this.dockTarget,
-      this.actionsFor("dock"),
-      (action) => this.execute(action),
-    );
+  private syncActionDocks(): void {
+    for (const entry of this.dockEntries) entry.setEnabled(false);
+    this.dockEntries = [];
+    if (isMobileEntryFrontend() || !this.isEntryEnabled("desktopDock")) return;
+
+    this.dockEntries = this.actionsFor("dock").map((action, index) => {
+      const entry = new UnifiedEntryPoint({
+        id: `layout-actions.dock.${action.id}`,
+        title: action.title,
+        icon: action.icon,
+        execute: () => this.execute(action),
+        dock: {
+          type: actionDockType(action.id),
+          activation: "action",
+          config: {
+            position: this.dockPosition(),
+            size: { width: 240, height: 0 },
+            icon: action.icon,
+            title: action.title,
+            show: false,
+            index,
+          },
+          data: {},
+          init: (target) => target.replaceChildren(),
+        },
+      }, plugin);
+      entry.registerDock();
+      return entry;
+    });
   }
 
   private configuredActions(): ConfiguredAction[] {
@@ -171,4 +151,11 @@ export default class LayoutActionsPlugin extends SubPluginBase {
     const value = this.getSetting("dockPosition");
     return DOCK_POSITIONS.has(value as TPluginDockPosition) ? value as TPluginDockPosition : "RightBottom";
   }
+}
+
+export function actionDockType(actionId: string): string {
+  const slug = actionId.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "action";
+  let hash = 2166136261;
+  for (const character of actionId) hash = Math.imul(hash ^ character.codePointAt(0)!, 16777619);
+  return `damophus-layout-action-${slug}-${(hash >>> 0).toString(36)}`;
 }

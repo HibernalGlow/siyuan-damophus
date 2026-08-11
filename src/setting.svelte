@@ -132,7 +132,6 @@
     ? focusedSettingItems.filter((item) => item.key !== MODULE_ENABLED_SETTING_KEY)
     : focusedSettingItems;
   $: layoutActions = settingItems[focusGroup]?.find((item) => item.key === "actions")?.value ?? [];
-  $: layoutActionsDockEnabled = Boolean(settingItems[focusGroup]?.find((item) => item.key === "showDock")?.value);
   $: layoutActionsDockPosition = settingItems[focusGroup]?.find((item) => item.key === "dockPosition")?.value ?? "RightBottom";
   $: if (groups && !groups.includes(focusGroup)) focusGroup = SWITCH_GROUP;
 
@@ -250,8 +249,6 @@
 
   function layoutActionsSettingsLabels() {
     return {
-      dockEnabled: t("lets-layout-actions.dockEnabled", "Add a custom action Dock"),
-      dockEnabledDescription: t("lets-layout-actions.dockEnabledDescription", "Show configured Dock actions."),
       dockPosition: t("lets-layout-actions.dockPosition", "Dock position"),
       actions: t("lets-layout-actions.actions", "Custom actions"),
       addAction: t("lets-layout-actions.addAction", "Add action"),
@@ -454,7 +451,6 @@
           title={getGroupLabel(focusGroup)}
           moduleSettingItems={moduleEnabledSettingItems}
           actions={layoutActions}
-          showDock={layoutActionsDockEnabled}
           dockPosition={layoutActionsDockPosition}
           mobile={compactLayout}
           labels={layoutActionsSettingsLabels()}

@@ -5,6 +5,7 @@ export interface UnifiedEntryDock {
   type: string;
   config: IPluginDockTab;
   data: unknown;
+  activation?: "panel" | "action";
   init(target: HTMLElement): void;
   destroy?(target: HTMLElement): void;
 }
@@ -39,6 +40,7 @@ export class UnifiedEntryPoint {
   private dockKey?: string;
   private dockTarget?: HTMLElement;
   private dockInitialized = false;
+  private dockActionElement?: HTMLElement;
   private enabled = true;
   private surfaces: Record<ManagedEntrySurface, boolean> = {
     menu: true,
@@ -188,11 +190,28 @@ export class UnifiedEntryPoint {
           use.setAttribute("href", `#${icon}`);
           use.setAttribute("xlink:href", `#${icon}`);
         }
+        this.syncDockActionElement(hidden ? undefined : element);
       });
+      if (hidden) this.syncDockActionElement(undefined);
     };
     apply();
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(apply);
   }
+
+  private syncDockActionElement(element: HTMLElement | undefined): void {
+    if (this.definition.dock?.activation !== "action") return;
+    if (this.dockActionElement === element) return;
+    this.dockActionElement?.removeEventListener("click", this.handleDockActionClick);
+    this.dockActionElement = element;
+    this.dockActionElement?.addEventListener("click", this.handleDockActionClick);
+  }
+
+  private readonly handleDockActionClick = (event: MouseEvent): void => {
+    if (!this.enabled || !this.surfaces.dock) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.definition.execute();
+  };
 
   private matchesDockType(actualType: string | undefined, dockType: string): boolean {
     return actualType === dockType || actualType?.endsWith(dockType) === true;

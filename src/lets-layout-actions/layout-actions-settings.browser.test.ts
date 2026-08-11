@@ -10,8 +10,6 @@ const actions = DEFAULT_ACTIONS.map((action, index) => ({
 }));
 
 const labels = {
-  dockEnabled: "添加自定义操作 Dock",
-  dockEnabledDescription: "默认关闭",
   dockPosition: "Dock 位置",
   actions: "自定义快捷操作",
   addAction: "添加操作",
@@ -58,7 +56,6 @@ function render(changed = vi.fn()) {
       group: "lets-layout-actions.displayName",
       title: "快捷操作",
       actions,
-      showDock: false,
       dockPosition: "RightBottom",
       labels,
     },
@@ -68,21 +65,16 @@ function render(changed = vi.fn()) {
 }
 
 describe("layout actions settings", () => {
-  it("keeps the optional Dock disabled while exposing editable menu actions", async () => {
-    const { target, changed } = render();
+  it("exposes editable actions without the retired aggregate Dock switch", async () => {
+    const { target } = render();
     await tick();
 
-    const dockSwitch = target.querySelector<HTMLElement>('[role="switch"][aria-label="添加自定义操作 Dock"]');
-    expect(dockSwitch?.getAttribute("data-state")).toBe("unchecked");
+    expect(target.querySelector('[role="switch"][aria-label*="Dock"]')).toBeNull();
+    expect(target.textContent).toContain(labels.dockPosition);
     expect([...target.querySelectorAll<HTMLInputElement>("input")].some(
       (input) => input.value === "切换左侧面板布局",
     )).toBe(true);
     expect(target.querySelectorAll("article")).toHaveLength(3);
-
-    dockSwitch?.click();
-    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
-      detail: { group: "lets-layout-actions.displayName", key: "showDock", value: true },
-    }));
   });
 
   it("adds disabled actions without overflowing a mobile viewport", async () => {
