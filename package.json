@@ -67,6 +67,7 @@
     "@tanstack/svelte-table": "^9.1.0",
     "bits-ui": "^2.16.3",
     "broadcast-channel": "^7.4.0",
+    "browser-image-compression": "^2.0.2",
     "clsx": "2.1.1",
     "consola": "^3.4.2",
     "lucide-svelte": "0.545.0",

@@ -31,7 +31,7 @@ export const SETTING_CATEGORY_DEFINITIONS: SettingCategoryDefinition[] = [
     label: "settings.category.workflow",
     description: "settings.category.workflowDescription",
     icon: "workflow",
-    modules: ["kramdownExport", "listMerge", "legacyBlockSelection", "styleBrush", "blockDragPerformance", "layoutActions"],
+    modules: ["kramdownExport", "listMerge", "legacyBlockSelection", "styleBrush", "blockDragPerformance", "layoutActions", "imageConverter"],
   },
   {
     id: "appearance",
