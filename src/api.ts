@@ -154,6 +154,18 @@ export async function upload(assetsDirPath: string, files: any[]): Promise<IResU
     return request(url, form);
 }
 
+export async function uploadAssetsStrict(
+    assetsDirPath: string,
+    files: File[],
+): Promise<Record<string, string>> {
+    const form = new FormData();
+    form.append('assetsDirPath', assetsDirPath);
+    for (const file of files) form.append('file[]', file, file.name);
+    const response: IWebSocketData = await fetchSyncPost('/api/asset/upload', form);
+    if (response.code !== 0) throw new Error(response.msg || 'Asset upload failed');
+    return (response.data?.succMap ?? {}) as Record<string, string>;
+}
+
 // **************************************** Block ****************************************
 type DataType = "markdown" | "dom";
 export async function insertBlock(
@@ -202,6 +214,14 @@ export async function updateBlock(dataType: DataType, data: string, id: BlockId)
     }
     let url = '/api/block/updateBlock';
     return request(url, payload);
+}
+
+export async function updateBlockStrict(
+    dataType: DataType,
+    data: string,
+    id: BlockId,
+): Promise<IResdoOperations[]> {
+    return requestStrict<IResdoOperations[]>('/api/block/updateBlock', { dataType, data, id });
 }
 
 
@@ -258,6 +278,14 @@ export async function getChildBlocks(id: BlockId): Promise<IResGetChildBlock[]> 
     }
     let url = '/api/block/getChildBlocks';
     return request(url, data);
+}
+
+export async function getBlockKramdownStrict(id: BlockId): Promise<IResGetBlockKramdown> {
+    return requestStrict<IResGetBlockKramdown>('/api/block/getBlockKramdown', { id, mode: 'md' });
+}
+
+export async function getDocAssetsStrict(id: DocumentId, retainQueryStr = true): Promise<string[]> {
+    return requestStrict<string[]>('/api/asset/getDocAssets', { id, retainQueryStr });
 }
 
 export async function getHeadingChildrenIDs(id: BlockId): Promise<BlockId[]> {
@@ -414,6 +442,15 @@ export async function removeFile(path: string) {
     }
     let url = '/api/file/removeFile';
     return request(url, data);
+}
+
+export async function removeFileStrict(path: string): Promise<void> {
+    await requestStrict<null>('/api/file/removeFile', { path });
+}
+
+export async function removeUnusedAssetStrict(path: string): Promise<string> {
+    const result = await requestStrict<{ path: string }>('/api/asset/removeUnusedAsset', { path });
+    return result.path;
 }
 
 

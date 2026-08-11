@@ -29,6 +29,13 @@ const pluginMetadata: PluginMetadata = {
       value: 60,
       slider: { min: 1, max: 100, step: 1 },
     },
+    {
+      type: "checkbox",
+      title: "lets-image-converter.skipAnimatedTitle",
+      description: "lets-image-converter.skipAnimatedDescription",
+      key: "skipAnimated",
+      value: true,
+    },
   ],
 };
 
