@@ -5,13 +5,18 @@ import type { PluginIconName } from "@/libs/plugin-icons";
 export type TranslationKey = keyof typeof en;
 
 export interface PluginSettingItem {
-  type: "checkbox" | "textinput" | "textarea" | "select" | "number" | "button" | "list";
+  type: "checkbox" | "textinput" | "textarea" | "select" | "number" | "slider" | "button" | "list";
   title: string;
   description?: string;
   key: string;
   value?: any;
   placeholder?: string;
   height?: string;
+  slider?: {
+    min: number;
+    max: number;
+    step: number;
+  };
   options?: Record<string, string>;
   columns?: Array<{
     key: string;

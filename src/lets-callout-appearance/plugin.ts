@@ -1,0 +1,84 @@
+import type { PluginMetadata } from "@/types/plugin";
+
+export const pluginMetadata: PluginMetadata = {
+  name: "calloutAppearance",
+  displayName: "lets-callout-appearance.displayName",
+  description: "lets-callout-appearance.description",
+  version: "1.0.0",
+  enabled: true,
+  icon: "messageSquareText",
+  reference: "https://github.com/QYLexpired/Neo",
+  settings: [
+    {
+      type: "slider",
+      title: "lets-callout-appearance.paddingTopTitle",
+      description: "lets-callout-appearance.paddingTopDescription",
+      key: "paddingTop",
+      value: 16,
+      slider: { min: 8, max: 24, step: 1 },
+    },
+    {
+      type: "slider",
+      title: "lets-callout-appearance.paddingXTitle",
+      description: "lets-callout-appearance.paddingXDescription",
+      key: "paddingX",
+      value: 16,
+      slider: { min: 8, max: 28, step: 1 },
+    },
+    {
+      type: "slider",
+      title: "lets-callout-appearance.paddingBottomTitle",
+      description: "lets-callout-appearance.paddingBottomDescription",
+      key: "paddingBottom",
+      value: 10,
+      slider: { min: 4, max: 20, step: 1 },
+    },
+    {
+      type: "slider",
+      title: "lets-callout-appearance.radiusTitle",
+      description: "lets-callout-appearance.radiusDescription",
+      key: "radius",
+      value: 11,
+      slider: { min: 0, max: 20, step: 1 },
+    },
+    {
+      type: "slider",
+      title: "lets-callout-appearance.surfaceOpacityTitle",
+      description: "lets-callout-appearance.surfaceOpacityDescription",
+      key: "surfaceOpacity",
+      value: 5,
+      slider: { min: 0, max: 16, step: 1 },
+    },
+    {
+      type: "slider",
+      title: "lets-callout-appearance.outlineOpacityTitle",
+      description: "lets-callout-appearance.outlineOpacityDescription",
+      key: "outlineOpacity",
+      value: 8,
+      slider: { min: 0, max: 24, step: 1 },
+    },
+    {
+      type: "slider",
+      title: "lets-callout-appearance.titleSizeTitle",
+      description: "lets-callout-appearance.titleSizeDescription",
+      key: "titleSize",
+      value: 16,
+      slider: { min: 12, max: 20, step: 1 },
+    },
+    {
+      type: "select",
+      title: "lets-callout-appearance.titleWeightTitle",
+      description: "lets-callout-appearance.titleWeightDescription",
+      key: "titleWeight",
+      value: "500",
+      options: {
+        "400": "lets-callout-appearance.titleWeightRegular",
+        "500": "lets-callout-appearance.titleWeightMedium",
+        "600": "lets-callout-appearance.titleWeightSemibold",
+        "700": "lets-callout-appearance.titleWeightBold",
+      },
+    },
+  ],
+};
+
+export default pluginMetadata;

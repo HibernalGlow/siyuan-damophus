@@ -27,13 +27,25 @@ const [
 
 const expectedModules = [
   "lets-agent-bridge",
+  "lets-agent-surface",
+  "lets-ai-config-sync",
   "lets-animated-image-replay",
   "lets-block-attr",
+  "lets-block-drag-performance",
+  "lets-callout-appearance",
   "lets-kramdown-export",
+  "lets-layout-actions",
+  "lets-legacy-block-selection",
   "lets-list-merge",
+  "lets-mobile-appearance",
   "lets-mobile-breadcrumb",
   "lets-mobile-liquid-glass",
   "lets-question-bank",
+  "lets-selection-highlight",
+  "lets-skill-manager",
+  "lets-table-fit",
+  "lets-topic-dictionary",
+  "lets-topic-relations",
 ];
 
 assert.equal(packageJson.name, expected.id);

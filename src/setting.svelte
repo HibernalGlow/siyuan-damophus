@@ -16,6 +16,7 @@
   import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
   import QuestionBankSettings from "./lets-question-bank/QuestionBankSettings.svelte";
   import LayoutActionsSettings from "./lets-layout-actions/LayoutActionsSettings.svelte";
+  import CalloutAppearanceSettings from "./lets-callout-appearance/CalloutAppearanceSettings.svelte";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
     DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
@@ -32,6 +33,7 @@
   const QUESTION_BANK_PLUGIN = "questionBank";
   const COMPACT_LAYOUT_MAX_WIDTH = 720;
   const LAYOUT_ACTIONS_PLUGIN = "layoutActions";
+  const CALLOUT_APPEARANCE_PLUGIN = "calloutAppearance";
 
   interface ChangeEvent {
     group: string;
@@ -123,6 +125,7 @@
   $: showBlockAttributeSettings = focusedPlugin?.name === BLOCK_ATTRIBUTE_PLUGIN;
   $: showQuestionBankSettings = focusedPlugin?.name === QUESTION_BANK_PLUGIN;
   $: showLayoutActionsSettings = focusedPlugin?.name === LAYOUT_ACTIONS_PLUGIN;
+  $: showCalloutAppearanceSettings = focusedPlugin?.name === CALLOUT_APPEARANCE_PLUGIN;
   $: showEntryManagement = focusGroup === ENTRY_GROUP;
   $: focusedSettingItems = settingItems[focusGroup] ?? [];
   $: moduleEnabledSettingItems = focusedPlugin
@@ -278,6 +281,17 @@
     };
   }
 
+  function calloutAppearanceSettingsLabels() {
+    return {
+      preview: t("lets-callout-appearance.preview", "Preview"),
+      previewDescription: t("lets-callout-appearance.previewDescription", "The nested example also checks narrow-width containment."),
+      outerTitle: t("lets-callout-appearance.previewOuterTitle", "Important"),
+      outerBody: t("lets-callout-appearance.previewOuterBody", "Callouts keep a quiet surface while their type remains easy to scan."),
+      nestedTitle: t("lets-callout-appearance.previewNestedTitle", "Tip"),
+      nestedBody: t("lets-callout-appearance.previewNestedBody", "Nested callouts stay inside the parent content area."),
+    };
+  }
+
   async function onClick({ detail }: CustomEvent<ChangeEvent>) {
     if (detail.group === GENERAL_GROUP && detail.key === "resetData") {
       await settings.resetData();
@@ -397,14 +411,14 @@
 
   <main class="min-w-0 flex-1 overflow-y-auto overscroll-contain" class:hidden={compactLayout && showCompactCategories}>
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
-      {#if !showQuestionBankSettings && !showLayoutActionsSettings}
+      {#if !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
         <header class="border-b border-border pb-4">
           <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
         </header>
       {/if}
 
       <!-- Damophus theme settings are temporarily hidden; the panel follows SiYuan's theme. -->
-      {#if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings}
+      {#if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
         <SettingPanel
           group={focusGroup}
           settingItems={moduleEnabledSettingItems}
@@ -455,6 +469,17 @@
           mobile={compactLayout}
           labels={layoutActionsSettingsLabels()}
           on:changed={onChanged}
+        />
+      {:else if showCalloutAppearanceSettings}
+        <CalloutAppearanceSettings
+          group={focusGroup}
+          title={getGroupLabel(focusGroup)}
+          moduleSettingItems={moduleEnabledSettingItems}
+          settingItems={moduleSpecificSettingItems}
+          labels={calloutAppearanceSettingsLabels()}
+          mobile={compactLayout}
+          on:changed={onChanged}
+          on:preview={onPreview}
         />
       {:else if moduleSpecificSettingItems.length > 0}
         <SettingPanel

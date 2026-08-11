@@ -7,6 +7,7 @@ export const pluginIconNames = [
   "glassWater",
   "imagePlay",
   "listTree",
+  "messageSquareText",
   "network",
   "panelRight",
   "power",
