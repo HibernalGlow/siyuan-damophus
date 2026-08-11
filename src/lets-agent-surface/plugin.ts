@@ -9,7 +9,7 @@ const pluginMetadata: PluginMetadata = {
   enabled: true,
   icon: "sparkles",
   settings: [
-    ...createEntrySettings({ menu: true, tab: true }, { central: true }),
+    ...createEntrySettings({ menu: true, mobileDock: true, tab: true }, { central: true }),
     {
       type: "checkbox",
       title: "lets-agent-surface.openInNewTabTitle",

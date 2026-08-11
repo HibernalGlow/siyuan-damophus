@@ -1,5 +1,6 @@
 import { fetchSyncPost, getFrontend, openTab, showMessage, type Menu } from "siyuan";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
+import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { plugin } from "@/utils";
 import { getLogger } from "@/libs/logger";
 import {
@@ -10,10 +11,12 @@ import {
   selectedBlockIds,
 } from "./surface-helpers";
 import { AgentAutomationController, type AgentApprovalNotice } from "./agent-automation";
+import { AgentPanelPortal } from "./agent-panel-portal";
 import "./agent-surface.css";
 
 const log = getLogger("lets-agent-surface");
 const AGENT_TAB_TYPE = "damophus-agent-surface-tab";
+const AGENT_MOBILE_DOCK_TYPE = "damophus-agent-surface-mobile-dock";
 const MAX_YOLO_APPROVAL_DELAY_SECONDS = 300;
 type AgentModel = {
   panelElement?: HTMLElement;
@@ -49,6 +52,8 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   private listening = false;
   private tabRegistered = false;
   private automation?: AgentAutomationController;
+  private mobileDockEntry?: UnifiedEntryPoint;
+  private mobileDockPortal?: AgentPanelPortal;
   private allowingNativeDockClick = false;
   private allowingNativeMobileAgentClick = false;
   private panelOrigin?: { parent: Node; nextSibling: ChildNode | null };
@@ -132,6 +137,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       });
       this.automation.start();
     }
+    if (this.isMobileFrontend()) this.configureMobileDock();
   }
 
   override onLayoutReady(): void {
@@ -145,6 +151,11 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     }
     this.automation?.stop();
     this.automation = undefined;
+    this.mobileDockEntry?.setEnabled(false);
+    this.mobileDockEntry?.destroyDockContent();
+    this.mobileDockPortal?.stop();
+    this.mobileDockEntry = undefined;
+    this.mobileDockPortal = undefined;
     this.closeNativeMobileAgent();
     document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
     for (const target of this.tabTargets) this.detachTab(target);
@@ -182,6 +193,44 @@ export default class AgentSurfacePlugin extends SubPluginBase {
 
   private mobileDropdown(): boolean {
     return this.getSetting("mobileDropdown") !== false;
+  }
+
+  private isMobileFrontend(): boolean {
+    return getFrontend() === "mobile" || getFrontend() === "browser-mobile";
+  }
+
+  private configureMobileDock(): void {
+    this.mobileDockPortal ??= new AgentPanelPortal(
+      () => this.ensureMobileAgentModel(),
+      () => this.hideNativeMobileAgentHost(),
+      () => this.hideNativeMobileAgentHost(),
+    );
+    this.mobileDockEntry ??= new UnifiedEntryPoint({
+      id: "agent-surface.mobile-dock",
+      title: this.t("lets-agent-surface.displayName"),
+      icon: "iconSparkles",
+      execute: () => this.openAgent(),
+      dock: {
+        type: AGENT_MOBILE_DOCK_TYPE,
+        config: {
+          position: "RightBottom",
+          size: { width: 360, height: 0 },
+          icon: "iconSparkles",
+          title: this.t("lets-agent-surface.displayName"),
+          show: false,
+        },
+        data: {},
+        init: (target) => void this.mobileDockPortal?.attach(target),
+        destroy: (target) => this.mobileDockPortal?.detach(target),
+      },
+    }, plugin);
+    this.mobileDockEntry.setSurfaces({
+      menu: false,
+      command: false,
+      dock: this.isEntryEnabled("mobileDock"),
+    });
+    this.mobileDockEntry.setEnabled(true);
+    this.mobileDockEntry.registerDock();
   }
 
   private yoloMode(): boolean {
@@ -286,6 +335,27 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       if (item) this.clickNativeMobileAgentEntry(item);
       if (this.mobileDropdown()) window.setTimeout(() => this.applyMobileDropdownSurface(), 0);
     }, 0);
+  }
+
+  private async ensureMobileAgentModel(): Promise<AgentModel | undefined> {
+    const existing = agentModel();
+    if (existing?.panelElement) return existing;
+    this.openMobileAgent();
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 25));
+      const model = agentModel();
+      if (model?.panelElement) return model;
+    }
+    log.warn("native mobile agent model did not become available");
+    return undefined;
+  }
+
+  private hideNativeMobileAgentHost(): void {
+    document.getElementById("modelClose")?.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
   }
 
   private clickNativeMobileAgentEntry(item: HTMLElement): void {
@@ -397,4 +467,4 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 }
 
-export { AGENT_TAB_TYPE };
+export { AGENT_MOBILE_DOCK_TYPE, AGENT_TAB_TYPE };

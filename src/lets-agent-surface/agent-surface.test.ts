@@ -10,10 +10,11 @@ import {
 } from "./surface-helpers";
 
 describe("agent surface helpers", () => {
-  it("declares centrally managed menu and tab entry points", () => {
+  it("declares centrally managed menu, mobile Dock, and tab entry points", () => {
     const entrySettings = pluginMetadata.settings?.filter((setting) => setting.entryManagement === "central");
     expect(entrySettings?.map((setting) => [setting.entrySurface, setting.value])).toEqual([
       ["menu", true],
+      ["mobileDock", true],
       ["tab", true],
     ]);
   });

@@ -34,3 +34,24 @@
   flex-direction: column;
   overflow: hidden;
 }
+
+.damophus-agent-mobile-dock-host {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.damophus-agent-mobile-dock-host > .sy__agentChat {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.damophus-agent-mobile-dock-host .block__icon[data-type="min"] {
+  display: none;
+}
