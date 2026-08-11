@@ -14,6 +14,7 @@ export const pluginIconNames = [
   "smartphone",
   "sparkles",
   "sunMoon",
+  "tableProperties",
   "tags",
   "waypoints",
 ] as const;

@@ -18,6 +18,7 @@ const moduleIcons: Record<string, PluginIconName> = {
   "lets-mobile-liquid-glass.displayName": "glassWater",
   "lets-question-bank.displayName": "bookOpenCheck",
   "lets-skill-manager.displayName": "brain",
+  "lets-table-fit.displayName": "tableProperties",
   "lets-topic-relations.displayName": "network",
   "lets-agent-bridge.displayName": "bot",
   "lets-agent-surface.displayName": "sparkles",
@@ -91,6 +92,7 @@ describe("setting category navigation", () => {
           "lets-mobile-liquid-glass.displayName",
           "lets-question-bank.displayName",
           "lets-skill-manager.displayName",
+          "lets-table-fit.displayName",
           "lets-topic-relations.displayName",
           "lets-agent-bridge.displayName",
           "lets-agent-surface.displayName",
@@ -108,7 +110,7 @@ describe("setting category navigation", () => {
       .map((icon) => [...icon.classList].find(
         (name) => name.startsWith("lucide-") && name !== "lucide-icon",
       ));
-    expect(iconNames).toHaveLength(16);
+    expect(iconNames).toHaveLength(17);
     expect(new Set(iconNames).size).toBe(iconNames.length);
     const skillManagerButton = [...navigation.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent?.includes("lets-skill-manager.displayName"));

@@ -15,6 +15,7 @@
     Smartphone,
     Sparkles,
     SunMoon,
+    TableProperties,
     Tags,
     Waypoints,
   } from "lucide-svelte";
@@ -39,6 +40,7 @@
     smartphone: Smartphone,
     sparkles: Sparkles,
     sunMoon: SunMoon,
+    tableProperties: TableProperties,
     tags: Tags,
     waypoints: Waypoints,
   } satisfies Record<PluginIconName, typeof Brain>;
