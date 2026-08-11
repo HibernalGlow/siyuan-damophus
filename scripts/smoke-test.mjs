@@ -43,6 +43,7 @@ const expectedModules = [
   "lets-question-bank",
   "lets-selection-highlight",
   "lets-skill-manager",
+  "lets-style-brush",
   "lets-table-fit",
   "lets-topic-dictionary",
   "lets-topic-relations",
