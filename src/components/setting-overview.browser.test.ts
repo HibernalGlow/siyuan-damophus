@@ -15,6 +15,9 @@ afterEach(async () => {
 function render() {
   const target = document.createElement("div");
   target.className = "damophus-theme-root damophus-question-bank-theme";
+  const hostileHostStyle = document.createElement("style");
+  hostileHostStyle.textContent = ".damophus-theme-root header { display: block !important; }";
+  target.appendChild(hostileHostStyle);
   document.body.appendChild(target);
   const select = vi.fn();
   const toggle = vi.fn();
@@ -54,6 +57,21 @@ function render() {
   return { target, select, toggle, reorder, categories };
 }
 
+function expectCategoryHeaderOnOneRow(card: HTMLElement) {
+  const header = card.querySelector<HTMLElement>('[data-testid="overview-category-header"]');
+  const handle = header?.querySelector<HTMLElement>('[aria-label^="拖动调整顺序"]');
+  const icon = header?.querySelector<SVGElement>("svg");
+  const copy = header?.querySelector<HTMLElement>('[data-testid="overview-category-copy"]');
+  if (!header || !handle || !icon || !copy) throw new Error("Missing category header fixtures");
+
+  const verticalCenters = [handle, icon, copy].map((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.top + rect.height / 2;
+  });
+  expect(getComputedStyle(header).display).toBe("grid");
+  expect(Math.max(...verticalCenters) - Math.min(...verticalCenters)).toBeLessThan(2);
+}
+
 describe("setting overview", () => {
   it("renders every category as a card with icons, counts, and modules", async () => {
     await page.viewport(1100, 800);
@@ -72,6 +90,8 @@ describe("setting overview", () => {
     expect(target.querySelector("svg.lucide-layout-grid")).not.toBeNull();
     expect(target.querySelector("svg.lucide-graduation-cap")).not.toBeNull();
     expect(target.querySelector("svg.lucide-book-open-check")).not.toBeNull();
+    expectCategoryHeaderOnOneRow(target.querySelector<HTMLElement>('[data-testid="overview-category-core"]')!);
+    expectCategoryHeaderOnOneRow(target.querySelector<HTMLElement>('[data-testid="overview-category-study"]')!);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 
@@ -82,11 +102,12 @@ describe("setting overview", () => {
     await tick();
 
     const board = target.querySelector<HTMLElement>('[data-testid="setting-overview"]');
-    const cards = [...target.querySelectorAll<HTMLElement>('[data-testid^="overview-category-"]')];
+    const cards = [...target.querySelectorAll<HTMLElement>('section[data-testid^="overview-category-"]')];
     if (!board || cards.length < 2) throw new Error("Missing mobile board fixtures");
 
     expect(getComputedStyle(board).gridTemplateColumns.split(" ")).toHaveLength(1);
     expect(cards.every((card) => card.getBoundingClientRect().width <= board.getBoundingClientRect().width)).toBe(true);
+    cards.forEach(expectCategoryHeaderOnOneRow);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 

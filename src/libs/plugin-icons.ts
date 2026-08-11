@@ -12,6 +12,7 @@ export const pluginIconNames = [
   "gripVertical",
   "highlighter",
   "imagePlay",
+  "images",
   "layoutGrid",
   "listTree",
   "messageSquareText",

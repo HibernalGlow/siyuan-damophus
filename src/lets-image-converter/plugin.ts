@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-image-converter.description",
   version: "1.0.0",
   enabled: true,
-  icon: "imagePlay",
+  icon: "images",
   settings: [
     {
       type: "select",

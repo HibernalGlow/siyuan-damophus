@@ -101,7 +101,10 @@
       data-testid={`overview-category-${category.id}`}
       animate:flip={{ duration: flipDurationMs }}
     >
-      <header class="flex min-h-12 items-center gap-2.5 px-2.5 py-2">
+      <div
+        class="!grid min-h-12 grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 px-2.5 py-2"
+        data-testid="overview-category-header"
+      >
         <span
           use:dragHandle
           class="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/50 transition-colors hover:bg-accent hover:text-muted-foreground active:cursor-grabbing"
@@ -113,14 +116,14 @@
         <span class="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <PluginIcon name={category.icon} className="size-4" />
         </span>
-        <div class="min-w-0 flex-1">
-          <div class="truncate text-sm font-semibold">{category.label}</div>
+        <div class="min-w-0 flex-1" data-testid="overview-category-copy">
+          <div class="truncate text-sm font-semibold" role="heading" aria-level="3">{category.label}</div>
           {#if category.description}<div class="mt-0.5 truncate text-xs text-muted-foreground">{category.description}</div>{/if}
         </div>
         {#if category.total !== undefined}
           <span class="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">{category.enabled ?? 0}/{category.total}</span>
         {/if}
-      </header>
+      </div>
       <Separator />
       <ul
         class="m-0 flex list-none flex-col gap-0.5 p-1.5"
