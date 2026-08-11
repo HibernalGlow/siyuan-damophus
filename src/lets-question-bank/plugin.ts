@@ -11,7 +11,13 @@ const pluginMetadata: PluginMetadata = {
   enabled: true,
   icon: "bookOpenCheck",
   settings: [
-    ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }, { central: true }),
+    ...createEntrySettings({
+      menu: true,
+      desktopDock: true,
+      mobileDock: true,
+      command: true,
+      tab: true,
+    }, { central: true }),
     {
       type: "number",
       title: "lets-question-bank.reviewThreshold",

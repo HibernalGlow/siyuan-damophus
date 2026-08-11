@@ -101,10 +101,24 @@ describe("entry management settings", () => {
 
   it("uses a stacked layout without horizontal overflow on mobile", async () => {
     await page.viewport(390, 700);
-    const { target } = render(true);
+    const { target, changed } = render(true);
     await tick();
 
     expect(target.textContent).toContain("移动 Dock");
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+    const mobileDock = target.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="技能管理: 移动 Dock"]',
+    );
+    if (!mobileDock) throw new Error("Missing mobile Dock switch");
+    mobileDock.click();
+    await tick();
+
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: {
+        group: "lets-skill-manager.displayName",
+        key: "entryMobileDock",
+        value: false,
+      },
+    }));
   });
 });
