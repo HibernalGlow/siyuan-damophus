@@ -57,6 +57,7 @@ const settingItems: ISettingItem[] = [
   { type: "checkbox", title: "显示答题标题", description: "标题说明", key: "showPracticeTitle", value: false },
   { type: "checkbox", title: "隐藏空答案块", description: "空块说明", key: "hideEmptyAnswerBlocks", value: true },
   { type: "checkbox", title: "继承原文样式", description: "样式说明", key: "inheritSourceStyles", value: true },
+  { type: "select", title: "原文定位方式", description: "定位说明", key: "sourceNavigationMode", value: "focus", options: { focus: "聚焦题目块", document: "在完整原文中定位" } },
   { type: "select", title: "题目渲染方式", description: "渲染说明", key: "questionRenderMode", value: "native", options: { html: "HTML", native: "原生", embed: "嵌入块" } },
   { type: "checkbox", title: "显示面包屑", description: "面包屑说明", key: "embedBreadcrumb", value: false },
   { type: "select", title: "标题嵌入方式", description: "标题嵌入说明", key: "embedHeadingMode", value: "0", options: { "0": "全部", "1": "仅标题", "2": "仅下方块" } },
@@ -182,6 +183,25 @@ describe("question bank settings navigation", () => {
     }));
     expect(changed).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.objectContaining({ group: "lets-question-bank.displayName", key: "embedHeadingMode", value: "2" }),
+    }));
+  });
+
+  it("persists the selected source navigation mode", async () => {
+    const changed = vi.fn();
+    const target = render({ changed });
+    await tick();
+
+    expect(target.querySelector("#sourceNavigationMode")).not.toBeNull();
+    await page.getByRole("button", { name: "聚焦题目块" }).click();
+    await page.getByRole("option", { name: "在完整原文中定位" }).click();
+    await tick();
+
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({
+        group: "lets-question-bank.displayName",
+        key: "sourceNavigationMode",
+        value: "document",
+      }),
     }));
   });
 

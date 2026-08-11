@@ -127,6 +127,17 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "select",
+      title: "lets-question-bank.sourceNavigationMode",
+      description: "lets-question-bank.sourceNavigationModeDescription",
+      key: "sourceNavigationMode",
+      value: "focus",
+      options: {
+        focus: "lets-question-bank.sourceNavigationModeFocus",
+        document: "lets-question-bank.sourceNavigationModeDocument",
+      },
+    },
+    {
+      type: "select",
       title: "lets-question-bank.questionRenderMode",
       description: "lets-question-bank.questionRenderModeDescription",
       key: "questionRenderMode",

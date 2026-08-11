@@ -13,6 +13,16 @@ describe("questionSourceOpenTarget", () => {
     });
   });
 
+  it("locates the question block in the full source document when requested", () => {
+    expect(questionSourceOpenTarget("question", "source-doc", "source-doc", "document")).toEqual({
+      doc: {
+        id: "question",
+        action: ["cb-get-hl", "cb-get-context", "cb-get-rootscroll"],
+      },
+      openNewTab: false,
+    });
+  });
+
   it("opens a new tab when another document or a custom tab is active", () => {
     expect(questionSourceOpenTarget("question", "source-doc", "other-doc").openNewTab).toBe(true);
     expect(questionSourceOpenTarget("question", "source-doc", undefined).openNewTab).toBe(true);

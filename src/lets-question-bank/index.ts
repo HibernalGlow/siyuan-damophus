@@ -23,7 +23,7 @@ import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
 import { BroadcastPracticeSessionLeaseCoordinator } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { loadSourceBlockIdentity } from "./source-identity";
-import { QUESTION_SOURCE_ACTIONS, questionSourceOpenTarget } from "./source-navigation";
+import { questionSourceOpenTarget } from "./source-navigation";
 import { normalizeDurationComparisonPosition } from "./duration-comparison-position";
 import { installSourceAnswerMask } from "./source-answer-mask";
 import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
@@ -376,8 +376,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   private async openQuestionSource(blockId: string): Promise<void> {
+    const navigationMode = this.getSetting("sourceNavigationMode");
     if (isMobile) {
-      openMobileFileById(plugin.app, blockId, [...QUESTION_SOURCE_ACTIONS]);
+      const target = questionSourceOpenTarget(blockId, undefined, undefined, navigationMode);
+      openMobileFileById(plugin.app, blockId, target.doc.action);
       return;
     }
     let sourceRootId: string | undefined;
@@ -388,7 +390,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
     await openTab({
       app: plugin.app,
-      ...questionSourceOpenTarget(blockId, sourceRootId, this.activeDocumentRootId()),
+      ...questionSourceOpenTarget(blockId, sourceRootId, this.activeDocumentRootId(), navigationMode),
     });
   }
 

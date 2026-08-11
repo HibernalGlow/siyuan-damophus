@@ -59,6 +59,7 @@
       "showPracticeBreadcrumb",
       "hideEmptyAnswerBlocks",
       "inheritSourceStyles",
+      "sourceNavigationMode",
       "questionRenderMode",
       "embedBreadcrumb",
       "embedHeadingMode",
