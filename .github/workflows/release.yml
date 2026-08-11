@@ -57,6 +57,9 @@ jobs:
           node scripts/update-changelog-data.cjs
           pnpm build
 
+      - name: Validate package and global CSS performance rules
+        run: pnpm test:package
+
       - name: Release
         uses: ncipollo/release-action@v1
         with:

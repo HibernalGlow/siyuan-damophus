@@ -120,7 +120,7 @@
   .answer-card-panel header span { color: var(--b3-theme-on-surface); font-size: 12px; }
   .answer-card-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 8px; }
   .action-bar, .rating-bar { min-height: 58px; padding: 10px 20px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
-  .action-bar:has(.session-timer) { justify-content: flex-end; }
+  .action-bar.timer-enabled { justify-content: flex-end; }
   .session-timer { margin-right: auto; color: var(--b3-theme-on-surface); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .damophus-question-bank-mobile-dialog .b3-dialog__header { display: none !important; }
   .damophus-question-bank-mobile-dialog .b3-dialog__container { padding-top: 0 !important; }

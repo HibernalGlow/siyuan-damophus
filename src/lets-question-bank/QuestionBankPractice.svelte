@@ -170,7 +170,7 @@
       {/each}
     </div>
   {:else if !revealed}
-    <div class="action-bar">
+	<div class="action-bar" class:timer-enabled={timingEnabled}>
       {#if timingEnabled}
         <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
         <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>

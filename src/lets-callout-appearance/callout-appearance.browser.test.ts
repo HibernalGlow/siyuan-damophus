@@ -4,13 +4,24 @@ import pluginMetadata from "./plugin";
 import {
   CALLOUT_APPEARANCE_CSS,
   CALLOUT_APPEARANCE_STYLE_ID,
+  CALLOUT_ENHANCE_STATE_ATTRIBUTE,
+  CALLOUT_ENHANCE_STYLE_ID,
   CalloutAppearanceStyles,
   createCalloutAppearanceCss,
   resolveCalloutAppearanceSettings,
 } from "./callout-appearance";
 
-const ENHANCE_STYLE_ID = "callout-enhance-dynamic-styles";
 const HOST_LIST_STYLE_ID = "siyuan-host-list-styles";
+const activeStyles = new Set<CalloutAppearanceStyles>();
+
+function startCalloutAppearance(
+  settings: Parameters<CalloutAppearanceStyles["start"]>[0] = {},
+): CalloutAppearanceStyles {
+  const styles = new CalloutAppearanceStyles(document);
+  activeStyles.add(styles);
+  styles.start(settings);
+  return styles;
+}
 
 function renderCallout(): HTMLElement {
   const editor = document.createElement("div");
@@ -118,9 +129,11 @@ function renderListCallout(insideOuterCallout: boolean): {
 }
 
 afterEach(() => {
+  for (const styles of activeStyles) styles.destroy();
+  activeStyles.clear();
   document.body.replaceChildren();
   document.getElementById(CALLOUT_APPEARANCE_STYLE_ID)?.remove();
-  document.getElementById(ENHANCE_STYLE_ID)?.remove();
+  document.getElementById(CALLOUT_ENHANCE_STYLE_ID)?.remove();
   document.getElementById(HOST_LIST_STYLE_ID)?.remove();
 });
 
@@ -145,7 +158,7 @@ describe("callout appearance", () => {
 
   it("keeps the Neo-like card when Callout Enhance is absent", () => {
     const callout = renderCallout();
-    new CalloutAppearanceStyles(document).start();
+    startCalloutAppearance();
 
     const style = getComputedStyle(callout);
     expect(style.paddingTop).toBe("16px");
@@ -164,8 +177,7 @@ describe("callout appearance", () => {
       paddingX: 16,
     });
 
-    const styles = new CalloutAppearanceStyles(document);
-    styles.start({ paddingX: 24, titleSize: 18, titleWeight: "600" });
+    startCalloutAppearance({ paddingX: 24, titleSize: 18, titleWeight: "600" });
     expect(document.getElementById(CALLOUT_APPEARANCE_STYLE_ID)?.textContent).toBe(
       createCalloutAppearanceCss({ paddingX: 24, titleSize: 18, titleWeight: "600" }),
     );
@@ -178,7 +190,7 @@ describe("callout appearance", () => {
 
   it("contains a nested Callout inside the parent content box", () => {
     const { outer, content, nested } = renderNestedCallout();
-    new CalloutAppearanceStyles(document).start({ paddingX: 28 });
+    startCalloutAppearance({ paddingX: 28 });
 
     const outerRect = outer.getBoundingClientRect();
     const contentRect = content.getBoundingClientRect();
@@ -199,13 +211,13 @@ describe("callout appearance", () => {
     (_scenario, insideOuterCallout, enhanceActive) => {
       if (enhanceActive) {
         const enhanceStyle = document.createElement("style");
-        enhanceStyle.id = ENHANCE_STYLE_ID;
+        enhanceStyle.id = CALLOUT_ENHANCE_STYLE_ID;
         enhanceStyle.textContent = '.callout[data-type="NodeCallout"] { display: flex; margin: 0; }';
         document.head.append(enhanceStyle);
       }
 
       const { action, item, nested } = renderListCallout(insideOuterCallout);
-      new CalloutAppearanceStyles(document).start();
+      startCalloutAppearance();
 
       const actionRect = action.getBoundingClientRect();
       const itemRect = item.getBoundingClientRect();
@@ -218,7 +230,7 @@ describe("callout appearance", () => {
 
   it("overrides only the visual layer when Callout Enhance is active", () => {
     const enhanceStyle = document.createElement("style");
-    enhanceStyle.id = ENHANCE_STYLE_ID;
+    enhanceStyle.id = CALLOUT_ENHANCE_STYLE_ID;
     enhanceStyle.textContent = `
       .callout[data-type="NodeCallout"] {
         --callout-icon-before-display: block;
@@ -238,7 +250,7 @@ describe("callout appearance", () => {
     `;
     document.head.append(enhanceStyle);
     const callout = renderCallout();
-    new CalloutAppearanceStyles(document).start();
+    startCalloutAppearance();
 
     const style = getComputedStyle(callout);
     expect(style.paddingTop).toBe("16px");
@@ -254,6 +266,24 @@ describe("callout appearance", () => {
     expect(foldButton.pointerEvents).toBe("auto");
     expect(CALLOUT_APPEARANCE_CSS).not.toContain("pointer-events:");
     expect(CALLOUT_APPEARANCE_CSS).not.toContain("[fold=");
+    expect(CALLOUT_APPEARANCE_CSS).not.toContain(":has(");
+  });
+
+  it("tracks Callout Enhance state without relational selectors", async () => {
+    const styles = startCalloutAppearance();
+    expect(document.documentElement.hasAttribute(CALLOUT_ENHANCE_STATE_ATTRIBUTE)).toBe(false);
+
+    const enhanceStyle = document.createElement("style");
+    enhanceStyle.id = CALLOUT_ENHANCE_STYLE_ID;
+    document.head.append(enhanceStyle);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(document.documentElement.hasAttribute(CALLOUT_ENHANCE_STATE_ATTRIBUTE)).toBe(true);
+
+    enhanceStyle.remove();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(document.documentElement.hasAttribute(CALLOUT_ENHANCE_STATE_ATTRIBUTE)).toBe(false);
+
+    styles.destroy();
   });
 
   it("is an independent, enabled-by-default Damophus sub-plugin", () => {

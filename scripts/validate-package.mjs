@@ -28,6 +28,18 @@ const [sourceManifest, packagedManifest] = await Promise.all([
 assert.deepEqual(packagedManifest, sourceManifest);
 assert.equal(packagedManifest.name, "siyuan-damophus");
 assert.equal(packagedManifest.url, "https://github.com/HibernalGlow/siyuan-damophus");
-assert.match(await readFile("dist/index.js", "utf8"), /question-bank/);
+const [pluginJavaScript, pluginCss] = await Promise.all([
+  readFile("dist/index.js", "utf8"),
+  readFile("dist/index.css", "utf8"),
+]);
+assert.match(pluginJavaScript, /question-bank/);
+
+for (const [path, contents] of [["dist/index.js", pluginJavaScript], ["dist/index.css", pluginCss]]) {
+  assert.doesNotMatch(
+    contents,
+    /:has\(/u,
+    `${path} must not contain :has(); global relational selectors cause whole-document style invalidation in SiYuan`,
+  );
+}
 
 console.log("Damophus package structure and manifest checks passed.");

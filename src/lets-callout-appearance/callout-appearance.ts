@@ -1,4 +1,6 @@
 export const CALLOUT_APPEARANCE_STYLE_ID = "damophus-callout-appearance-style";
+export const CALLOUT_ENHANCE_STYLE_ID = "callout-enhance-dynamic-styles";
+export const CALLOUT_ENHANCE_STATE_ATTRIBUTE = "data-damophus-callout-enhance";
 
 export interface CalloutAppearanceSettings {
   paddingTop: number;
@@ -80,15 +82,15 @@ const titleSelectors = EDITOR_CALLOUT_SELECTORS
   .join(",\n");
 
 const nativePseudoSelectors = EDITOR_CALLOUT_SELECTORS
-  .map((selector) => selector.replace(":root", ":root:not(:has(#callout-enhance-dynamic-styles))") + "::before")
+  .map((selector) => selector.replace(":root", `:root:not([${CALLOUT_ENHANCE_STATE_ATTRIBUTE}])`) + "::before")
   .join(",\n");
 
 const nativeIconSelectors = EDITOR_CALLOUT_SELECTORS
-  .map((selector) => selector.replace(":root", ":root:not(:has(#callout-enhance-dynamic-styles))") + " .callout-icon")
+  .map((selector) => selector.replace(":root", `:root:not([${CALLOUT_ENHANCE_STATE_ATTRIBUTE}])`) + " .callout-icon")
   .join(",\n");
 
 const enhancedPseudoSelectors = EDITOR_CALLOUT_SELECTORS
-  .map((selector) => selector.replace(":root", ":root:has(#callout-enhance-dynamic-styles)") + "::before")
+  .map((selector) => selector.replace(":root", `:root[${CALLOUT_ENHANCE_STATE_ATTRIBUTE}]`) + "::before")
   .join(",\n");
 
 const directContentSelectors = EDITOR_CALLOUT_SELECTORS
@@ -209,9 +211,25 @@ ${enhancedPseudoSelectors} {
 export const CALLOUT_APPEARANCE_CSS = createCalloutAppearanceCss();
 
 export class CalloutAppearanceStyles {
+  private enhanceStyleObserver: MutationObserver | undefined;
+
   constructor(private readonly targetDocument: Document = document) {}
 
+  private syncEnhanceState(): void {
+    const active = this.targetDocument.getElementById(CALLOUT_ENHANCE_STYLE_ID) !== null;
+    this.targetDocument.documentElement.toggleAttribute(CALLOUT_ENHANCE_STATE_ATTRIBUTE, active);
+  }
+
   start(settings: Partial<Record<keyof CalloutAppearanceSettings, unknown>> = {}): void {
+    this.syncEnhanceState();
+    if (!this.enhanceStyleObserver) {
+      const MutationObserverConstructor = this.targetDocument.defaultView?.MutationObserver;
+      if (MutationObserverConstructor) {
+        this.enhanceStyleObserver = new MutationObserverConstructor(() => this.syncEnhanceState());
+        this.enhanceStyleObserver.observe(this.targetDocument.head, { childList: true });
+      }
+    }
+
     const css = createCalloutAppearanceCss(settings);
     const mounted = this.targetDocument.getElementById(CALLOUT_APPEARANCE_STYLE_ID);
     if (mounted) {
@@ -226,6 +244,9 @@ export class CalloutAppearanceStyles {
   }
 
   destroy(): void {
+    this.enhanceStyleObserver?.disconnect();
+    this.enhanceStyleObserver = undefined;
+    this.targetDocument.documentElement.removeAttribute(CALLOUT_ENHANCE_STATE_ATTRIBUTE);
     this.targetDocument.getElementById(CALLOUT_APPEARANCE_STYLE_ID)?.remove();
   }
 }
