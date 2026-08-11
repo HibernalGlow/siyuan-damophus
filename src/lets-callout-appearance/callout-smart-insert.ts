@@ -102,6 +102,34 @@ function cloneAfterDeletingRange(block: HTMLElement, range: Range): HTMLElement 
   return clone;
 }
 
+function queryRangeFromHint(
+  activeRange: Range,
+  hint: Pick<SmartInsertHint, "lastIndex" | "splitChar">,
+): Range | undefined {
+  if (activeRange.startContainer !== activeRange.endContainer) return undefined;
+  const container = activeRange.startContainer;
+  if (container.nodeType !== Node.TEXT_NODE) return undefined;
+
+  const text = container.textContent ?? "";
+  const caretOffset = activeRange.startOffset;
+  const hintedIndex = hint.lastIndex;
+  const hintedStartIsValid = hintedIndex >= 0
+    && hintedIndex < caretOffset
+    && text.startsWith(hint.splitChar, hintedIndex);
+  const queryStart = hintedStartIsValid
+    ? hintedIndex
+    : text.lastIndexOf(hint.splitChar, caretOffset - 1);
+  if (queryStart < 0) return undefined;
+
+  const queryRange = activeRange.cloneRange();
+  try {
+    queryRange.setStart(container, queryStart);
+  } catch {
+    return undefined;
+  }
+  return queryRange;
+}
+
 function hasMeaningfulContent(block: HTMLElement): boolean {
   const clone = block.cloneNode(true) as HTMLElement;
   clone.querySelectorAll(".protyle-attr, .protyle-action, wbr, br").forEach((item) => item.remove());
@@ -217,16 +245,10 @@ export class CalloutSmartInsert {
     const activeRange = protyle.toolbar.range;
     if (!activeRange) return false;
     const block = blockElementAt(activeRange.startContainer, protyle.wysiwyg.element);
-    if (!block || activeRange.startContainer !== activeRange.endContainer) return false;
+    if (!block) return false;
 
-    const queryRange = activeRange.cloneRange();
-    if (hint.lastIndex > -1) {
-      try {
-        queryRange.setStart(queryRange.startContainer, hint.lastIndex);
-      } catch {
-        return false;
-      }
-    }
+    const queryRange = queryRangeFromHint(activeRange, hint);
+    if (!queryRange) return false;
     const simulated = cloneAfterDeletingRange(block, queryRange);
     if (!simulated) return false;
 

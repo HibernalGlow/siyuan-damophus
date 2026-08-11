@@ -86,6 +86,19 @@ function runCallout(editor: TestEditor, value = NOTE_VALUE): void {
   editor.hint.fill(value, editor.protyle, true);
 }
 
+function clickCallout(editor: TestEditor, value = NOTE_VALUE): void {
+  const menuButton = document.createElement("button");
+  menuButton.textContent = "Callout";
+  editor.hint.element.append(menuButton);
+  const menuRange = document.createRange();
+  menuRange.selectNodeContents(menuButton);
+  menuRange.collapse(false);
+  const selection = document.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(menuRange);
+  editor.hint.fill(value, editor.protyle, false);
+}
+
 function operationElement(root: HTMLElement, id: string | undefined): HTMLElement | null {
   return id ? root.querySelector<HTMLElement>(`[data-node-id="${id}"]`) : null;
 }
@@ -175,6 +188,24 @@ describe("smart Callout insertion", () => {
     expect(undoOperations.map((operation) => operation.action)).toEqual(["move", "update", "delete"]);
     applyOperations(editor.root, undoOperations);
     expect(editor.root.innerHTML).toBe(before);
+  });
+
+  it("removes the slash when a menu click arrives without a hint index", () => {
+    const editor = createEditor(
+      '<div data-node-id="slash" data-type="NodeParagraph" contenteditable="true">/<div class="protyle-attr" contenteditable="false"></div></div><div data-node-id="target" data-type="NodeParagraph" contenteditable="true">Body</div>',
+      "slash",
+      1,
+    );
+    editor.hint.lastIndex = -1;
+
+    clickCallout(editor);
+
+    const callout = editor.root.firstElementChild as HTMLElement;
+    expect(callout.dataset.nodeId).toBe("slash");
+    expect(callout.textContent).not.toContain("/");
+    expect(callout.querySelector(":scope > .callout-content > [data-node-id=target]")).not.toBeNull();
+    expect(editor.originalFill).not.toHaveBeenCalled();
+    expect(editor.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to native empty Callout insertion at the end of a document", () => {
