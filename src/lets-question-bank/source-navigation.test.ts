@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import { questionSourceOpenTarget } from "./source-navigation";
 
 describe("questionSourceOpenTarget", () => {
-  it("reuses the current tab when it already shows the source document", () => {
+  it("opens the full source document at the question block without restoring stale scroll", () => {
     expect(questionSourceOpenTarget("question", "source-doc", "source-doc")).toEqual({
       doc: {
         id: "question",
-        zoomIn: true,
-        action: ["cb-get-focus", "cb-get-scroll"],
+        action: ["cb-get-hl", "cb-get-context", "cb-get-rootscroll"],
       },
       openNewTab: false,
     });
