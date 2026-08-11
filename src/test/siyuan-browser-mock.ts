@@ -24,3 +24,7 @@ export function globalCommand(): void {}
 export function getFrontend(): string {
   return "desktop";
 }
+
+export function getAllEditor(): never[] {
+  return [];
+}

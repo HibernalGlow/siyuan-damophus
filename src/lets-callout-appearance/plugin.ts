@@ -10,6 +10,13 @@ export const pluginMetadata: PluginMetadata = {
   reference: "https://github.com/QYLexpired/Neo",
   settings: [
     {
+      type: "checkbox",
+      title: "lets-callout-appearance.smartInsertTitle",
+      description: "lets-callout-appearance.smartInsertDescription",
+      key: "smartInsert",
+      value: true,
+    },
+    {
       type: "slider",
       title: "lets-callout-appearance.paddingTopTitle",
       description: "lets-callout-appearance.paddingTopDescription",
