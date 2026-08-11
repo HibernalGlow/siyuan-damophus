@@ -26,6 +26,12 @@ A scan discovers IDs from `custom-qb-question-topic-ids` and
 and note-title candidates. Missing IDs remain in the dictionary with a
 `retired` state; scans never delete confirmed names.
 
+An explicit `custom-qb-subject` on a discovered topic block remains
+authoritative. When it is absent, Damophus derives the canonical law-exam
+subject from the stable topic-ID namespace using a centralized, longest-prefix
+registry. Unknown namespaces remain unclassified rather than being guessed
+from mutable document paths.
+
 Visible labels resolve in this order:
 
 1. Confirmed dictionary display name.

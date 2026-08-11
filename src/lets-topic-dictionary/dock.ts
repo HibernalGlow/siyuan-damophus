@@ -17,6 +17,7 @@ export interface TopicDictionaryLabels {
   category: string;
   collection: string;
   source: string;
+  subjectNames: Readonly<Record<string, string>>;
   unclassified: string;
   displayName: string;
   suggestedName: string;

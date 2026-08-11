@@ -54,6 +54,7 @@
         drafts[entry.topicId] ?? entry.displayName,
         entry.suggestedName,
         ...entry.subjects,
+        ...entry.subjects.map(subjectLabel),
         ...entry.categories,
         ...entry.collections,
         ...entry.sources,
@@ -86,6 +87,14 @@
     if (groupMode === "collection") return entry.collections;
     if (groupMode === "source") return entry.sources;
     return entry.subjects;
+  }
+
+  function subjectLabel(value: string): string {
+    return labels.subjectNames[value] ?? value;
+  }
+
+  function classificationLabel(value: string): string {
+    return groupMode === "subject" ? subjectLabel(value) : value;
   }
 
   function applyDocument(next: TopicDictionaryDocument): void {
@@ -223,7 +232,7 @@
     {:else}
       {#each groups as [groupName, groupEntries] (groupName)}
         <section class="damophus-topic-dictionary__group">
-          <header><h3>{groupName}</h3><span>{groupEntries.length}</span></header>
+          <header><h3>{classificationLabel(groupName)}</h3><span>{groupEntries.length}</span></header>
           <div class="damophus-topic-dictionary__rows">
             {#each groupEntries as entry (entry.topicId)}
               <div class="damophus-topic-dictionary__row" data-state={entry.state}>
@@ -232,7 +241,7 @@
                   <div class="damophus-topic-dictionary__metadata">
                     {#if entry.state === "retired"}<Badge variant="outline">{labels.retired}</Badge>{/if}
                     {#if entry.suggestedName}<span title={labels.suggestedName}>{entry.suggestedName}</span>{/if}
-                    {#each classificationValues(entry).slice(1) as value}<span>{value}</span>{/each}
+                    {#each classificationValues(entry).slice(1) as value}<span>{classificationLabel(value)}</span>{/each}
                   </div>
                 </div>
                 <Input

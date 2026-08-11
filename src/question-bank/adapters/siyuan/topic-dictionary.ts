@@ -11,6 +11,7 @@ import {
   type TopicDictionaryDocument,
 } from "../../topic-dictionary";
 import type { StoreFileIO } from "../tinybase/file-persistence";
+import { inferTopicSubjectId } from "../../topic-subjects";
 import type { SiyuanKernelClient } from "./types";
 
 export const TOPIC_DICTIONARY_PATH = "/data/storage/petal/siyuan-damophus/topic-dictionary.json";
@@ -79,7 +80,13 @@ export function candidatesFromRows(rows: readonly TopicDictionarySqlRow[]): Topi
       });
     }
   }
-  return [...candidates.values()].sort((left, right) => left.topicId.localeCompare(right.topicId));
+  return [...candidates.values()]
+    .map((candidate) => {
+      if ((candidate.subjects?.length ?? 0) > 0) return candidate;
+      const inferredSubject = inferTopicSubjectId(candidate.topicId);
+      return inferredSubject ? {...candidate, subjects: [inferredSubject]} : candidate;
+    })
+    .sort((left, right) => left.topicId.localeCompare(right.topicId));
 }
 
 export class TopicDictionaryStore {

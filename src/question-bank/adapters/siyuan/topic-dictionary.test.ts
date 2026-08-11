@@ -50,6 +50,44 @@ describe("SiYuan topic dictionary", () => {
     expect(buildTopicDictionarySql()).toContain("custom-qb-question-topic-ids");
   });
 
+  it("keeps explicit subjects and infers missing subjects from stable topic namespaces", () => {
+    const candidates = candidatesFromRows([
+      {
+        block_id: "20260810000100-explicit",
+        attribute_name: "custom-qb-note-topic-id",
+        attribute_value: "civil-procedure-second-instance",
+        block_content: "Second instance",
+        subject: "custom-subject",
+      },
+      {
+        block_id: "20260810000100-inferred",
+        attribute_name: "custom-qb-note-topic-id",
+        attribute_value: "civil-procedure-evidence-determination",
+        block_content: "Evidence determination",
+      },
+      {
+        block_id: "20260810000100-criminal",
+        attribute_name: "custom-qb-note-topic-id",
+        attribute_value: "criminal-law-crime-description",
+        block_content: "Crime description",
+      },
+      {
+        block_id: "20260810000100-unknown",
+        attribute_name: "custom-qb-note-topic-id",
+        attribute_value: "unknown-special-topic",
+        block_content: "Unknown",
+      },
+    ]);
+
+    expect(Object.fromEntries(candidates.map((candidate) => [candidate.topicId, candidate.subjects])))
+      .toEqual({
+        "civil-procedure-evidence-determination": ["civil-procedure"],
+        "civil-procedure-second-instance": ["custom-subject"],
+        "criminal-law-crime-description": ["criminal"],
+        "unknown-special-topic": [],
+      });
+  });
+
   it("writes one shared dictionary file and keeps removed topics", async () => {
     const files = new MemoryFiles();
     let rows = [{

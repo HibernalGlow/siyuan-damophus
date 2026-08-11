@@ -23,6 +23,9 @@ const labels = {
   category: zhCN["lets-topic-dictionary.category"],
   collection: zhCN["lets-topic-dictionary.collection"],
   source: zhCN["lets-topic-dictionary.source"],
+  subjectNames: {
+    civil: zhCN["lets-topic-dictionary.subjectCivil"],
+  },
   unclassified: zhCN["lets-topic-dictionary.unclassified"],
   displayName: zhCN["lets-topic-dictionary.displayNameField"],
   suggestedName: zhCN["lets-topic-dictionary.suggestedName"],
@@ -48,7 +51,7 @@ function dictionary() {
       {
         topicId: "civil-contract-validity",
         suggestedName: fixtureText.topicName,
-        subjects: [fixtureText.subject],
+        subjects: ["civil"],
         categories: [fixtureText.category],
       },
     ], "2026-08-10T01:00:00.000Z"),
