@@ -27,6 +27,7 @@ import { QUESTION_SOURCE_ACTIONS, questionSourceOpenTarget } from "./source-navi
 import { normalizeDurationComparisonPosition } from "./duration-comparison-position";
 import { installSourceAnswerMask } from "./source-answer-mask";
 import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
+import { PersistentMobileDockPortal } from "./mobile-dock-portal";
 import {
   EMPTY_SOURCE_EMBED_SQL,
   loadSourceEmbedRows,
@@ -69,6 +70,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private practiceCommandsRegistered = false;
   private listening = false;
   private dockApp?: ReturnType<typeof mount>;
+  private mobileDockPortal?: PersistentMobileDockPortal<ReturnType<typeof mount>>;
   private openEntry?: UnifiedEntryPoint;
   private removeDockGestureIsolation?: () => void;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
@@ -183,13 +185,25 @@ export default class QuestionBankPlugin extends SubPluginBase {
         data: { documentId: this.currentDocumentId() },
         type: "damophus-question-bank-dock",
         init(target) {
+          if (isMobile) {
+            owner.removeDockGestureIsolation = isolateMobileDialogGestures(target);
+            owner.mobileDockPortal ??= new PersistentMobileDockPortal({
+              mount: (host) => owner.mountQuestionBank(host, owner.currentDocumentId()),
+              unmount: (app) => void unmount(app),
+            });
+            owner.mobileDockPortal.attach(target);
+            return;
+          }
           target.replaceChildren();
-          if (isMobile) owner.removeDockGestureIsolation = isolateMobileDialogGestures(target);
           owner.dockApp = owner.mountQuestionBank(target, owner.currentDocumentId());
         },
-        destroy() {
+        destroy(target) {
           owner.removeDockGestureIsolation?.();
           owner.removeDockGestureIsolation = undefined;
+          if (isMobile) {
+            owner.mobileDockPortal?.detach(target);
+            return;
+          }
           if (owner.dockApp) void unmount(owner.dockApp);
           owner.dockApp = undefined;
         },
@@ -204,9 +218,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.stopSourceAnswerMask = undefined;
     this.removeDockGestureIsolation?.();
     this.removeDockGestureIsolation = undefined;
+    this.openEntry?.destroyDockContent();
+    this.mobileDockPortal?.dispose();
+    this.mobileDockPortal = undefined;
     if (this.dockApp) void unmount(this.dockApp);
     this.dockApp = undefined;
-    this.openEntry?.destroyDockContent();
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
