@@ -3,6 +3,10 @@ const COMPOSER_SELECTOR = ".agent-chat__composer-host .protyle-wysiwyg";
 const CONFIRM_SELECTOR = ".agent-chat__msg--confirm:not(.agent-chat__msg--confirmed)";
 const CONFIRM_ACTION_SELECTOR = ".agent-chat__confirm-actions button";
 const ALWAYS_ALLOW_SELECTOR = ".agent-chat__confirm-always";
+const PERMISSION_BUTTON_SELECTOR = ".agent-chat__permission";
+const PERMISSION_LABEL_SELECTOR = ".agent-chat__permission-label";
+const PERMISSION_MENU_SELECTOR = '#commonMenu[data-name="agent-chat-permission"]';
+const PERMISSION_MENU_ITEM_SELECTOR = ".b3-menu__item";
 const DRAFT_EXPIRY_MS = 15_000;
 const INVISIBLE_TEXT = /[\u200b\u200c\u200d\u2060\ufeff]/gu;
 
@@ -38,6 +42,8 @@ function approvalDescription(card: HTMLElement): string {
 export class AgentAutomationController {
   private observer?: MutationObserver;
   private readonly approvalTimers = new Map<HTMLElement, number>();
+  private readonly permissionTimers = new Map<HTMLButtonElement, number>();
+  private readonly permissionLabels = new WeakMap<HTMLButtonElement, string>();
   private readonly pendingDrafts = new Map<HTMLElement, PendingDraft>();
 
   constructor(
@@ -58,8 +64,10 @@ export class AgentAutomationController {
     this.observer?.disconnect();
     this.observer = undefined;
     for (const timer of this.approvalTimers.values()) window.clearTimeout(timer);
+    for (const timer of this.permissionTimers.values()) window.clearTimeout(timer);
     for (const draft of this.pendingDrafts.values()) window.clearTimeout(draft.expiryTimer);
     this.approvalTimers.clear();
+    this.permissionTimers.clear();
     this.pendingDrafts.clear();
   }
 
@@ -86,8 +94,32 @@ export class AgentAutomationController {
   private scan(): void {
     this.restoreDrafts();
     if (!this.options.isYoloEnabled()) return;
+    this.syncPermissionModes();
     this.root.querySelectorAll<HTMLElement>(CONFIRM_SELECTOR).forEach((card) => {
       this.scheduleApproval(card);
+    });
+  }
+
+  private syncPermissionModes(): void {
+    this.root.querySelectorAll<HTMLButtonElement>(PERMISSION_BUTTON_SELECTOR).forEach((button) => {
+      const label = button.querySelector<HTMLElement>(PERMISSION_LABEL_SELECTOR)?.textContent?.trim() ?? "";
+      if (!label || this.permissionLabels.get(button) === label || this.permissionTimers.has(button)) return;
+
+      button.click();
+      const timer = window.setTimeout(() => {
+        this.permissionTimers.delete(button);
+        if (!this.options.isYoloEnabled() || !button.isConnected) return;
+        const menu = this.root.querySelector<HTMLElement>(PERMISSION_MENU_SELECTOR);
+        const items = menu?.querySelectorAll<HTMLButtonElement>(PERMISSION_MENU_ITEM_SELECTOR);
+        if (!items?.length) return;
+        const automaticAllow = items.item(items.length - 1);
+        if (!automaticAllow) return;
+
+        automaticAllow.click();
+        const currentLabel = button.querySelector<HTMLElement>(PERMISSION_LABEL_SELECTOR)?.textContent?.trim() ?? "";
+        if (currentLabel) this.permissionLabels.set(button, currentLabel);
+      }, 0);
+      this.permissionTimers.set(button, timer);
     });
   }
 

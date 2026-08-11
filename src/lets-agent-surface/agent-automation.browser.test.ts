@@ -29,12 +29,64 @@ function appendConfirm(panel: HTMLElement) {
   return card;
 }
 
+function installPermissionSelector(panel: HTMLElement) {
+  const button = document.createElement("button");
+  button.className = "agent-chat__permission";
+  button.innerHTML = '<span class="agent-chat__permission-label">Ask every time</span>';
+  panel.append(button);
+
+  const menu = document.createElement("div");
+  menu.id = "commonMenu";
+  menu.dataset.name = "agent-chat-permission";
+  document.body.append(menu);
+  const automaticAllow = vi.fn(() => {
+    button.querySelector<HTMLElement>(".agent-chat__permission-label")!.textContent = "Allow automatically";
+    menu.replaceChildren();
+  });
+  button.addEventListener("click", () => {
+    menu.innerHTML = `
+      <button class="b3-menu__item b3-menu__item--selected">Ask every time</button>
+      <button class="b3-menu__item">Allow automatically</button>
+    `;
+    menu.querySelector<HTMLButtonElement>(".b3-menu__item:last-child")!
+      .addEventListener("click", automaticAllow);
+  });
+  return { button, automaticAllow };
+}
+
 afterEach(() => {
   vi.useRealTimers();
   document.body.replaceChildren();
 });
 
 describe("AgentAutomationController", () => {
+  it("defaults every new YOLO session to automatic permission", async () => {
+    vi.useFakeTimers();
+    const panel = renderAgentPanel();
+    const { button, automaticAllow } = installPermissionSelector(panel);
+    const controller = new AgentAutomationController(document.body, {
+      isYoloEnabled: () => true,
+      approvalDelayMs: () => 0,
+      preserveNewSessionDraft: () => true,
+    });
+    controller.start();
+
+    await vi.runAllTimersAsync();
+    expect(button.textContent).toBe("Allow automatically");
+    expect(automaticAllow).toHaveBeenCalledOnce();
+
+    panel.querySelector<HTMLButtonElement>('[data-type="new-session"]')!.addEventListener("click", () => {
+      button.querySelector<HTMLElement>(".agent-chat__permission-label")!.textContent = "Ask every time";
+    });
+    panel.querySelector<HTMLButtonElement>('[data-type="new-session"]')!.click();
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    expect(button.textContent).toBe("Allow automatically");
+    expect(automaticAllow).toHaveBeenCalledTimes(2);
+    controller.stop();
+  });
+
   it("immediately chooses Session Allow for a new permission card", async () => {
     vi.useFakeTimers();
     const panel = renderAgentPanel();
