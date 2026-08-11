@@ -4,7 +4,9 @@ const BLOCK_SELECTOR = "[data-node-id]";
 interface DragOrigin {
   editor: HTMLElement;
   block: HTMLElement;
+  clientX: number;
   clientY: number;
+  screenX: number;
   screenY: number;
   bridged: boolean;
 }
@@ -56,7 +58,9 @@ export class LegacyBlockSelectionBridge {
     this.origin = {
       editor,
       block,
+      clientX: event.clientX,
       clientY: event.clientY,
+      screenX: event.screenX,
       screenY: event.screenY,
       bridged: false,
     };
@@ -82,7 +86,7 @@ export class LegacyBlockSelectionBridge {
     if (!currentBlock || currentBlock === origin.block) return;
 
     origin.bridged = true;
-    this.dispatchNativePaddingMouseDown(origin, event);
+    this.dispatchNativePaddingMouseDown(origin);
   };
 
   private readonly handleMouseUp = () => {
@@ -115,7 +119,7 @@ export class LegacyBlockSelectionBridge {
     this.origin = undefined;
   }
 
-  private dispatchNativePaddingMouseDown(origin: DragOrigin, moveEvent: MouseEvent): void {
+  private dispatchNativePaddingMouseDown(origin: DragOrigin): void {
     const editorRect = origin.editor.getBoundingClientRect();
     const bridgeEvent = new MouseEvent("mousedown", {
       bubbles: true,
@@ -126,7 +130,7 @@ export class LegacyBlockSelectionBridge {
       buttons: 1,
       clientX: editorRect.left + 1,
       clientY: origin.clientY,
-      screenX: moveEvent.screenX,
+      screenX: origin.screenX,
       screenY: origin.screenY,
     });
 
@@ -136,5 +140,12 @@ export class LegacyBlockSelectionBridge {
     } finally {
       this.dispatchingBridge = false;
     }
+
+    // SiYuan checks the padding coordinate synchronously, then keeps this event
+    // for the drag rectangle. Restore the real origin before mousemove uses it.
+    Object.defineProperty(bridgeEvent, "clientX", {
+      configurable: true,
+      value: origin.clientX,
+    });
   }
 }

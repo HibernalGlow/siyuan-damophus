@@ -94,7 +94,9 @@ describe("legacy block selection bridge", () => {
 
   it("hands a cross-block drag to SiYuan's native padding selection", () => {
     const { editor, firstText, secondText } = renderEditor();
+    let nativeOriginEvent: MouseEvent | undefined;
     const paddingMouseDown = vi.fn((event: MouseEvent) => {
+      nativeOriginEvent = event;
       document.onmousemove = vi.fn();
       expect(event.clientX).toBe(101);
       expect(event.clientY).toBe(120);
@@ -111,6 +113,7 @@ describe("legacy block selection bridge", () => {
     mouseMove(secondText);
 
     expect(paddingMouseDown).toHaveBeenCalledOnce();
+    expect(nativeOriginEvent?.clientX).toBe(280);
     bridge.destroy();
   });
 
