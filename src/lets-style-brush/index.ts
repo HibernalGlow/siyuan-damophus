@@ -46,27 +46,45 @@ export default class StyleBrushPlugin extends SubPluginBase {
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("menu")) return;
     const sourceId = sourceBlockId(event.detail.blockElements);
     const rootId = event.detail.protyle.block.rootID;
-    if (!sourceId || !isValidStyleBrushBlockId(rootId)) return;
+    this.addMenuItem(event.detail.menu, sourceId, rootId, event.detail.protyle.wysiwyg.element);
+  };
 
-    event.detail.menu.addItem({
+  private readonly handleContentMenu = (
+    event: CustomEvent<IEventBusMap["open-menu-content"]>,
+  ): void => {
+    const sourceId = sourceBlockId([event.detail.element]);
+    const rootId = event.detail.protyle.block.rootID;
+    this.addMenuItem(event.detail.menu, sourceId, rootId, event.detail.protyle.wysiwyg.element);
+  };
+
+  private addMenuItem(
+    menu: IEventBusMap["click-blockicon"]["menu"],
+    sourceId: string | undefined,
+    rootId: string,
+    editor: HTMLElement,
+  ): void {
+    if (!this.isEntryEnabled("menu") || !sourceId || !isValidStyleBrushBlockId(rootId)) return;
+
+    menu.addItem({
       icon: "iconPaintBucket",
       label: this.t("lets-style-brush.menuLabel"),
-      submenu: this.scopeMenu(sourceId, rootId, event.detail.protyle.wysiwyg.element),
+      submenu: this.scopeMenu(sourceId, rootId, editor),
     });
-  };
+  }
 
   override onload(): void {
     if (this.listening) return;
     this.listening = true;
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
+    plugin.eventBus.on("open-menu-content", this.handleContentMenu);
   }
 
   override onunload(): void {
     if (!this.listening) return;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
+    plugin.eventBus.off("open-menu-content", this.handleContentMenu);
     this.listening = false;
   }
 
