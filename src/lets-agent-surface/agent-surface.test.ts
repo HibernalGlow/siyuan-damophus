@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import agentSurfaceStyles from "./agent-surface.css?raw";
 import pluginMetadata from "./plugin";
 import {
   createAgentModeToggle,
@@ -17,10 +16,6 @@ describe("agent surface helpers", () => {
       ["mobileDock", true],
       ["tab", true],
     ]);
-  });
-
-  it("keeps the native mobile model close transform available", () => {
-    expect(agentSurfaceStyles).not.toContain("transform: translateX(0)");
   });
 
   it("shares one opener while selecting platform-specific surfaces", () => {

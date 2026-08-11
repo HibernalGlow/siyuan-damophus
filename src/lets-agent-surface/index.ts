@@ -12,6 +12,7 @@ import {
 } from "./surface-helpers";
 import { AgentAutomationController, type AgentApprovalNotice } from "./agent-automation";
 import { AgentPanelPortal } from "./agent-panel-portal";
+import { MobileAgentDropdownController } from "./mobile-dropdown-controller";
 import "./agent-surface.css";
 
 const log = getLogger("lets-agent-surface");
@@ -54,6 +55,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   private automation?: AgentAutomationController;
   private mobileDockEntry?: UnifiedEntryPoint;
   private mobileDockPortal?: AgentPanelPortal;
+  private mobileDropdownController?: MobileAgentDropdownController;
   private allowingNativeDockClick = false;
   private allowingNativeMobileAgentClick = false;
   private panelOrigin?: { parent: Node; nextSibling: ChildNode | null };
@@ -156,6 +158,8 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     this.mobileDockPortal?.stop();
     this.mobileDockEntry = undefined;
     this.mobileDockPortal = undefined;
+    this.mobileDropdownController?.stop();
+    this.mobileDropdownController = undefined;
     this.closeNativeMobileAgent();
     document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
     for (const target of this.tabTargets) this.detachTab(target);
@@ -351,11 +355,16 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 
   private hideNativeMobileAgentHost(): void {
+    this.mobileDropdownController?.prepareForManualClose();
+    this.dispatchNativeMobileAgentClose();
+    document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
+  }
+
+  private dispatchNativeMobileAgentClose(): void {
     document.getElementById("modelClose")?.dispatchEvent(new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
     }));
-    document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
   }
 
   private clickNativeMobileAgentEntry(item: HTMLElement): void {
@@ -370,10 +379,8 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   private closeNativeMobileAgent(): void {
     const model = document.getElementById("model");
     if (model && model.getBoundingClientRect().left < window.innerWidth) {
-      document.getElementById("modelClose")?.dispatchEvent(new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-      }));
+      this.mobileDropdownController?.prepareForManualClose();
+      this.dispatchNativeMobileAgentClose();
     }
     model?.classList.remove("damophus-agent-dropdown-mobile");
   }
@@ -461,7 +468,19 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       // between SiYuan releases. The call site is reached only after the
       // Agent entry has been activated, so do not gate the layout on a brittle
       // version-specific child selector.
-      if (model) model.classList.add("damophus-agent-dropdown-mobile");
+      if (model) {
+        model.classList.add("damophus-agent-dropdown-mobile");
+        this.mobileDropdownController ??= new MobileAgentDropdownController({
+          labels: {
+            resize: this.t("lets-agent-surface.mobileDropdownResize"),
+            pin: this.t("lets-agent-surface.mobileDropdownPin"),
+            unpin: this.t("lets-agent-surface.mobileDropdownUnpin"),
+            close: this.t("lets-agent-surface.mobileDropdownClose"),
+          },
+          closeNative: () => this.dispatchNativeMobileAgentClose(),
+        });
+        this.mobileDropdownController.attach(model);
+      }
       return;
     }
   }

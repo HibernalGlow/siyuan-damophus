@@ -1,23 +1,106 @@
 #model.damophus-agent-dropdown-mobile {
+  --damophus-agent-dropdown-height: 80dvh;
   position: fixed !important;
-  top: 20dvh !important;
+  top: auto !important;
   right: 0 !important;
   bottom: 0 !important;
   left: 0 !important;
   /* Keep the Agent above the document, but below SiYuan's mobile sidebars. */
   z-index: 6 !important;
   width: auto !important;
-  height: 80dvh !important;
+  height: var(--damophus-agent-dropdown-height) !important;
   min-height: 0 !important;
   max-width: none !important;
   max-height: none !important;
   border: 1px solid var(--b3-border-color);
   border-radius: var(--b3-border-radius-b) var(--b3-border-radius-b) 0 0;
   box-shadow: var(--b3-dialog-shadow);
+  display: flex !important;
+  flex-direction: column !important;
   overflow: hidden;
 }
 
+#model.damophus-agent-dropdown-mobile.damophus-agent-dropdown-pinned {
+  transform: translateX(0) !important;
+  touch-action: pan-y !important;
+}
+
+#model.damophus-agent-dropdown-mobile > .damophus-agent-dropdown-bar-host {
+  flex: 0 0 36px;
+  min-width: 0;
+  border-bottom: 1px solid var(--b3-border-color);
+  background: var(--b3-theme-surface);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.damophus-agent-dropdown-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  height: 36px;
+}
+
+.damophus-agent-dropdown-resize,
+.damophus-agent-dropdown-action {
+  appearance: none;
+  border: 0;
+  color: var(--b3-theme-on-surface);
+  background: transparent;
+}
+
+.damophus-agent-dropdown-resize {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 36px;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--b3-theme-on-surface-light);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.damophus-agent-dropdown-resize:hover,
+.damophus-agent-dropdown-resize:focus-visible,
+.damophus-agent-dropdown-resize.is-resizing,
+.damophus-agent-dropdown-action:hover,
+.damophus-agent-dropdown-action:focus-visible {
+  color: var(--b3-theme-on-background);
+  background: var(--b3-list-hover);
+  outline: none;
+}
+
+.damophus-agent-dropdown-actions {
+  grid-column: 3;
+  display: flex;
+  justify-self: end;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+}
+
+.damophus-agent-dropdown-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.damophus-agent-dropdown-action.is-active {
+  color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
+}
+
 #model.damophus-agent-dropdown-mobile #modelMain {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
