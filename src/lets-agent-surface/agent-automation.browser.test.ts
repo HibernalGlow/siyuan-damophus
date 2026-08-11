@@ -29,27 +29,6 @@ function appendConfirm(panel: HTMLElement) {
   return card;
 }
 
-function appendDialog(text: string) {
-  const dialog = document.createElement("div");
-  dialog.className = "b3-dialog--open";
-  dialog.dataset.key = "dialog-confirm";
-  dialog.innerHTML = `
-    <div class="b3-dialog">
-      <div class="b3-dialog__container">
-        <div class="b3-dialog__body">
-          <div class="b3-dialog__content"><div class="ft__breakword">${text}</div></div>
-          <div class="b3-dialog__action">
-            <button id="cancelDialogConfirmBtn">Cancel</button>
-            <button id="confirmDialogConfirmBtn">Confirm</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.append(dialog);
-  return dialog;
-}
-
 function installPermissionSelector(panel: HTMLElement) {
   const button = document.createElement("button");
   button.className = "agent-chat__permission";
@@ -81,49 +60,6 @@ afterEach(() => {
 });
 
 describe("AgentAutomationController", () => {
-  it("ignores unrelated DOM mutations without reading the model-switch warning", async () => {
-    vi.useFakeTimers();
-    const modelSwitchContextWarning = vi.fn(() => "Model switch warning");
-    const controller = new AgentAutomationController(document.body, {
-      isYoloEnabled: () => false,
-      approvalDelayMs: () => 0,
-      preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => true,
-      modelSwitchContextWarning,
-    });
-    controller.start();
-
-    document.body.append(document.createElement("div"));
-    document.body.append(document.createElement("span"));
-    await vi.runAllTimersAsync();
-
-    expect(modelSwitchContextWarning).not.toHaveBeenCalled();
-    controller.stop();
-  });
-
-  it("contains a missing host-language failure inside model-switch automation", async () => {
-    vi.useFakeTimers();
-    const controller = new AgentAutomationController(document.body, {
-      isYoloEnabled: () => false,
-      approvalDelayMs: () => 0,
-      preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => true,
-      modelSwitchContextWarning: () => {
-        throw new TypeError("Host languages are not ready");
-      },
-    });
-    controller.start();
-
-    const modelSwitch = appendDialog("Model switch warning");
-    const confirmed = vi.fn();
-    modelSwitch.querySelector<HTMLButtonElement>("#confirmDialogConfirmBtn")!
-      .addEventListener("click", confirmed);
-    await vi.runAllTimersAsync();
-
-    expect(confirmed).not.toHaveBeenCalled();
-    controller.stop();
-  });
-
   it("defaults every new YOLO session to automatic permission", async () => {
     vi.useFakeTimers();
     const panel = renderAgentPanel();
@@ -132,8 +68,6 @@ describe("AgentAutomationController", () => {
       isYoloEnabled: () => true,
       approvalDelayMs: () => 0,
       preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => true,
-      modelSwitchContextWarning: () => "Model switch warning",
     });
     controller.start();
 
@@ -160,8 +94,6 @@ describe("AgentAutomationController", () => {
       isYoloEnabled: () => true,
       approvalDelayMs: () => 0,
       preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => true,
-      modelSwitchContextWarning: () => "Model switch warning",
     });
     controller.start();
     const card = appendConfirm(panel);
@@ -185,8 +117,6 @@ describe("AgentAutomationController", () => {
       approvalDelayMs: () => 3000,
       notifyApproval,
       preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => true,
-      modelSwitchContextWarning: () => "Model switch warning",
     });
     controller.start();
     const card = appendConfirm(panel);
@@ -215,8 +145,6 @@ describe("AgentAutomationController", () => {
       isYoloEnabled: () => false,
       approvalDelayMs: () => 0,
       preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => true,
-      modelSwitchContextWarning: () => "Model switch warning",
     });
     controller.start();
     panel.querySelector<HTMLButtonElement>('[data-type="new-session"]')!.addEventListener("click", () => {
@@ -230,50 +158,4 @@ describe("AgentAutomationController", () => {
     controller.stop();
   });
 
-  it("confirms only the model-switch context warning when enabled", async () => {
-    vi.useFakeTimers();
-    const controller = new AgentAutomationController(document.body, {
-      isYoloEnabled: () => false,
-      approvalDelayMs: () => 0,
-      preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => true,
-      modelSwitchContextWarning: () => "Model switch warning",
-    });
-    controller.start();
-    const unrelated = appendDialog("Delete this document?");
-    const modelSwitch = appendDialog("Model switch warning");
-    const unrelatedConfirm = vi.fn();
-    const modelSwitchConfirm = vi.fn();
-    unrelated.querySelector<HTMLButtonElement>("#confirmDialogConfirmBtn")!
-      .addEventListener("click", unrelatedConfirm);
-    modelSwitch.querySelector<HTMLButtonElement>("#confirmDialogConfirmBtn")!
-      .addEventListener("click", modelSwitchConfirm);
-
-    await vi.runAllTimersAsync();
-
-    expect(modelSwitchConfirm).toHaveBeenCalledOnce();
-    expect(unrelatedConfirm).not.toHaveBeenCalled();
-    controller.stop();
-  });
-
-  it("leaves the model-switch context warning open when disabled", async () => {
-    vi.useFakeTimers();
-    const controller = new AgentAutomationController(document.body, {
-      isYoloEnabled: () => false,
-      approvalDelayMs: () => 0,
-      preserveNewSessionDraft: () => true,
-      skipModelSwitchContextConfirmation: () => false,
-      modelSwitchContextWarning: () => "Model switch warning",
-    });
-    controller.start();
-    const modelSwitch = appendDialog("Model switch warning");
-    const confirmed = vi.fn();
-    modelSwitch.querySelector<HTMLButtonElement>("#confirmDialogConfirmBtn")!
-      .addEventListener("click", confirmed);
-
-    await vi.runAllTimersAsync();
-
-    expect(confirmed).not.toHaveBeenCalled();
-    controller.stop();
-  });
 });

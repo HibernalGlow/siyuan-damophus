@@ -7,9 +7,6 @@ const PERMISSION_BUTTON_SELECTOR = ".agent-chat__permission";
 const PERMISSION_LABEL_SELECTOR = ".agent-chat__permission-label";
 const PERMISSION_MENU_SELECTOR = '#commonMenu[data-name="agent-chat-permission"]';
 const PERMISSION_MENU_ITEM_SELECTOR = ".b3-menu__item";
-const CONFIRM_DIALOG_SELECTOR = '.b3-dialog--open[data-key="dialog-confirm"]';
-const CONFIRM_DIALOG_TEXT_SELECTOR = ".b3-dialog__content .ft__breakword";
-const CONFIRM_DIALOG_ACCEPT_SELECTOR = "#confirmDialogConfirmBtn";
 const DRAFT_EXPIRY_MS = 15_000;
 const MUTATION_SCAN_DELAY_MS = 16;
 const INVISIBLE_TEXT = /[\u200b\u200c\u200d\u2060\ufeff]/gu;
@@ -29,8 +26,6 @@ export type AgentAutomationOptions = {
   approvalDelayMs: () => number;
   notifyApproval?: (notice: AgentApprovalNotice) => void;
   preserveNewSessionDraft: () => boolean;
-  skipModelSwitchContextConfirmation: () => boolean;
-  modelSwitchContextWarning: () => string;
 };
 
 function composerHasContent(editor: HTMLElement): boolean {
@@ -67,7 +62,6 @@ export class AgentAutomationController {
   private readonly permissionTimers = new Map<HTMLButtonElement, number>();
   private readonly permissionLabels = new WeakMap<HTMLButtonElement, string>();
   private readonly pendingDrafts = new Map<HTMLElement, PendingDraft>();
-  private readonly confirmedModelSwitchDialogs = new WeakSet<HTMLElement>();
 
   constructor(
     private readonly root: HTMLElement,
@@ -143,35 +137,10 @@ export class AgentAutomationController {
 
   private scan(roots: Iterable<Element>): void {
     this.restoreDrafts();
-    this.confirmModelSwitches(roots);
     if (!this.options.isYoloEnabled()) return;
     this.syncPermissionModes(roots);
     matchingElements<HTMLElement>(roots, CONFIRM_SELECTOR).forEach((card) => {
       this.scheduleApproval(card);
-    });
-  }
-
-  private confirmModelSwitches(roots: Iterable<Element>): void {
-    if (!this.options.skipModelSwitchContextConfirmation()) return;
-    const dialogs = matchingElements<HTMLElement>(roots, CONFIRM_DIALOG_SELECTOR);
-    if (dialogs.size === 0) return;
-
-    let warning = "";
-    try {
-      warning = this.options.modelSwitchContextWarning().trim();
-    } catch {
-      return;
-    }
-    if (!warning) return;
-
-    dialogs.forEach((dialog) => {
-      if (!dialog.isConnected || this.confirmedModelSwitchDialogs.has(dialog)) return;
-      const text = dialog.querySelector<HTMLElement>(CONFIRM_DIALOG_TEXT_SELECTOR)?.textContent?.trim();
-      if (text !== warning) return;
-      const confirm = dialog.querySelector<HTMLButtonElement>(CONFIRM_DIALOG_ACCEPT_SELECTOR);
-      if (!confirm || confirm.disabled) return;
-      this.confirmedModelSwitchDialogs.add(dialog);
-      confirm.click();
     });
   }
 

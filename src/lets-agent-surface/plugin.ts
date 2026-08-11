@@ -59,13 +59,6 @@ const pluginMetadata: PluginMetadata = {
       key: "preserveNewSessionDraft",
       value: true,
     },
-    {
-      type: "checkbox",
-      title: "lets-agent-surface.skipModelSwitchContextConfirmationTitle",
-      description: "lets-agent-surface.skipModelSwitchContextConfirmationDescription",
-      key: "skipModelSwitchContextConfirmation",
-      value: true,
-    },
   ],
 };
 
