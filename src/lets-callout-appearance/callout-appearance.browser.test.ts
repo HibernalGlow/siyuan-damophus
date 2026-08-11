@@ -10,6 +10,7 @@ import {
 } from "./callout-appearance";
 
 const ENHANCE_STYLE_ID = "callout-enhance-dynamic-styles";
+const HOST_LIST_STYLE_ID = "siyuan-host-list-styles";
 
 function renderCallout(): HTMLElement {
   const editor = document.createElement("div");
@@ -58,10 +59,68 @@ function renderNestedCallout(): { outer: HTMLElement; content: HTMLElement; nest
   };
 }
 
+function renderListNestedCallout(): {
+  action: HTMLElement;
+  item: HTMLElement;
+  nested: HTMLElement;
+} {
+  const hostStyle = document.createElement("style");
+  hostStyle.id = HOST_LIST_STYLE_ID;
+  hostStyle.textContent = `
+    .protyle-wysiwyg [data-node-id].list {
+      display: flex;
+      flex-direction: column;
+    }
+    .protyle-wysiwyg [data-node-id].li {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .protyle-wysiwyg [data-node-id].li > [data-node-id] {
+      margin-left: 34px;
+    }
+    .protyle-wysiwyg [data-node-id].li > .protyle-action {
+      position: absolute;
+      left: 0;
+      width: 34px;
+    }
+  `;
+  document.head.append(hostStyle);
+
+  const editor = document.createElement("div");
+  editor.className = "protyle-wysiwyg";
+  editor.style.width = "360px";
+  editor.innerHTML = `
+    <div class="callout" data-node-id="outer" data-type="NodeCallout" data-subtype="IMPORTANT">
+      <div class="callout-info"><span class="callout-title">Important</span></div>
+      <div class="callout-content">
+        <div class="list" data-node-id="list" data-type="NodeList">
+          <div class="li" data-node-id="item" data-type="NodeListItem">
+            <div class="protyle-action">1.</div>
+            <div class="p" data-node-id="paragraph" data-type="NodeParagraph">List item</div>
+            <div class="callout" data-node-id="nested" data-type="NodeCallout" data-subtype="NOTE">
+              <div class="callout-info"><span class="callout-title">Note</span></div>
+              <div class="callout-content"><p>Nested body</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.append(editor);
+  return {
+    action: editor.querySelector<HTMLElement>(".protyle-action")!,
+    item: editor.querySelector<HTMLElement>('[data-node-id="item"]')!,
+    nested: editor.querySelector<HTMLElement>('[data-node-id="nested"]')!,
+  };
+}
+
 afterEach(() => {
   document.body.replaceChildren();
   document.getElementById(CALLOUT_APPEARANCE_STYLE_ID)?.remove();
   document.getElementById(ENHANCE_STYLE_ID)?.remove();
+  document.getElementById(HOST_LIST_STYLE_ID)?.remove();
 });
 
 describe("callout appearance", () => {
@@ -128,6 +187,28 @@ describe("callout appearance", () => {
     expect(nestedRect.right).toBeLessThanOrEqual(contentRect.right + 0.5);
     expect(nestedRect.right).toBeLessThanOrEqual(outerRect.right + 0.5);
   });
+
+  it.each([false, true])(
+    "preserves the SiYuan list gutter with Callout Enhance active: %s",
+    (enhanceActive) => {
+      if (enhanceActive) {
+        const enhanceStyle = document.createElement("style");
+        enhanceStyle.id = ENHANCE_STYLE_ID;
+        enhanceStyle.textContent = '.callout[data-type="NodeCallout"] { display: flex; margin: 0; }';
+        document.head.append(enhanceStyle);
+      }
+
+      const { action, item, nested } = renderListNestedCallout();
+      new CalloutAppearanceStyles(document).start();
+
+      const actionRect = action.getBoundingClientRect();
+      const itemRect = item.getBoundingClientRect();
+      const nestedRect = nested.getBoundingClientRect();
+      expect(getComputedStyle(nested).marginLeft).toBe("34px");
+      expect(nestedRect.left).toBeGreaterThanOrEqual(actionRect.right - 0.5);
+      expect(nestedRect.right).toBeLessThanOrEqual(itemRect.right + 0.5);
+    },
+  );
 
   it("overrides only the visual layer when Callout Enhance is active", () => {
     const enhanceStyle = document.createElement("style");

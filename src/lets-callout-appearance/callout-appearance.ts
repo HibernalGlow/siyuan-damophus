@@ -134,7 +134,7 @@ ${EDITOR_CALLOUT_SELECTORS.join(",\n")} {
   min-width: 0 !important;
   max-width: 100% !important;
   padding: ${settings.paddingTop}px ${settings.paddingX}px ${settings.paddingBottom}px !important;
-  margin: 0.4em 0 !important;
+  margin-block: 0.4em !important;
   border: 0 !important;
   border-radius: ${settings.radius}px !important;
   outline: 0.5px solid color-mix(in srgb, currentColor ${settings.outlineOpacity}%, transparent) !important;

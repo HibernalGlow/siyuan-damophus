@@ -87,13 +87,20 @@
           <ChevronDown class="callout-preview-fold" aria-hidden="true" />
         </div>
         <div class="callout-content">
-          <p>{labels.outerBody}</p>
-          <div class="callout" data-type="NodeCallout" data-subtype="TIP">
-            <div class="callout-info">
-              <span class="callout-icon"><Lightbulb aria-hidden="true" /></span>
-              <span class="callout-title">{labels.nestedTitle}</span>
+          <div class="list" data-node-id="preview-list" data-type="NodeList">
+            <div class="li" data-node-id="preview-item" data-type="NodeListItem">
+              <div class="protyle-action" aria-hidden="true">1.</div>
+              <div class="p" data-node-id="preview-paragraph" data-type="NodeParagraph">
+                <div>{labels.outerBody}</div>
+              </div>
+              <div class="callout" data-node-id="preview-callout" data-type="NodeCallout" data-subtype="TIP">
+                <div class="callout-info">
+                  <span class="callout-icon"><Lightbulb aria-hidden="true" /></span>
+                  <span class="callout-title">{labels.nestedTitle}</span>
+                </div>
+                <div class="callout-content"><p>{labels.nestedBody}</p></div>
+              </div>
             </div>
-            <div class="callout-content"><p>{labels.nestedBody}</p></div>
           </div>
         </div>
       </div>
@@ -114,10 +121,10 @@
     box-sizing: border-box !important;
     display: flex;
     flex-direction: column;
-    width: 100% !important;
+    width: auto !important;
     min-width: 0 !important;
     max-width: 100% !important;
-    margin: 0 !important;
+    margin-block: 0 !important;
     padding: var(--preview-padding-top) var(--preview-padding-x) var(--preview-padding-bottom) !important;
     border: 0 !important;
     border-radius: var(--preview-radius) !important;
@@ -125,6 +132,54 @@
     outline-offset: -0.5px !important;
     background: color-mix(in srgb, currentColor var(--preview-surface-opacity), transparent) !important;
     box-shadow: none !important;
+  }
+
+  .damophus-callout-appearance-preview > .callout[data-type="NodeCallout"] {
+    width: 100% !important;
+    margin-inline: 0 !important;
+  }
+
+  .damophus-callout-appearance-preview .list[data-type="NodeList"] {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    margin-top: 8px;
+    padding: 0;
+  }
+
+  .damophus-callout-appearance-preview .li[data-type="NodeListItem"] {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  .damophus-callout-appearance-preview .li[data-type="NodeListItem"] > [data-node-id] {
+    margin-left: 34px;
+  }
+
+  .damophus-callout-appearance-preview .protyle-action {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    width: 34px;
+    min-height: 28px;
+    align-items: center;
+    justify-content: center;
+    color: var(--b3-theme-on-surface);
+  }
+
+  .damophus-callout-appearance-preview .p[data-type="NodeParagraph"] {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 4px 8px;
+    color: var(--b3-theme-on-background);
+    line-height: 1.65;
+  }
+
+  .damophus-callout-appearance-preview .li[data-type="NodeListItem"] > .callout {
+    margin-top: 8px !important;
   }
 
   .damophus-callout-appearance-preview .callout[data-subtype="IMPORTANT"] {
@@ -198,11 +253,4 @@
     line-height: 1.65;
   }
 
-  .damophus-callout-appearance-preview .callout-content > .callout {
-    margin-top: 10px !important;
-  }
-
-  .damophus-callout-appearance-preview .callout-content > .callout > .callout-content {
-    color: var(--b3-theme-on-background);
-  }
 </style>

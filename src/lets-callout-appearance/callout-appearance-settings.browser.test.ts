@@ -58,13 +58,19 @@ describe("Callout appearance settings", () => {
     const preview = target.querySelector<HTMLElement>("[data-callout-appearance-preview]");
     const callouts = target.querySelectorAll<HTMLElement>("[data-callout-appearance-preview] .callout");
     const outerContent = callouts[0]?.querySelector<HTMLElement>(":scope > .callout-content");
-    if (!preview || callouts.length !== 2 || !outerContent) throw new Error("Missing nested Callout preview");
+    const listAction = target.querySelector<HTMLElement>("[data-callout-appearance-preview] .protyle-action");
+    if (!preview || callouts.length !== 2 || !outerContent || !listAction) {
+      throw new Error("Missing list-nested Callout preview");
+    }
 
     expect(target.textContent).toContain(labels.preview);
     expect(target.textContent).toContain(labels.nestedBody);
     expect(getComputedStyle(callouts[0]).paddingTop).toBe("16px");
     expect(getComputedStyle(callouts[0]).borderRadius).toBe("11px");
     expect(getComputedStyle(callouts[1]).maxWidth).toBe("100%");
+    expect(getComputedStyle(callouts[1]).marginLeft).toBe("34px");
+    expect(callouts[1].getBoundingClientRect().left)
+      .toBeGreaterThanOrEqual(listAction.getBoundingClientRect().right - 0.5);
     expect(callouts[1].getBoundingClientRect().right)
       .toBeLessThanOrEqual(outerContent.getBoundingClientRect().right + 0.5);
     expect(preview.scrollWidth).toBeLessThanOrEqual(preview.clientWidth);
