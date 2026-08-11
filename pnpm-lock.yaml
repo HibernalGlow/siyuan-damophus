@@ -59,6 +59,9 @@ importers:
       remark-stringify:
         specifier: ^11.0.0
         version: 11.0.0
+      svelte-dnd-action:
+        specifier: ^0.9.78
+        version: 0.9.78(svelte@5.56.8)
       tailwind-merge:
         specifier: 3.5.0
         version: 3.5.0
@@ -2137,6 +2140,11 @@ packages:
     peerDependencies:
       svelte: ^4.0.0 || ^5.0.0-next.0
       typescript: ^5.0.0 || ^6.0.0
+
+  svelte-dnd-action@0.9.78:
+    resolution: {integrity: sha512-qov+j3A9Umo1Ng2b2PaQ/nTDBo1sogAw19DF1KZ35Pcx/9yJtlmnKYKVHjCz9iqUH+g1sk4XuCstxPZFFPEa/Q==}
+    peerDependencies:
+      svelte: '>=3.23.0 || ^5.0.0-next.0'
 
   svelte-toolbelt@0.10.6:
     resolution: {integrity: sha512-YWuX+RE+CnWYx09yseAe4ZVMM7e7GRFZM6OYWpBKOb++s+SQ8RBIMMe+Bs/CznBMc0QPLjr+vDBxTAkozXsFXQ==}
@@ -4528,6 +4536,10 @@ snapshots:
       typescript: 6.0.3
     transitivePeerDependencies:
       - picomatch
+
+  svelte-dnd-action@0.9.78(svelte@5.56.8):
+    dependencies:
+      svelte: 5.56.8
 
   svelte-toolbelt@0.10.6(svelte@5.56.8):
     dependencies:

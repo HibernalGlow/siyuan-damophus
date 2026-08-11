@@ -1,15 +1,26 @@
 export const pluginIconNames = [
+  "bookA",
   "bookOpenCheck",
   "bot",
+  "boxes",
   "brain",
+  "cloudCog",
   "fileOutput",
   "film",
   "glassWater",
+  "graduationCap",
+  "gripVertical",
+  "highlighter",
   "imagePlay",
+  "layoutGrid",
   "listTree",
   "messageSquareText",
+  "move",
   "network",
+  "paintbrush",
+  "palette",
   "panelRight",
+  "plug",
   "power",
   "settings",
   "smartphone",
@@ -17,10 +28,18 @@ export const pluginIconNames = [
   "sunMoon",
   "tableProperties",
   "tags",
+  "textSelect",
   "waypoints",
+  "workflow",
 ] as const;
 
 export type PluginIconName = typeof pluginIconNames[number];
+
+export const settingGroupIcons = {
+  switch: "power",
+  entry: "waypoints",
+  general: "settings",
+} as const satisfies Record<string, PluginIconName>;
 
 const SIYUAN_PLUGIN_ICONS: Partial<Record<PluginIconName, string>> = {
   brain: "iconBrain",

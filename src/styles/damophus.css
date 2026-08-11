@@ -294,6 +294,13 @@ html[data-frontend="browser-mobile"] > body > .toolbar > #toolbarNameReadonly {
   margin-inline-end: 120px;
 }
 
+html[data-frontend="mobile"],
+html[data-frontend="browser-mobile"] {
+  /* SiYuan's mobile toolbar is 42px tall; keep portaled breadcrumb actions
+     on its actual center line instead of the 48px desktop assumption. */
+  --_damophus-mobile-toolbar-height: 42px;
+}
+
 html[data-frontend="mobile"] > body > .toolbar,
 html[data-frontend="browser-mobile"] > body > .toolbar {
   pointer-events: none;
@@ -325,7 +332,7 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__ico
   box-sizing: border-box;
   display: inline-flex;
   position: fixed;
-  top: 4px;
+  top: calc((var(--_damophus-mobile-toolbar-height) - 40px) / 2);
   width: 32px;
   height: 40px;
   margin: 0;

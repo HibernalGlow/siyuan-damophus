@@ -4,10 +4,18 @@
   import { showMessage } from "siyuan";
   import { Button } from "@/components/ui/button";
   import EntryManagementSettings from "@/components/entry-management-settings.svelte";
+  import SwitchSettings from "@/components/switch-settings.svelte";
   import { enableLogging } from "@/libs/logger";
   import { buildModuleSettings, MODULE_ENABLED_SETTING_KEY } from "@/libs/module-settings";
   import { resolveEntrySetting } from "@/libs/plugin-entry-settings";
-  import { resolvePluginIconName, type PluginIconName } from "@/libs/plugin-icons";
+  import { resolvePluginIconName, settingGroupIcons, type PluginIconName } from "@/libs/plugin-icons";
+  import { buildSettingCategoryGroups } from "@/libs/setting-categories";
+  import {
+    applyNavOrder,
+    parseSettingsNavState,
+    SETTINGS_NAV_STATE_KEY,
+    type SettingsNavState,
+  } from "@/libs/settings-nav-state";
   import { settings } from "@/settings";
   import { getHostColorMode, observeHostColorMode } from "@/theme/runtime";
   import { parseStoredThemes } from "@/theme/schema";
@@ -25,6 +33,7 @@
   import { PluginRegistry } from "./plugin-registry";
   import { isMobile, plugin } from "./utils";
   import SettingCategoryNavigation from "./components/setting-category-navigation.svelte";
+  import SettingOverview from "./components/setting-overview.svelte";
 
   const SWITCH_GROUP = "开关";
   const ENTRY_GROUP = "入口";
@@ -110,6 +119,8 @@
   let settingRoot: HTMLDivElement;
   let compactLayout = isMobile;
   let showCompactCategories = compactLayout;
+  let navState: SettingsNavState = parseSettingsNavState(settings.get(SETTINGS_NAV_STATE_KEY));
+  let view: "overview" | "detail" = "overview";
 
   $: groups = [
     SWITCH_GROUP,
@@ -118,6 +129,56 @@
     ...settingItems[SWITCH_GROUP]
       .map((item) => item.title),
   ];
+  $: settingCategories = applyNavOrder(buildSettingCategoryGroups(settingItems[SWITCH_GROUP], [
+    SWITCH_GROUP,
+    ENTRY_GROUP,
+    GENERAL_GROUP,
+  ]), navState);
+  $: switchCategories = settingCategories.filter((category) => category.id !== "core");
+  $: navigationCategories = settingCategories.map((category) => ({
+    ...category,
+    label: t(category.label, category.label),
+    description: t(category.description, category.description),
+    groups: category.id === "core"
+      ? category.groups
+      : category.groups
+        .map((pluginName) => settingItems[SWITCH_GROUP].find((item) => item.key === pluginName)?.title)
+        .filter((group): group is string => Boolean(group)),
+    enabled: category.id === "core"
+      ? undefined
+      : category.groups.filter((pluginName) => Boolean(settingItems[SWITCH_GROUP].find((item) => item.key === pluginName)?.value)).length,
+    total: category.id === "core" ? undefined : category.groups.length,
+  }));
+  $: showOverview = view === "overview" && settingCategories.length > 0;
+  $: overviewCategories = settingCategories.map((category) => ({
+    id: category.id,
+    label: t(category.label, category.label),
+    description: t(category.description, category.description),
+    icon: category.icon,
+    enabled: category.id === "core"
+      ? undefined
+      : category.groups.filter((pluginName) => Boolean(settingItems[SWITCH_GROUP].find((item) => item.key === pluginName)?.value)).length,
+    total: category.id === "core" ? undefined : category.groups.length,
+    modules: category.id === "core"
+      ? category.groups.map((group) => ({
+        id: group,
+        selectId: group,
+        label: getGroupLabel(group),
+        icon: getGroupIcon(group, 0),
+        enabled: undefined,
+      }))
+      : category.groups.map((pluginName) => {
+        const item = settingItems[SWITCH_GROUP].find((entry) => entry.key === pluginName);
+        const title = item?.title ?? pluginName;
+        return {
+          id: pluginName,
+          selectId: title,
+          label: getGroupLabel(title),
+          icon: getGroupIcon(title, 0),
+          enabled: Boolean(item?.value),
+        };
+      }),
+  }));
   $: selectedTheme = findTheme(selectedThemeId, customThemes);
   $: focusedPlugin = PluginRegistry.getInstance().getPluginConfigs().find(
     (item) => item.displayName === focusGroup || item.name === focusGroup,
@@ -152,9 +213,9 @@
   }
 
   function getGroupIcon(groupName: string, _index: number): PluginIconName {
-    if (groupName === SWITCH_GROUP) return "power";
-    if (groupName === ENTRY_GROUP) return "waypoints";
-    if (groupName === GENERAL_GROUP) return "settings";
+    if (groupName === SWITCH_GROUP) return settingGroupIcons.switch;
+    if (groupName === ENTRY_GROUP) return settingGroupIcons.entry;
+    if (groupName === GENERAL_GROUP) return settingGroupIcons.general;
     const found = PluginRegistry.getInstance().getPluginConfigs().find(
       (item) => item.displayName === groupName || item.name === groupName,
     );
@@ -296,6 +357,7 @@
     if (detail.group === GENERAL_GROUP && detail.key === "resetData") {
       await settings.resetData();
       settingItems = initData();
+      navState = parseSettingsNavState(settings.get(SETTINGS_NAV_STATE_KEY));
       customThemes = parseStoredThemes(settings.get("customThemes"));
       const resetThemeId = settings.get("uiThemeId");
       selectedThemeId = savedThemeId = typeof resetThemeId === "string"
@@ -333,6 +395,14 @@
     await settings.save();
   }
 
+  async function onBulkSwitchChanged({ detail }: CustomEvent<{ keys: string[]; value: boolean }>) {
+    for (const pluginName of detail.keys) {
+      await setModuleEnabled(pluginName, detail.value);
+    }
+    settingItems = initData();
+    await settings.save();
+  }
+
   async function setModuleEnabled(pluginName: string, enabled: boolean) {
     settings.setBySpace(pluginName, MODULE_ENABLED_SETTING_KEY, enabled);
     if (enabled) await PluginRegistry.getInstance().beginPlugin(pluginName);
@@ -349,7 +419,56 @@
   }
 
   function showCategoryList() {
-    if (compactLayout) showCompactCategories = true;
+    if (compactLayout) {
+      view = "overview";
+      return;
+    }
+    showCompactCategories = true;
+  }
+
+  function persistNavState() {
+    settings.set(SETTINGS_NAV_STATE_KEY, navState);
+    void settings.save();
+  }
+
+  function selectFromOverview(group: string) {
+    focusGroup = group;
+    view = "detail";
+    if (compactLayout) showCompactCategories = false;
+  }
+
+  function showOverviewPage() {
+    view = "overview";
+  }
+
+  async function onOverviewToggle({ detail }: CustomEvent<{ id: string; enabled: boolean }>) {
+    await setModuleEnabled(detail.id, detail.enabled);
+    settingItems = initData();
+    await settings.save();
+  }
+
+  function onOverviewReorder({ detail }: CustomEvent<{
+    categoryOrder?: string[];
+    moduleOrder?: { categoryId: string; order: string[] };
+  }>) {
+    if (detail.categoryOrder) navState = { ...navState, categoryOrder: detail.categoryOrder };
+    if (detail.moduleOrder) {
+      navState = {
+        ...navState,
+        moduleOrder: { ...navState.moduleOrder, [detail.moduleOrder.categoryId]: detail.moduleOrder.order },
+      };
+    }
+    persistNavState();
+  }
+
+  function onSidebarExpandedChanged({ detail }: CustomEvent<Record<string, boolean>>) {
+    navState = { ...navState, sidebarExpanded: detail };
+    persistNavState();
+  }
+
+  function onSwitchesExpandedChanged({ detail }: CustomEvent<Record<string, boolean>>) {
+    navState = { ...navState, switchesExpanded: detail };
+    persistNavState();
   }
 
   onMount(() => {
@@ -360,14 +479,14 @@
       const nextCompactLayout = isMobile || settingRoot.clientWidth <= COMPACT_LAYOUT_MAX_WIDTH;
       if (nextCompactLayout === compactLayout) return;
       compactLayout = nextCompactLayout;
-      showCompactCategories = nextCompactLayout;
+      showCompactCategories = false;
     };
     const layoutObserver = new ResizeObserver(updateLayout);
     const hostWindow = window as Window & { goBack?: (...args: unknown[]) => unknown };
     const originalGoBack = hostWindow.goBack;
     const compactGoBack = (...args: unknown[]) => {
-      if (compactLayout && !showCompactCategories) {
-        showCompactCategories = true;
+      if (compactLayout && view === "detail") {
+        view = "overview";
         return;
       }
       return originalGoBack?.apply(hostWindow, args);
@@ -394,8 +513,27 @@
   class:damophus-settings-mobile={compactLayout}
   data-color-mode={mode}
 >
+  {#if showOverview}
+    <main class="min-w-0 flex-1 overflow-y-auto overscroll-contain" data-testid="setting-overview-page">
+      <div class={`mx-auto box-border flex w-full max-w-6xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
+        <header class="border-b border-border pb-4">
+          <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
+          <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
+        </header>
+        <SettingOverview
+          categories={overviewCategories}
+          reorderHint={t("settings.dragToReorder", "Drag to reorder")}
+          enabledLabel={t("settings.moduleEnabled", "Enable this module")}
+          on:select={(event) => selectFromOverview(event.detail)}
+          on:toggle={onOverviewToggle}
+          on:reorder={onOverviewReorder}
+        />
+      </div>
+    </main>
+  {:else}
   <SettingCategoryNavigation
     {groups}
+    categorySections={navigationCategories}
     {focusGroup}
     {getGroupIcon}
     mobile={compactLayout}
@@ -405,8 +543,17 @@
     categoryDescription={t("settings.selectCategoryDescription", "Choose which Damophus settings to display.")}
     preferencesLabel={t("settings.preferences", "Preferences")}
     backLabel={t("settings.back", "Back")}
+    searchPlaceholder={t("settings.searchModules", "Search modules")}
+    expandAllLabel={t("settings.expandAll", "Expand all")}
+    collapseAllLabel={t("settings.collapseAll", "Collapse all")}
+    noMatchesLabel={t("settings.noModuleMatches", "No modules match your search.")}
+    overviewLabel={t("settings.backToOverview", "Back to overview")}
+    showOverviewLink={!compactLayout && settingCategories.length > 0}
+    expandedState={navState.sidebarExpanded ?? {}}
     on:select={(event) => selectGroup(event.detail)}
     on:back={showCategoryList}
+    on:overview={showOverviewPage}
+    on:expandedChanged={onSidebarExpandedChanged}
   />
 
   <main class="min-w-0 flex-1 overflow-y-auto overscroll-contain" class:hidden={compactLayout && showCompactCategories}>
@@ -418,7 +565,17 @@
       {/if}
 
       <!-- Damophus theme settings are temporarily hidden; the panel follows SiYuan's theme. -->
-      {#if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
+      {#if focusGroup === SWITCH_GROUP}
+        <SwitchSettings
+          items={focusedSettingItems}
+          categories={switchCategories}
+          translate={t}
+          expandedState={navState.switchesExpanded ?? {}}
+          on:changed={(event) => onChanged(new CustomEvent("changed", { detail: { group: SWITCH_GROUP, ...event.detail } }))}
+          on:bulkChanged={onBulkSwitchChanged}
+          on:expandedChanged={onSwitchesExpandedChanged}
+        />
+      {:else if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
         <SettingPanel
           group={focusGroup}
           settingItems={moduleEnabledSettingItems}
@@ -481,7 +638,7 @@
           on:changed={onChanged}
           on:preview={onPreview}
         />
-      {:else if moduleSpecificSettingItems.length > 0}
+      {:else if focusGroup !== SWITCH_GROUP && moduleSpecificSettingItems.length > 0}
         <SettingPanel
           group={focusGroup}
           settingItems={moduleSpecificSettingItems}
@@ -500,4 +657,5 @@
       {/if}
     </div>
   </main>
+  {/if}
 </div>
