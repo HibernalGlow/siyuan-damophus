@@ -17,12 +17,15 @@ export interface PracticeSessionMachineContext {
   pendingQuestionId?: string;
   error?: string;
   pauseOnAnswerReveal: boolean;
+  timerPaused: boolean;
 }
 
 export type PracticeSessionMachineEvent =
   | { type: "DRAFT_CHANGED"; questionId: string; patch: Partial<Pick<PracticeDraft,
     "selected_option_ids" | "revealed" | "objective_correct" | "subjective_score">>; now: number }
   | { type: "NAVIGATE"; questionId: string; now: number }
+  | { type: "PAUSE_TIMER"; now: number }
+  | { type: "RESUME_TIMER"; now: number }
   | { type: "PAUSE"; now: number }
   | { type: "RESUME"; now: number }
   | { type: "RESET_QUESTION_TIMER"; now: number }
@@ -62,8 +65,8 @@ function checkpoint(
         : context.session.drafts,
       updated_at: iso(now),
     },
-    activeSinceMs: now,
-    questionActiveSinceMs: now,
+    activeSinceMs: context.timerPaused ? undefined : now,
+    questionActiveSinceMs: context.timerPaused ? undefined : now,
   };
 }
 
@@ -101,8 +104,8 @@ function commitSubmission(
     },
     pendingQuestionId: undefined,
     error: undefined,
-    questionActiveSinceMs: nextQuestionId ? event.now : undefined,
-    activeSinceMs: nextQuestionId ? event.now : undefined,
+    questionActiveSinceMs: nextQuestionId && !checked.timerPaused ? event.now : undefined,
+    activeSinceMs: nextQuestionId && !checked.timerPaused ? event.now : undefined,
   };
 }
 
@@ -142,12 +145,13 @@ const machineSetup = setup({
       const checked = checkpoint(context, event.now);
       const draft = checked.session.drafts[event.questionId];
       if (!draft || checked.session.completed_question_ids.includes(event.questionId)) return checked;
-      const revealed = event.patch.revealed === true;
+      const revealed = event.patch.revealed ?? draft.revealed;
       const retrying = event.patch.revealed === false;
+      const frozen = checked.timerPaused || (revealed && checked.pauseOnAnswerReveal);
       return {
         ...checked,
-        activeSinceMs: revealed && checked.pauseOnAnswerReveal ? undefined : retrying ? event.now : checked.activeSinceMs,
-        questionActiveSinceMs: revealed && checked.pauseOnAnswerReveal ? undefined : retrying ? event.now : checked.questionActiveSinceMs,
+        activeSinceMs: frozen ? undefined : retrying ? event.now : checked.activeSinceMs,
+        questionActiveSinceMs: frozen ? undefined : retrying ? event.now : checked.questionActiveSinceMs,
         session: {
           ...checked.session,
           drafts: {
@@ -164,7 +168,7 @@ const machineSetup = setup({
       const questionId = checked.session.current_question_id;
       const draft = checked.session.drafts[questionId];
       if (!draft) return checked;
-      const frozen = checked.pauseOnAnswerReveal && draft.revealed;
+      const frozen = checked.timerPaused || (checked.pauseOnAnswerReveal && draft.revealed);
       return {
         ...checked,
         session: {
@@ -179,7 +183,7 @@ const machineSetup = setup({
       if (!(event.type === "NAVIGATE" || event.type === "REVIEW")) return context;
       const checked = checkpoint(context, event.now);
       const nextDraft = checked.session.drafts[event.questionId];
-      const frozen = checked.pauseOnAnswerReveal && Boolean(nextDraft?.revealed);
+      const frozen = checked.timerPaused || (checked.pauseOnAnswerReveal && Boolean(nextDraft?.revealed));
       const resetsTimer = event.type === "NAVIGATE"
         && event.questionId !== checked.session.current_question_id
         && !checked.session.completed_question_ids.includes(event.questionId);
@@ -203,14 +207,43 @@ const machineSetup = setup({
       const checked = checkpoint(context, event.now);
       return { ...checked, activeSinceMs: undefined, questionActiveSinceMs: undefined };
     }),
-    resume: assign(({ context, event }) => event.type === "RESUME" ? {
-      ...context,
-      activeSinceMs: event.now,
-      questionActiveSinceMs: context.session.completed_question_ids.includes(
-        context.session.current_question_id,
-      ) ? undefined : event.now,
-      error: undefined,
-    } : context),
+    resume: assign(({ context, event }) => {
+      if (event.type !== "RESUME") return context;
+      const draft = context.session.drafts[context.session.current_question_id];
+      const frozen = context.timerPaused || (context.pauseOnAnswerReveal && Boolean(draft?.revealed));
+      return {
+        ...context,
+        activeSinceMs: frozen ? undefined : event.now,
+        questionActiveSinceMs: frozen || context.session.completed_question_ids.includes(
+          context.session.current_question_id,
+        ) ? undefined : event.now,
+        error: undefined,
+      };
+    }),
+    pauseTimer: assign(({ context, event }) => {
+      if (event.type !== "PAUSE_TIMER") return context;
+      const checked = checkpoint(context, event.now);
+      return {
+        ...checked,
+        timerPaused: true,
+        activeSinceMs: undefined,
+        questionActiveSinceMs: undefined,
+      };
+    }),
+    resumeTimer: assign(({ context, event }) => {
+      if (event.type !== "RESUME_TIMER") return context;
+      const draft = context.session.drafts[context.session.current_question_id];
+      const answerFrozen = context.pauseOnAnswerReveal && Boolean(draft?.revealed);
+      return {
+        ...context,
+        timerPaused: false,
+        activeSinceMs: answerFrozen ? undefined : event.now,
+        questionActiveSinceMs: answerFrozen || context.session.completed_question_ids.includes(
+          context.session.current_question_id,
+        ) ? undefined : event.now,
+        error: undefined,
+      };
+    }),
     end: assign(({ context, event }) => {
       if (event.type !== "END") return context;
       const checked = checkpoint(context, event.now);
@@ -233,7 +266,7 @@ const machineSetup = setup({
     failSubmission: assign(({ context, event }) => {
       if (event.type !== "SUBMIT_FAILED") return context;
       const draft = context.session.drafts[context.session.current_question_id];
-      const frozen = context.pauseOnAnswerReveal && Boolean(draft?.revealed);
+      const frozen = context.timerPaused || (context.pauseOnAnswerReveal && Boolean(draft?.revealed));
       return {
         ...context,
         pendingQuestionId: undefined,
@@ -276,6 +309,7 @@ export const practiceSessionMachine = machineSetup.createMachine({
         input.snapshot.current_question_id,
       ) ? undefined : now,
       pauseOnAnswerReveal: input.pauseOnAnswerReveal !== false,
+      timerPaused: false,
     };
   },
   states: {
@@ -289,6 +323,8 @@ export const practiceSessionMachine = machineSetup.createMachine({
       on: {
         DRAFT_CHANGED: { actions: "changeDraft" },
         NAVIGATE: { guard: "validNavigation", actions: "navigate" },
+        PAUSE_TIMER: { actions: "pauseTimer" },
+        RESUME_TIMER: { actions: "resumeTimer" },
         PAUSE: { target: "paused", actions: "pause" },
         END: { target: "ended", actions: "end" },
         BEGIN_SUBMIT: {

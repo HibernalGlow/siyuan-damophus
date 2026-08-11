@@ -129,18 +129,64 @@ describe("practice session machine", () => {
     actor.stop();
   });
 
-  it("excludes paused time from session and question timers", () => {
+  it("pauses only timers while keeping drafts and navigation active", () => {
     const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000 } }).start();
-    actor.send({ type: "PAUSE", now: 4_000 });
+    actor.send({ type: "PAUSE_TIMER", now: 4_000 });
     let context = actor.getSnapshot().context;
-    expect(actor.getSnapshot().matches("paused")).toBe(true);
+    expect(actor.getSnapshot().matches("active")).toBe(true);
+    expect(context.timerPaused).toBe(true);
     expect(practiceSessionElapsedMs(context, 40_000)).toBe(3_000);
     expect(practiceQuestionElapsedMs(context, 40_000)).toBe(3_000);
 
-    actor.send({ type: "RESUME", now: 50_000 });
+    actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: "question-1",
+      patch: { selected_option_ids: ["A"] },
+      now: 41_000,
+    });
+    actor.send({ type: "NAVIGATE", questionId: "question-2", now: 42_000 });
     context = actor.getSnapshot().context;
+    expect(context.session.drafts["question-1"].selected_option_ids).toEqual(["A"]);
+    expect(context.session.current_question_id).toBe("question-2");
+    expect(practiceSessionElapsedMs(context, 49_000)).toBe(3_000);
+    expect(practiceQuestionElapsedMs(context, 49_000)).toBe(0);
+
+    actor.send({ type: "RESUME_TIMER", now: 50_000 });
+    context = actor.getSnapshot().context;
+    expect(context.timerPaused).toBe(false);
     expect(practiceSessionElapsedMs(context, 52_000)).toBe(5_000);
-    expect(practiceQuestionElapsedMs(context, 52_000)).toBe(5_000);
+    expect(practiceQuestionElapsedMs(context, 52_000)).toBe(2_000);
+    actor.stop();
+  });
+
+  it("uses the paused state only for pausing and leaving the session", () => {
+    const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000 } }).start();
+    actor.send({ type: "PAUSE", now: 4_000 });
+
+    expect(actor.getSnapshot().matches("paused")).toBe(true);
+    expect(practiceSessionElapsedMs(actor.getSnapshot().context, 40_000)).toBe(3_000);
+    actor.stop();
+  });
+
+  it("allows submission without resuming a manually paused timer", () => {
+    const actor = createActor(practiceSessionMachine, { input: { snapshot: snapshot(), now: 1_000 } }).start();
+    actor.send({ type: "PAUSE_TIMER", now: 4_000 });
+    actor.send({
+      type: "DRAFT_CHANGED",
+      questionId: "question-1",
+      patch: { selected_option_ids: ["A"], revealed: true, objective_correct: true },
+      now: 10_000,
+    });
+    actor.send({ type: "BEGIN_SUBMIT", questionId: "question-1", now: 11_000 });
+    expect(actor.getSnapshot().matches("submitting")).toBe(true);
+
+    actor.send({ type: "SUBMIT_SUCCEEDED", attempt: attempt("question-1"), now: 12_000 });
+    const context = actor.getSnapshot().context;
+    expect(actor.getSnapshot().matches("active")).toBe(true);
+    expect(context.timerPaused).toBe(true);
+    expect(context.session.current_question_id).toBe("question-2");
+    expect(practiceSessionElapsedMs(context, 40_000)).toBe(3_000);
+    expect(practiceQuestionElapsedMs(context, 40_000)).toBe(0);
     actor.stop();
   });
 

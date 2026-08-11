@@ -351,7 +351,7 @@
       )).length
     : 0;
   $: reviewing = Boolean(practiceState?.matches("reviewing"));
-  $: timerPaused = Boolean(practiceState?.matches("paused"));
+  $: timerPaused = Boolean(practiceState?.context.timerPaused);
   $: answerTimerPaused = Boolean(revealed && pauseOnAnswerReveal && practiceState?.matches("active"));
   $: timerEffectivelyPaused = timerPaused || answerTimerPaused;
 
@@ -982,11 +982,12 @@
   function togglePracticeTimer(): void {
     if (!practiceRuntime || submitting || reviewing) return;
     const current = practiceRuntime.actor.getSnapshot();
-    if (current.matches("active")) {
-      practiceRuntime.actor.send({ type: "PAUSE", now: now() });
+    if (!current.matches("active")) return;
+    if (!current.context.timerPaused) {
+      practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
       clearTimer();
-    } else if (current.matches("paused")) {
-      practiceRuntime.actor.send({ type: "RESUME", now: now() });
+    } else {
+      practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
       startTimer();
     }
   }
