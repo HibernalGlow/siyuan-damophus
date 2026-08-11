@@ -33,11 +33,11 @@ export default class ImageConverterPlugin extends SubPluginBase {
     const resolve = detail.resolve as unknown as (value: unknown) => void;
     const files = filesFromPaste(detail.files);
     if (files.length === 0 || !files.some((file) => file.type.startsWith("image/"))) {
-      resolve({files: detail.files});
+      // Leave ordinary text and non-image pastes untouched. Calling the paste
+      // resolver here replaces SiYuan's native text payload in newer builds.
       return;
     }
     if (this.converting) {
-      resolve({files: detail.files});
       return;
     }
 
@@ -111,6 +111,7 @@ export default class ImageConverterPlugin extends SubPluginBase {
       format,
       quality: clampQuality(this.getSetting("quality"), parsed.presetQuality),
       skipAnimated: this.skipAnimated(),
+      nativeCommand: this.nativeCommand(),
     };
   }
 
@@ -134,6 +135,10 @@ export default class ImageConverterPlugin extends SubPluginBase {
     return this.getSetting("skipAnimated") !== false;
   }
 
+  private nativeCommand(): string {
+    return String(this.getSetting("nativeCommand") ?? "auto").trim() || "auto";
+  }
+
   private openBatchTab(): void {
     void openTab({
       app: plugin.app,
@@ -148,7 +153,11 @@ export default class ImageConverterPlugin extends SubPluginBase {
   private runBatch(options: BatchRunOptions, onProgress: (progress: BatchProgress) => void) {
     return convertBatchImages({
       ...options,
-      conversion: {format: options.format, quality: options.quality},
+      conversion: {
+        format: options.format,
+        quality: options.quality,
+        nativeCommand: this.nativeCommand(),
+      },
       onProgress,
     });
   }

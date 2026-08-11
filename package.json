@@ -63,7 +63,6 @@
     "@frostime/siyuan-plugin-kits": "^1.5.14",
     "@hibernalglow/damophus-agent-contract": "workspace:*",
     "@internationalized/date": "^3.12.0",
-    "@jsquash/avif": "^2.1.1",
     "@siyuan-community/siyuan-sdk": "^0.3.14",
     "@tanstack/svelte-table": "^9.1.0",
     "bits-ui": "^2.16.3",

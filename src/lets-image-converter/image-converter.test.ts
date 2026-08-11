@@ -33,8 +33,8 @@ describe("image converter settings", () => {
     const gif = new TextEncoder().encode("GIF89a");
     const webp = new Uint8Array([
       ...new TextEncoder().encode("RIFF"), 12, 0, 0, 0,
-      ...new TextEncoder().encode("WEBP"), 0, 0, 0, 0,
-      ...new TextEncoder().encode("ANIM"),
+      ...new TextEncoder().encode("WEBP"),
+      ...new TextEncoder().encode("ANIM"), 0, 0, 0, 0,
     ]);
     const apng = new Uint8Array([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,

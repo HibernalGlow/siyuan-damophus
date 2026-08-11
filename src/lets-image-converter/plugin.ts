@@ -30,6 +30,14 @@ const pluginMetadata: PluginMetadata = {
       slider: { min: 1, max: 100, step: 1 },
     },
     {
+      type: "textinput",
+      title: "lets-image-converter.nativeCommandTitle",
+      description: "lets-image-converter.nativeCommandDescription",
+      key: "nativeCommand",
+      value: "auto",
+      placeholder: "auto",
+    },
+    {
       type: "checkbox",
       title: "lets-image-converter.skipAnimatedTitle",
       description: "lets-image-converter.skipAnimatedDescription",

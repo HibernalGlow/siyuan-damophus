@@ -36,7 +36,14 @@ export class PluginRegistry {
     log.info("开始扫描插件");
     // 读取所有符合模式的文件
     const pluginFiles = import.meta.glob(
-      ["./lets-*/index.ts", "./lets-*/plugin.ts"],
+      [
+        "./lets-*/index.ts",
+        "./lets-*/plugin.ts",
+        // Image conversion is intentionally parked. Keep its source for a
+        // future implementation, but do not register or bundle the module.
+        "!./lets-image-converter/index.ts",
+        "!./lets-image-converter/plugin.ts",
+      ],
       {
         eager: true,
         import: "default",
