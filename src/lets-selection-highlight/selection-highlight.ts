@@ -4,13 +4,13 @@ export const SELECTION_HIGHLIGHT_STYLE_ID = "damophus-selection-highlight-style"
 
 export const SELECTION_HIGHLIGHT_CSS = `
 ::highlight(${SELECTION_RESULTS_HIGHLIGHT}) {
-  background-color: #39c5bb;
-  color: #000;
+  background-color: var(--b3-theme-primary-lighter);
+  color: var(--b3-theme-on-background);
 }
 
 ::highlight(${SELECTION_FOCUS_HIGHLIGHT}) {
-  background-color: #66ccff;
-  color: #000;
+  background-color: var(--b3-theme-primary);
+  color: var(--b3-theme-on-primary);
 }
 `;
 

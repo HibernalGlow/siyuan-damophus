@@ -79,6 +79,20 @@ describe("selection highlighting", () => {
     highlighter.destroy();
   });
 
+  it("inherits result and focus colors from the active SiYuan theme", () => {
+    const highlighter = new SelectionHighlighter();
+    highlighter.start();
+
+    const css = document.getElementById(SELECTION_HIGHLIGHT_STYLE_ID)?.textContent ?? "";
+    expect(css).toContain("background-color: var(--b3-theme-primary-lighter)");
+    expect(css).toContain("color: var(--b3-theme-on-background)");
+    expect(css).toContain("background-color: var(--b3-theme-primary)");
+    expect(css).toContain("color: var(--b3-theme-on-primary)");
+    expect(css).not.toMatch(/#39c5bb|#66ccff|#000/iu);
+
+    highlighter.destroy();
+  });
+
   it("reuses the cached document scan while navigating forward and backward", () => {
     const { editor, scroller } = renderEditor();
     const firstText = editor.querySelector("p")!.firstChild as Text;
