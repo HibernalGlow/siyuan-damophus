@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { renderSkillManagerDock } from "./dock";
+import type { SkillSyncOptions } from "./api";
 import "./skill-manager.css";
 
 const labels = {
@@ -35,6 +36,15 @@ const labels = {
   preview: "Preview",
   edit: "Edit source",
   visibleCount: "{visible} of {total}",
+  logs: "Sync log",
+  logsEmpty: "No synchronization activity yet",
+  copyLogs: "Copy log",
+  clearLogs: "Clear log",
+  logsCopied: "Log copied",
+  logStarted: "started",
+  logCompleted: "completed",
+  logFailed: "failed",
+  logRefresh: "Status refreshed",
   states: {
     missing: "Not installed",
     synced: "Up to date",
@@ -86,7 +96,10 @@ describe("skill manager dock", () => {
     expect(getComputedStyle(actionIcon!).strokeWidth).toBe("1.75px");
     (target.querySelector('[aria-label="Update"]') as HTMLButtonElement).click();
     await expect.poll(() => api.syncSkillFromRoot)
-      .toHaveBeenCalledWith(config.sourceRoot, "legal-marknote", config.syncOptions);
+      .toHaveBeenCalledWith(config.sourceRoot, "legal-marknote", expect.objectContaining({
+        ...config.syncOptions,
+        onLog: expect.any(Function),
+      }));
     (Array.from(target.querySelectorAll("button")).find((button) => button.textContent === "Edit source") as HTMLButtonElement).click();
     await expect.poll(() => target.querySelector("textarea")).not.toBeNull();
     const editor = target.querySelector('textarea') as HTMLTextAreaElement;
@@ -172,7 +185,10 @@ describe("skill manager dock", () => {
     (target.querySelector('[aria-label="Sync all"]') as HTMLButtonElement).click();
 
     await expect.poll(() => api.syncSkillSourceRoot)
-      .toHaveBeenCalledWith(config.sourceRoot, true, config.syncOptions);
+      .toHaveBeenCalledWith(config.sourceRoot, true, expect.objectContaining({
+        ...config.syncOptions,
+        onLog: expect.any(Function),
+      }));
     await expect.poll(() => target.querySelector('[role="status"]')?.textContent)
       .toBe("Synced 2; skipped 3; unreadable 1");
     cleanup();
@@ -180,6 +196,7 @@ describe("skill manager dock", () => {
   });
 
   it("updates all installed skills with source changes", async () => {
+    await page.viewport(380, 720);
     const api = {
       listSkills: vi.fn(async () => [{ name: "changed", description: "Changed" }]),
       getSkill: vi.fn(async () => ({ name: "changed", content: "# Changed" })),
@@ -198,10 +215,19 @@ describe("skill manager dock", () => {
         state: "missing" as const,
       }]),
       syncSkillSourceRoot: vi.fn(async () => ({ synced: 0, skipped: 0, unreadable: 0 })),
-      updateSkillSourceRoot: vi.fn(async () => ({ synced: 1, skipped: 1, unreadable: 0 })),
+      updateSkillSourceRoot: vi.fn(async (_sourceRoot: string, options?: SkillSyncOptions) => {
+        options?.onLog?.({
+          level: "success",
+          stage: "apply",
+          message: "ChezMoi apply completed in 24 ms",
+          detail: "updated changed",
+        });
+        return { synced: 1, skipped: 1, unreadable: 0 };
+      }),
       syncSkillFromRoot: vi.fn(async () => undefined),
     };
     const target = document.createElement("div");
+    target.style.height = "calc(100vh - 16px)";
     document.body.append(target);
     const cleanup = renderSkillManagerDock(target, labels, config, api, undefined, (markdown) => markdown);
 
@@ -212,10 +238,59 @@ describe("skill manager dock", () => {
     updateAllButton.click();
 
     await expect.poll(() => api.updateSkillSourceRoot)
-      .toHaveBeenCalledWith(config.sourceRoot, config.syncOptions);
+      .toHaveBeenCalledWith(config.sourceRoot, expect.objectContaining({
+        ...config.syncOptions,
+        onLog: expect.any(Function),
+      }));
     expect(api.syncSkillSourceRoot).not.toHaveBeenCalled();
     await expect.poll(() => target.querySelector('[role="status"]')?.textContent)
       .toBe("Updated 1; skipped 1; unreadable 0");
+    await expect.poll(() => target.querySelector('[role="log"]')?.textContent)
+      .toContain("ChezMoi apply completed in 24 ms");
+    expect(target.querySelector('[role="log"]')?.textContent).toContain("updated changed");
+    expect(target.querySelector('[aria-label="Sync log"]')?.getAttribute("data-state")).toBe("open");
+    expect(target.querySelector('[role="log"]')!.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight);
+    (target.querySelector('[aria-label="Clear log"]') as HTMLButtonElement).click();
+    await expect.poll(() => target.querySelector('[role="log"]')?.textContent)
+      .toContain("No synchronization activity yet");
+    cleanup();
+    target.remove();
+  });
+
+  it("opens the synchronization log when an update fails", async () => {
+    const api = {
+      listSkills: vi.fn(async () => [{ name: "changed", description: "Changed" }]),
+      getSkill: vi.fn(async () => ({ name: "changed", content: "# Changed" })),
+      saveSkill: vi.fn(async () => undefined),
+      renameSkill: vi.fn(async () => undefined),
+      removeSkill: vi.fn(async () => undefined),
+      inspectSkillSourceRoot: vi.fn(async () => [{
+        name: "changed",
+        description: "Changed",
+        sourcePath: `${config.sourceRoot}/changed`,
+        state: "update" as const,
+      }]),
+      syncSkillSourceRoot: vi.fn(async () => ({ synced: 0, skipped: 0, unreadable: 0 })),
+      updateSkillSourceRoot: vi.fn(async (_sourceRoot: string, options?: SkillSyncOptions) => {
+        options?.onLog?.({ level: "info", stage: "verify", message: "Rechecking fingerprints" });
+        throw new Error("Skill synchronization did not update the destination");
+      }),
+      syncSkillFromRoot: vi.fn(async () => undefined),
+    };
+    const target = document.createElement("div");
+    document.body.append(target);
+    const cleanup = renderSkillManagerDock(target, labels, config, api, undefined, (markdown) => markdown);
+
+    const updateAllButton = target.querySelector('[aria-label="Update all"]') as HTMLButtonElement;
+    await expect.poll(() => updateAllButton.disabled).toBe(false);
+    updateAllButton.click();
+
+    await expect.poll(() => target.querySelector('[role="status"]')?.textContent)
+      .toBe("Skill synchronization did not update the destination");
+    expect(target.querySelector(".damophus-skill-manager")?.getAttribute("data-status")).toBe("error");
+    expect(target.querySelector('[aria-label="Sync log"]')?.getAttribute("data-state")).toBe("open");
+    expect(target.querySelector('[role="log"]')?.textContent).toContain("Update all: failed");
+    expect(target.querySelector('[role="log"]')?.textContent).toContain("Rechecking fingerprints");
     cleanup();
     target.remove();
   });

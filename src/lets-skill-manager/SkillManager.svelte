@@ -14,25 +14,37 @@
     type SortFn,
   } from "@tanstack/svelte-table";
   import DownloadIcon from "lucide-svelte/icons/download";
+  import ChevronDownIcon from "lucide-svelte/icons/chevron-down";
+  import CopyIcon from "lucide-svelte/icons/copy";
   import ExternalLinkIcon from "lucide-svelte/icons/external-link";
   import PlusIcon from "lucide-svelte/icons/plus";
   import RefreshCwIcon from "lucide-svelte/icons/refresh-cw";
   import SaveIcon from "lucide-svelte/icons/save";
   import SearchIcon from "lucide-svelte/icons/search";
+  import ScrollTextIcon from "lucide-svelte/icons/scroll-text";
   import Trash2Icon from "lucide-svelte/icons/trash-2";
   import UploadCloudIcon from "lucide-svelte/icons/cloud-upload";
   import PencilIcon from "lucide-svelte/icons/pencil";
   import { Button } from "@/components/ui/button";
+  import * as Collapsible from "@/components/ui/collapsible";
   import { Input } from "@/components/ui/input";
   import * as Select from "@/components/ui/select";
   import * as Tabs from "@/components/ui/tabs";
   import { Textarea } from "@/components/ui/textarea";
+  import { getLogger } from "@/libs/logger";
   import type { SkillSyncState, SkillSyncSummary } from "./api";
   import type { SkillManagerConfig, SkillManagerLabels, SkillManagerOperations } from "./dock";
   import { enhanceSkillPreview } from "./native-preview";
+  import type { SkillSyncLogEvent } from "./operation-log";
   import "@/styles/lucide-outline.css";
 
   type SortMode = "name-asc" | "name-desc" | "state";
+  interface ActivityLogEntry extends SkillSyncLogEvent {
+    id: number;
+    timestamp: Date;
+  }
+
+  const syncLogger = getLogger("lets-skill-manager.sync");
 
   let {
     labels,
@@ -89,6 +101,10 @@
   let status = $state("");
   let statusError = $state(false);
   let busy = $state(false);
+  let logs = $state<ActivityLogEntry[]>([]);
+  let logsOpen = $state(false);
+  let logViewport = $state<HTMLElement>();
+  let nextLogId = 0;
 
   const table = createTable({
     features,
@@ -113,6 +129,11 @@
 
   $effect(() => {
     table.setGlobalFilter(search);
+  });
+
+  $effect(() => {
+    if (!logsOpen || logs.length === 0) return;
+    queueMicrotask(() => logViewport?.scrollTo({ top: logViewport.scrollHeight }));
   });
 
   function escapeHtml(value: string): string {
@@ -151,6 +172,75 @@
     statusError = error;
   }
 
+  function appendLog(event: SkillSyncLogEvent): void {
+    logs = [...logs, { ...event, id: nextLogId++, timestamp: new Date() }].slice(-200);
+    if (event.level === "error") logsOpen = true;
+    const context = event.detail ? { stage: event.stage, detail: event.detail } : { stage: event.stage };
+    if (event.level === "error") syncLogger.error(event.message, context);
+    else syncLogger.info(event.message, context);
+  }
+
+  function operationOptions() {
+    return { ...config.syncOptions, onLog: appendLog };
+  }
+
+  function startOperation(operation: string): void {
+    logsOpen = true;
+    appendLog({
+      level: "info",
+      stage: "plan",
+      message: `${operation}: ${labels.logStarted}`,
+      detail: [
+        `backend=${config.syncOptions.backend ?? "builtin"}`,
+        `source=${config.sourceRoot}`,
+        `destination=${config.syncOptions.destinationRoot || "unavailable"}`,
+      ].join("; "),
+    });
+  }
+
+  function completeOperation(operation: string, message: string): void {
+    appendLog({ level: "success", stage: "complete", message: `${operation}: ${labels.logCompleted}`, detail: message });
+  }
+
+  function failOperation(operation: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    appendLog({ level: "error", stage: "complete", message: `${operation}: ${labels.logFailed}`, detail: message });
+    setStatus(message, true);
+  }
+
+  function statusDetail(): string {
+    return Object.entries(labels.states)
+      .map(([state, label]) => `${label}=${skills.filter((skill) => skill.state === state).length}`)
+      .join("; ");
+  }
+
+  function formatLogTime(timestamp: Date): string {
+    return timestamp.toLocaleTimeString([], { hour12: false });
+  }
+
+  function formatLogs(): string {
+    return logs.map((entry) => [
+      entry.timestamp.toISOString(),
+      entry.level.toUpperCase(),
+      `[${entry.stage}]`,
+      entry.message,
+      entry.detail || "",
+    ].filter(Boolean).join(" ")).join("\n");
+  }
+
+  async function copyActivityLogs(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(formatLogs());
+      setStatus(labels.logsCopied);
+    } catch (error) {
+      failOperation(labels.copyLogs, error);
+    }
+  }
+
+  function clearActivityLogs(): void {
+    logs = [];
+  }
+
   function applyStateFilter(value: string): void {
     stateFilter = value;
     table.getColumn("state")?.setFilterValue(value === "all" ? undefined : value);
@@ -170,17 +260,26 @@
     editorMode = "edit";
   }
 
-  async function refreshSkills(): Promise<void> {
+  async function refreshSkills(writeLog = false): Promise<void> {
     busy = true;
     try {
       const installed = (await operations.listSkills()) || [];
       installedNames = new Set(installed.map((skill) => skill.name));
       skills = await operations.inspectSkillSourceRoot(config.sourceRoot);
+      if (writeLog) {
+        appendLog({
+          level: "success",
+          stage: "inspect",
+          message: labels.logRefresh,
+          detail: statusDetail(),
+        });
+      }
       if (selected && installedNames.has(selected)) await selectSkill(selected);
       else if (installed[0]) await selectSkill(installed[0].name);
       else createSkill();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error), true);
+      if (writeLog) failOperation(labels.refresh, error);
+      else setStatus(error instanceof Error ? error.message : String(error), true);
     } finally {
       busy = false;
     }
@@ -244,45 +343,55 @@
   }
 
   async function syncOneSkill(skillName: string): Promise<void> {
+    const operation = `${labels.update}: ${skillName}`;
+    startOperation(operation);
     busy = true;
     try {
-      await operations.syncSkillFromRoot(config.sourceRoot, skillName, config.syncOptions);
-      setStatus(`${labels.synced}: ${skillName}`);
-      await refreshSkills();
+      await operations.syncSkillFromRoot(config.sourceRoot, skillName, operationOptions());
+      const message = `${labels.synced}: ${skillName}`;
+      setStatus(message);
+      completeOperation(operation, message);
+      await refreshSkills(true);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error), true);
+      failOperation(operation, error);
     } finally {
       busy = false;
     }
   }
 
   async function syncAllSkills(): Promise<void> {
+    startOperation(labels.syncAll);
     busy = true;
     try {
-      const result = await operations.syncSkillSourceRoot(config.sourceRoot, config.onlyChanged, config.syncOptions);
-      setStatus(labels.syncResult
+      const result = await operations.syncSkillSourceRoot(config.sourceRoot, config.onlyChanged, operationOptions());
+      const message = labels.syncResult
         .replace("{synced}", String(result.synced))
         .replace("{skipped}", String(result.skipped))
-        .replace("{unreadable}", String(result.unreadable)));
-      await refreshSkills();
+        .replace("{unreadable}", String(result.unreadable));
+      setStatus(message);
+      completeOperation(labels.syncAll, message);
+      await refreshSkills(true);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error), true);
+      failOperation(labels.syncAll, error);
     } finally {
       busy = false;
     }
   }
 
   async function updateAllSkills(): Promise<void> {
+    startOperation(labels.updateAll);
     busy = true;
     try {
-      const result = await operations.updateSkillSourceRoot(config.sourceRoot, config.syncOptions);
-      setStatus(labels.updateResult
+      const result = await operations.updateSkillSourceRoot(config.sourceRoot, operationOptions());
+      const message = labels.updateResult
         .replace("{updated}", String(result.synced))
         .replace("{skipped}", String(result.skipped))
-        .replace("{unreadable}", String(result.unreadable)));
-      await refreshSkills();
+        .replace("{unreadable}", String(result.unreadable));
+      setStatus(message);
+      completeOperation(labels.updateAll, message);
+      await refreshSkills(true);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error), true);
+      failOperation(labels.updateAll, error);
     } finally {
       busy = false;
     }
@@ -291,13 +400,18 @@
   void refreshSkills();
 </script>
 
-<section class="damophus-skill-manager" aria-label={labels.title} data-status={statusError ? "error" : "ok"}>
+<section
+  class="damophus-skill-manager damophus-theme-root damophus-question-bank-theme"
+  aria-label={labels.title}
+  data-status={statusError ? "error" : "ok"}
+  data-logs-open={logsOpen}
+>
   <header class="damophus-skill-manager__toolbar">
     <h2>{labels.title}</h2>
     <Button variant="outline" aria-label={labels.newSkill} onclick={createSkill} disabled={busy}><PlusIcon />{labels.newSkill}</Button>
     <Button variant="outline" aria-label={labels.updateAll} onclick={() => void updateAllSkills()} disabled={busy || updateCount === 0}><DownloadIcon />{labels.updateAll} ({updateCount})</Button>
     <Button variant="outline" aria-label={labels.syncAll} onclick={() => void syncAllSkills()} disabled={busy}><UploadCloudIcon />{labels.syncAll}</Button>
-    <Button variant="outline" size="icon" title={labels.refresh} aria-label={labels.refresh} onclick={() => void refreshSkills()} disabled={busy}>
+    <Button variant="outline" size="icon" title={labels.refresh} aria-label={labels.refresh} onclick={() => void refreshSkills(true)} disabled={busy}>
       <RefreshCwIcon class={busy ? "animate-spin" : ""} />
     </Button>
     {#if onOpenTab}
@@ -396,4 +510,37 @@
   </div>
 
   <div class="damophus-skill-manager__status" role="status" aria-live="polite">{status}</div>
+
+  <Collapsible.Root bind:open={logsOpen} class="damophus-skill-manager__logs">
+    <div class="damophus-skill-manager__logs-header">
+      <Collapsible.Trigger class="damophus-skill-manager__logs-trigger" aria-label={labels.logs}>
+        <ScrollTextIcon />
+        <span>{labels.logs}</span>
+        <span class="damophus-skill-manager__logs-count">{logs.length}</span>
+        <ChevronDownIcon class={logsOpen ? "damophus-skill-manager__logs-chevron is-open" : "damophus-skill-manager__logs-chevron"} />
+      </Collapsible.Trigger>
+      <div class="damophus-skill-manager__logs-actions">
+        <Button variant="ghost" size="icon-xs" title={labels.copyLogs} aria-label={labels.copyLogs} onclick={() => void copyActivityLogs()} disabled={logs.length === 0}><CopyIcon /></Button>
+        <Button variant="ghost" size="icon-xs" title={labels.clearLogs} aria-label={labels.clearLogs} onclick={clearActivityLogs} disabled={logs.length === 0}><Trash2Icon /></Button>
+      </div>
+    </div>
+    <Collapsible.Content>
+      <div bind:this={logViewport} class="damophus-skill-manager__logs-viewport" role="log" aria-label={labels.logs} aria-live="polite">
+        {#if logs.length === 0}
+          <div class="damophus-skill-manager__logs-empty">{labels.logsEmpty}</div>
+        {:else}
+          {#each logs as entry (entry.id)}
+            <div class="damophus-skill-manager__log-entry" data-level={entry.level}>
+              <div class="damophus-skill-manager__log-line">
+                <time datetime={entry.timestamp.toISOString()}>{formatLogTime(entry.timestamp)}</time>
+                <span class="damophus-skill-manager__log-stage">{entry.stage}</span>
+                <span>{entry.message}</span>
+              </div>
+              {#if entry.detail}<pre>{entry.detail}</pre>{/if}
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </Collapsible.Content>
+  </Collapsible.Root>
 </section>

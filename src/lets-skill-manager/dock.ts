@@ -50,6 +50,15 @@ export interface SkillManagerLabels {
   preview: string;
   edit: string;
   visibleCount: string;
+  logs: string;
+  logsEmpty: string;
+  copyLogs: string;
+  clearLogs: string;
+  logsCopied: string;
+  logStarted: string;
+  logCompleted: string;
+  logFailed: string;
+  logRefresh: string;
   states: Record<SkillSyncState, string>;
 }
 

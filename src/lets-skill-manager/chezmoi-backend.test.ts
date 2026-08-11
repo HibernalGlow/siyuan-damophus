@@ -10,7 +10,7 @@ const options = {
 };
 
 describe("ChezMoi skill synchronization", () => {
-  it("forces file mode and addresses only selected source paths", () => {
+  it("forces file mode and addresses selected destination paths", () => {
     expect(buildChezmoiArguments("apply", options)).toEqual([
       "--source",
       options.sourceRoot,
@@ -18,12 +18,11 @@ describe("ChezMoi skill synchronization", () => {
       options.destinationRoot,
       "--mode",
       "file",
-      "--source-path",
       "--force",
       "--no-tty",
       "apply",
-      `${options.sourceRoot}\\legal-marknote`,
-      `${options.sourceRoot}\\legal-goldquest`,
+      `${options.destinationRoot}\\legal-marknote`,
+      `${options.destinationRoot}\\legal-goldquest`,
     ]);
   });
 
@@ -39,5 +38,30 @@ describe("ChezMoi skill synchronization", () => {
     const executor = vi.fn(async () => undefined);
     await syncSkillsWithChezmoi({ ...options, skillNames: [] }, executor);
     expect(executor).not.toHaveBeenCalled();
+  });
+
+  it("reports apply and verify progress with command output", async () => {
+    const onLog = vi.fn();
+    const executor = vi.fn(async (_command: string, args: string[]) => ({
+      stdout: args.includes("apply") ? "applied legal-marknote" : "",
+      stderr: "",
+    }));
+
+    await syncSkillsWithChezmoi({ ...options, onLog }, executor);
+
+    expect(onLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: "info",
+      stage: "apply",
+      message: "ChezMoi apply started",
+    }));
+    expect(onLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: "success",
+      stage: "apply",
+      detail: "applied legal-marknote",
+    }));
+    expect(onLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: "success",
+      stage: "verify",
+    }));
   });
 });

@@ -1,6 +1,7 @@
 import { fetchSyncPost } from "siyuan";
 import { syncSkillsWithChezmoi, type SkillSyncBackend } from "./chezmoi-backend";
 import { planSkillUpdates } from "./skill-update-plan";
+import { reportSkillSync, type SkillSyncReporter } from "./operation-log";
 
 export interface SkillSummary {
   name: string;
@@ -29,6 +30,7 @@ export interface SkillSyncOptions {
   backend?: SkillSyncBackend;
   chezmoiCommand?: string;
   destinationRoot?: string;
+  onLog?: SkillSyncReporter;
 }
 
 interface KernelResponse<T> {
@@ -204,42 +206,133 @@ export function inspectSkillSourceRoot(sourceRoot: string): Promise<SkillSyncSum
   return withStagedSourceRoot(sourceRoot, (stage) => inspectStagedRoot(stage, sourceRoot));
 }
 
-function syncSkillSourceRootBuiltin(sourceRoot: string, onlyChanged = true): Promise<SkillSyncResult> {
+function statusSummary(statuses: SkillSyncSummary[]): string {
+  const count = (state: SkillSyncState) => statuses.filter((skill) => skill.state === state).length;
+  return [
+    `updates=${count("update")}`,
+    `missing=${count("missing")}`,
+    `synced=${count("synced")}`,
+    `targetOnly=${count("target-only")}`,
+    `unreadable=${count("unreadable")}`,
+  ].join("; ");
+}
+
+function reportInspection(options: SkillSyncOptions, statuses: SkillSyncSummary[]): void {
+  reportSkillSync(options.onLog, {
+    level: "info",
+    stage: "inspect",
+    message: "Skill source inspection completed",
+    detail: statusSummary(statuses),
+  });
+}
+
+function reportPlan(options: SkillSyncOptions, backend: SkillSyncBackend, names: string[]): void {
+  reportSkillSync(options.onLog, {
+    level: "info",
+    stage: "plan",
+    message: `${backend} selected ${names.length} skill${names.length === 1 ? "" : "s"}`,
+    detail: names.length ? names.join(", ") : "No skills selected",
+  });
+}
+
+async function verifySelectedSkills(
+  sourceRoot: string,
+  names: string[],
+  options: SkillSyncOptions,
+): Promise<void> {
+  if (!names.length) return;
+  reportSkillSync(options.onLog, {
+    level: "info",
+    stage: "verify",
+    message: "Rechecking skill directory fingerprints",
+  });
+  const statuses = await inspectSkillSourceRoot(sourceRoot);
+  const statusesByName = new Map(statuses.map((skill) => [skill.name, skill.state]));
+  const failures = names
+    .map((name) => ({ name, state: statusesByName.get(name) ?? "not-found" }))
+    .filter(({ state }) => state !== "synced");
+  if (failures.length) {
+    const detail = failures.map(({ name, state }) => `${name}: ${state}`).join(", ");
+    reportSkillSync(options.onLog, {
+      level: "error",
+      stage: "verify",
+      message: "Post-sync fingerprint verification failed",
+      detail,
+    });
+    throw new Error(`Skill synchronization did not update the destination: ${detail}`);
+  }
+  reportSkillSync(options.onLog, {
+    level: "success",
+    stage: "verify",
+    message: `Fingerprint verification passed for ${names.length} skill${names.length === 1 ? "" : "s"}`,
+  });
+}
+
+function syncSkillSourceRootBuiltin(
+  sourceRoot: string,
+  onlyChanged = true,
+  options: SkillSyncOptions = {},
+): Promise<SkillSyncResult> {
   return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
     const statuses = await inspectStagedRoot(stageRoot, sourceRoot);
+    reportInspection(options, statuses);
     const result: SkillSyncResult = { synced: 0, skipped: 0, unreadable: 0 };
-    for (const skill of statuses) {
-      if (skill.state === "target-only") continue;
-      if (skill.state === "unreadable") {
-        result.unreadable += 1;
-        continue;
-      }
-      if (onlyChanged && skill.state === "synced") {
-        result.skipped += 1;
-        continue;
-      }
+    const candidates = statuses.filter((skill) => skill.state !== "target-only" && skill.state !== "unreadable");
+    const selected = onlyChanged ? candidates.filter((skill) => skill.state !== "synced") : candidates;
+    result.skipped = onlyChanged ? candidates.length - selected.length : 0;
+    result.unreadable = statuses.filter((skill) => skill.state === "unreadable").length;
+    reportPlan(options, "builtin", selected.map((skill) => skill.name));
+    for (const skill of selected) {
+      reportSkillSync(options.onLog, {
+        level: "info",
+        stage: "copy",
+        message: `Copying ${skill.name}`,
+      });
       await replaceStagedSkill(`${stageRoot}/${skill.name}`, skill.name);
       result.synced += 1;
+      reportSkillSync(options.onLog, {
+        level: "success",
+        stage: "copy",
+        message: `Copied ${skill.name}`,
+      });
     }
     return result;
   });
 }
 
-function updateSkillSourceRootBuiltin(sourceRoot: string): Promise<SkillSyncResult> {
+function updateSkillSourceRootBuiltin(
+  sourceRoot: string,
+  options: SkillSyncOptions = {},
+): Promise<SkillSyncResult> {
   return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
     const statuses = await inspectStagedRoot(stageRoot, sourceRoot);
+    reportInspection(options, statuses);
     const plan = planSkillUpdates(statuses);
+    reportPlan(options, "builtin", plan.updates.map((skill) => skill.name));
     for (const skill of plan.updates) {
+      reportSkillSync(options.onLog, {
+        level: "info",
+        stage: "copy",
+        message: `Updating ${skill.name}`,
+      });
       await replaceStagedSkill(`${stageRoot}/${skill.name}`, skill.name);
+      reportSkillSync(options.onLog, {
+        level: "success",
+        stage: "copy",
+        message: `Updated ${skill.name}`,
+      });
     }
     return { synced: plan.updates.length, skipped: plan.skipped, unreadable: plan.unreadable };
   });
 }
 
-function syncSkillFromRootBuiltin(sourceRoot: string, name: string): Promise<void> {
+function syncSkillFromRootBuiltin(sourceRoot: string, name: string, options: SkillSyncOptions = {}): Promise<void> {
   return withStagedSourceRoot(sourceRoot, async (stageRoot) => {
+    reportPlan(options, "builtin", [name]);
     await readTextFile(`${stageRoot}/${name}/SKILL.md`);
+    reportSkillSync(options.onLog, { level: "info", stage: "copy", message: `Updating ${name}` });
     await replaceStagedSkill(`${stageRoot}/${name}`, name);
+    reportSkillSync(options.onLog, { level: "success", stage: "copy", message: `Updated ${name}` });
   });
 }
 
@@ -248,20 +341,25 @@ export async function syncSkillSourceRoot(
   onlyChanged = true,
   options: SkillSyncOptions = {},
 ): Promise<SkillSyncResult> {
-  if (options.backend !== "chezmoi") return syncSkillSourceRootBuiltin(sourceRoot, onlyChanged);
+  if (options.backend !== "chezmoi") return syncSkillSourceRootBuiltin(sourceRoot, onlyChanged, options);
 
   const statuses = await inspectSkillSourceRoot(sourceRoot);
+  reportInspection(options, statuses);
   const unreadable = statuses.filter((skill) => skill.state === "unreadable").length;
   const candidates = statuses.filter((skill) => skill.state !== "target-only" && skill.state !== "unreadable");
   const selected = onlyChanged
     ? candidates.filter((skill) => skill.state !== "synced")
     : candidates;
+  const selectedNames = selected.map((skill) => skill.name);
+  reportPlan(options, "chezmoi", selectedNames);
   await syncSkillsWithChezmoi({
     command: options.chezmoiCommand || "chezmoi",
     sourceRoot,
     destinationRoot: options.destinationRoot || "",
-    skillNames: selected.map((skill) => skill.name),
+    skillNames: selectedNames,
+    onLog: options.onLog,
   });
+  await verifySelectedSkills(sourceRoot, selectedNames, options);
   return {
     synced: selected.length,
     skipped: onlyChanged ? candidates.length - selected.length : 0,
@@ -273,16 +371,21 @@ export async function updateSkillSourceRoot(
   sourceRoot: string,
   options: SkillSyncOptions = {},
 ): Promise<SkillSyncResult> {
-  if (options.backend !== "chezmoi") return updateSkillSourceRootBuiltin(sourceRoot);
+  if (options.backend !== "chezmoi") return updateSkillSourceRootBuiltin(sourceRoot, options);
 
   const statuses = await inspectSkillSourceRoot(sourceRoot);
+  reportInspection(options, statuses);
   const plan = planSkillUpdates(statuses);
+  const selectedNames = plan.updates.map((skill) => skill.name);
+  reportPlan(options, "chezmoi", selectedNames);
   await syncSkillsWithChezmoi({
     command: options.chezmoiCommand || "chezmoi",
     sourceRoot,
     destinationRoot: options.destinationRoot || "",
-    skillNames: plan.updates.map((skill) => skill.name),
+    skillNames: selectedNames,
+    onLog: options.onLog,
   });
+  await verifySelectedSkills(sourceRoot, selectedNames, options);
   return {
     synced: plan.updates.length,
     skipped: plan.skipped,
@@ -290,18 +393,21 @@ export async function updateSkillSourceRoot(
   };
 }
 
-export function syncSkillFromRoot(
+export async function syncSkillFromRoot(
   sourceRoot: string,
   name: string,
   options: SkillSyncOptions = {},
 ): Promise<void> {
-  if (options.backend !== "chezmoi") return syncSkillFromRootBuiltin(sourceRoot, name);
-  return syncSkillsWithChezmoi({
+  if (options.backend !== "chezmoi") return syncSkillFromRootBuiltin(sourceRoot, name, options);
+  reportPlan(options, "chezmoi", [name]);
+  await syncSkillsWithChezmoi({
     command: options.chezmoiCommand || "chezmoi",
     sourceRoot,
     destinationRoot: options.destinationRoot || "",
     skillNames: [name],
+    onLog: options.onLog,
   });
+  await verifySelectedSkills(sourceRoot, [name], options);
 }
 
 export async function syncSkillDirectory(source: string, requestedName?: string): Promise<{ name: string }> {

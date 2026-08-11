@@ -215,14 +215,146 @@
   color: var(--b3-theme-error);
 }
 
+.damophus-skill-manager__logs {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 6px;
+  background: var(--b3-theme-background);
+}
+
+.damophus-skill-manager__logs-header,
+.damophus-skill-manager__logs-trigger,
+.damophus-skill-manager__logs-actions,
+.damophus-skill-manager__log-line {
+  display: flex;
+  align-items: center;
+}
+
+.damophus-skill-manager__logs-header {
+  min-height: 34px;
+  padding: 3px 5px 3px 9px;
+}
+
+.damophus-skill-manager__logs-trigger {
+  min-width: 0;
+  flex: 1;
+  gap: 7px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--b3-theme-on-background);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.damophus-skill-manager__logs-trigger > svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.damophus-skill-manager__logs-count {
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface-light);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.damophus-skill-manager__logs-chevron {
+  transition: transform 120ms ease;
+}
+
+.damophus-skill-manager__logs-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.damophus-skill-manager__logs-actions {
+  gap: 2px;
+}
+
+.damophus-skill-manager__logs-viewport {
+  max-height: min(240px, 35vh);
+  overflow: auto;
+  border-top: 1px solid var(--b3-border-color);
+  background: var(--b3-theme-surface-lighter);
+  font-family: var(--b3-font-family-code);
+  font-size: 11px;
+}
+
+.damophus-skill-manager__logs-empty {
+  padding: 12px;
+  color: var(--b3-theme-on-surface-light);
+  font-family: var(--b3-font-family);
+  text-align: center;
+}
+
+.damophus-skill-manager__log-entry {
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.damophus-skill-manager__log-entry:last-child {
+  border-bottom: 0;
+}
+
+.damophus-skill-manager__log-line {
+  min-width: 0;
+  gap: 8px;
+  line-height: 1.45;
+}
+
+.damophus-skill-manager__log-line time {
+  flex: 0 0 auto;
+  color: var(--b3-theme-on-surface-light);
+}
+
+.damophus-skill-manager__log-stage {
+  flex: 0 0 auto;
+  color: var(--b3-theme-primary);
+  text-transform: uppercase;
+}
+
+.damophus-skill-manager__log-entry[data-level="error"] .damophus-skill-manager__log-line {
+  color: var(--b3-theme-error);
+}
+
+.damophus-skill-manager__log-entry[data-level="success"] .damophus-skill-manager__log-line {
+  color: var(--b3-theme-primary);
+}
+
+.damophus-skill-manager__log-entry pre {
+  max-width: 100%;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--b3-theme-on-surface-light);
+  font: inherit;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 720px) {
   .damophus-skill-manager__body {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(160px, 0.7fr) minmax(280px, 1.3fr);
+    grid-template-rows: minmax(120px, 0.7fr) minmax(200px, 1.3fr);
+  }
+
+  .damophus-skill-manager[data-logs-open="true"] .damophus-skill-manager__body {
+    grid-template-rows: minmax(90px, 0.7fr) minmax(140px, 1.3fr);
   }
 
   .damophus-skill-manager__count {
     width: 100%;
     margin-left: 0;
+  }
+
+  .damophus-skill-manager__logs-viewport {
+    max-height: min(140px, 24vh);
   }
 }

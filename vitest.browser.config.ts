@@ -11,7 +11,12 @@ const executablePath = process.env.SIYUAN_DAMOPHUS_CHROME_PATH
 
 export default defineConfig({
   optimizeDeps: {
-    include: ["consola"],
+    include: [
+      "consola",
+      "lucide-svelte/icons/chevron-down",
+      "lucide-svelte/icons/copy",
+      "lucide-svelte/icons/scroll-text",
+    ],
   },
   resolve: {
     alias: {
