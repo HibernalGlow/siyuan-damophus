@@ -1,14 +1,13 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { GripHorizontal, Pin, PinOff, X } from "lucide-svelte";
-  import type { MobileAgentDropdownBarLabels } from "./mobile-dropdown-types";
+  import { GripHorizontal, Pin, PinOff } from "lucide-svelte";
+  import type { MobileAgentDropdownControlLabels } from "./mobile-dropdown-types";
 
-  export let labels: MobileAgentDropdownBarLabels;
+  export let labels: MobileAgentDropdownControlLabels;
   export let initialPinned = true;
   export let initialHeightDvh = 80;
   export let onPinnedChange: (pinned: boolean) => void;
   export let onHeightChange: (heightDvh: number) => void;
-  export let onClose: () => void;
 
   const MIN_HEIGHT_DVH = 40;
   const MAX_HEIGHT_DVH = 95;
@@ -65,7 +64,7 @@
   onDestroy(stopResize);
 </script>
 
-<div class="damophus-agent-dropdown-bar">
+<div class="damophus-agent-dropdown-controls">
   <button
     type="button"
     class="damophus-agent-dropdown-resize"
@@ -83,30 +82,19 @@
     <GripHorizontal size={22} strokeWidth={2.2} aria-hidden="true" />
   </button>
 
-  <div class="damophus-agent-dropdown-actions">
-    <button
-      type="button"
-      class="damophus-agent-dropdown-action"
-      class:is-active={pinned}
-      aria-label={pinned ? labels.unpin : labels.pin}
-      aria-pressed={pinned}
-      title={pinned ? labels.unpin : labels.pin}
-      onclick={togglePinned}
-    >
-      {#if pinned}
-        <Pin size={17} aria-hidden="true" />
-      {:else}
-        <PinOff size={17} aria-hidden="true" />
-      {/if}
-    </button>
-    <button
-      type="button"
-      class="damophus-agent-dropdown-action"
-      aria-label={labels.close}
-      title={labels.close}
-      onclick={onClose}
-    >
-      <X size={18} aria-hidden="true" />
-    </button>
-  </div>
+  <button
+    type="button"
+    class="damophus-agent-dropdown-pin block__icon"
+    class:is-active={pinned}
+    aria-label={pinned ? labels.unpin : labels.pin}
+    aria-pressed={pinned}
+    title={pinned ? labels.unpin : labels.pin}
+    onclick={togglePinned}
+  >
+    {#if pinned}
+      <Pin size={16} aria-hidden="true" />
+    {:else}
+      <PinOff size={16} aria-hidden="true" />
+    {/if}
+  </button>
 </div>

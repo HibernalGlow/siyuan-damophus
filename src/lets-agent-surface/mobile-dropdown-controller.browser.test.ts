@@ -7,21 +7,33 @@ const labels = {
   resize: "Resize Agent window",
   pin: "Pin window",
   unpin: "Unpin window",
-  close: "Close Agent",
 };
 
 function renderDropdown() {
   const model = document.createElement("section");
   model.id = "model";
   model.className = "damophus-agent-dropdown-mobile";
-  model.innerHTML = '<main id="modelMain"><div data-content>Conversation</div></main>';
+  model.innerHTML = `
+    <div class="toolbar"><span class="toolbar__text">Agent</span></div>
+    <main id="modelMain">
+      <section class="sy__agentChat">
+        <div class="agent-chat">
+          <div class="block__icons" style="display: flex; align-items: center; height: 42px">
+            <div class="block__logo fn__flex-1 agent-chat__title" style="flex: 1">Agent</div>
+            <span class="block__icon" data-type="new-session">New</span>
+            <span class="block__icon" data-type="session-menu">Sessions</span>
+            <span class="block__icon" data-type="min">Close</span>
+          </div>
+          <div data-content>Conversation</div>
+        </div>
+      </section>
+    </main>`;
   const nativeClose = document.createElement("button");
   nativeClose.id = "modelClose";
   document.body.append(model, nativeClose);
-  const closeNative = vi.fn();
-  const controller = new MobileAgentDropdownController({ labels, closeNative });
+  const controller = new MobileAgentDropdownController({ labels });
   controller.attach(model);
-  return { model, nativeClose, closeNative, controller };
+  return { model, nativeClose, controller };
 }
 
 afterEach(() => document.body.replaceChildren());
@@ -36,6 +48,10 @@ describe("MobileAgentDropdownController", () => {
     expect(model.classList.contains("damophus-agent-dropdown-pinned")).toBe(true);
     expect(getComputedStyle(model).transform).not.toBe("none");
     const pin = model.querySelector<HTMLButtonElement>('[aria-label="Unpin window"]')!;
+    const agentToolbar = model.querySelector<HTMLElement>(".sy__agentChat .block__icons")!;
+    expect(pin.closest(".block__icons")).toBe(agentToolbar);
+    expect(model.querySelector(":scope > .damophus-agent-dropdown-controls-host")).toBeNull();
+    expect(agentToolbar.getBoundingClientRect().height).toBe(42);
     expect(pin.getAttribute("aria-pressed")).toBe("true");
 
     content.dispatchEvent(new PointerEvent("pointerdown", {
@@ -130,11 +146,9 @@ describe("MobileAgentDropdownController", () => {
     controller.stop();
   });
 
-  it("allows explicit close controls and reapplies the remembered pin on reopen", async () => {
-    const { model, nativeClose, closeNative, controller } = renderDropdown();
-    await userEvent.click(model.querySelector<HTMLButtonElement>('[aria-label="Close Agent"]')!);
-
-    expect(closeNative).toHaveBeenCalledOnce();
+  it("uses the existing native close controls and reapplies the remembered pin on reopen", () => {
+    const { model, nativeClose, controller } = renderDropdown();
+    model.querySelector<HTMLElement>('.block__icon[data-type="min"]')!.click();
     expect(model.classList.contains("damophus-agent-dropdown-pinned")).toBe(false);
 
     controller.attach(model);
@@ -143,6 +157,6 @@ describe("MobileAgentDropdownController", () => {
     expect(model.classList.contains("damophus-agent-dropdown-pinned")).toBe(false);
 
     controller.stop();
-    expect(model.querySelector(".damophus-agent-dropdown-bar-host")).toBeNull();
+    expect(model.querySelector(".damophus-agent-dropdown-controls-host")).toBeNull();
   });
 });

@@ -475,9 +475,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
             resize: this.t("lets-agent-surface.mobileDropdownResize"),
             pin: this.t("lets-agent-surface.mobileDropdownPin"),
             unpin: this.t("lets-agent-surface.mobileDropdownUnpin"),
-            close: this.t("lets-agent-surface.mobileDropdownClose"),
           },
-          closeNative: () => this.dispatchNativeMobileAgentClose(),
         });
         this.mobileDropdownController.attach(model);
       }

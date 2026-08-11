@@ -1,6 +1,5 @@
-export type MobileAgentDropdownBarLabels = {
+export type MobileAgentDropdownControlLabels = {
   resize: string;
   pin: string;
   unpin: string;
-  close: string;
 };

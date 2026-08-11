@@ -1,6 +1,6 @@
 import { mount, unmount } from "svelte";
-import MobileAgentDropdownBar from "./MobileAgentDropdownBar.svelte";
-import type { MobileAgentDropdownBarLabels } from "./mobile-dropdown-types";
+import MobileAgentDropdownControls from "./MobileAgentDropdownControls.svelte";
+import type { MobileAgentDropdownControlLabels } from "./mobile-dropdown-types";
 
 type Gesture = {
   id: number;
@@ -10,20 +10,20 @@ type Gesture = {
 };
 
 export type MobileAgentDropdownControllerOptions = {
-  labels: MobileAgentDropdownBarLabels;
-  closeNative: () => void;
+  labels: MobileAgentDropdownControlLabels;
 };
 
 const HORIZONTAL_GESTURE_THRESHOLD = 8;
 
 export class MobileAgentDropdownController {
   private model?: HTMLElement;
-  private barHost?: HTMLElement;
-  private barApp?: ReturnType<typeof mount>;
+  private controlsHost?: HTMLElement;
+  private controlsApp?: ReturnType<typeof mount>;
   private pinned = true;
   private heightDvh = 80;
   private pointerGesture?: Gesture;
   private touchGesture?: Gesture;
+  private toolbarObserver?: MutationObserver;
 
   constructor(private readonly options: MobileAgentDropdownControllerOptions) {}
 
@@ -33,7 +33,7 @@ export class MobileAgentDropdownController {
       this.model = model;
       this.installGestureProtection(model);
     }
-    this.ensureBar(model);
+    this.ensureControls(model);
     model.style.setProperty("--damophus-agent-dropdown-height", `${this.heightDvh}dvh`);
     model.classList.toggle("damophus-agent-dropdown-pinned", this.pinned);
   }
@@ -44,19 +44,28 @@ export class MobileAgentDropdownController {
 
   stop(): void {
     this.detachModel();
-    if (this.barApp) void unmount(this.barApp);
-    this.barApp = undefined;
-    this.barHost?.remove();
-    this.barHost = undefined;
+    if (this.controlsApp) void unmount(this.controlsApp);
+    this.controlsApp = undefined;
+    this.controlsHost?.remove();
+    this.controlsHost = undefined;
   }
 
-  private ensureBar(model: HTMLElement): void {
-    if (!this.barHost) {
-      model.querySelector(":scope > .damophus-agent-dropdown-bar-host")?.remove();
-      this.barHost = document.createElement("div");
-      this.barHost.className = "damophus-agent-dropdown-bar-host";
-      this.barApp = mount(MobileAgentDropdownBar, {
-        target: this.barHost,
+  private ensureControls(model: HTMLElement): void {
+    const toolbar = model.querySelector<HTMLElement>(
+      "#modelMain .sy__agentChat .block__icons",
+    );
+    if (!toolbar) {
+      this.observeToolbar(model);
+      return;
+    }
+    this.toolbarObserver?.disconnect();
+    this.toolbarObserver = undefined;
+    if (!this.controlsHost) {
+      model.querySelector(".damophus-agent-dropdown-controls-host")?.remove();
+      this.controlsHost = document.createElement("div");
+      this.controlsHost.className = "damophus-agent-dropdown-controls-host";
+      this.controlsApp = mount(MobileAgentDropdownControls, {
+        target: this.controlsHost,
         props: {
           labels: this.options.labels,
           initialPinned: this.pinned,
@@ -72,14 +81,19 @@ export class MobileAgentDropdownController {
               `${heightDvh}dvh`,
             );
           },
-          onClose: () => {
-            this.prepareForManualClose();
-            this.options.closeNative();
-          },
         },
       });
     }
-    if (this.barHost.parentElement !== model) model.prepend(this.barHost);
+    if (this.controlsHost.parentElement !== toolbar) {
+      const nativeClose = toolbar.querySelector('[data-type="min"]');
+      toolbar.insertBefore(this.controlsHost, nativeClose);
+    }
+  }
+
+  private observeToolbar(model: HTMLElement): void {
+    if (this.toolbarObserver) return;
+    this.toolbarObserver = new MutationObserver(() => this.ensureControls(model));
+    this.toolbarObserver.observe(model, {childList: true, subtree: true});
   }
 
   private installGestureProtection(model: HTMLElement): void {
@@ -106,16 +120,21 @@ export class MobileAgentDropdownController {
     model.removeEventListener("touchend", this.handleTouchEnd, true);
     model.removeEventListener("touchcancel", this.handleTouchEnd, true);
     document.removeEventListener("click", this.handleNativeCloseClick, true);
+    this.toolbarObserver?.disconnect();
+    this.toolbarObserver = undefined;
     model.classList.remove("damophus-agent-dropdown-pinned");
     model.style.removeProperty("--damophus-agent-dropdown-height");
     this.pointerGesture = undefined;
     this.touchGesture = undefined;
+    this.controlsHost?.remove();
     this.model = undefined;
   }
 
   private readonly handleNativeCloseClick = (event: MouseEvent): void => {
     const target = event.target instanceof Element ? event.target : undefined;
-    if (target?.closest("#modelClose")) this.prepareForManualClose();
+    if (target?.closest('#modelClose, .sy__agentChat .block__icon[data-type="min"]')) {
+      this.prepareForManualClose();
+    }
   };
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
