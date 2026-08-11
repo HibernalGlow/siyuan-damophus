@@ -1,4 +1,4 @@
-export const QUESTION_SOURCE_ACTIONS = ["cb-get-hl", "cb-get-context", "cb-get-rootscroll"] as const;
+export const QUESTION_SOURCE_ACTIONS = ["cb-get-focus", "cb-get-hl", "cb-get-all"] as const;
 
 export function questionSourceOpenTarget(
   blockId: string,
@@ -8,6 +8,7 @@ export function questionSourceOpenTarget(
   return {
     doc: {
       id: blockId,
+      zoomIn: true,
       action: [...QUESTION_SOURCE_ACTIONS],
     },
     openNewTab: !sourceRootId || sourceRootId !== activeRootId,

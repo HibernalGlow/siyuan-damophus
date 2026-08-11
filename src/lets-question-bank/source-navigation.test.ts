@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { questionSourceOpenTarget } from "./source-navigation";
 
 describe("questionSourceOpenTarget", () => {
-  it("opens the full source document at the question block without restoring stale scroll", () => {
+  it("focuses the question block without restoring stale document scroll", () => {
     expect(questionSourceOpenTarget("question", "source-doc", "source-doc")).toEqual({
       doc: {
         id: "question",
-        action: ["cb-get-hl", "cb-get-context", "cb-get-rootscroll"],
+        zoomIn: true,
+        action: ["cb-get-focus", "cb-get-hl", "cb-get-all"],
       },
       openNewTab: false,
     });
