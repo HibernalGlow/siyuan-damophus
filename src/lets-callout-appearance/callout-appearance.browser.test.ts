@@ -59,7 +59,7 @@ function renderNestedCallout(): { outer: HTMLElement; content: HTMLElement; nest
   };
 }
 
-function renderListNestedCallout(): {
+function renderListCallout(insideOuterCallout: boolean): {
   action: HTMLElement;
   item: HTMLElement;
   nested: HTMLElement;
@@ -91,23 +91,24 @@ function renderListNestedCallout(): {
   const editor = document.createElement("div");
   editor.className = "protyle-wysiwyg";
   editor.style.width = "360px";
-  editor.innerHTML = `
-    <div class="callout" data-node-id="outer" data-type="NodeCallout" data-subtype="IMPORTANT">
-      <div class="callout-info"><span class="callout-title">Important</span></div>
-      <div class="callout-content">
-        <div class="list" data-node-id="list" data-type="NodeList">
-          <div class="li" data-node-id="item" data-type="NodeListItem">
-            <div class="protyle-action">1.</div>
-            <div class="p" data-node-id="paragraph" data-type="NodeParagraph">List item</div>
-            <div class="callout" data-node-id="nested" data-type="NodeCallout" data-subtype="NOTE">
-              <div class="callout-info"><span class="callout-title">Note</span></div>
-              <div class="callout-content"><p>Nested body</p></div>
-            </div>
-          </div>
+  const list = `
+    <div class="list" data-node-id="list" data-type="NodeList">
+      <div class="li" data-node-id="item" data-type="NodeListItem">
+        <div class="protyle-action">1.</div>
+        <div class="p" data-node-id="paragraph" data-type="NodeParagraph">List item</div>
+        <div class="callout" data-node-id="nested" data-type="NodeCallout" data-subtype="NOTE">
+          <div class="callout-info"><span class="callout-title">Note</span></div>
+          <div class="callout-content"><p>Nested body</p></div>
         </div>
       </div>
     </div>
   `;
+  editor.innerHTML = insideOuterCallout
+    ? `<div class="callout" data-node-id="outer" data-type="NodeCallout" data-subtype="IMPORTANT">
+        <div class="callout-info"><span class="callout-title">Important</span></div>
+        <div class="callout-content">${list}</div>
+      </div>`
+    : list;
   document.body.append(editor);
   return {
     action: editor.querySelector<HTMLElement>(".protyle-action")!,
@@ -188,9 +189,14 @@ describe("callout appearance", () => {
     expect(nestedRect.right).toBeLessThanOrEqual(outerRect.right + 0.5);
   });
 
-  it.each([false, true])(
-    "preserves the SiYuan list gutter with Callout Enhance active: %s",
-    (enhanceActive) => {
+  it.each([
+    ["a top-level list", false, false],
+    ["a top-level list", false, true],
+    ["a Callout-nested list", true, false],
+    ["a Callout-nested list", true, true],
+  ])(
+    "preserves the SiYuan list gutter in %s with Callout Enhance active: %s",
+    (_scenario, insideOuterCallout, enhanceActive) => {
       if (enhanceActive) {
         const enhanceStyle = document.createElement("style");
         enhanceStyle.id = ENHANCE_STYLE_ID;
@@ -198,7 +204,7 @@ describe("callout appearance", () => {
         document.head.append(enhanceStyle);
       }
 
-      const { action, item, nested } = renderListNestedCallout();
+      const { action, item, nested } = renderListCallout(insideOuterCallout);
       new CalloutAppearanceStyles(document).start();
 
       const actionRect = action.getBoundingClientRect();
