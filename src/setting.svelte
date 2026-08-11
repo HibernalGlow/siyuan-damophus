@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
+  import { fade } from "svelte/transition";
   import { Info } from "lucide-svelte";
   import { showMessage } from "siyuan";
   import { Button } from "@/components/ui/button";
@@ -32,7 +33,6 @@
   } from "./lets-block-attr/custom-properties";
   import { PluginRegistry } from "./plugin-registry";
   import { isMobile, plugin } from "./utils";
-  import SettingCategoryNavigation from "./components/setting-category-navigation.svelte";
   import SettingOverview from "./components/setting-overview.svelte";
 
   const SWITCH_GROUP = "开关";
@@ -118,7 +118,6 @@
   let selectedThemeId = savedThemeId;
   let settingRoot: HTMLDivElement;
   let compactLayout = isMobile;
-  let showCompactCategories = compactLayout;
   let navState: SettingsNavState = parseSettingsNavState(settings.get(SETTINGS_NAV_STATE_KEY));
   let view: "overview" | "detail" = "overview";
 
@@ -135,20 +134,6 @@
     GENERAL_GROUP,
   ]), navState);
   $: switchCategories = settingCategories.filter((category) => category.id !== "core");
-  $: navigationCategories = settingCategories.map((category) => ({
-    ...category,
-    label: t(category.label, category.label),
-    description: t(category.description, category.description),
-    groups: category.id === "core"
-      ? category.groups
-      : category.groups
-        .map((pluginName) => settingItems[SWITCH_GROUP].find((item) => item.key === pluginName)?.title)
-        .filter((group): group is string => Boolean(group)),
-    enabled: category.id === "core"
-      ? undefined
-      : category.groups.filter((pluginName) => Boolean(settingItems[SWITCH_GROUP].find((item) => item.key === pluginName)?.value)).length,
-    total: category.id === "core" ? undefined : category.groups.length,
-  }));
   $: showOverview = view === "overview" && settingCategories.length > 0;
   $: overviewCategories = settingCategories.map((category) => ({
     id: category.id,
@@ -413,19 +398,6 @@
     updateLocalSetting(detail.group, detail.key, detail.value);
   }
 
-  function selectGroup(group: string) {
-    focusGroup = group;
-    if (compactLayout) showCompactCategories = false;
-  }
-
-  function showCategoryList() {
-    if (compactLayout) {
-      view = "overview";
-      return;
-    }
-    showCompactCategories = true;
-  }
-
   function persistNavState() {
     settings.set(SETTINGS_NAV_STATE_KEY, navState);
     void settings.save();
@@ -434,7 +406,6 @@
   function selectFromOverview(group: string) {
     focusGroup = group;
     view = "detail";
-    if (compactLayout) showCompactCategories = false;
   }
 
   function showOverviewPage() {
@@ -461,11 +432,6 @@
     persistNavState();
   }
 
-  function onSidebarExpandedChanged({ detail }: CustomEvent<Record<string, boolean>>) {
-    navState = { ...navState, sidebarExpanded: detail };
-    persistNavState();
-  }
-
   function onSwitchesExpandedChanged({ detail }: CustomEvent<Record<string, boolean>>) {
     navState = { ...navState, switchesExpanded: detail };
     persistNavState();
@@ -479,7 +445,6 @@
       const nextCompactLayout = isMobile || settingRoot.clientWidth <= COMPACT_LAYOUT_MAX_WIDTH;
       if (nextCompactLayout === compactLayout) return;
       compactLayout = nextCompactLayout;
-      showCompactCategories = false;
     };
     const layoutObserver = new ResizeObserver(updateLayout);
     const hostWindow = window as Window & { goBack?: (...args: unknown[]) => unknown };
@@ -513,50 +478,38 @@
   class:damophus-settings-mobile={compactLayout}
   data-color-mode={mode}
 >
-  {#if showOverview}
-    <main class="min-w-0 flex-1 overflow-y-auto overscroll-contain" data-testid="setting-overview-page">
-      <div class={`mx-auto box-border flex w-full max-w-6xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
-        <header class="border-b border-border pb-4">
-          <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
-          <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
-        </header>
-        <SettingOverview
-          categories={overviewCategories}
-          reorderHint={t("settings.dragToReorder", "Drag to reorder")}
-          enabledLabel={t("settings.moduleEnabled", "Enable this module")}
-          on:select={(event) => selectFromOverview(event.detail)}
-          on:toggle={onOverviewToggle}
-          on:reorder={onOverviewReorder}
-        />
-      </div>
-    </main>
-  {:else}
-  <SettingCategoryNavigation
-    {groups}
-    categorySections={navigationCategories}
-    {focusGroup}
-    {getGroupIcon}
-    mobile={compactLayout}
-    showCategories={showCompactCategories}
-    getGroupLabel={getGroupLabel}
-    categoryLabel={t("settings.selectCategory", "Setting categories")}
-    categoryDescription={t("settings.selectCategoryDescription", "Choose which Damophus settings to display.")}
-    preferencesLabel={t("settings.preferences", "Preferences")}
-    backLabel={t("settings.back", "Back")}
-    searchPlaceholder={t("settings.searchModules", "Search modules")}
-    expandAllLabel={t("settings.expandAll", "Expand all")}
-    collapseAllLabel={t("settings.collapseAll", "Collapse all")}
-    noMatchesLabel={t("settings.noModuleMatches", "No modules match your search.")}
-    overviewLabel={t("settings.backToOverview", "Back to overview")}
-    showOverviewLink={!compactLayout && settingCategories.length > 0}
-    expandedState={navState.sidebarExpanded ?? {}}
-    on:select={(event) => selectGroup(event.detail)}
-    on:back={showCategoryList}
-    on:overview={showOverviewPage}
-    on:expandedChanged={onSidebarExpandedChanged}
-  />
+  <div
+    class="settings-stage"
+    class:settings-stage--overview={showOverview}
+    class:settings-stage--detail={!showOverview}
+    class:settings-stage--compact={compactLayout}
+    data-testid={showOverview ? "setting-overview-page" : "setting-detail-page"}
+  >
+    {#if showOverview}
+      <header class="settings-stage__heading border-b border-border pb-4" transition:fade={{ duration: 140 }}>
+        <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
+        <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
+      </header>
+    {/if}
 
-  <main class="min-w-0 flex-1 overflow-y-auto overscroll-contain" class:hidden={compactLayout && showCompactCategories}>
+    <div class="settings-stage__navigation">
+      <SettingOverview
+        categories={overviewCategories}
+        mode={showOverview ? "overview" : "navigation"}
+        activeSelectId={focusGroup}
+        compact={compactLayout}
+        reorderHint={t("settings.dragToReorder", "Drag to reorder")}
+        enabledLabel={t("settings.moduleEnabled", "Enable this module")}
+        overviewLabel={t("settings.backToOverview", "Back to overview")}
+        on:select={(event) => selectFromOverview(event.detail)}
+        on:toggle={onOverviewToggle}
+        on:overview={showOverviewPage}
+        on:reorder={onOverviewReorder}
+      />
+    </div>
+
+  {#if !showOverview}
+  <main class="settings-stage__detail min-w-0 overflow-y-auto overscroll-contain" transition:fade={{ duration: 180 }}>
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
       {#if !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
         <header class="border-b border-border pb-4">
@@ -658,4 +611,80 @@
     </div>
   </main>
   {/if}
+  </div>
 </div>
+
+<style>
+  .settings-stage {
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    display: grid;
+    transition: grid-template-columns 280ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 280ms ease, gap 280ms ease;
+  }
+
+  .settings-stage--overview {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 72rem;
+    margin-inline: auto;
+    padding: 1.5rem;
+    gap: 1.25rem;
+    grid-template-columns: minmax(0, 1fr) 0fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "heading heading"
+      "navigation detail";
+    overflow-y: auto;
+  }
+
+  .settings-stage--detail {
+    grid-template-columns: 16rem minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "navigation detail";
+    overflow: hidden;
+  }
+
+  .settings-stage__heading { grid-area: heading; }
+
+  .settings-stage__navigation {
+    grid-area: navigation;
+    min-width: 0;
+    overflow-y: auto;
+    transition: background-color 200ms ease, border-color 200ms ease, padding 280ms ease;
+  }
+
+  .settings-stage--detail .settings-stage__navigation {
+    padding: 0.75rem;
+    border-right: 1px solid var(--border);
+    background: color-mix(in srgb, var(--muted) 24%, transparent);
+  }
+
+  .settings-stage__detail { grid-area: detail; }
+
+  .settings-stage--compact.settings-stage--overview {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .settings-stage--compact.settings-stage--detail {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "navigation"
+      "detail";
+  }
+
+  .settings-stage--compact.settings-stage--detail .settings-stage__navigation {
+    max-height: 8.75rem;
+    padding: 0.75rem;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .settings-stage,
+    .settings-stage__navigation { transition-duration: 0ms; }
+  }
+</style>

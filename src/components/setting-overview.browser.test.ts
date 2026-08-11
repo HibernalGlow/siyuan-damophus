@@ -12,7 +12,7 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 
-function render() {
+function render(options: { mode?: "overview" | "navigation"; activeSelectId?: string; compact?: boolean } = {}) {
   const target = document.createElement("div");
   target.className = "damophus-theme-root damophus-question-bank-theme";
   const hostileHostStyle = document.createElement("style");
@@ -21,6 +21,7 @@ function render() {
   document.body.appendChild(target);
   const select = vi.fn();
   const toggle = vi.fn();
+  const overview = vi.fn();
   const reorder = vi.fn();
   const categories: OverviewCategory[] = [
     {
@@ -51,10 +52,11 @@ function render() {
     props: {
       reorderHint: "拖动调整顺序",
       categories,
+      ...options,
     },
-    events: { select, toggle, reorder },
+    events: { select, toggle, overview, reorder },
   }));
-  return { target, select, toggle, reorder, categories };
+  return { target, select, toggle, overview, reorder, categories };
 }
 
 function expectCategoryHeaderOnOneRow(card: HTMLElement) {
@@ -140,6 +142,38 @@ describe("setting overview", () => {
       detail: { id: "questionBank", enabled: false },
     }));
     expect(select).not.toHaveBeenCalled();
+  });
+
+  it("morphs into the selected category card for detail navigation", async () => {
+    await page.viewport(1100, 800);
+    const { target, overview } = render({ mode: "navigation", activeSelectId: "题库" });
+    target.style.width = "256px";
+    await tick();
+
+    expect(target.querySelector('[data-testid="setting-overview-shell"]')?.getAttribute("data-mode")).toBe("navigation");
+    expect(target.querySelector('[data-testid="overview-category-core"]')).toBeNull();
+    expect(target.querySelector('[data-testid="overview-category-study"]')).not.toBeNull();
+    expect(target.querySelectorAll('[data-testid="overview-module-zone-study"] li')).toHaveLength(2);
+    expect(target.querySelector('[aria-current="page"]')?.textContent).toContain("题库");
+    expect(target.querySelector('[aria-label^="拖动调整顺序"]')).toBeNull();
+
+    const backButton = [...target.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes("Back to overview"));
+    if (!backButton) throw new Error("Missing overview return control");
+    backButton.click();
+    await tick();
+    expect(overview).toHaveBeenCalledOnce();
+  });
+
+  it("compresses detail navigation to the active item on mobile", async () => {
+    await page.viewport(390, 760);
+    const { target } = render({ mode: "navigation", activeSelectId: "题库", compact: true });
+    await tick();
+
+    const rows = [...target.querySelectorAll<HTMLElement>('[data-testid="overview-module-zone-study"] li')];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain("题库");
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 
   it("dispatches reorder when the category board finalizes a move", async () => {
