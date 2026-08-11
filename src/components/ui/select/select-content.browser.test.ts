@@ -1,5 +1,6 @@
 import "@/styles/damophus.css";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { isolatePortaledSelectGestures } from "./select-gesture-isolation";
 
 describe("select content portal styling", () => {
   it("keeps a portaled mobile list opaque and inside its anchor width", () => {
@@ -41,5 +42,32 @@ describe("select content portal styling", () => {
     expect(getComputedStyle(content).backgroundColor).toBe("rgb(255, 255, 255)");
     expect(getComputedStyle(content).borderTopWidth).toBe("1px");
     expect(getComputedStyle(item).backgroundColor).toBe("rgb(255, 255, 255)");
+  });
+
+  it("keeps portaled scrolling away from SiYuan's document gesture handlers", () => {
+    const content = document.createElement("div");
+    const item = document.createElement("div");
+    content.append(item);
+    document.body.append(content);
+    const contentMoveHandler = vi.fn();
+    const contentEndHandler = vi.fn();
+    const documentMoveHandler = vi.fn();
+    const documentEndHandler = vi.fn();
+    content.addEventListener("touchmove", contentMoveHandler);
+    content.addEventListener("touchend", contentEndHandler);
+    document.addEventListener("touchmove", documentMoveHandler);
+    document.addEventListener("touchend", documentEndHandler);
+    const isolation = isolatePortaledSelectGestures(content);
+
+    item.dispatchEvent(new Event("touchmove", { bubbles: true }));
+    item.dispatchEvent(new Event("touchend", { bubbles: true }));
+
+    expect(contentMoveHandler).toHaveBeenCalledOnce();
+    expect(contentEndHandler).toHaveBeenCalledOnce();
+    expect(documentMoveHandler).not.toHaveBeenCalled();
+    expect(documentEndHandler).not.toHaveBeenCalled();
+    isolation.destroy();
+    document.removeEventListener("touchmove", documentMoveHandler);
+    document.removeEventListener("touchend", documentEndHandler);
   });
 });

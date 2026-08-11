@@ -5,6 +5,7 @@
 	import SelectPortal from "./select-portal.svelte";
 	import SelectScrollDownButton from "./select-scroll-down-button.svelte";
 	import SelectScrollUpButton from "./select-scroll-up-button.svelte";
+	import { isolatePortaledSelectGestures } from "./select-gesture-isolation.js";
 	import type { ComponentProps } from "svelte";
 
 	let {
@@ -21,6 +22,12 @@
 	}: WithoutChild<SelectPrimitive.ContentProps> & {
 		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof SelectPortal>>;
 	} = $props();
+
+	$effect(() => {
+		if (!ref) return;
+		const isolation = isolatePortaledSelectGestures(ref);
+		return () => isolation.destroy();
+	});
 </script>
 
 <SelectPortal {...portalProps}>
@@ -30,7 +37,7 @@
 		{preventScroll}
 		data-slot="select-content"
 		class={cn(
-			"damophus-select-content min-w-36 rounded-md bg-popover text-popover-foreground shadow-md duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 relative isolate z-[10000] overflow-x-hidden overflow-y-auto",
+			"damophus-select-content min-w-36 rounded-md bg-popover text-popover-foreground shadow-md duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 relative isolate z-[10000] overflow-x-hidden overflow-y-auto overscroll-y-contain",
 			className
 		)}
 		{...restProps}
