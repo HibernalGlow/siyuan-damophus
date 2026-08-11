@@ -35,6 +35,12 @@ Damophus 是一个自用的思源增强插件，集中实现现有工具没有�
 - GIF、WebP、APNG 动图默认自然播放到末帧并保留尾帧，右下角按钮或桌面端悬停可重新播放
 - 悬停延迟、重播缓存数量、大图预览重播行为可调
 
+### 选中文本高亮（lets-selection-highlight）
+
+- 选中编辑器文本后，高亮当前文档中的全部匹配项，包括跨行内样式节点的词组
+- `Ctrl/Command+Alt+P` 跳转到下一个匹配项，`Shift+Ctrl/Command+Alt+P` 跳转到上一个匹配项
+- Damophus 菜单可即时开关；连续跳转复用当前扫描结果，文档变化后再按需更新
+
 ### 列表合并（lets-list-merge）
 
 - 合并选中的多个有序/无序列表，保留原内容、样式、块属性与嵌套结构
@@ -241,6 +247,7 @@ pnpm test:package
 | 模块 | 定位 | 入口 |
 | --- | --- | --- |
 | `lets-animated-image-replay` | 动图停在首帧，按钮/悬停/大图预览重播 | 自动生效，设置页 5 项 |
+| `lets-selection-highlight` | 高亮选中文本并前后跳转匹配项 | 自动生效、快捷键、Damophus 菜单开关 |
 | `lets-list-merge` | 合并列表，或把非列表块与原列表组织为主从层级 | 块图标菜单、命令面板 4 命令 |
 | `lets-kramdown-export` | 选中块或整篇文档复制为带 IAL 的 Markdown | 顶栏菜单、块图标、文档标题菜单 |
 | `lets-mobile-breadcrumb` | 移动端完整块路径，可点击、横向滚动、多种文字模式 | 自动生效（移动编辑器与闪卡） |
