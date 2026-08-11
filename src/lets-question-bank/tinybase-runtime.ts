@@ -56,8 +56,7 @@ export class TinyBaseRuntime {
     await this.initialize();
     const view = await this.warehouse.mergeAfterSync();
     const mergedAt = view.mergedAt ?? new Date().toISOString();
-    this.warehouse.getLocalContribution().core.setValue("last_successful_merge_at", mergedAt);
-    await this.rebuildAggregateCache();
+    // Post-sync refreshes must remain read-only or the local write triggers another SiYuan sync.
     return {mergedAt, diagnostics: this.warehouse.getDiagnostics()};
   }
 
@@ -201,7 +200,6 @@ export class TinyBaseRuntime {
     const local = this.warehouse.getLocalContribution();
     await new TinyBaseAttemptEventRepository(local.events, this.router).append(event);
     await this.persistEventShard(this.router.routeAttempt(event.answered_at));
-    await this.rebuildAggregateCache();
     return "created";
   }
 
@@ -218,7 +216,6 @@ export class TinyBaseRuntime {
     const local = this.warehouse.getLocalContribution();
     await new TinyBaseAttemptRatingEventRepository(local.events, this.router).append(event);
     await this.persistEventShard(this.router.routeAttempt(event.changed_at));
-    await this.rebuildAggregateCache();
     return "created";
   }
 
@@ -234,34 +231,6 @@ export class TinyBaseRuntime {
 
   async loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>> {
     return aggregateAttemptEvents(await this.listEffectiveAttemptEvents());
-  }
-
-  private async rebuildAggregateCache(): Promise<void> {
-    const events = await this.listEffectiveAttemptEvents();
-    const aggregates = aggregateAttemptEvents(events);
-    const core = this.warehouse.getLocalContribution().core;
-    core.delTable(TABLE.questionAggregates);
-    for (const [questionId, aggregate] of aggregates) {
-      core.setRow(TABLE.questionAggregates, questionId, {
-        question_id: questionId,
-        attempts: aggregate.attempts,
-        timed_attempts: aggregate.timedAttempts ?? 0,
-        total_duration_ms: aggregate.totalDurationMs ?? 0,
-        objective_attempts: aggregate.objectiveAttempts,
-        objective_correct: aggregate.objectiveCorrect,
-        objective_incorrect: aggregate.objectiveIncorrect,
-        consecutive_review_count: aggregate.consecutiveReviewCount,
-        consecutive_again_count: aggregate.consecutiveAgainCount,
-        consecutive_hard_count: aggregate.consecutiveHardCount,
-        ...(aggregate.latestRating ? {latest_rating: aggregate.latestRating} : {}),
-        ...(aggregate.lastAnsweredAt ? {last_answered_at: aggregate.lastAnsweredAt} : {}),
-        ...(aggregate.previousDurationMs !== undefined ? {previous_duration_ms: aggregate.previousDurationMs} : {}),
-        ...(aggregate.lastDurationMs !== undefined ? {last_duration_ms: aggregate.lastDurationMs} : {}),
-        ...(aggregate.lastAttemptId ? {last_attempt_id: aggregate.lastAttemptId} : {}),
-      });
-    }
-    core.setValue("last_aggregate_rebuild_at", new Date().toISOString());
-    await this.warehouse.persistCore();
   }
 
   private async persistEventShard(shardId: string): Promise<void> {
@@ -343,7 +312,6 @@ export class TinyBaseRuntime {
       }
     }
     for (const shardId of touchedShards) await this.persistEventShard(shardId);
-    if (imported > 0) await this.rebuildAggregateCache();
     return {...prepared.preview, imported, failures};
   }
 }

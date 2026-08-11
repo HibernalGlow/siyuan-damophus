@@ -160,7 +160,7 @@ There is no `topics` table. Topic lists are derived from distinct IDs in `questi
 
 #### `question_aggregates`
 
-Row ID: stable question ID. Cells mirror `AttemptAggregate`: attempt totals, objective totals, streaks, latest rating, last event identity, and duration values. This table is replaceable cache data.
+Row ID: stable question ID. Cells mirror `AttemptAggregate`: attempt totals, objective totals, streaks, latest rating, last event identity, and duration values. This table is replaceable migration and maintenance cache data. The live runtime derives statistics from validated event shards and does not rewrite the core store after answers or synchronization.
 
 #### `question_set_blueprints`
 
@@ -171,8 +171,8 @@ Row ID: `blueprint_id`. Store `revision`, `updated_at`, and one canonical `snaps
 - `schema_version`
 - `migration_version`
 - `last_catalog_scan_at`
-- `last_aggregate_rebuild_at`
-- `last_successful_merge_at`
+- `last_aggregate_rebuild_at` (legacy migration and maintenance metadata)
+- `last_successful_merge_at` (legacy metadata retained for compatibility)
 
 ### Session store
 
@@ -196,7 +196,7 @@ Row ID: `attempt_id`. Store every `AttemptEvent` field. Array fields use canonic
 
 Row ID: the current stable event `attempt_id`. Store every `ExamSummaryEvent` field. Rows are append-only and validated before merge or import.
 
-Annual event stores never contain aggregate rows. Aggregate rebuild reads validated event shards and atomically replaces the relevant rows in `question_aggregates`.
+Annual event stores never contain aggregate rows. Aggregate reads derive the current statistics from validated event shards; explicit migration or maintenance tooling may replace the cache rows in `question_aggregates`.
 
 ## Repository boundary
 

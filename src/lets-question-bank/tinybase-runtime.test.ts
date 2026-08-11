@@ -4,6 +4,7 @@ import { createAttemptRatingEvent } from "../question-bank/core/rating-correctio
 import { createPracticeSessionSnapshot } from "../question-bank/core/session-schema";
 import {
   readStoreEnvelope,
+  storeFilePath,
   type StoreFileIO,
 } from "../question-bank/adapters/tinybase/file-persistence";
 import { TABLE } from "../question-bank/adapters/tinybase/tables";
@@ -47,7 +48,7 @@ describe("TinyBase runtime", () => {
     expect(files.files.size).toBe(0);
   });
 
-  it("persists local immutable events and rebuildable aggregate cache", async () => {
+  it("persists local immutable events and derives aggregates without rewriting core state", async () => {
     const files = new MemoryFiles();
     const runtime = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-a"));
     await expect(runtime.appendAttempt(attempt())).resolves.toBe("created");
@@ -61,14 +62,8 @@ describe("TinyBase runtime", () => {
     });
     expect(eventFile.status).toBe("valid");
     expect(eventFile.store.hasRow(TABLE.attemptEvents, "attempt-1")).toBe(true);
-
-    const coreFile = await readStoreEnvelope(files, {
-      deviceId: "device-a",
-      storeKind: "core",
-      shardId: "core",
-    });
-    expect(coreFile.store.getCell(TABLE.questionAggregates, "question-1", "attempts")).toBe(1);
     expect((await runtime.loadAggregates()).get("question-1")?.objectiveCorrect).toBe(1);
+    expect(files.files.has(storeFilePath({deviceId: "device-a", storeKind: "core", shardId: "core"}))).toBe(false);
   });
 
   it("persists rating corrections without counting another attempt", async () => {
@@ -96,6 +91,33 @@ describe("TinyBase runtime", () => {
       shardId: "2026",
     });
     expect(eventFile.store.hasRow(TABLE.attemptRatingEvents, "rating-1")).toBe(true);
+  });
+
+  it("refreshes the local read view after sync without rewriting core state", async () => {
+    const files = new MemoryFiles();
+    const runtime = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-a"));
+    await runtime.ensureReady();
+    runtime.warehouse.getLocalContribution().core.setValue("schema_version", 1);
+    await runtime.persistCore();
+    const corePath = storeFilePath({deviceId: "device-a", storeKind: "core", shardId: "core"});
+    const coreBeforeMerge = files.files.get(corePath);
+
+    await runtime.mergeAfterSync();
+
+    expect(files.files.get(corePath)).toBe(coreBeforeMerge);
+  });
+
+  it("loads remote aggregates after sync without creating a local core file", async () => {
+    const files = new MemoryFiles();
+    const deviceA = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-a"));
+    await deviceA.appendAttempt(attempt());
+    const deviceB = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-b"));
+    const deviceBCorePath = storeFilePath({deviceId: "device-b", storeKind: "core", shardId: "core"});
+
+    await deviceB.mergeAfterSync();
+
+    expect((await deviceB.loadAggregates()).get("question-1")?.objectiveCorrect).toBe(1);
+    expect(files.files.has(deviceBCorePath)).toBe(false);
   });
 
   it("keeps a remotely completed practice session absent after both devices merge", async () => {
