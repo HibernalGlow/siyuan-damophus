@@ -3,6 +3,7 @@ export const CALLOUT_ENHANCE_STYLE_ID = "callout-enhance-dynamic-styles";
 export const CALLOUT_ENHANCE_STATE_ATTRIBUTE = "data-damophus-callout-enhance";
 
 export interface CalloutAppearanceSettings {
+  followCalloutTextColor: boolean;
   paddingTop: number;
   paddingX: number;
   paddingBottom: number;
@@ -14,6 +15,7 @@ export interface CalloutAppearanceSettings {
 }
 
 export const DEFAULT_CALLOUT_APPEARANCE_SETTINGS: CalloutAppearanceSettings = {
+  followCalloutTextColor: false,
   paddingTop: 16,
   paddingX: 16,
   paddingBottom: 10,
@@ -24,6 +26,8 @@ export const DEFAULT_CALLOUT_APPEARANCE_SETTINGS: CalloutAppearanceSettings = {
   titleWeight: 500,
 };
 
+type NumericCalloutAppearanceSetting = Exclude<keyof CalloutAppearanceSettings, "followCalloutTextColor">;
+
 const SETTING_LIMITS = {
   paddingTop: [8, 24],
   paddingX: [8, 28],
@@ -33,7 +37,7 @@ const SETTING_LIMITS = {
   outlineOpacity: [0, 24],
   titleSize: [12, 20],
   titleWeight: [400, 700],
-} satisfies Record<keyof CalloutAppearanceSettings, readonly [number, number]>;
+} satisfies Record<NumericCalloutAppearanceSetting, readonly [number, number]>;
 
 const EDITOR_CALLOUT_SELECTORS = [
   ':root body .protyle-wysiwyg .callout[data-type="NodeCallout"]',
@@ -41,7 +45,7 @@ const EDITOR_CALLOUT_SELECTORS = [
 ];
 
 function clampSetting(
-  key: keyof CalloutAppearanceSettings,
+  key: NumericCalloutAppearanceSetting,
   value: unknown,
 ): number {
   const fallback = DEFAULT_CALLOUT_APPEARANCE_SETTINGS[key];
@@ -56,6 +60,8 @@ export function resolveCalloutAppearanceSettings(
   settings: Partial<Record<keyof CalloutAppearanceSettings, unknown>> = {},
 ): CalloutAppearanceSettings {
   return {
+    followCalloutTextColor: settings.followCalloutTextColor === true
+      || settings.followCalloutTextColor === "true",
     paddingTop: clampSetting("paddingTop", settings.paddingTop),
     paddingX: clampSetting("paddingX", settings.paddingX),
     paddingBottom: clampSetting("paddingBottom", settings.paddingBottom),
@@ -100,12 +106,23 @@ const directContentSelectors = EDITOR_CALLOUT_SELECTORS
   ])
   .join(",\n");
 
+const directBodySelectors = EDITOR_CALLOUT_SELECTORS
+  .map((selector) => `${selector}[data-subtype] > .callout-content`)
+  .join(",\n");
+
 export function createCalloutAppearanceCss(
   input: Partial<Record<keyof CalloutAppearanceSettings, unknown>> = {},
 ): string {
   const settings = resolveCalloutAppearanceSettings(input);
   const surfaceAlpha = settings.surfaceOpacity / 100;
   const outlineAlpha = settings.outlineOpacity / 100;
+  const textColorCss = settings.followCalloutTextColor
+    ? `
+${directBodySelectors} {
+  color: inherit !important;
+}
+`
+    : "";
 
   return `
 ${EDITOR_CALLOUT_SELECTORS.join(",\n")} {
@@ -193,6 +210,7 @@ ${subtypeSelectors(["Quote"])} {
 ${subtypeTitleSelectors(["NOTE", "Info", "TIP", "IMPORTANT", "WARNING", "Question", "CAUTION", "Quote"])} {
   color: inherit !important;
 }
+${textColorCss}
 
 ${nativePseudoSelectors} {
   display: none !important;

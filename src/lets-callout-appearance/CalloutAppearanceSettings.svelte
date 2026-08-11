@@ -77,6 +77,7 @@
 
     <div
       class="damophus-callout-appearance-preview b3-typography mx-3 min-w-0 overflow-hidden"
+      class:follow-callout-text-color={appearance.followCalloutTextColor}
       data-callout-appearance-preview
       style={previewVariables}
     >
@@ -246,6 +247,13 @@
     margin-top: 4px;
     color: var(--b3-theme-on-background);
     overflow: hidden;
+  }
+
+  .damophus-callout-appearance-preview.follow-callout-text-color
+    .callout[data-type="NodeCallout"] > .callout-content,
+  .damophus-callout-appearance-preview.follow-callout-text-color
+    .callout[data-type="NodeCallout"] > .callout-content .p[data-type="NodeParagraph"] {
+    color: inherit !important;
   }
 
   .damophus-callout-appearance-preview .callout-content > p {

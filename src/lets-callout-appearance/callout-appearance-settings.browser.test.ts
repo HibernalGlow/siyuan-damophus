@@ -95,4 +95,35 @@ describe("Callout appearance settings", () => {
     expect(getComputedStyle(preview!).getPropertyValue("--preview-padding-top").trim()).toBe("17px");
     expect(getComputedStyle(outer!).paddingTop).toBe("17px");
   });
+
+  it("previews optional body text tinting without leaking the outer type color", async () => {
+    const { target, changed } = render();
+    await tick();
+    const preview = target.querySelector<HTMLElement>("[data-callout-appearance-preview]");
+    const callouts = target.querySelectorAll<HTMLElement>("[data-callout-appearance-preview] .callout");
+    const outerParagraph = target.querySelector<HTMLElement>(
+      '[data-callout-appearance-preview] .p[data-type="NodeParagraph"]',
+    );
+    const nestedParagraph = callouts[1]?.querySelector<HTMLElement>(":scope > .callout-content > p");
+    const toggle = target.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="lets-callout-appearance.followCalloutTextColorTitle"]',
+    );
+    if (!preview || callouts.length !== 2 || !outerParagraph || !nestedParagraph || !toggle) {
+      throw new Error("Missing Callout text color preview controls");
+    }
+
+    expect(preview.classList.contains("follow-callout-text-color")).toBe(false);
+    expect(getComputedStyle(outerParagraph).color).not.toBe(getComputedStyle(callouts[0]).color);
+
+    toggle.click();
+    await tick();
+
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({ key: "followCalloutTextColor", value: true }),
+    }));
+    expect(preview.classList.contains("follow-callout-text-color")).toBe(true);
+    expect(getComputedStyle(outerParagraph).color).toBe(getComputedStyle(callouts[0]).color);
+    expect(getComputedStyle(nestedParagraph).color).toBe(getComputedStyle(callouts[1]).color);
+    expect(getComputedStyle(outerParagraph).color).not.toBe(getComputedStyle(nestedParagraph).color);
+  });
 });

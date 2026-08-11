@@ -172,10 +172,13 @@ describe("callout appearance", () => {
 
   it("clamps user adjustments and updates the mounted style", () => {
     expect(resolveCalloutAppearanceSettings({ radius: 99, surfaceOpacity: -4 })).toMatchObject({
+      followCalloutTextColor: false,
       radius: 20,
       surfaceOpacity: 0,
       paddingX: 16,
     });
+    expect(resolveCalloutAppearanceSettings({ followCalloutTextColor: "true" }))
+      .toMatchObject({ followCalloutTextColor: true });
 
     startCalloutAppearance({ paddingX: 24, titleSize: 18, titleWeight: "600" });
     expect(document.getElementById(CALLOUT_APPEARANCE_STYLE_ID)?.textContent).toBe(
@@ -199,6 +202,33 @@ describe("callout appearance", () => {
     expect(getComputedStyle(nested).maxWidth).toBe("100%");
     expect(nestedRect.right).toBeLessThanOrEqual(contentRect.right + 0.5);
     expect(nestedRect.right).toBeLessThanOrEqual(outerRect.right + 0.5);
+  });
+
+  it("optionally lets each nested Callout body inherit its own type color", () => {
+    const enhanceStyle = document.createElement("style");
+    enhanceStyle.id = CALLOUT_ENHANCE_STYLE_ID;
+    enhanceStyle.textContent = `
+      :root {
+        --b3-callout-important: rgb(118, 86, 214);
+        --b3-callout-tip: rgb(22, 138, 69);
+        --b3-theme-on-background: rgb(37, 40, 43);
+      }
+      .callout-info ~ * {
+        color: var(--b3-theme-on-background) !important;
+      }
+    `;
+    document.head.append(enhanceStyle);
+    const { outer, content, nested } = renderNestedCallout();
+    const nestedContent = nested.querySelector<HTMLElement>(":scope > .callout-content")!;
+    const styles = startCalloutAppearance();
+
+    expect(getComputedStyle(content).color).not.toBe(getComputedStyle(outer).color);
+    expect(getComputedStyle(nestedContent).color).not.toBe(getComputedStyle(nested).color);
+
+    styles.start({ followCalloutTextColor: true });
+    expect(getComputedStyle(content).color).toBe(getComputedStyle(outer).color);
+    expect(getComputedStyle(nestedContent).color).toBe(getComputedStyle(nested).color);
+    expect(getComputedStyle(content).color).not.toBe(getComputedStyle(nestedContent).color);
   });
 
   it.each([
@@ -292,6 +322,11 @@ describe("callout appearance", () => {
       enabled: true,
       icon: "messageSquareText",
     });
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "followCalloutTextColor",
+      type: "checkbox",
+      value: false,
+    }));
 
     const plugin = new CalloutAppearancePlugin();
     plugin.onload();

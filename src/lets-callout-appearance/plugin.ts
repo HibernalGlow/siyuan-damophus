@@ -17,6 +17,13 @@ export const pluginMetadata: PluginMetadata = {
       value: true,
     },
     {
+      type: "checkbox",
+      title: "lets-callout-appearance.followCalloutTextColorTitle",
+      description: "lets-callout-appearance.followCalloutTextColorDescription",
+      key: "followCalloutTextColor",
+      value: false,
+    },
+    {
       type: "slider",
       title: "lets-callout-appearance.paddingTopTitle",
       description: "lets-callout-appearance.paddingTopDescription",

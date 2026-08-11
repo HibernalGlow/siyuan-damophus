@@ -87,6 +87,7 @@ export default class CalloutAppearancePlugin extends SubPluginBase {
   private currentSettings(): Partial<Record<keyof CalloutAppearanceSettings, unknown>> {
     if (typeof this.getSetting !== "function") return {};
     return {
+      followCalloutTextColor: this.getSetting("followCalloutTextColor"),
       paddingTop: this.getSetting("paddingTop"),
       paddingX: this.getSetting("paddingX"),
       paddingBottom: this.getSetting("paddingBottom"),
