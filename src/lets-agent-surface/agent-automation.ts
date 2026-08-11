@@ -7,6 +7,9 @@ const PERMISSION_BUTTON_SELECTOR = ".agent-chat__permission";
 const PERMISSION_LABEL_SELECTOR = ".agent-chat__permission-label";
 const PERMISSION_MENU_SELECTOR = '#commonMenu[data-name="agent-chat-permission"]';
 const PERMISSION_MENU_ITEM_SELECTOR = ".b3-menu__item";
+const CONFIRM_DIALOG_SELECTOR = '.b3-dialog--open[data-key="dialog-confirm"]';
+const CONFIRM_DIALOG_TEXT_SELECTOR = ".b3-dialog__content .ft__breakword";
+const CONFIRM_DIALOG_ACCEPT_SELECTOR = "#confirmDialogConfirmBtn";
 const DRAFT_EXPIRY_MS = 15_000;
 const INVISIBLE_TEXT = /[\u200b\u200c\u200d\u2060\ufeff]/gu;
 
@@ -25,6 +28,8 @@ export type AgentAutomationOptions = {
   approvalDelayMs: () => number;
   notifyApproval?: (notice: AgentApprovalNotice) => void;
   preserveNewSessionDraft: () => boolean;
+  skipModelSwitchContextConfirmation: () => boolean;
+  modelSwitchContextWarning: () => string;
 };
 
 function composerHasContent(editor: HTMLElement): boolean {
@@ -93,10 +98,25 @@ export class AgentAutomationController {
 
   private scan(): void {
     this.restoreDrafts();
+    this.confirmModelSwitches();
     if (!this.options.isYoloEnabled()) return;
     this.syncPermissionModes();
     this.root.querySelectorAll<HTMLElement>(CONFIRM_SELECTOR).forEach((card) => {
       this.scheduleApproval(card);
+    });
+  }
+
+  private confirmModelSwitches(): void {
+    if (!this.options.skipModelSwitchContextConfirmation()) return;
+    const warning = this.options.modelSwitchContextWarning().trim();
+    if (!warning) return;
+
+    this.root.querySelectorAll<HTMLElement>(CONFIRM_DIALOG_SELECTOR).forEach((dialog) => {
+      const text = dialog.querySelector<HTMLElement>(CONFIRM_DIALOG_TEXT_SELECTOR)?.textContent?.trim();
+      if (text !== warning) return;
+      const confirm = dialog.querySelector<HTMLButtonElement>(CONFIRM_DIALOG_ACCEPT_SELECTOR);
+      if (!confirm || confirm.disabled) return;
+      confirm.click();
     });
   }
 

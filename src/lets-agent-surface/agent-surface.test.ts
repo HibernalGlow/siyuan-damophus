@@ -66,6 +66,11 @@ describe("agent surface helpers", () => {
       type: "checkbox",
       value: true,
     }));
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "skipModelSwitchContextConfirmation",
+      type: "checkbox",
+      value: true,
+    }));
   });
 
   it("recognizes the native Add to Agent menu item", () => {

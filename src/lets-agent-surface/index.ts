@@ -136,6 +136,8 @@ export default class AgentSurfacePlugin extends SubPluginBase {
         approvalDelayMs: () => this.yoloApprovalDelayMs(),
         notifyApproval: (notice) => this.notifyYoloApproval(notice),
         preserveNewSessionDraft: () => this.preserveNewSessionDraft(),
+        skipModelSwitchContextConfirmation: () => this.skipModelSwitchContextConfirmation(),
+        modelSwitchContextWarning: () => window.siyuan.languages.agentModelSwitchWarning ?? "",
       });
       this.automation.start();
     }
@@ -243,6 +245,10 @@ export default class AgentSurfacePlugin extends SubPluginBase {
 
   private preserveNewSessionDraft(): boolean {
     return this.getSetting("preserveNewSessionDraft") !== false;
+  }
+
+  private skipModelSwitchContextConfirmation(): boolean {
+    return this.getSetting("skipModelSwitchContextConfirmation") !== false;
   }
 
   private yoloApprovalDelayMs(): number {
