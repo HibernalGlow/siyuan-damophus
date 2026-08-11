@@ -1,5 +1,11 @@
 # @hibernalglow/damophus-cli
 
+## 0.2.1
+
+### Patch Changes
+
+- ac48c42: - Agent Bridge 现在默认关闭，并可通过 `damophus bridge enable|disable|status` 按需管理，减少日常使用时的后台负担。
+
 ## 0.2.0
 
 ### Minor Changes

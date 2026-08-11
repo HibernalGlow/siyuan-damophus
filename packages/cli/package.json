@@ -1,6 +1,6 @@
 {
   "name": "@hibernalglow/damophus-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Command-line bridge for Damophus and SiYuan",
   "type": "module",
   "license": "WTFPL",
