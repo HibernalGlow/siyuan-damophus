@@ -85,7 +85,9 @@ export class MobileAgentDropdownController {
       });
     }
     if (this.controlsHost.parentElement !== toolbar) {
-      const nativeClose = toolbar.querySelector('[data-type="min"]');
+      const nativeClose = toolbar.querySelector(
+        '[data-type="close"], [data-type="min"]',
+      );
       toolbar.insertBefore(this.controlsHost, nativeClose);
     }
   }
@@ -132,9 +134,19 @@ export class MobileAgentDropdownController {
 
   private readonly handleNativeCloseClick = (event: MouseEvent): void => {
     const target = event.target instanceof Element ? event.target : undefined;
-    if (target?.closest('#modelClose, .sy__agentChat .block__icon[data-type="min"]')) {
+    if (target?.closest('#modelClose')) {
       this.prepareForManualClose();
+      return;
     }
+    if (!target?.closest('.sy__agentChat .block__icon[data-type="close"], .sy__agentChat .block__icon[data-type="min"]')) return;
+
+    // SiYuan's Agent close control only exits the inner view. On mobile that
+    // reveals #model's generic toolbar (and its second close button). Treat
+    // it as the explicit close for this pinned dropdown instead.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.prepareForManualClose();
+    this.model?.querySelector<HTMLElement>("#modelClose")?.click();
   };
 
   private readonly handlePointerDown = (event: PointerEvent): void => {

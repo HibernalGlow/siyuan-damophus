@@ -22,7 +22,7 @@ function renderDropdown() {
             <div class="block__logo fn__flex-1 agent-chat__title" style="flex: 1">Agent</div>
             <span class="block__icon" data-type="new-session">New</span>
             <span class="block__icon" data-type="session-menu">Sessions</span>
-            <span class="block__icon" data-type="min">Close</span>
+            <span class="block__icon" data-type="close">Close</span>
           </div>
           <div data-content>Conversation</div>
         </div>
@@ -50,6 +50,8 @@ describe("MobileAgentDropdownController", () => {
     const pin = model.querySelector<HTMLButtonElement>('[aria-label="Unpin window"]')!;
     const agentToolbar = model.querySelector<HTMLElement>(".sy__agentChat .block__icons")!;
     expect(pin.closest(".block__icons")).toBe(agentToolbar);
+    expect(pin.compareDocumentPosition(agentToolbar.querySelector('[data-type="close"]')!)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(model.querySelector(":scope > .damophus-agent-dropdown-controls-host")).toBeNull();
     expect(agentToolbar.getBoundingClientRect().height).toBe(42);
     expect(pin.getAttribute("aria-pressed")).toBe("true");
@@ -148,7 +150,7 @@ describe("MobileAgentDropdownController", () => {
 
   it("uses the existing native close controls and reapplies the remembered pin on reopen", () => {
     const { model, nativeClose, controller } = renderDropdown();
-    model.querySelector<HTMLElement>('.block__icon[data-type="min"]')!.click();
+    model.querySelector<HTMLElement>('.block__icon[data-type="close"]')!.click();
     expect(model.classList.contains("damophus-agent-dropdown-pinned")).toBe(false);
 
     controller.attach(model);

@@ -91,8 +91,10 @@
   overflow: hidden;
 }
 
-#model.damophus-agent-dropdown-mobile .toolbar {
-  flex: 0 0 48px;
+#model.damophus-agent-dropdown-mobile > .toolbar {
+  /* The native mobile model toolbar is a second shell around Agent. The
+   * Agent toolbar below it owns the only visible close action. */
+  display: none !important;
 }
 
 .damophus-agent-tab-host {
