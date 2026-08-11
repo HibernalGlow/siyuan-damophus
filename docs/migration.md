@@ -13,13 +13,11 @@ pnpm migrate:tinybase -- --input D:/path/inventory.json --workspace D:/1STUDY/SI
 
 The importer writes device-sharded files under `data/storage/petal/siyuan-damophus/store/` and a `migration-report.json`. Re-running the same inventory is safe: identical immutable event IDs are counted as duplicates, conflicting payloads remain blockers, and `migration_version` is set to `1` only when the report has no conflicts. The verified workspace migration on 2026-08-08 imported 7 documents, 67 questions, 111 question-topic links, 43 topic anchors, and 5 attempts with no conflicts; the idempotent rerun created 0 attempts and detected 5 duplicates.
 
-## From siyuan-hqweay-go
+## From Older Damophus Releases
 
-Damophus uses the plugin ID `siyuan-damophus`, so SiYuan installs it as a separate plugin. Existing `siyuan-hqweay-go` settings are not migrated automatically.
+Damophus stores its settings in `data/storage/petal/siyuan-damophus/damophus-settings.json`. Before upgrading a development workspace that predates this storage contract, preserve the existing settings as that file before enabling the new build.
 
-Damophus does not carry over the upstream Dashboard, link/reference conversion, typography, quick attribute actions, list view conversions, Memo, EPUB, OCR, VoiceNotes, journal, random question image, synchronization, or other general-purpose tools. Keep `siyuan-hqweay-go` installed when you need those features.
-
-The only retained upstream-derived utility is block attribute display, narrowed to question-bank identity markers. By default it shows `qb-id` and `qb-type` on supported blocks, excludes tables, and always suppresses `custom-qb-answer`.
+Block attribute display is limited to question-bank identity markers. By default it shows `qb-id` and `qb-type` on supported blocks, excludes tables, and always suppresses `custom-qb-answer`.
 
 ## Initialize The Question Bank
 

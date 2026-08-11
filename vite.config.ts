@@ -104,9 +104,7 @@ ${zhSpreads}
 
 const args = minimist(process.argv.slice(2));
 const isWatch = args.watch || args.w || false;
-// const devDistDir = "./dev"
-const devDistDir = "/Users/hqweay/SiYuan/data/plugins/siyuan-damophus";
-const distDir = isWatch ? devDistDir : "./dist";
+const distDir = isWatch ? "./dev" : "./dist";
 
 const watchExternalPlugin: Plugin = {
   name: "watch-external",

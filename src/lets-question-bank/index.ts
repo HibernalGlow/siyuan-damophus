@@ -25,7 +25,15 @@ import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { loadSourceBlockIdentity } from "./source-identity";
 import { questionSourceOpenTarget } from "./source-navigation";
 import { normalizeDurationComparisonPosition } from "./duration-comparison-position";
-import { installSourceAnswerMask } from "./source-answer-mask";
+import {
+  ANSWER_MASK_STYLES,
+  DEFAULT_ANSWER_MASK_STYLE,
+  installSourceAnswerMask,
+} from "./source-answer-mask";
+import {
+  normalizeBreadcrumbPriority,
+  normalizeBreadcrumbTextDisplay,
+} from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
 import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
 import { PersistentMobileDockPortal } from "./mobile-dock-portal";
 import {
@@ -137,8 +145,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.stopSourceAnswerMask?.();
     this.stopSourceAnswerMask = undefined;
     if (settings.getBySpace("questionBank", "maskSourceAnswers") === true) {
+      const storedStyle = settings.getBySpace("questionBank", "answerMaskStyle");
+      const answerMaskStyle = ANSWER_MASK_STYLES.find((style) => style === storedStyle)
+        ?? DEFAULT_ANSWER_MASK_STYLE;
       this.stopSourceAnswerMask = installSourceAnswerMask(
-        settings.getBySpace("questionBank", "answerMaskStyle") ?? "blur",
+        answerMaskStyle,
       );
     }
     if (!this.registered) {
@@ -510,12 +521,14 @@ export default class QuestionBankPlugin extends SubPluginBase {
         timingEnabled: this.getSetting("timingEnabled") !== false,
         pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
         mobileBreadcrumb: isMobile,
-        breadcrumbPriority: settings.getBySpace("mobileBreadcrumb", "overflowPriority") ?? "tail",
-        breadcrumbTextDisplay: {
-          mode: settings.getBySpace("mobileBreadcrumb", "textDisplayMode") ?? "full",
-          maxCharacters: Number(settings.getBySpace("mobileBreadcrumb", "maxCharacters")) || 16,
-          maxWidth: Number(settings.getBySpace("mobileBreadcrumb", "maxTextWidth")) || 160,
-        },
+        breadcrumbPriority: normalizeBreadcrumbPriority(
+          settings.getBySpace("mobileBreadcrumb", "overflowPriority"),
+        ),
+        breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay(
+          settings.getBySpace("mobileBreadcrumb", "textDisplayMode"),
+          settings.getBySpace("mobileBreadcrumb", "maxCharacters"),
+          settings.getBySpace("mobileBreadcrumb", "maxTextWidth"),
+        ),
         loadBreadcrumb: (blockId: string) => getBlockBreadcrumb(blockId),
         onClose,
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (

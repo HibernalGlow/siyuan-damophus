@@ -5,7 +5,7 @@ import { getHostColorMode, markerThemeVariables, observeHostColorMode } from "@/
 import { parseStoredThemes } from "@/theme/schema";
 import { DEFAULT_THEME_ID, findTheme } from "@/theme/themes";
 
-import ShowCustomPropertiesUnderTitle from "./ShowCustomPropertiesUnderTitle";
+import AttributeMarkerDisplay from "./attribute-marker-display";
 import {
   DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
   DEFAULT_CUSTOM_PROPERTY_STYLE,
@@ -16,7 +16,7 @@ import pluginMetadata from "./plugin";
 const log = getLogger("lets-block-attr");
 
 export default class BlockAttr extends SubPluginBase {
-  private readonly display = new ShowCustomPropertiesUnderTitle();
+  private readonly display = new AttributeMarkerDisplay();
   private stopColorModeObserver?: () => void;
 
   override onload(): void {
@@ -34,12 +34,20 @@ export default class BlockAttr extends SubPluginBase {
       });
     }
 
-    const customPropertyBlockTypes = settings.getBySpace(pluginMetadata.name, "customPropertyBlockTypes")
-      ?? DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES;
-    const customStyle = settings.getBySpace(pluginMetadata.name, "customStyle")
-      ?? DEFAULT_CUSTOM_PROPERTY_STYLE;
+    const storedBlockTypes = settings.getBySpace(pluginMetadata.name, "customPropertyBlockTypes");
+    const customPropertyBlockTypes = typeof storedBlockTypes === "string"
+      ? storedBlockTypes
+      : DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES;
+    const storedCustomStyle = settings.getBySpace(pluginMetadata.name, "customStyle");
+    const customStyle = typeof storedCustomStyle === "string"
+      ? storedCustomStyle
+      : DEFAULT_CUSTOM_PROPERTY_STYLE;
     const customThemes = parseStoredThemes(settings.get("customThemes"));
-    const theme = findTheme(settings.get("uiThemeId") ?? DEFAULT_THEME_ID, customThemes);
+    const storedThemeId = settings.get("uiThemeId");
+    const theme = findTheme(
+      typeof storedThemeId === "string" ? storedThemeId : DEFAULT_THEME_ID,
+      customThemes,
+    );
     const apply = (mode = getHostColorMode()) => this.display.onload(
       customProperties.value,
       customPropertyBlockTypes,

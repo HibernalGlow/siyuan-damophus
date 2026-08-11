@@ -10,9 +10,8 @@
   "repository": "https://github.com/HibernalGlow/siyuan-damophus",
   "homepage": "https://github.com/HibernalGlow/siyuan-damophus",
   "author": "HibernalGlow",
-  "license": "WTFPL",
+  "license": "MIT",
   "scripts": {
-    "make-link": "node  --no-warnings ./scripts/make_dev_link.js",
     "dev": "vite --config vite.dev.config.ts",
     "dev:plugin": "vite build --watch",
     "build": "vite build",

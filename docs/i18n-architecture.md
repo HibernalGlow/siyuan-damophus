@@ -132,7 +132,7 @@ import { plugin } from "@/utils";
 $: tTitle = plugin.i18n["lets-xxx.someKey"] || title;
 ```
 
-The global `plugin` is a Proxy wrapping the `PluginLetsGo` instance (set via `setPlugin()` in `src/utils.ts`). `plugin.i18n` returns the original PluginLetsGo's `i18n` object directly.
+The global `plugin` is a Proxy wrapping the `DamophusPlugin` instance (set via `setPlugin()` in `src/utils.ts`). `plugin.i18n` returns the main plugin's `i18n` object directly.
 
 ---
 

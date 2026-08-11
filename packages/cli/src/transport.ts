@@ -3,9 +3,12 @@ import { access, mkdir, open, readFile, rename, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   AGENT_PROTOCOL_VERSION,
+  DAMOPHUS_PLUGIN_ID,
+  DAMOPHUS_SETTINGS_STORAGE_NAME,
   agentResultSchema,
   agentEventSchema,
   heartbeatSchema,
+  damophusPluginStoragePath,
   type AgentRequest,
   type AgentResult,
   type AgentEvent,
@@ -16,11 +19,10 @@ const BRIDGE_RELATIVE_PATH = join(
   "data",
   "storage",
   "petal",
-  "siyuan-damophus",
+  DAMOPHUS_PLUGIN_ID,
   "agent-bridge",
 );
-const DAMOPHUS_CONFIG_PATH = "/data/storage/petal/siyuan-damophus/hqweay-go-config";
-const DAMOPHUS_PACKAGE_NAME = "siyuan-damophus";
+const DAMOPHUS_CONFIG_PATH = damophusPluginStoragePath(DAMOPHUS_SETTINGS_STORAGE_NAME);
 const HEARTBEAT_MAX_AGE_MS = 30_000;
 
 export class BridgeTransportError extends Error {
@@ -89,7 +91,7 @@ async function writeKernelFile(endpoint: string, path: string, content: string):
   form.append("path", path);
   form.append("isDir", "false");
   form.append("modTime", Math.floor(Date.now() / 1_000).toString());
-  form.append("file", new Blob([content], { type: "application/json" }), "hqweay-go-config");
+  form.append("file", new Blob([content], { type: "application/json" }), DAMOPHUS_SETTINGS_STORAGE_NAME);
   let response: Response;
   try {
     response = await fetch(`${endpoint}/api/file/putFile`, {
@@ -118,7 +120,7 @@ async function setPetalEnabled(endpoint: string, enabled: boolean): Promise<void
     response = await fetch(`${endpoint}/api/petal/setPetalEnabled`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ packageName: DAMOPHUS_PACKAGE_NAME, enabled }),
+      body: JSON.stringify({ packageName: DAMOPHUS_PLUGIN_ID, enabled }),
       signal: AbortSignal.timeout(3_000),
     });
   } catch (error) {

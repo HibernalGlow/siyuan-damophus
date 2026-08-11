@@ -15,7 +15,7 @@ import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
 
-export default class PluginLetsGo extends Plugin {
+export default class DamophusPlugin extends Plugin {
   private readonly pluginRegistry = PluginRegistry.getInstance();
   private topBarElement?: HTMLElement;
 
@@ -31,10 +31,9 @@ export default class PluginLetsGo extends Plugin {
     // can restore persisted tabs during startup.
     this.pluginRegistry.scanPlugins();
     this.pluginRegistry.registerModels();
-    await settings.load();
+    await settings.initData();
     const debugLogging = settings.get("debugLogging") === true;
     enableLogging(debugLogging);
-    await settings.initData();
     this.pluginRegistry.refreshEnabledStates();
     await this.pluginRegistry.initializeEnabledPlugins();
     log.info("plugin.loaded", {

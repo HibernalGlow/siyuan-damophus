@@ -1,22 +1,18 @@
-import InsertCSS from "@/myscripts/insertCSS";
-import { settings } from "@/settings";
-import pluginMetadata from "./plugin";
+import type { ThemeVariables } from "@/theme/schema";
 import {
   BLOCK_ATTRIBUTE_MARKER_CLASS,
   buildCustomPropertiesCss,
   customPropertyTargetSelector,
-  DEFAULT_CUSTOM_PROPERTIES,
-  DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
-  DEFAULT_CUSTOM_PROPERTY_STYLE,
   parseCustomProperties,
   syncCustomPropertyMarkers,
 } from "./custom-properties";
-import type { ThemeVariables } from "@/theme/schema";
 
-export default class ShowCustomPropertiesUnderTitle extends InsertCSS {
-  id = "snippetCSS-hqweay-show-custom-properties-under-title";
+export const ATTRIBUTE_MARKER_STYLE_ID = "damophus-block-attribute-display-style";
+
+export default class AttributeMarkerDisplay {
   private observer?: MutationObserver;
   private refreshFrame?: number;
+  private styleElement?: HTMLStyleElement;
 
   private removeMarkers(): void {
     document.querySelectorAll(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`).forEach((marker) => marker.remove());
@@ -31,14 +27,11 @@ export default class ShowCustomPropertiesUnderTitle extends InsertCSS {
   }
 
   onload(
-    customProperties = settings.getBySpace(pluginMetadata.name, "customProperties")
-      ?? DEFAULT_CUSTOM_PROPERTIES,
-    customPropertyBlockTypes = settings.getBySpace(pluginMetadata.name, "customPropertyBlockTypes")
-      ?? DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
-    customStyle = settings.getBySpace(pluginMetadata.name, "customStyle")
-      ?? DEFAULT_CUSTOM_PROPERTY_STYLE,
+    customProperties: string,
+    customPropertyBlockTypes: string,
+    customStyle: string,
     themeVariables: ThemeVariables = {},
-  ) {
+  ): void {
     this.onunload();
     const css = buildCustomPropertiesCss(
       customProperties,
@@ -52,10 +45,10 @@ export default class ShowCustomPropertiesUnderTitle extends InsertCSS {
     const selector = customPropertyTargetSelector(customPropertyBlockTypes);
     const refresh = () => syncCustomPropertyMarkers(document, selector, properties);
 
-    const styleElement = document.createElement("style");
-    styleElement.id = this.id;
-    styleElement.textContent = css;
-    document.head.appendChild(styleElement);
+    this.styleElement = document.createElement("style");
+    this.styleElement.id = ATTRIBUTE_MARKER_STYLE_ID;
+    this.styleElement.textContent = css;
+    document.head.appendChild(this.styleElement);
     refresh();
     this.observer = new MutationObserver(() => this.scheduleRefresh(refresh));
     this.observer.observe(document.body, {
@@ -66,12 +59,13 @@ export default class ShowCustomPropertiesUnderTitle extends InsertCSS {
     });
   }
 
-  override onunload(): void {
+  onunload(): void {
     this.observer?.disconnect();
     this.observer = undefined;
     if (this.refreshFrame !== undefined) cancelAnimationFrame(this.refreshFrame);
     this.refreshFrame = undefined;
     this.removeMarkers();
-    super.onunload();
+    this.styleElement?.remove();
+    this.styleElement = undefined;
   }
 }

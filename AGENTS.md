@@ -1,6 +1,6 @@
 # Architecture
 
-PluginLetsGo scans `src/lets-*/plugin.ts` -> PluginRegistry auto-instantiates SubPluginBase sub-plugins.
+DamophusPlugin scans `src/lets-*/plugin.ts` -> PluginRegistry auto-instantiates SubPluginBase sub-plugins.
 
 # Sub-Plugin Rules
 

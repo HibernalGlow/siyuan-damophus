@@ -6,7 +6,7 @@ Damophus 是一个自用的思源增强插件，集中实现现有工具没有�
 
 [![GitHub repository](https://img.shields.io/badge/GitHub-HibernalGlow%2Fsiyuan--damophus-14211f?logo=github&logoColor=white)](https://github.com/HibernalGlow/siyuan-damophus)
 [![Last commit](https://img.shields.io/github/last-commit/HibernalGlow/siyuan-damophus?label=Last%20commit&color=7aa69a)](https://github.com/HibernalGlow/siyuan-damophus/commits/main)
-[![WTFPL license](https://img.shields.io/badge/License-WTFPL-d7ad5c)](./LICENSE)
+[![MIT license](https://img.shields.io/badge/License-MIT-d7ad5c)](./LICENSE)
 ![SiYuan 3.7.0 or newer](https://img.shields.io/badge/SiYuan-%E2%89%A53.7.0-e0644d)
 ![Self-use project](https://img.shields.io/badge/Status-Self--use-7aa69a)
 
@@ -288,7 +288,6 @@ pnpm test:package
 
 Damophus 延续并参考了以下项目的工作：
 
-- [恐龙工具箱 / siyuan-hqweay-go](https://github.com/hqweay/siyuan-hqweay-go)：本仓库的上游历史来源，提供了插件框架、注册方式和块属性显示等基础实现。
 - [Neo](https://github.com/QYLexpired/Neo)：思源主题与移动端视觉参考，Damophus 的顶部折射几何针对 Neo 的移动布局进行了适配。
 - [Neo-Plus](https://github.com/QYLexpired/Neo-Plus)：Neo 配套插件，为移动端毛玻璃与一体式顶部表面的设计提供参考。
 
@@ -307,4 +306,4 @@ pnpm build        # 生成插件与 package.zip
 
 ## License
 
-[WTFPL](LICENSE)
+[MIT](LICENSE)

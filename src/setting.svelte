@@ -102,9 +102,8 @@
   let focusGroup = SWITCH_GROUP;
   let mode = getHostColorMode();
   let customThemes = parseStoredThemes(settings.get("customThemes"));
-  let savedThemeId = typeof settings.get("uiThemeId") === "string"
-    ? settings.get("uiThemeId")
-    : DEFAULT_THEME_ID;
+  const storedThemeId = settings.get("uiThemeId");
+  let savedThemeId = typeof storedThemeId === "string" ? storedThemeId : DEFAULT_THEME_ID;
   let selectedThemeId = savedThemeId;
   let settingRoot: HTMLDivElement;
   let compactLayout = isMobile;
@@ -287,7 +286,10 @@
       await settings.resetData();
       settingItems = initData();
       customThemes = parseStoredThemes(settings.get("customThemes"));
-      selectedThemeId = savedThemeId = settings.get("uiThemeId") ?? DEFAULT_THEME_ID;
+      const resetThemeId = settings.get("uiThemeId");
+      selectedThemeId = savedThemeId = typeof resetThemeId === "string"
+        ? resetThemeId
+        : DEFAULT_THEME_ID;
       showMessage(t("settings.resetSuccess", "Configuration reset"));
     } else if (detail.group === GENERAL_GROUP && detail.key === "mergeData") {
       await settings.mergeData();

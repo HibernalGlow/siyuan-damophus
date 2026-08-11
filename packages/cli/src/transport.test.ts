@@ -2,7 +2,11 @@ import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AGENT_PROTOCOL_VERSION } from "@hibernalglow/damophus-agent-contract";
+import {
+  AGENT_PROTOCOL_VERSION,
+  DAMOPHUS_SETTINGS_STORAGE_NAME,
+  damophusPluginStoragePath,
+} from "@hibernalglow/damophus-agent-contract";
 import {
   discoverBridge,
   readBridgeEnabled,
@@ -83,6 +87,9 @@ describe("bridge transport", () => {
       "http://127.0.0.1:6806/api/petal/setPetalEnabled",
       "http://127.0.0.1:6806/api/petal/setPetalEnabled",
     ]);
+    expect(JSON.parse(String(calls[0].body))).toEqual({
+      path: damophusPluginStoragePath(DAMOPHUS_SETTINGS_STORAGE_NAME),
+    });
     const form = calls[1].body as FormData;
     const file = form.get("file") as Blob;
     expect(JSON.parse(await file.text())).toEqual({

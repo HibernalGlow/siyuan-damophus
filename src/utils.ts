@@ -1,6 +1,6 @@
 import { Client } from "@siyuan-community/siyuan-sdk";
 import { getFrontend } from "siyuan";
-import type PluginGo from ".";
+import type DamophusPlugin from ".";
 import { getLogger } from "@/libs/logger";
 const log = getLogger("utils");
 
@@ -14,7 +14,7 @@ export function sleep(time: number) {
 }
 
 //插件全局对象
-export let plugin: PluginGo;
+export let plugin: DamophusPlugin;
 export function setPlugin(_plugin: any) {
   plugin = _plugin;
 }
@@ -37,26 +37,6 @@ export const isMobile = frontEnd === "mobile" || frontEnd === "browser-mobile";
 
 /* 初始化客户端 (默认使用 Axios 发起 XHR 请求) */
 export const client = new Client();
-
-export const deepMerge = (target, source) => {
-  for (let key in source) {
-    if (source.hasOwnProperty(key)) {
-      if (
-        typeof source[key] === "object" &&
-        source[key] !== null &&
-        !Array.isArray(source[key])
-      ) {
-        if (!target[key]) {
-          target[key] = {};
-        }
-        deepMerge(target[key], source[key]);
-      } else {
-        target[key] = source[key];
-      }
-    }
-  }
-};
-
 
 export function request(url, method = "GET") {
   return new Promise((resolve, reject) => {

@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+export const DAMOPHUS_PLUGIN_ID = "siyuan-damophus";
+export const DAMOPHUS_SETTINGS_STORAGE_NAME = "damophus-settings.json";
+
+export function damophusPluginStoragePath(storageName: string): string {
+  const normalized = storageName.replace(/\\/gu, "/");
+  const segments = normalized.split("/");
+  if (
+    normalized.startsWith("/")
+    || segments.some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new TypeError(`Invalid Damophus storage name: ${storageName}`);
+  }
+  return `/data/storage/petal/${DAMOPHUS_PLUGIN_ID}/${normalized}`;
+}
+
 export const AGENT_PROTOCOL_VERSION = 1 as const;
 
 export const agentErrorCodeSchema = z.enum([

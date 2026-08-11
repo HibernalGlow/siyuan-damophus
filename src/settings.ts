@@ -1,126 +1,106 @@
-import { deepMerge, plugin } from "./utils";
-import { PluginRegistry } from "./plugin-registry";
+import { DAMOPHUS_SETTINGS_STORAGE_NAME } from "@hibernalglow/damophus-agent-contract";
 import { getLogger } from "@/libs/logger";
+import { PluginRegistry } from "./plugin-registry";
+import {
+  isSettingsDocument,
+  mergeSettingsDocuments,
+  parseSettingsDocument,
+  type SettingsDocument,
+} from "./settings-document";
 import { migrateLegacyModuleSettings } from "./settings-migrations";
+import { plugin } from "./utils";
+
 const log = getLogger("settings");
-// import { template } from "@siyuan-community/siyuan-sdk/dist/types/kernel/api";
 
-//配置文件名称
-export const CONFIG = "hqweay-go-config";
-
-// 动态生成默认配置
-function generateDefaultConfig(pluginRegistry: PluginRegistry) {
-  const config: any = {};
-
-  // 从插件注册表获取所有插件配置
-  const pluginConfigs = pluginRegistry.getPluginConfigs();
-
-  log.info("pluginConfigs", pluginConfigs);
-
-  // 为每个插件添加默认配置
-  for (const pluginMeta of pluginConfigs) {
-    const configKey = pluginMeta.name;
-    config[configKey] = { enabled: pluginMeta.enabled ?? false };
-    pluginMeta.settings?.forEach((setting) => {
-      config[configKey][setting.key] = setting.value;
-    });
+function generateDefaultConfig(pluginRegistry: PluginRegistry): SettingsDocument {
+  const config: SettingsDocument = {};
+  for (const pluginMeta of pluginRegistry.getPluginConfigs()) {
+    const moduleConfig: SettingsDocument = { enabled: pluginMeta.enabled ?? false };
+    for (const setting of pluginMeta.settings ?? []) moduleConfig[setting.key] = setting.value;
+    config[pluginMeta.name] = moduleConfig;
   }
-  log.info("config", config);
   return config;
 }
 
-let mergedFlag = true;
-/**
- * 配置类
- */
 class Settings {
-  private pluginRegistry = PluginRegistry.getInstance();
+  private readonly pluginRegistry = PluginRegistry.getInstance();
 
-  // 获取动态生成的默认配置
-  private getDefaultConfig() {
+  private getDefaultConfig(): SettingsDocument {
     return generateDefaultConfig(this.pluginRegistry);
   }
 
-  //初始化配置文件
-  async initData(config = CONFIG) {
-    //配置不存在则按照默认值建立配置文件
-    if (
-      plugin.data[config] === "" ||
-      plugin.data[config] === undefined ||
-      plugin.data[config] === null
-    ) {
-      await plugin.saveData(config, JSON.stringify(this.getDefaultConfig()));
+  private document(storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): SettingsDocument {
+    const value = plugin.data[storageName];
+    if (!isSettingsDocument(value)) {
+      const document: SettingsDocument = {};
+      plugin.data[storageName] = document;
+      return document;
     }
+    return value;
+  }
 
-    //插件加载时 merge
-    if (!mergedFlag) {
-      //log.info("mergeData", plugin.data[CONFIG]);
-      await this.mergeData();
-      mergedFlag = true;
-    } else {
-      // //log.info("loadData", plugin.data[CONFIG]);
-      await this.load();
+  async initData(storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): Promise<void> {
+    const stored = await this.load(storageName);
+    const merged = mergeSettingsDocuments(this.getDefaultConfig(), stored ?? {});
+    const migrated = migrateLegacyModuleSettings(merged, this.pluginRegistry.getPluginConfigs());
+    plugin.data[storageName] = merged;
+
+    if (!stored || migrated || JSON.stringify(stored) !== JSON.stringify(merged)) {
+      await this.save(storageName);
     }
-
-    const data = plugin.data[config];
-    if (data && migrateLegacyModuleSettings(data, this.pluginRegistry.getPluginConfigs())) {
-      await plugin.saveData(config, data);
-      await this.load(config);
-    }
+    log.debug("settings.loaded", { storageName, initialized: !stored, migrated });
   }
 
-  async resetData() {
-    // await plugin.removeData(CONFIG);
-    // await PluginRegistry.getInstance().reScanPlugins();
-    await plugin.saveData(CONFIG, JSON.stringify(this.getDefaultConfig()));
-    await this.load();
+  async resetData(): Promise<void> {
+    plugin.data[DAMOPHUS_SETTINGS_STORAGE_NAME] = this.getDefaultConfig();
+    await this.save();
   }
 
-  async mergeData() {
-    const DEFAULT_CONFIG = this.getDefaultConfig();
-    deepMerge(DEFAULT_CONFIG, plugin.data[CONFIG]);
-    await plugin.saveData(CONFIG, JSON.stringify(DEFAULT_CONFIG));
-    await this.load();
+  async mergeData(): Promise<void> {
+    plugin.data[DAMOPHUS_SETTINGS_STORAGE_NAME] = mergeSettingsDocuments(
+      this.getDefaultConfig(),
+      this.document(),
+    );
+    await this.save();
   }
 
-  // setFlag(key: any, value: any, config = CONFIG) {
-  //   this.setBySpace(key, "enabled", value, config);
-  // }
-
-  // getFlag(key: any, config = CONFIG) {
-  //   return this.getBySpace(key, "enabled", config);
-  // }
-
-  setBySpace(space: any, key: any, value: any, config = CONFIG) {
-    if (!plugin.data[config][space]) {
-      plugin.data[config][space] = {};
-    }
-    plugin.data[config][space][key] = value;
-  }
-  getBySpace(space: any, key: any, config = CONFIG) {
-    return plugin.data[config] && plugin.data[config][space]?.[key];
+  setBySpace(space: string, key: string, value: unknown, storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): void {
+    const document = this.document(storageName);
+    const current = document[space];
+    const moduleConfig = isSettingsDocument(current) ? current : {};
+    moduleConfig[key] = value;
+    document[space] = moduleConfig;
   }
 
-  set(key: any, value: any, config = CONFIG) {
-    plugin.data[config][key] = value;
+  getBySpace<T = unknown>(space: string, key: string, storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): T | undefined {
+    const moduleConfig = this.document(storageName)[space];
+    return (isSettingsDocument(moduleConfig) ? moduleConfig[key] : undefined) as T | undefined;
   }
 
-  get(key: any, config = CONFIG) {
-    return plugin.data[config]?.[key];
+  set(key: string, value: unknown, storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): void {
+    this.document(storageName)[key] = value;
   }
 
-  async load(config = CONFIG) {
-    await plugin.loadData(config);
+  get<T = unknown>(key: string, storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): T | undefined {
+    return this.document(storageName)[key] as T | undefined;
   }
 
-  async save(config = CONFIG) {
-    await plugin.saveData(config, plugin.data[config]);
-    await this.load();
+  async load(storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): Promise<SettingsDocument | undefined> {
+    const document = parseSettingsDocument(await plugin.loadData(storageName));
+    if (document) plugin.data[storageName] = document;
+    return document;
   }
 
-  async remove(config = CONFIG) {
-    await plugin.removeData(config);
+  async save(storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): Promise<void> {
+    const document = this.document(storageName);
+    await plugin.saveData(storageName, document);
+    plugin.data[storageName] = document;
+  }
+
+  async remove(storageName = DAMOPHUS_SETTINGS_STORAGE_NAME): Promise<void> {
+    await plugin.removeData(storageName);
+    delete plugin.data[storageName];
   }
 }
 
-export const settings: Settings = new Settings();
+export const settings = new Settings();

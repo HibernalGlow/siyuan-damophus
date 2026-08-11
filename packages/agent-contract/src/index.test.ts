@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_PROTOCOL_VERSION,
+  DAMOPHUS_PLUGIN_ID,
+  DAMOPHUS_SETTINGS_STORAGE_NAME,
   agentApprovalSchema,
+  damophusPluginStoragePath,
   exportRequestSchema,
   exportResultSchema,
   heartbeatSchema,
@@ -10,6 +13,15 @@ import {
 } from "./index";
 
 describe("agent contract", () => {
+  it("owns the Damophus plugin storage identity", () => {
+    expect(DAMOPHUS_PLUGIN_ID).toBe("siyuan-damophus");
+    expect(DAMOPHUS_SETTINGS_STORAGE_NAME).toBe("damophus-settings.json");
+    expect(damophusPluginStoragePath(DAMOPHUS_SETTINGS_STORAGE_NAME)).toBe(
+      "/data/storage/petal/siyuan-damophus/damophus-settings.json",
+    );
+    expect(() => damophusPluginStoragePath("../foreign.json")).toThrow("Invalid Damophus storage name");
+  });
+
   it("accepts a create paste request", () => {
     expect(pasteRequestSchema.parse({
       protocolVersion: AGENT_PROTOCOL_VERSION,
