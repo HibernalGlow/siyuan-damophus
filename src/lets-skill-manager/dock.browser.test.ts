@@ -88,6 +88,13 @@ describe("skill manager dock", () => {
     const cleanup = renderSkillManagerDock(target, labels, config, api, undefined, markdownRenderer);
 
     await expect.poll(() => target.querySelectorAll('[role="option"]').length).toBe(1);
+    const manager = target.querySelector<HTMLElement>(".damophus-skill-manager");
+    const saveButton = target.querySelector<HTMLElement>('[aria-label="Save"]');
+    expect(manager?.classList.contains("damophus-theme-root")).toBe(true);
+    expect(document.documentElement.dataset.damophusBrowserTheme).toBe("elegant-luxury");
+    expect(getComputedStyle(manager!).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(getComputedStyle(saveButton!).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(getComputedStyle(saveButton!).borderRadius).not.toBe("0px");
     await expect.poll(() => target.querySelector(".damophus-skill-manager__preview")?.textContent).toContain("Original");
     expect(markdownRenderer).toHaveBeenCalledWith("Original");
     const actionIcon = target.querySelector<SVGElement>('.damophus-skill-manager__actions svg.lucide');
