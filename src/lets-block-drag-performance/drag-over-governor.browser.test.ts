@@ -123,6 +123,22 @@ describe("native block drag-over governor", () => {
     governor.destroy();
   });
 
+  it("preserves fast position changes inside one list-item drop target", () => {
+    const { editor, firstBlock, firstContent } = renderEditor();
+    firstBlock.dataset.type = "NodeListItem";
+    const coreDragOver = vi.fn();
+    editor.addEventListener("dragover", coreDragOver);
+    const governor = new NativeBlockDragOverGovernor(document, () => 100);
+    governor.start();
+
+    dispatchDragOver(firstContent, ORDINARY_BLOCK_DRAG, { clientX: 300, clientY: 300 });
+    dispatchDragOver(firstContent, ORDINARY_BLOCK_DRAG, { clientX: 301, clientY: 300 });
+    dispatchDragOver(firstContent, ORDINARY_BLOCK_DRAG, { clientX: 301, clientY: 301 });
+
+    expect(coreDragOver).toHaveBeenCalledTimes(3);
+    governor.destroy();
+  });
+
   it("lets periodic same-target updates reach SiYuan", () => {
     const { editor, firstContent } = renderEditor();
     const coreDragOver = vi.fn();

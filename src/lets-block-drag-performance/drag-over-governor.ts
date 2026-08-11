@@ -40,6 +40,8 @@ export class NativeBlockDragOverGovernor {
   private lastAllowedAt = Number.NEGATIVE_INFINITY;
   private lastTarget?: Element;
   private lastModifiers = "";
+  private lastClientX?: number;
+  private lastClientY?: number;
   private activeEditor?: HTMLElement;
   private scrollRect?: DOMRect;
 
@@ -64,6 +66,8 @@ export class NativeBlockDragOverGovernor {
     const shouldAllow = !this.lastTarget
       || target !== this.lastTarget
       || modifiers !== this.lastModifiers
+      || event.clientX !== this.lastClientX
+      || event.clientY !== this.lastClientY
       || this.isNearAutoScrollEdge(event)
       || elapsed < 0
       || elapsed >= this.minimumIntervalMs;
@@ -72,6 +76,8 @@ export class NativeBlockDragOverGovernor {
       this.lastAllowedAt = now;
       this.lastTarget = target;
       this.lastModifiers = modifiers;
+      this.lastClientX = event.clientX;
+      this.lastClientY = event.clientY;
       return;
     }
 
@@ -131,6 +137,8 @@ export class NativeBlockDragOverGovernor {
     this.lastAllowedAt = Number.NEGATIVE_INFINITY;
     this.lastTarget = undefined;
     this.lastModifiers = "";
+    this.lastClientX = undefined;
+    this.lastClientY = undefined;
     this.activeEditor = undefined;
     this.scrollRect = undefined;
   }
