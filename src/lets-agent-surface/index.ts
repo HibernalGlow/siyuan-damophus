@@ -137,7 +137,15 @@ export default class AgentSurfacePlugin extends SubPluginBase {
         notifyApproval: (notice) => this.notifyYoloApproval(notice),
         preserveNewSessionDraft: () => this.preserveNewSessionDraft(),
         skipModelSwitchContextConfirmation: () => this.skipModelSwitchContextConfirmation(),
-        modelSwitchContextWarning: () => window.siyuan.languages.agentModelSwitchWarning ?? "",
+        modelSwitchContextWarning: () => {
+          const siyuan = (window as unknown as {
+            siyuan?: { languages?: { agentModelSwitchWarning?: unknown } };
+          }).siyuan;
+          const languages = siyuan?.languages;
+          return typeof languages?.agentModelSwitchWarning === "string"
+            ? languages.agentModelSwitchWarning
+            : "";
+        },
       });
       this.automation.start();
     }

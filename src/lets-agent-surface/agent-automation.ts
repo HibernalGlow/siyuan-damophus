@@ -11,6 +11,7 @@ const CONFIRM_DIALOG_SELECTOR = '.b3-dialog--open[data-key="dialog-confirm"]';
 const CONFIRM_DIALOG_TEXT_SELECTOR = ".b3-dialog__content .ft__breakword";
 const CONFIRM_DIALOG_ACCEPT_SELECTOR = "#confirmDialogConfirmBtn";
 const DRAFT_EXPIRY_MS = 15_000;
+const MUTATION_SCAN_DELAY_MS = 16;
 const INVISIBLE_TEXT = /[\u200b\u200c\u200d\u2060\ufeff]/gu;
 
 type PendingDraft = {
@@ -44,12 +45,29 @@ function approvalDescription(card: HTMLElement): string {
   return card.querySelector<HTMLElement>(".agent-chat__confirm-header")?.textContent?.trim() ?? "";
 }
 
+function elementForNode(node: Node): Element | undefined {
+  return node instanceof Element ? node : node.parentElement ?? undefined;
+}
+
+function matchingElements<T extends Element>(roots: Iterable<Element>, selector: string): Set<T> {
+  const matches = new Set<T>();
+  for (const root of roots) {
+    const closest = root.closest<T>(selector);
+    if (closest) matches.add(closest);
+    root.querySelectorAll<T>(selector).forEach((element) => matches.add(element));
+  }
+  return matches;
+}
+
 export class AgentAutomationController {
   private observer?: MutationObserver;
+  private mutationScanTimer?: number;
+  private readonly pendingMutationRoots = new Set<Element>();
   private readonly approvalTimers = new Map<HTMLElement, number>();
   private readonly permissionTimers = new Map<HTMLButtonElement, number>();
   private readonly permissionLabels = new WeakMap<HTMLButtonElement, string>();
   private readonly pendingDrafts = new Map<HTMLElement, PendingDraft>();
+  private readonly confirmedModelSwitchDialogs = new WeakSet<HTMLElement>();
 
   constructor(
     private readonly root: HTMLElement,
@@ -59,15 +77,18 @@ export class AgentAutomationController {
   start(): void {
     if (this.observer) return;
     this.root.addEventListener("click", this.handleClick, true);
-    this.observer = new MutationObserver(() => this.scan());
+    this.observer = new MutationObserver((records) => this.handleMutations(records));
     this.observer.observe(this.root, { childList: true, characterData: true, subtree: true });
-    this.scan();
+    this.scan([this.root]);
   }
 
   stop(): void {
     this.root.removeEventListener("click", this.handleClick, true);
     this.observer?.disconnect();
     this.observer = undefined;
+    if (this.mutationScanTimer !== undefined) window.clearTimeout(this.mutationScanTimer);
+    this.mutationScanTimer = undefined;
+    this.pendingMutationRoots.clear();
     for (const timer of this.approvalTimers.values()) window.clearTimeout(timer);
     for (const timer of this.permissionTimers.values()) window.clearTimeout(timer);
     for (const draft of this.pendingDrafts.values()) window.clearTimeout(draft.expiryTimer);
@@ -96,32 +117,66 @@ export class AgentAutomationController {
     this.pendingDrafts.set(panel, { html: editor.innerHTML, expiryTimer });
   };
 
-  private scan(): void {
+  private readonly handleMutations = (records: MutationRecord[]): void => {
+    // Draft restoration is time-sensitive and only walks the small pending-draft map.
     this.restoreDrafts();
-    this.confirmModelSwitches();
+
+    for (const record of records) {
+      if (record.type === "characterData") {
+        const target = elementForNode(record.target);
+        if (target) this.pendingMutationRoots.add(target);
+        continue;
+      }
+      record.addedNodes.forEach((node) => {
+        const target = elementForNode(node);
+        if (target) this.pendingMutationRoots.add(target);
+      });
+    }
+    if (this.pendingMutationRoots.size === 0 || this.mutationScanTimer !== undefined) return;
+    this.mutationScanTimer = window.setTimeout(() => {
+      this.mutationScanTimer = undefined;
+      const roots = [...this.pendingMutationRoots];
+      this.pendingMutationRoots.clear();
+      this.scan(roots);
+    }, MUTATION_SCAN_DELAY_MS);
+  };
+
+  private scan(roots: Iterable<Element>): void {
+    this.restoreDrafts();
+    this.confirmModelSwitches(roots);
     if (!this.options.isYoloEnabled()) return;
-    this.syncPermissionModes();
-    this.root.querySelectorAll<HTMLElement>(CONFIRM_SELECTOR).forEach((card) => {
+    this.syncPermissionModes(roots);
+    matchingElements<HTMLElement>(roots, CONFIRM_SELECTOR).forEach((card) => {
       this.scheduleApproval(card);
     });
   }
 
-  private confirmModelSwitches(): void {
+  private confirmModelSwitches(roots: Iterable<Element>): void {
     if (!this.options.skipModelSwitchContextConfirmation()) return;
-    const warning = this.options.modelSwitchContextWarning().trim();
+    const dialogs = matchingElements<HTMLElement>(roots, CONFIRM_DIALOG_SELECTOR);
+    if (dialogs.size === 0) return;
+
+    let warning = "";
+    try {
+      warning = this.options.modelSwitchContextWarning().trim();
+    } catch {
+      return;
+    }
     if (!warning) return;
 
-    this.root.querySelectorAll<HTMLElement>(CONFIRM_DIALOG_SELECTOR).forEach((dialog) => {
+    dialogs.forEach((dialog) => {
+      if (!dialog.isConnected || this.confirmedModelSwitchDialogs.has(dialog)) return;
       const text = dialog.querySelector<HTMLElement>(CONFIRM_DIALOG_TEXT_SELECTOR)?.textContent?.trim();
       if (text !== warning) return;
       const confirm = dialog.querySelector<HTMLButtonElement>(CONFIRM_DIALOG_ACCEPT_SELECTOR);
       if (!confirm || confirm.disabled) return;
+      this.confirmedModelSwitchDialogs.add(dialog);
       confirm.click();
     });
   }
 
-  private syncPermissionModes(): void {
-    this.root.querySelectorAll<HTMLButtonElement>(PERMISSION_BUTTON_SELECTOR).forEach((button) => {
+  private syncPermissionModes(roots: Iterable<Element>): void {
+    matchingElements<HTMLButtonElement>(roots, PERMISSION_BUTTON_SELECTOR).forEach((button) => {
       const label = button.querySelector<HTMLElement>(PERMISSION_LABEL_SELECTOR)?.textContent?.trim() ?? "";
       if (!label || this.permissionLabels.get(button) === label || this.permissionTimers.has(button)) return;
 
