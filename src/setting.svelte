@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { fade } from "svelte/transition";
-  import { Info } from "lucide-svelte";
+  import { Columns3, Grid2X2, Info } from "lucide-svelte";
   import { showMessage } from "siyuan";
   import { Button } from "@/components/ui/button";
+  import * as Tabs from "@/components/ui/tabs";
   import EntryManagementSettings from "@/components/entry-management-settings.svelte";
   import SwitchSettings from "@/components/switch-settings.svelte";
   import { enableLogging } from "@/libs/logger";
@@ -432,6 +433,20 @@
     persistNavState();
   }
 
+  function setOverviewLayout(layout: string) {
+    if (layout !== "masonry" && layout !== "bento") return;
+    navState = { ...navState, overviewLayout: layout };
+    persistNavState();
+  }
+
+  function onOverviewResize({ detail }: CustomEvent<{ categoryId: string; span: number }>) {
+    navState = {
+      ...navState,
+      categorySpans: { ...navState.categorySpans, [detail.categoryId]: detail.span },
+    };
+    persistNavState();
+  }
+
   function onSwitchesExpandedChanged({ detail }: CustomEvent<Record<string, boolean>>) {
     navState = { ...navState, switchesExpanded: detail };
     persistNavState();
@@ -486,9 +501,28 @@
     data-testid={showOverview ? "setting-overview-page" : "setting-detail-page"}
   >
     {#if showOverview && !compactLayout}
-      <header class="settings-stage__heading border-b border-border pb-4" in:fade={{ duration: 140 }}>
-        <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
-        <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
+      <header class="settings-stage__heading flex items-start justify-between gap-4 border-b border-border pb-4" in:fade={{ duration: 140 }}>
+        <div class="min-w-0">
+          <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
+          <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
+        </div>
+        <Tabs.Root
+          value={navState.overviewLayout ?? "masonry"}
+          class="shrink-0"
+          aria-label={t("settings.overviewLayoutLabel", "Overview layout")}
+          onValueChange={setOverviewLayout}
+        >
+          <Tabs.List>
+            <Tabs.Trigger value="masonry" title={t("settings.overviewLayoutMasonry", "Adaptive")}>
+              <Columns3 class="size-3.5" aria-hidden="true" />
+              <span>{t("settings.overviewLayoutMasonry", "Adaptive")}</span>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="bento" title={t("settings.overviewLayoutBento", "Bento")}>
+              <Grid2X2 class="size-3.5" aria-hidden="true" />
+              <span>{t("settings.overviewLayoutBento", "Bento")}</span>
+            </Tabs.Trigger>
+          </Tabs.List>
+        </Tabs.Root>
       </header>
     {/if}
 
@@ -499,13 +533,17 @@
         mode={showOverview ? "overview" : "navigation"}
         activeSelectId={focusGroup}
         compact={compactLayout}
+        layoutMode={navState.overviewLayout ?? "masonry"}
+        categorySpans={navState.categorySpans ?? {}}
         reorderHint={t("settings.dragToReorder", "Drag to reorder")}
+        resizeHint={t("settings.resizeCategory", "Drag to resize card")}
         enabledLabel={t("settings.moduleEnabled", "Enable this module")}
         overviewLabel={t("settings.backToOverview", "Back to overview")}
         on:select={(event) => selectFromOverview(event.detail)}
         on:toggle={onOverviewToggle}
         on:overview={showOverviewPage}
         on:reorder={onOverviewReorder}
+        on:resize={onOverviewResize}
       />
     </div>
     {/if}

@@ -41,12 +41,16 @@
   export let reorderHint = "Drag the grip to reorder";
   export let enabledLabel = "Enable module";
   export let overviewLabel = "Back to overview";
+  export let layoutMode: "masonry" | "bento" = "masonry";
+  export let categorySpans: Record<string, number> = {};
+  export let resizeHint = "Drag to resize card";
 
   const dispatch = createEventDispatcher<{
     select: string;
     toggle: { id: string; enabled: boolean };
     overview: void;
     reorder: { categoryOrder?: string[]; moduleOrder?: { categoryId: string; order: string[] } };
+    resize: { categoryId: string; span: number };
   }>();
 
   const prefersReducedMotion = typeof window !== "undefined"
@@ -56,12 +60,25 @@
   let renderedCategories = categories;
   let sourceCategories = categories;
   let overviewRoot: HTMLDivElement;
+  let overviewColumns = 1;
+  let previewSpans: Record<string, number> = categorySpans;
+  let sourceCategorySpans = categorySpans;
 
   $: if (categories !== sourceCategories) {
     sourceCategories = categories;
     renderedCategories = categories;
   }
+  $: if (categorySpans !== sourceCategorySpans) {
+    sourceCategorySpans = categorySpans;
+    if (!resizingCategoryId) previewSpans = categorySpans;
+  }
   $: visibleCategories = mode === "navigation" && compact ? [] : renderedCategories;
+  $: resolvedCategorySpans = Object.fromEntries(renderedCategories.map((category) => [
+    category.id,
+    layoutMode === "bento"
+      ? Math.max(1, Math.min(overviewColumns, previewSpans[category.id] ?? 1))
+      : 1,
+  ]));
   function visibleModules(category: OverviewCategory) {
     return category.modules;
   }
@@ -151,6 +168,96 @@
       behavior: prefersReducedMotion ? "auto" : "smooth",
     });
   }
+
+  function observeOverview(node: HTMLElement) {
+    const update = () => {
+      const width = node.getBoundingClientRect().width;
+      const nextColumns = Math.max(1, Math.min(3, Math.floor((width + 12) / (232 + 12))));
+      if (nextColumns !== overviewColumns) overviewColumns = nextColumns;
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    update();
+    return { destroy: () => observer.disconnect() };
+  }
+
+  function measureMasonryItem(node: HTMLElement, active: boolean) {
+    let frame = 0;
+    const update = () => {
+      if (!active) {
+        node.style.removeProperty("--overview-row-span");
+        return;
+      }
+      const card = node.querySelector<HTMLElement>("section");
+      if (!card) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const nextSpan = String(Math.ceil((card.getBoundingClientRect().height + 11) / 12));
+        if (node.style.getPropertyValue("--overview-row-span") !== nextSpan) {
+          node.style.setProperty("--overview-row-span", nextSpan);
+        }
+      });
+    };
+    const observer = new ResizeObserver(update);
+    const card = node.querySelector<HTMLElement>("section");
+    if (card) observer.observe(card);
+    update();
+    return {
+      update(nextActive: boolean) {
+        active = nextActive;
+        update();
+      },
+      destroy: () => {
+        cancelAnimationFrame(frame);
+        observer.disconnect();
+      },
+    };
+  }
+
+  function categorySpan(categoryId: string) {
+    return resolvedCategorySpans[categoryId] ?? 1;
+  }
+
+  let resizingCategoryId = "";
+
+  function startResize(categoryId: string, event: PointerEvent) {
+    if (layoutMode !== "bento" || overviewColumns <= 1) return;
+    event.preventDefault();
+    event.stopPropagation();
+    resizingCategoryId = categoryId;
+    const target = event.currentTarget as HTMLElement;
+    const startX = event.clientX;
+    const startSpan = categorySpan(categoryId);
+    const boardWidth = overviewRoot.getBoundingClientRect().width;
+    const columnWidth = (boardWidth - (overviewColumns - 1) * 12) / overviewColumns;
+    let finalSpan = startSpan;
+    target.setPointerCapture(event.pointerId);
+
+    const move = (moveEvent: PointerEvent) => {
+      const nextSpan = Math.max(1, Math.min(overviewColumns, startSpan + Math.round((moveEvent.clientX - startX) / (columnWidth + 12))));
+      finalSpan = nextSpan;
+      previewSpans = { ...previewSpans, [categoryId]: nextSpan };
+    };
+    const finish = () => {
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", finish);
+      target.removeEventListener("pointercancel", finish);
+      resizingCategoryId = "";
+      dispatch("resize", { categoryId, span: finalSpan });
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", finish);
+    target.addEventListener("pointercancel", finish);
+  }
+
+  function resizeWithKeyboard(categoryId: string, event: KeyboardEvent) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const delta = event.key === "ArrowRight" ? 1 : -1;
+    const span = Math.max(1, Math.min(overviewColumns, categorySpan(categoryId) + delta));
+    previewSpans = { ...previewSpans, [categoryId]: span };
+    dispatch("resize", { categoryId, span });
+  }
 </script>
 
 <div class={mode === "navigation" ? "min-w-0" : "contents"} data-testid="setting-overview-shell" data-mode={mode}>
@@ -169,11 +276,12 @@
   {/if}
   <div
     bind:this={overviewRoot}
-    class={mode === "navigation"
-      ? "flex min-w-0 flex-col gap-2"
-      : "grid grid-cols-1 items-start gap-3 min-[680px]:grid-cols-2 min-[1160px]:grid-cols-3"}
+    class={mode === "navigation" ? "flex min-w-0 flex-col gap-2" : "settings-overview-board"}
+    class:settings-overview-board--bento={mode === "overview" && layoutMode === "bento"}
+    style:--overview-columns={overviewColumns}
     data-testid="setting-overview"
     aria-label="Settings categories"
+    use:observeOverview
     use:dragHandleZone={{
       items: visibleCategories,
       type: "damophus-settings-categories",
@@ -188,7 +296,15 @@
   {#each visibleCategories as category (category.id)}
     {@const categoryModules = visibleModules(category)}
     {@const categoryIsActive = category.modules.some((module) => module.selectId === activeSelectId)}
-    <div class="min-w-0" data-dnd-category={category.id} in:fade={{ duration: 160 }}>
+    <div
+      class="settings-overview-card min-w-0"
+      class:settings-overview-card--resizing={resizingCategoryId === category.id}
+      data-dnd-category={category.id}
+      data-column-span={resolvedCategorySpans[category.id] ?? 1}
+      style:grid-column={mode === "overview" ? `span ${resolvedCategorySpans[category.id] ?? 1}` : undefined}
+      use:measureMasonryItem={mode === "overview" && layoutMode === "masonry"}
+      in:fade={{ duration: 160 }}
+    >
     <section
       role="group"
       aria-label={category.label}
@@ -282,12 +398,85 @@
         {/each}
       </ul>
     </section>
+    {#if mode === "overview" && layoutMode === "bento" && overviewColumns > 1}
+      <button
+        type="button"
+        class="settings-overview-resize-handle"
+        aria-label={`${resizeHint}: ${category.label}`}
+        title={resizeHint}
+        onpointerdown={(event) => startResize(category.id, event)}
+        onkeydown={(event) => resizeWithKeyboard(category.id, event)}
+      ></button>
+    {/if}
     </div>
   {/each}
   </div>
 </div>
 
 <style>
+  .settings-overview-board {
+    display: grid;
+    grid-template-columns: repeat(var(--overview-columns), minmax(0, 1fr));
+    grid-auto-flow: dense;
+    grid-auto-rows: 1px;
+    column-gap: 12px;
+    row-gap: 11px;
+    align-items: start;
+  }
+
+  .settings-overview-card {
+    position: relative;
+    grid-row-end: span var(--overview-row-span, 1);
+  }
+
+  .settings-overview-board--bento {
+    grid-auto-rows: auto;
+  }
+
+  .settings-overview-board--bento > .settings-overview-card {
+    grid-row-end: auto;
+  }
+
+  .settings-overview-card--resizing {
+    z-index: 2;
+  }
+
+  .settings-overview-resize-handle {
+    position: absolute;
+    top: 12px;
+    right: 0;
+    bottom: 12px;
+    z-index: 3;
+    width: 10px;
+    cursor: ew-resize;
+    touch-action: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    outline: none;
+  }
+
+  .settings-overview-resize-handle::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 4px;
+    width: 2px;
+    height: 28px;
+    border-radius: 1px;
+    background: var(--border);
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity 140ms ease, background-color 140ms ease;
+  }
+
+  .settings-overview-card:hover > .settings-overview-resize-handle::after,
+  .settings-overview-resize-handle:focus-visible::after,
+  .settings-overview-card--resizing > .settings-overview-resize-handle::after {
+    background: var(--primary);
+    opacity: 0.8;
+  }
+
   :global(.damophus-settings-dropzone-active > [data-dnd-category]) {
     transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   }

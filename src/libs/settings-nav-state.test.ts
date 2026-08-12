@@ -15,12 +15,20 @@ describe("settings nav state", () => {
       sidebarExpanded: { study: false },
       categoryOrder: ["study", "core"],
       moduleOrder: { study: ["b", "a"] },
+      overviewLayout: "bento",
+      categorySpans: { study: 2 },
     })).toEqual({
       sidebarExpanded: { study: false },
       switchesExpanded: undefined,
       categoryOrder: ["study", "core"],
       moduleOrder: { study: ["b", "a"] },
+      overviewLayout: "bento",
+      categorySpans: { study: 2 },
     });
+    expect(parseSettingsNavState({
+      overviewLayout: "freeform",
+      categorySpans: { study: 0, core: 4 },
+    })).toEqual({});
   });
 
   it("orders known ids by preference and appends unknown ids", () => {

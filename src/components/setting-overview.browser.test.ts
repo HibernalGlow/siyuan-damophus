@@ -50,12 +50,19 @@ function createTarget() {
   return target;
 }
 
-function render(options: { mode?: "overview" | "navigation"; activeSelectId?: string; compact?: boolean } = {}) {
+function render(options: {
+  mode?: "overview" | "navigation";
+  activeSelectId?: string;
+  compact?: boolean;
+  layoutMode?: "masonry" | "bento";
+  categorySpans?: Record<string, number>;
+} = {}) {
   const target = createTarget();
   const select = vi.fn();
   const toggle = vi.fn();
   const overview = vi.fn();
   const reorder = vi.fn();
+  const resize = vi.fn();
   const categories = createCategories();
   const component = mount(SettingOverview, {
     target,
@@ -64,10 +71,10 @@ function render(options: { mode?: "overview" | "navigation"; activeSelectId?: st
       categories,
       ...options,
     },
-    events: { select, toggle, overview, reorder },
+    events: { select, toggle, overview, reorder, resize },
   });
   mounted.push(component);
-  return { target, select, toggle, overview, reorder, categories };
+  return { target, select, toggle, overview, reorder, resize, categories };
 }
 
 function renderMotionHarness() {
@@ -144,6 +151,66 @@ describe("setting overview", () => {
     cards.forEach(expectCategoryHeaderOnOneRow);
     expectCompactDragHandles(target);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+  });
+
+  it("packs uneven cards independently in adaptive masonry mode", async () => {
+    await page.viewport(1100, 900);
+    const target = createTarget();
+    target.style.width = "800px";
+    const categories: OverviewCategory[] = [
+      ...createCategories(),
+      {
+        id: "workflow",
+        label: "编辑与工作流",
+        icon: "workflow",
+        modules: [
+          { id: "one", selectId: "one", label: "模块一", icon: "settings" },
+          { id: "two", selectId: "two", label: "模块二", icon: "settings" },
+          { id: "three", selectId: "three", label: "模块三", icon: "settings" },
+          { id: "four", selectId: "four", label: "模块四", icon: "settings" },
+          { id: "five", selectId: "five", label: "模块五", icon: "settings" },
+        ],
+      },
+      {
+        id: "appearance",
+        label: "外观",
+        icon: "palette",
+        modules: [{ id: "theme", selectId: "theme", label: "主题", icon: "palette" }],
+      },
+    ];
+    mounted.push(mount(SettingOverview, { target, props: { categories, layoutMode: "masonry" } }));
+    await tick();
+    await nextAnimationFrame();
+
+    const board = target.querySelector<HTMLElement>('[data-testid="setting-overview"]');
+    const cards = [...target.querySelectorAll<HTMLElement>("[data-dnd-category]")];
+    if (!board || cards.length !== 4) throw new Error("Missing masonry fixtures");
+
+    expect(getComputedStyle(board).gridAutoRows).toBe("1px");
+    expect(cards.every((card) => Number.parseInt(getComputedStyle(card).gridRowEnd.replace("span ", ""), 10) > 1)).toBe(true);
+    expect(cards[3].getBoundingClientRect().top).toBeLessThan(cards[2].getBoundingClientRect().bottom);
+  });
+
+  it("uses persisted Bento spans and supports keyboard resizing", async () => {
+    await page.viewport(1100, 800);
+    const { target, resize } = render({ layoutMode: "bento", categorySpans: { core: 2 } });
+    target.style.width = "800px";
+    await tick();
+    await nextAnimationFrame();
+
+    const board = target.querySelector<HTMLElement>('[data-testid="setting-overview"]');
+    const core = target.querySelector<HTMLElement>('[data-testid="overview-category-core"]')?.parentElement;
+    const handle = target.querySelector<HTMLButtonElement>('[aria-label^="Drag to resize card: 快速入口"]');
+    if (!board || !core || !handle) throw new Error("Missing Bento fixtures");
+
+    expect(board.classList.contains("settings-overview-board--bento")).toBe(true);
+    expect(core.dataset.columnSpan).toBe("2");
+    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await tick();
+    expect(core.dataset.columnSpan).toBe("3");
+    expect(resize).toHaveBeenCalledWith(expect.objectContaining({
+      detail: { categoryId: "core", span: 3 },
+    }));
   });
 
   it("dispatches select when a module is opened", async () => {
