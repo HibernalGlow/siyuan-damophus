@@ -3,6 +3,8 @@ import { page } from "vitest/browser";
 import pluginMetadata from "./plugin";
 import {
   EXPANDED_PLUGIN_MENU_ATTRIBUTE,
+  EXPANDED_PLUGIN_MENU_GROUP_CLASS,
+  EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS,
   EXPANDED_PLUGIN_MENU_PANEL_CLASS,
   EXPANDED_PLUGIN_MENU_ROOT_ATTRIBUTE,
   EXPANDED_PLUGIN_MENU_STYLE_ID,
@@ -101,13 +103,17 @@ describe("expanded plugin menu", () => {
     expect(getComputedStyle(flatPanel).display).toBe("grid");
     expect(getComputedStyle(panel).visibility).toBe("visible");
     expect(getComputedStyle(panel).pointerEvents).toBe("auto");
-    expect(flatPanel.querySelectorAll(":scope > .b3-menu__item")).toHaveLength(12);
+    expect(flatPanel.querySelectorAll(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS}`)).toHaveLength(3);
+    expect(flatPanel.querySelectorAll(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item`)).toHaveLength(12);
     expect(Number(pluginItem.style.getPropertyValue("--damophus-plugin-menu-columns"))).toBeGreaterThan(1);
 
-    const flatLabels = Array.from(flatPanel.querySelectorAll<HTMLElement>(":scope > .b3-menu__item > .b3-menu__label"))
+    const groupTitles = Array.from(flatPanel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS}`))
+      .map((heading) => heading.textContent);
+    expect(groupTitles).toEqual(["快捷命令", "转换为 Callout", "其他插件"]);
+    const flatLabels = Array.from(flatPanel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item > .b3-menu__label`))
       .map((label) => label.textContent);
-    expect(flatLabels.some((label) => label?.includes("转换为 Callout / Note"))).toBe(true);
-    expect(flatLabels.some((label) => label?.includes("转换为 Callout / Caution"))).toBe(true);
+    expect(flatLabels).toContain("Note");
+    expect(flatLabels).toContain("Caution");
     expect(flatLabels).toContain("添加属性");
     expect(flatLabels).not.toContain("添加属性 / 51");
     expect(itemByLabel(flatPanel, "添加属性").querySelector(":scope > .b3-menu__submenu")).not.toBeNull();
@@ -190,12 +196,13 @@ describe("expanded plugin menu", () => {
     expect(getComputedStyle(pluginSubmenu).display).toBe("block");
     pointAt(nativeConvert);
     expect(pluginItem.hasAttribute(EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE)).toBe(false);
-    expect(getComputedStyle(pluginSubmenu).display).toBe("none");
+    expect(getComputedStyle(pluginSubmenu).visibility).toBe("hidden");
+    expect(getComputedStyle(pluginSubmenu).pointerEvents).toBe("none");
     expect(nativeConvert.querySelector(":scope > .b3-menu__submenu")).not.toBeNull();
 
     pointAt(pluginItem);
     expect(getComputedStyle(pluginSubmenu).display).toBe("block");
-    const flatCommand = itemByLabel(pluginSubmenu, "转换为 Callout / Note");
+    const flatCommand = itemByLabel(pluginSubmenu, "Note");
     pointAt(flatCommand);
     expect(getComputedStyle(pluginSubmenu).display).toBe("block");
     controller.destroy();
@@ -207,12 +214,12 @@ describe("expanded plugin menu", () => {
     controller.start("转换为 Callout");
     const pluginItem = itemByLabel(menu, "插件");
     pointAt(pluginItem);
-    expect(itemByLabel(pluginItem, "转换为 Callout / Note")).toBeTruthy();
+    expect(itemByLabel(pluginItem, "Note")).toBeTruthy();
     expect(itemByLabel(pluginItem, "添加属性")).toBeTruthy();
 
     controller.updateAllowedEntries(" 添加属性 \n\n添加属性");
     pointAt(pluginItem);
-    expect(itemByLabel(pluginItem, "添加属性 / 51")).toBeTruthy();
+    expect(itemByLabel(pluginItem, "51")).toBeTruthy();
     expect(itemByLabel(pluginItem, "转换为 Callout")).toBeTruthy();
     expect(pluginItem.querySelector<HTMLElement>(`:scope > .b3-menu__submenu > .${EXPANDED_PLUGIN_MENU_PANEL_CLASS}`))
       .not.toBeNull();

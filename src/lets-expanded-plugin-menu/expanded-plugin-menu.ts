@@ -3,6 +3,8 @@ export const EXPANDED_PLUGIN_MENU_ATTRIBUTE = "data-damophus-expanded-plugin-men
 export const EXPANDED_PLUGIN_MENU_ROOT_ATTRIBUTE = "data-damophus-expanded-plugin-menu-root";
 export const EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE = "data-damophus-expanded-plugin-menu-visible";
 export const EXPANDED_PLUGIN_MENU_PANEL_CLASS = "damophus-expanded-plugin-menu__panel";
+export const EXPANDED_PLUGIN_MENU_GROUP_CLASS = "damophus-expanded-plugin-menu__group";
+export const EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS = "damophus-expanded-plugin-menu__group-title";
 export const DEFAULT_EXPANDED_PLUGIN_MENU_ALLOWED_ENTRIES = [
   "转换为 Callout",
   "从此块打开题库",
@@ -22,23 +24,25 @@ export const EXPANDED_PLUGIN_MENU_CSS = `
   }
 
   .b3-menu__item[${EXPANDED_PLUGIN_MENU_ATTRIBUTE}] > .b3-menu__submenu {
-    display: none !important;
-  }
-
-  .b3-menu__item[${EXPANDED_PLUGIN_MENU_ATTRIBUTE}][${EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE}] > .b3-menu__submenu {
     display: block !important;
     position: fixed !important;
     box-sizing: border-box;
-    width: var(--damophus-plugin-menu-width, 880px) !important;
+    width: max-content !important;
     height: auto !important;
     max-width: calc(100vw - 24px) !important;
     max-height: calc(100vh - 24px) !important;
     padding: 8px !important;
     overflow: auto !important;
     overscroll-behavior: contain;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    transform: none !important;
+    pointer-events: none !important;
+  }
+
+  .b3-menu__item[${EXPANDED_PLUGIN_MENU_ATTRIBUTE}][${EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE}] > .b3-menu__submenu {
     visibility: visible !important;
     opacity: 1 !important;
-    transform: none !important;
     pointer-events: auto !important;
   }
 
@@ -48,14 +52,47 @@ export const EXPANDED_PLUGIN_MENU_CSS = `
 
   .${EXPANDED_PLUGIN_MENU_PANEL_CLASS} {
     display: grid;
-    grid-template-columns: repeat(var(--damophus-plugin-menu-columns, 4), minmax(0, 1fr));
-    grid-auto-rows: minmax(30px, auto);
-    align-items: stretch;
-    gap: 1px 8px;
+    grid-template-columns: repeat(var(--damophus-plugin-menu-columns, 1), minmax(176px, max-content));
+    grid-auto-flow: row;
+    align-items: start;
+    gap: 8px 0;
+    width: max-content;
+    max-width: 100%;
     min-width: 0;
   }
 
-  .${EXPANDED_PLUGIN_MENU_PANEL_CLASS} > .b3-menu__item {
+  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-width: 176px;
+    max-width: 280px;
+    padding: 0 8px;
+    border-left: 1px solid var(--b3-border-color, rgba(127, 127, 127, 0.22));
+  }
+
+  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS}:nth-child(var(--damophus-plugin-menu-columns, 1)n + 1) {
+    border-left: 0;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS}:first-child {
+    border-left: 0;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS} {
+    box-sizing: border-box;
+    min-height: 28px;
+    padding: 3px 8px 5px;
+    overflow: hidden;
+    color: var(--b3-theme-on-surface, currentColor);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item {
     min-width: 0;
     width: 100%;
     min-height: 30px;
@@ -66,14 +103,14 @@ export const EXPANDED_PLUGIN_MENU_CSS = `
     align-items: center;
   }
 
-  .${EXPANDED_PLUGIN_MENU_PANEL_CLASS} > .b3-menu__item > .b3-menu__label {
+  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item > .b3-menu__label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .${EXPANDED_PLUGIN_MENU_PANEL_CLASS} > .b3-menu__item > .b3-menu__icon--small {
+  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item > .b3-menu__icon--small {
     display: none !important;
   }
 }
@@ -170,6 +207,22 @@ function moveCommand(
   return { item, placeholder, label, originalLabel, originalTitle };
 }
 
+function createGroup(panel: HTMLElement, title: string): HTMLElement {
+  const group = panel.ownerDocument.createElement("div");
+  group.className = EXPANDED_PLUGIN_MENU_GROUP_CLASS;
+  const heading = panel.ownerDocument.createElement("div");
+  heading.className = EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS;
+  heading.textContent = title;
+  heading.title = title;
+  group.append(heading);
+  return group;
+}
+
+function localizedGroupTitle(submenu: HTMLElement, chinese: string, english: string): string {
+  const pluginItem = submenu.parentElement;
+  return pluginItem instanceof HTMLElement && normalizedLabel(pluginItem) === "插件" ? chinese : english;
+}
+
 function flattenCommands(
   submenu: HTMLElement,
   allowedEntries: ReadonlySet<string>,
@@ -178,6 +231,9 @@ function flattenCommands(
   const panel = targetDocument.createElement("div");
   panel.className = EXPANDED_PLUGIN_MENU_PANEL_CLASS;
   const movedCommands: MovedCommand[] = [];
+  let commandsGroup: HTMLElement | undefined;
+  let otherEntriesGroup: HTMLElement | undefined;
+  const expandedGroups: HTMLElement[] = [];
 
   for (const child of Array.from(submenuItems(submenu).children)) {
     if (!(child instanceof HTMLElement) || !child.matches(ITEM_SELECTOR)) continue;
@@ -185,19 +241,35 @@ function flattenCommands(
     if (!label) continue;
     if (allowedEntries.has(label.toLocaleLowerCase())) {
       const childSubmenu = directSubmenu(child);
-      const commands = childSubmenu
-        ? collectLeafCommands(childSubmenu, [label])
-        : [{ item: child, path: [label] }];
+      if (!childSubmenu) {
+        commandsGroup ??= createGroup(
+          panel,
+          localizedGroupTitle(submenu, "快捷命令", "Commands"),
+        );
+        const moved = moveCommand(child, commandsGroup);
+        if (moved) movedCommands.push(moved);
+        continue;
+      }
+      const group = createGroup(panel, label);
+      expandedGroups.push(group);
+      const commands = collectLeafCommands(childSubmenu);
       for (const command of commands) {
-        const moved = moveCommand(command.item, panel, command.path);
+        const moved = moveCommand(command.item, group, command.path);
         if (moved) movedCommands.push(moved);
       }
       continue;
     }
-    const moved = moveCommand(child, panel);
+    otherEntriesGroup ??= createGroup(
+      panel,
+      localizedGroupTitle(submenu, "其他插件", "Other plugins"),
+    );
+    const moved = moveCommand(child, otherEntriesGroup);
     if (moved) movedCommands.push(moved);
   }
 
+  if (commandsGroup) panel.append(commandsGroup);
+  panel.append(...expandedGroups);
+  if (otherEntriesGroup) panel.append(otherEntriesGroup);
   submenu.append(panel);
   return { panel, movedCommands };
 }
@@ -253,13 +325,13 @@ function positionPanel(enhanced: EnhancedMenu): void {
   const availableLeft = itemRect.left - gap - margin;
   const direction = availableRight >= 420 || availableRight >= availableLeft ? "right" : "left";
   const availableWidth = Math.max(320, direction === "right" ? availableRight : availableLeft);
-  const width = Math.min(920, availableWidth);
-  const columns = Math.max(2, Math.min(4, Math.floor(width / 210)));
+  const groupCount = Math.max(1, panel.children.length);
+  const columns = Math.max(1, Math.min(groupCount, 4, Math.floor(availableWidth / 190)));
 
   rootItem.setAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE, direction);
-  rootItem.style.setProperty("--damophus-plugin-menu-width", `${Math.floor(width)}px`);
   rootItem.style.setProperty("--damophus-plugin-menu-columns", String(columns));
-  submenu.style.left = `${Math.round(direction === "right" ? itemRect.right + gap : itemRect.left - gap - width)}px`;
+  const measuredWidth = Math.min(submenu.getBoundingClientRect().width, viewportWidth - margin * 2);
+  submenu.style.left = `${Math.round(direction === "right" ? itemRect.right + gap : itemRect.left - gap - measuredWidth)}px`;
   submenu.style.right = "auto";
   submenu.style.top = `${margin}px`;
   submenu.style.bottom = "auto";
@@ -379,7 +451,6 @@ export class ExpandedPluginMenuController {
     restoreCommands(enhanced);
     enhanced.rootItem.removeAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE);
     enhanced.rootItem.removeAttribute(EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE);
-    enhanced.rootItem.style.removeProperty("--damophus-plugin-menu-width");
     enhanced.rootItem.style.removeProperty("--damophus-plugin-menu-columns");
     enhanced.submenu.style.removeProperty("left");
     enhanced.submenu.style.removeProperty("right");
