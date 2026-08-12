@@ -166,6 +166,20 @@ function isLegalCalloutChild(element: Element | null): element is HTMLElement {
   return Boolean(type && type !== "NodeListItem" && type !== "NodeDocument");
 }
 
+function nextContentBlock(element: HTMLElement): {
+  block?: HTMLElement;
+  atContainerEnd: boolean;
+} {
+  const next = element.nextElementSibling;
+  if (!next || (next.classList.contains("protyle-attr") && next.nextElementSibling === null)) {
+    return { atContainerEnd: true };
+  }
+  if (next instanceof HTMLElement && next.dataset.nodeId && next.dataset.type) {
+    return { block: next, atContainerEnd: false };
+  }
+  return { atContainerEnd: false };
+}
+
 function parentBlockId(element: HTMLElement, protyle: IProtyle): string | undefined {
   return element.parentElement?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId
     ?? protyle.block.parentID;
@@ -275,8 +289,11 @@ export class CalloutSmartInsert {
     if (!simulated) return false;
 
     const wrapsCurrent = hasMeaningfulContent(simulated);
-    const nextBlock = block.nextElementSibling;
-    const createsEmptyBody = !wrapsCurrent && nextBlock === null;
+    const following = nextContentBlock(block);
+    const nextBlock = following.block;
+    const createsEmptyBody = !wrapsCurrent && (
+      following.atContainerEnd || nextBlock?.dataset.type === "NodeList"
+    );
     if (!wrapsCurrent && !createsEmptyBody && !isLegalCalloutChild(nextBlock)) return false;
 
     const blockId = block.dataset.nodeId;

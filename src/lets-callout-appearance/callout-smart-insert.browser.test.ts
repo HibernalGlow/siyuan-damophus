@@ -51,7 +51,10 @@ function createEditor(blocks: string, caretBlockId = "slash", caretOffset = "/ca
   document.body.append(host);
 
   const caretBlock = root.querySelector<HTMLElement>(`[data-node-id="${caretBlockId}"]`)!;
-  const textNode = caretBlock.firstChild!;
+  const editable = caretBlock.matches('[contenteditable="true"]')
+    ? caretBlock
+    : caretBlock.querySelector<HTMLElement>(":scope > [contenteditable=\"true\"]")!;
+  const textNode = editable.firstChild!;
   const range = document.createRange();
   range.setStart(textNode, caretOffset);
   range.collapse(true);
@@ -146,7 +149,6 @@ describe("smart Callout insertion", () => {
   it.each([
     ["paragraph", '<div data-node-id="target" data-type="NodeParagraph" contenteditable="true">Body</div>'],
     ["heading", '<div data-node-id="target" data-type="NodeHeading" contenteditable="true">Heading</div>'],
-    ["list", '<div data-node-id="target" data-type="NodeList"><div data-node-id="item" data-type="NodeListItem"><div data-node-id="item-p" data-type="NodeParagraph" contenteditable="true">Item</div></div></div>'],
   ])("moves the following %s into the Callout", (_label, target) => {
     const editor = createEditor(
       `<div data-node-id="slash" data-type="NodeParagraph" contenteditable="true">/callout<div class="protyle-attr" contenteditable="false"></div></div>${target}`,
@@ -231,6 +233,121 @@ describe("smart Callout insertion", () => {
     expect(undoOperations.map((operation) => operation.action)).toEqual(["update"]);
     applyOperations(editor.root, undoOperations);
     expect(editor.root.innerHTML).toBe(before);
+  });
+
+  it("creates the empty Callout body inside a list item without moving adjacent items", () => {
+    const editor = createEditor(`
+      <div data-node-id="list" data-type="NodeList" class="list">
+        <div data-node-id="item-1" data-type="NodeListItem" class="li">
+          <div class="protyle-action"></div>
+          <div data-node-id="slash" data-type="NodeParagraph" class="p">
+            <div contenteditable="true">/callout</div>
+            <div class="protyle-attr" contenteditable="false"></div>
+          </div>
+          <div class="protyle-attr" contenteditable="false"></div>
+        </div>
+        <div data-node-id="item-2" data-type="NodeListItem" class="li">
+          <div class="protyle-action"></div>
+          <div data-node-id="item-2-p" data-type="NodeParagraph" class="p">
+            <div contenteditable="true">Second item</div>
+            <div class="protyle-attr" contenteditable="false"></div>
+          </div>
+          <div class="protyle-attr" contenteditable="false"></div>
+        </div>
+        <div class="protyle-attr" contenteditable="false"></div>
+      </div>
+    `);
+
+    runCallout(editor);
+
+    const firstItem = editor.root.querySelector<HTMLElement>('[data-node-id="item-1"]')!;
+    const secondItem = editor.root.querySelector<HTMLElement>('[data-node-id="item-2"]')!;
+    const callout = firstItem.querySelector<HTMLElement>(":scope > [data-type=NodeCallout]")!;
+    const emptyParagraph = callout.querySelector<HTMLElement>(
+      ":scope > .callout-content > [data-type=NodeParagraph]",
+    );
+    expect(callout.dataset.nodeId).toBe("slash");
+    expect(emptyParagraph?.dataset.nodeId).toBe("new-callout-1");
+    expect(emptyParagraph?.querySelector('[contenteditable="true"] > wbr')).not.toBeNull();
+    expect(secondItem.parentElement?.dataset.nodeId).toBe("list");
+    expect(secondItem.textContent).toContain("Second item");
+    expect(editor.originalFill).not.toHaveBeenCalled();
+    expect(editor.transaction).toHaveBeenCalledTimes(1);
+    const [doOperations, undoOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
+    expect(doOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
+    expect(undoOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
+  });
+
+  it("keeps a child ordered list outside an empty Callout", () => {
+    const editor = createEditor(`
+      <div data-node-id="list" data-type="NodeList" class="list">
+        <div data-node-id="item-1" data-type="NodeListItem" class="li">
+          <div class="protyle-action"></div>
+          <div data-node-id="slash" data-type="NodeParagraph" class="p">
+            <div contenteditable="true">/callout</div>
+            <div class="protyle-attr" contenteditable="false"></div>
+          </div>
+          <div data-node-id="child-list" data-type="NodeList" data-subtype="o" class="list">
+            <div data-node-id="child-item" data-type="NodeListItem" data-subtype="o" class="li">
+              <div class="protyle-action">1.</div>
+              <div data-node-id="child-p" data-type="NodeParagraph" class="p">
+                <div contenteditable="true">Child item</div>
+                <div class="protyle-attr" contenteditable="false"></div>
+              </div>
+              <div class="protyle-attr" contenteditable="false"></div>
+            </div>
+            <div class="protyle-attr" contenteditable="false"></div>
+          </div>
+          <div class="protyle-attr" contenteditable="false"></div>
+        </div>
+        <div class="protyle-attr" contenteditable="false"></div>
+      </div>
+    `);
+
+    runCallout(editor);
+
+    const item = editor.root.querySelector<HTMLElement>('[data-node-id="item-1"]')!;
+    const callout = item.querySelector<HTMLElement>(":scope > [data-type=NodeCallout]")!;
+    const childList = item.querySelector<HTMLElement>(':scope > [data-node-id="child-list"]')!;
+    expect(callout.querySelector(":scope > .callout-content > [data-type=NodeParagraph]")).not.toBeNull();
+    expect(callout.querySelector('[data-node-id="child-list"]')).toBeNull();
+    expect(childList.previousElementSibling).toBe(callout);
+    expect(childList.textContent).toContain("Child item");
+    expect(editor.transaction).toHaveBeenCalledTimes(1);
+    const [doOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
+    expect(doOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
+  });
+
+  it("keeps a top-level list outside an empty Callout", () => {
+    const editor = createEditor(`
+      <div data-node-id="slash" data-type="NodeParagraph" class="p">
+        <div contenteditable="true">/callout</div>
+        <div class="protyle-attr" contenteditable="false"></div>
+      </div>
+      <div data-node-id="list" data-type="NodeList" class="list">
+        <div data-node-id="item" data-type="NodeListItem" class="li">
+          <div class="protyle-action">1.</div>
+          <div data-node-id="item-p" data-type="NodeParagraph" class="p">
+            <div contenteditable="true">List item</div>
+            <div class="protyle-attr" contenteditable="false"></div>
+          </div>
+          <div class="protyle-attr" contenteditable="false"></div>
+        </div>
+        <div class="protyle-attr" contenteditable="false"></div>
+      </div>
+    `);
+
+    runCallout(editor);
+
+    const callout = editor.root.querySelector<HTMLElement>(":scope > [data-type=NodeCallout]")!;
+    const list = editor.root.querySelector<HTMLElement>(':scope > [data-node-id="list"]')!;
+    expect(callout.querySelector(":scope > .callout-content > [data-type=NodeParagraph]")).not.toBeNull();
+    expect(callout.querySelector('[data-node-id="list"]')).toBeNull();
+    expect(list.previousElementSibling).toBe(callout);
+    expect(list.textContent).toContain("List item");
+    expect(editor.transaction).toHaveBeenCalledTimes(1);
+    const [doOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
+    expect(doOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
   });
 
   it("falls back when the following block cannot be a Callout child", () => {
