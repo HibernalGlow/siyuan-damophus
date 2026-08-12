@@ -208,15 +208,29 @@ describe("smart Callout insertion", () => {
     expect(editor.transaction).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to native empty Callout insertion at the end of a document", () => {
+  it("creates an editable empty body when inserting at the end of a document", () => {
     const editor = createEditor(
       '<div data-node-id="slash" data-type="NodeParagraph" contenteditable="true">/callout<div class="protyle-attr" contenteditable="false"></div></div>',
     );
+    const before = editor.root.innerHTML;
 
     runCallout(editor);
 
-    expect(editor.originalFill).toHaveBeenCalledOnce();
-    expect(editor.transaction).not.toHaveBeenCalled();
+    const callout = editor.root.firstElementChild as HTMLElement;
+    const emptyParagraph = callout.querySelector<HTMLElement>(
+      ":scope > .callout-content > [data-type=NodeParagraph]",
+    );
+    expect(callout.dataset.nodeId).toBe("slash");
+    expect(emptyParagraph?.dataset.nodeId).toBe("new-callout-1");
+    expect(emptyParagraph?.querySelector('[contenteditable="true"] > wbr')).not.toBeNull();
+    expect(document.getSelection()?.anchorNode).toBe(emptyParagraph?.querySelector('[contenteditable="true"]'));
+    expect(editor.originalFill).not.toHaveBeenCalled();
+    expect(editor.transaction).toHaveBeenCalledTimes(1);
+    const [doOperations, undoOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
+    expect(doOperations.map((operation) => operation.action)).toEqual(["update"]);
+    expect(undoOperations.map((operation) => operation.action)).toEqual(["update"]);
+    applyOperations(editor.root, undoOperations);
+    expect(editor.root.innerHTML).toBe(before);
   });
 
   it("falls back when the following block cannot be a Callout child", () => {

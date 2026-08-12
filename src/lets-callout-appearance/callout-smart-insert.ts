@@ -138,6 +138,28 @@ function hasMeaningfulContent(block: HTMLElement): boolean {
   return clone.querySelector("img, video, audio, iframe, canvas, svg, [data-type]") !== null;
 }
 
+function prepareEmptyParagraph(paragraph: HTMLElement, id: string): HTMLElement | undefined {
+  if (paragraph.dataset.type !== "NodeParagraph") return undefined;
+  let editable = paragraph.querySelector<HTMLElement>(":scope > [contenteditable=\"true\"]");
+  if (!editable && paragraph.matches('[contenteditable="true"]')) {
+    editable = paragraph.ownerDocument.createElement("div");
+    editable.contentEditable = "true";
+    editable.spellcheck = paragraph.spellcheck;
+    paragraph.removeAttribute("contenteditable");
+    paragraph.removeAttribute("spellcheck");
+    const attributes = paragraph.querySelector<HTMLElement>(":scope > .protyle-attr")
+      ?? paragraph.ownerDocument.createElement("div");
+    attributes.classList.add("protyle-attr");
+    attributes.contentEditable = "false";
+    paragraph.replaceChildren(editable, attributes);
+  }
+  if (!editable) return undefined;
+
+  paragraph.dataset.nodeId = id;
+  editable.replaceChildren(paragraph.ownerDocument.createElement("wbr"));
+  return paragraph;
+}
+
 function isLegalCalloutChild(element: Element | null): element is HTMLElement {
   if (!(element instanceof HTMLElement)) return false;
   const type = element.dataset.type;
@@ -254,14 +276,18 @@ export class CalloutSmartInsert {
 
     const wrapsCurrent = hasMeaningfulContent(simulated);
     const nextBlock = block.nextElementSibling;
-    if (!wrapsCurrent && !isLegalCalloutChild(nextBlock)) return false;
+    const createsEmptyBody = !wrapsCurrent && nextBlock === null;
+    if (!wrapsCurrent && !createsEmptyBody && !isLegalCalloutChild(nextBlock)) return false;
 
     const blockId = block.dataset.nodeId;
     const outerParentId = parentBlockId(block, protyle);
-    const targetId = wrapsCurrent ? undefined : (nextBlock as HTMLElement).dataset.nodeId;
+    const targetId = !wrapsCurrent && !createsEmptyBody
+      ? (nextBlock as HTMLElement).dataset.nodeId
+      : undefined;
     const instance = protyle.getInstance?.();
     const transaction = instance?.transaction;
-    if (!blockId || !outerParentId || (!wrapsCurrent && !targetId) || typeof transaction !== "function") {
+    if (!blockId || !outerParentId || (!wrapsCurrent && !createsEmptyBody && !targetId)
+      || typeof transaction !== "function") {
       return false;
     }
 
@@ -269,6 +295,10 @@ export class CalloutSmartInsert {
     const callout = createCalloutShell(protyle, value, type, calloutId);
     const calloutContent = callout?.querySelector<HTMLElement>(":scope > .callout-content");
     if (!callout || !calloutContent) return false;
+    const emptyParagraph = createsEmptyBody
+      ? prepareEmptyParagraph(simulated, this.runtime.newNodeId())
+      : undefined;
+    if (createsEmptyBody && !emptyParagraph) return false;
 
     const originalBlockHtml = block.outerHTML;
     queryRange.deleteContents();
@@ -291,6 +321,22 @@ export class CalloutSmartInsert {
         { action: "delete", id: calloutId },
       ];
       transaction.call(instance, doOperations, undoOperations);
+      return true;
+    }
+
+    if (createsEmptyBody) {
+      if (!emptyParagraph) return false;
+      calloutContent.append(emptyParagraph);
+      const calloutHtml = callout.outerHTML;
+      block.replaceWith(callout);
+      const doOperations: IOperation[] = [
+        { action: "update", id: blockId, data: calloutHtml },
+      ];
+      const undoOperations: IOperation[] = [
+        { action: "update", id: blockId, data: originalBlockHtml },
+      ];
+      transaction.call(instance, doOperations, undoOperations);
+      focusStart(emptyParagraph);
       return true;
     }
 
