@@ -17,6 +17,16 @@ export interface HistoryPage {
   totalCount: number;
 }
 
+export function normalizeHistoryBlockDOM(content: string): string {
+  if (typeof DOMParser === "undefined") return content;
+  const document = new DOMParser().parseFromString(content, "text/html");
+  const readonlyContainers = document.body.querySelectorAll<HTMLElement>(
+    '[data-type^="Node"] > [contenteditable="false"][spellcheck="false"]',
+  );
+  for (const container of readonlyContainers) container.replaceWith(...container.childNodes);
+  return document.body.innerHTML;
+}
+
 export class DocumentHistoryService {
   private readonly versionCache = new Map<string, Promise<string>>();
   private readonly itemCache = new Map<string, Promise<HistoryVersion>>();
@@ -52,7 +62,9 @@ export class DocumentHistoryService {
     const cached = this.versionCache.get(path);
     if (cached) return cached;
     const loading = getDocHistoryContent(path).then((result) => (
-      result.isLargeDoc ? result.content : this.lute.BlockDOM2StdMd(result.content)
+      result.isLargeDoc
+        ? result.content
+        : this.lute.BlockDOM2StdMd(normalizeHistoryBlockDOM(result.content))
     ));
     this.versionCache.set(path, loading);
     return loading;

@@ -17,6 +17,7 @@
     RefreshCw,
   } from "lucide-svelte";
   import { onMount, tick } from "svelte";
+  import { getHostColorMode, observeHostColorMode } from "@/theme/runtime";
   import type { DocumentHistoryService } from "./history-service";
   import type { HistoryVersion } from "./types";
 
@@ -51,7 +52,13 @@
   let overviewClientHeight = $state(1);
   let overviewScrollHeight = $state(1);
   let darkTheme = $state(false);
+  let reviewBody: HTMLElement | undefined = $state();
+  let sidebarWidth = $state(250);
   let comparisonRequest = 0;
+
+  const SIDEBAR_MIN_WIDTH = 180;
+  const SIDEBAR_MAX_WIDTH = 480;
+  const SIDEBAR_STORAGE_KEY = "damophus.documentHistoryDiff.sidebarWidth";
 
   const changes = $derived(diffLines(beforeKramdown, afterKramdown));
   const stats = $derived(changes.reduce((result, change) => ({
@@ -150,6 +157,43 @@
   function beginOverviewDrag(event: PointerEvent): void {
     overviewElement?.setPointerCapture(event.pointerId);
     moveOverview(event);
+  }
+
+  function clampSidebarWidth(width: number): number {
+    const available = reviewBody?.clientWidth ?? SIDEBAR_MAX_WIDTH * 2;
+    return Math.round(Math.max(SIDEBAR_MIN_WIDTH, Math.min(width, SIDEBAR_MAX_WIDTH, available * 0.48)));
+  }
+
+  function setSidebarWidth(width: number, persist = true): void {
+    sidebarWidth = clampSidebarWidth(width);
+    if (!persist) return;
+    try {
+      window.sessionStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
+    } catch {
+      // Session storage can be disabled in hardened webviews.
+    }
+  }
+
+  function resizeSidebar(event: PointerEvent): void {
+    if (!reviewBody) return;
+    const rect = reviewBody.getBoundingClientRect();
+    setSidebarWidth(event.clientX - rect.left);
+  }
+
+  function beginSidebarResize(event: PointerEvent): void {
+    const target = event.currentTarget as HTMLElement;
+    target.setPointerCapture(event.pointerId);
+    resizeSidebar(event);
+  }
+
+  function handleSidebarResizeKey(event: KeyboardEvent): void {
+    const step = event.shiftKey ? 40 : 12;
+    if (event.key === "ArrowLeft") setSidebarWidth(sidebarWidth - step);
+    else if (event.key === "ArrowRight") setSidebarWidth(sidebarWidth + step);
+    else if (event.key === "Home") setSidebarWidth(SIDEBAR_MIN_WIDTH);
+    else if (event.key === "End") setSidebarWidth(SIDEBAR_MAX_WIDTH);
+    else return;
+    event.preventDefault();
   }
 
   async function copySource(side: SourceSide): Promise<void> {
@@ -265,10 +309,22 @@
 
   onMount(() => {
     if (window.matchMedia("(max-width: 760px)").matches) viewMode = "unified";
-    darkTheme = document.documentElement.classList.contains("dark") || document.body.classList.contains("dark");
+    darkTheme = getHostColorMode() === "dark";
+    const stopObservingColorMode = observeHostColorMode((mode) => {
+      darkTheme = mode === "dark";
+    });
+    try {
+      const storedWidth = Number(window.sessionStorage.getItem(SIDEBAR_STORAGE_KEY));
+      if (Number.isFinite(storedWidth) && storedWidth > 0) setSidebarWidth(storedWidth, false);
+    } catch {
+      // Use the default width when session storage is unavailable.
+    }
     window.addEventListener("resize", syncOverview);
     void loadPage(1);
-    return () => window.removeEventListener("resize", syncOverview);
+    return () => {
+      stopObservingColorMode();
+      window.removeEventListener("resize", syncOverview);
+    };
   });
 </script>
 
@@ -291,7 +347,11 @@
     </div>
   </header>
 
-  <div class="review-body">
+  <div
+    class="review-body"
+    bind:this={reviewBody}
+    style={`--history-sidebar-width: ${sidebarWidth}px`}
+  >
     <aside class="history-sidebar">
       <div class="sidebar-title"><span>{t("lets-document-history-diff.history")}</span><span class="count">{totalCount}</span></div>
       <div class="version-list" aria-busy={loadingHistory}>
@@ -321,6 +381,26 @@
         <button type="button" disabled={page >= pageCount || loadingHistory} title={t("lets-document-history-diff.next")} aria-label={t("lets-document-history-diff.next")} onclick={() => loadPage(page + 1)}><ChevronRight size={16} /></button>
       </div>
     </aside>
+
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      class="sidebar-resizer"
+      role="separator"
+      aria-label={t("lets-document-history-diff.resizeHistory")}
+      aria-orientation="vertical"
+      aria-valuemin={SIDEBAR_MIN_WIDTH}
+      aria-valuemax={SIDEBAR_MAX_WIDTH}
+      aria-valuenow={sidebarWidth}
+      tabindex="0"
+      onkeydown={handleSidebarResizeKey}
+      onpointerdown={beginSidebarResize}
+      onpointermove={(event) => {
+        if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) resizeSidebar(event);
+      }}
+      onpointerup={(event) => (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)}
+      onpointercancel={(event) => (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)}
+    ></div>
 
     <main class="diff-workspace" aria-busy={loadingDiff}>
       {#if selection && !loadingDiff && !error}
@@ -401,8 +481,13 @@
   button:focus-visible { outline: 2px solid var(--b3-theme-primary); outline-offset: 1px; }
   button:hover:not(:disabled) { background: var(--b3-list-hover); } button:disabled { cursor: default; opacity: 0.4; }
 
-  .review-body { display: grid; min-height: 0; flex: 1; grid-template-columns: 250px minmax(0, 1fr); }
-  .history-sidebar { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid var(--history-border); background: var(--b3-theme-surface); }
+  .review-body { position: relative; display: grid; min-height: 0; flex: 1; grid-template-columns: var(--history-sidebar-width, 250px) minmax(0, 1fr); }
+  .history-sidebar { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--history-border); background: var(--b3-theme-surface); }
+  .sidebar-resizer { position: absolute; z-index: 5; top: 0; bottom: 0; left: calc(var(--history-sidebar-width, 250px) - 4px); width: 8px; cursor: col-resize; touch-action: none; }
+  .sidebar-resizer::after { position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; content: ""; transition: background 120ms ease; }
+  .sidebar-resizer:hover::after,
+  .sidebar-resizer:focus-visible::after { background: var(--b3-theme-primary); }
+  .sidebar-resizer:focus-visible { outline: none; }
   .sidebar-title { height: 40px; justify-content: space-between; padding: 0 12px 0 16px; border-bottom: 1px solid var(--history-border); font-size: 12px; font-weight: 600; }
   .count { min-width: 24px; text-align: right; }
   .version-list { min-height: 0; flex: 1; overflow: auto; padding: 5px 0; }
@@ -446,7 +531,8 @@
     .identity-text span, .change-stats, .view-switch button span { display: none; }
     .review-actions { gap: 4px; }
     .view-switch button { width: 32px; padding: 0; }
-    .review-body { grid-template-columns: 108px minmax(0, 1fr); }
+    .review-body { grid-template-columns: 108px minmax(0, 1fr) !important; }
+    .sidebar-resizer { display: none; }
     .sidebar-title { padding: 0 8px; }
     .version-row { grid-template-columns: 1fr; gap: 1px; padding: 7px 7px 7px 9px; }
     .current-row { grid-template-columns: 10px minmax(0, 1fr); }

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import DocumentHistoryDiff from "./document-history-diff.svelte";
-import type { DocumentHistoryService } from "./history-service";
+import { normalizeHistoryBlockDOM, type DocumentHistoryService } from "./history-service";
 import type { HistoryVersion } from "./types";
 
 const versions: HistoryVersion[] = [
@@ -36,6 +36,7 @@ const translations: Record<string, string> = {
   "lets-document-history-diff.viewBefore": "View before Kramdown only",
   "lets-document-history-diff.viewAfter": "View after Kramdown only",
   "lets-document-history-diff.refresh": "Refresh history",
+  "lets-document-history-diff.resizeHistory": "Resize history list",
   "lets-document-history-diff.copied": "Kramdown copied",
   "lets-document-history-diff.overview": "Document overview",
   "lets-document-history-diff.additions": "additions",
@@ -55,6 +56,8 @@ afterEach(async () => {
   if (mounted) await unmount(mounted);
   mounted = undefined;
   document.body.innerHTML = "";
+  delete document.documentElement.dataset.themeMode;
+  window.sessionStorage.clear();
 });
 
 function render(content: { history?: string; current?: string } = {}) {
@@ -229,5 +232,72 @@ describe("document history diff review", () => {
     headings[0].querySelector<HTMLButtonElement>('button[title="Copy before"]')?.click();
     await tick();
     expect(writeText).toHaveBeenLastCalledWith("# Administrative license\n\nOld condition\n");
+  });
+
+  it("tracks the SiYuan color mode in the mature diff view", async () => {
+    await page.viewport(1100, 760);
+    document.documentElement.dataset.themeMode = "light";
+    render();
+    await waitForDiff();
+
+    const diff = document.querySelector<HTMLElement>('[data-component="git-diff-view"]');
+    if (!diff) throw new Error("Missing diff view");
+    expect(diff.dataset.theme).toBe("light");
+
+    document.documentElement.dataset.themeMode = "dark";
+    await vi.waitFor(() => expect(diff.dataset.theme).toBe("dark"));
+    const styleRoot = diff.querySelector<HTMLElement>(".diff-style-root");
+    const content = diff.querySelector<HTMLElement>('[data-state="diff"]');
+    if (!styleRoot || !content) throw new Error("Missing rendered diff row");
+    expect(getComputedStyle(styleRoot).getPropertyValue("--diff-plain-content--").trim()).toBe("#0d1117");
+    expect(getComputedStyle(content).color).toBe("rgb(255, 255, 255)");
+  });
+
+  it("resizes the history list with pointer and keyboard controls", async () => {
+    await page.viewport(1280, 820);
+    const { host } = render();
+    await waitForDiff();
+
+    const body = host.querySelector<HTMLElement>(".review-body");
+    const sidebar = host.querySelector<HTMLElement>(".history-sidebar");
+    const resizer = host.querySelector<HTMLElement>(".sidebar-resizer");
+    if (!body || !sidebar || !resizer) throw new Error("Missing resizable layout");
+    const initialWidth = sidebar.getBoundingClientRect().width;
+    const bodyRect = body.getBoundingClientRect();
+    resizer.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      pointerId: 7,
+      clientX: bodyRect.left + 340,
+    }));
+    vi.spyOn(resizer, "hasPointerCapture").mockReturnValue(true);
+    resizer.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      pointerId: 7,
+      clientX: bodyRect.left + 340,
+    }));
+    await tick();
+    expect(sidebar.getBoundingClientRect().width).toBeGreaterThan(initialWidth + 70);
+    expect(body.scrollWidth).toBeLessThanOrEqual(body.clientWidth);
+
+    resizer.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowLeft" }));
+    await tick();
+    expect(sidebar.getBoundingClientRect().width).toBeLessThan(340);
+    expect(resizer.getAttribute("aria-valuenow")).toBe(String(Math.round(sidebar.getBoundingClientRect().width)));
+  });
+
+  it("unwraps read-only history containers before Lute conversion", () => {
+    const content = [
+      '<div data-type="NodeHeading" data-subtype="h1">',
+      '<div contenteditable="false" spellcheck="false">09 考点9：破产法概述</div>',
+      "</div>",
+      '<div data-type="NodeParagraph">',
+      '<div contenteditable="false" spellcheck="false"><span data-type="strong">违法转让</span></div>',
+      "</div>",
+    ].join("");
+
+    const normalized = normalizeHistoryBlockDOM(content);
+    expect(normalized).not.toContain("contenteditable");
+    expect(normalized).not.toContain("spellcheck");
+    expect(normalized).toContain('<span data-type="strong">违法转让</span>');
   });
 });

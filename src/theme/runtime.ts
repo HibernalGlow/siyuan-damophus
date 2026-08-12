@@ -18,6 +18,9 @@ const PRESERVED_ONLY_VARIABLES = new Set<TweakcnVariableName>([
 
 export function getHostColorMode(): ColorMode {
   if (typeof window === "undefined") return "light";
+  const attributeMode = document.documentElement.dataset.themeMode;
+  if (attributeMode === "dark") return "dark";
+  if (attributeMode === "light") return "light";
   const configuredMode = window.siyuan?.config?.appearance?.mode;
   if (configuredMode === 1) return "dark";
   if (configuredMode === 0) return "light";
