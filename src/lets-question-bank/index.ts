@@ -58,6 +58,7 @@ import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
 import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
+import { bindMenuIdentity } from "@/libs/menu-identity";
 
 type PracticeCommand = "previous" | "next" | "pause";
 const log = getLogger("lets-question-bank");
@@ -312,11 +313,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
 
   private addLaunchMenuItem(menu: IEventBusMap["click-blockicon"]["menu"], blockId?: string): void {
     if (!blockId || !this.isEntryEnabled("menu")) return;
-    menu.addItem({
+    menu.addItem(bindMenuIdentity({
       icon: "iconDatabase",
       label: this.t("lets-question-bank.openFromBlock"),
       click: () => this.openConfiguredSurface(blockId),
-    });
+    }, { plugin: "siyuan-damophus", module: "questionBank" }));
   }
 
   private configuredEntrySurfaces() {

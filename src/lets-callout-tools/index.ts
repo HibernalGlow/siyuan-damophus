@@ -8,6 +8,7 @@ import {
   type CalloutTypeDefinition,
 } from "./callout-conversion";
 import { CalloutSmartInsert } from "./callout-smart-insert";
+import { bindMenuIdentity } from "@/libs/menu-identity";
 
 const TYPE_TRANSLATION_KEYS = {
   NOTE: "lets-callout-tools.note",
@@ -49,11 +50,11 @@ export default class CalloutToolsPlugin extends SubPluginBase {
         event.detail.protyle,
       ));
     if (items.some((item) => !item.disabled)) {
-      event.detail.menu.addItem({
+      event.detail.menu.addItem(bindMenuIdentity({
         icon: "iconCallout",
         label: this.t("lets-callout-tools.menuLabel"),
         submenu: items,
-      });
+      }, { plugin: "siyuan-damophus", module: "calloutTools" }));
     }
   };
 

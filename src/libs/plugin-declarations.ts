@@ -5,6 +5,7 @@ import type {
   PluginSettingItem,
 } from "@/types/plugin";
 import { resolveSiyuanPluginIcon } from "./plugin-icons";
+import { bindMenuIdentity } from "./menu-identity";
 
 export interface ResolvedPluginDeclaration extends PluginDeclaration {
   path: string[];
@@ -48,6 +49,7 @@ export interface DeclarationMenuOptions {
 function declarationMenuItems(
   declarations: readonly ResolvedPluginDeclaration[],
   options: DeclarationMenuOptions,
+  moduleId: string,
 ): IMenu[] {
   return declarations.flatMap((declaration) => {
     const ownItems = declaration.settings.flatMap((setting): IMenu[] => {
@@ -59,14 +61,18 @@ function declarationMenuItems(
         click: () => options.toggle(setting, !enabled),
       }];
     });
-    const childItems = declarationMenuItems(declaration.children, options);
+    const childItems = declarationMenuItems(declaration.children, options, moduleId);
     const submenu = [...ownItems, ...childItems];
     if (submenu.length === 0) return [];
-    return [{
+    return [bindMenuIdentity({
       icon: declaration.icon ? resolveSiyuanPluginIcon(declaration.icon) : undefined,
       label: options.translate(declaration.title),
       submenu,
-    }];
+    }, {
+      plugin: "siyuan-damophus",
+      module: moduleId,
+      declaration: [moduleId, ...declaration.path],
+    })];
   });
 }
 
@@ -74,5 +80,5 @@ export function buildPluginDeclarationMenu(
   metadata: PluginMetadata,
   options: DeclarationMenuOptions,
 ): IMenu[] {
-  return declarationMenuItems(resolvePluginDeclarations(metadata.declarations), options);
+  return declarationMenuItems(resolvePluginDeclarations(metadata.declarations), options, metadata.name);
 }

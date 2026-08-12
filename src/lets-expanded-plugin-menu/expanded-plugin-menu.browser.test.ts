@@ -5,7 +5,9 @@ import {
   EXPANDED_PLUGIN_MENU_ATTRIBUTE,
   EXPANDED_PLUGIN_MENU_GROUP_CLASS,
   EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS,
+  EXPANDED_PLUGIN_MENU_OTHER_CLASS,
   EXPANDED_PLUGIN_MENU_PANEL_CLASS,
+  EXPANDED_PLUGIN_MENU_PRIMARY_CLASS,
   EXPANDED_PLUGIN_MENU_ROOT_ATTRIBUTE,
   EXPANDED_PLUGIN_MENU_STYLE_ID,
   EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE,
@@ -22,6 +24,12 @@ function createItem(label: string, childSubmenu?: HTMLElement): HTMLButtonElemen
   menuItem.append(labelElement);
   if (childSubmenu) menuItem.append(childSubmenu);
   return menuItem;
+}
+
+function identifyItem(item: HTMLElement, moduleId: string): HTMLElement {
+  item.dataset.pluginId = "siyuan-damophus";
+  item.dataset.damophusModule = moduleId;
+  return item;
 }
 
 function createSubmenu(labels: string[]): HTMLElement {
@@ -49,12 +57,16 @@ function renderBlockMenu(): HTMLElement {
   const menu = document.createElement("div");
   menu.className = "b3-menu";
   const pluginSubmenu = createSubmenu([
-    "块挖空", "有序列表编号", "从此块打开题库", "导出 Kramdown", "相同文字格式刷",
+    "块挖空", "有序列表编号", "导出 Kramdown", "相同文字格式刷",
   ]);
   pluginSubmenu.querySelector(":scope > .b3-menu__items")?.append(
+    identifyItem(createItem("从此块打开题库"), "questionBank"),
     createItem("添加属性", createSubmenu(["51", "52"])),
     createItem("调整标题", createSubmenu(["调整为 H1", "调整为 H2"])),
-    createItem("转换为 Callout", createSubmenu(["Note", "Tip", "Important", "Warning", "Caution"])),
+    identifyItem(
+      createItem("转换为 Callout", createSubmenu(["Note", "Tip", "Important", "Warning", "Caution"])),
+      "calloutTools",
+    ),
   );
   menu.append(
     createItem("复制"),
@@ -105,11 +117,20 @@ describe("expanded plugin menu", () => {
     expect(getComputedStyle(panel).pointerEvents).toBe("auto");
     expect(flatPanel.querySelectorAll(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS}`)).toHaveLength(3);
     expect(flatPanel.querySelectorAll(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item`)).toHaveLength(12);
-    expect(Number(pluginItem.style.getPropertyValue("--damophus-plugin-menu-columns"))).toBeGreaterThan(1);
+    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-sections")).toBe("2");
+    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-other-columns")).toBe("2");
+    expect(flatPanel.dataset.layout).toBe("side");
 
     const groupTitles = Array.from(flatPanel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS}`))
       .map((heading) => heading.textContent);
     expect(groupTitles).toEqual(["快捷命令", "转换为 Callout", "其他插件"]);
+    const primary = flatPanel.querySelector<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_PRIMARY_CLASS}`)!;
+    const primaryGroups = primary.querySelectorAll<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_GROUP_CLASS}`);
+    expect(primaryGroups).toHaveLength(2);
+    expect(primaryGroups[1].getBoundingClientRect().top)
+      .toBeGreaterThanOrEqual(primaryGroups[0].getBoundingClientRect().bottom + 7);
+    const otherGroup = flatPanel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_OTHER_CLASS}`)!;
+    expect(otherGroup.getBoundingClientRect().left).toBeGreaterThan(primary.getBoundingClientRect().right - 1);
     const flatLabels = Array.from(flatPanel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item > .b3-menu__label`))
       .map((label) => label.textContent);
     expect(flatLabels).toContain("Note");
@@ -156,13 +177,18 @@ describe("expanded plugin menu", () => {
     pointAt(pluginItem);
     const panel = pluginItem.querySelector<HTMLElement>(":scope > .b3-menu__submenu")!;
     expect(pluginItem.getAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE)).toBe("left");
-    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-columns")).toBe("2");
+    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-sections")).toBe("1");
+    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-other-columns")).toBe("2");
     expect(Math.abs(panel.getBoundingClientRect().right - pluginItem.getBoundingClientRect().left)).toBeLessThanOrEqual(6);
     expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(12);
-    const groups = panel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS}`);
-    expect(groups[0].style.borderLeft).toBe("0px");
-    expect(groups[1].style.borderLeft).toBe("");
-    expect(groups[2].style.borderLeft).toBe("0px");
+    const flatPanel = panel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_PANEL_CLASS}`)!;
+    expect(flatPanel.dataset.layout).toBe("below");
+    const primary = flatPanel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_PRIMARY_CLASS}`)!;
+    const otherGroup = flatPanel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_OTHER_CLASS}`)!;
+    expect(otherGroup.getBoundingClientRect().top).toBeGreaterThan(primary.getBoundingClientRect().bottom);
+    const otherItems = otherGroup.querySelectorAll<HTMLElement>(`:scope > .b3-menu__item`);
+    expect(otherItems[0].getBoundingClientRect().top).toBe(otherItems[1].getBoundingClientRect().top);
+    expect(otherItems[2].getBoundingClientRect().top).toBeGreaterThan(otherItems[1].getBoundingClientRect().top);
 
     controller.destroy();
   });
@@ -218,7 +244,7 @@ describe("expanded plugin menu", () => {
   it("rebuilds an open menu when the persisted whitelist changes", () => {
     const menu = renderBlockMenu();
     const controller = new ExpandedPluginMenuController();
-    controller.start("转换为 Callout");
+    controller.start("module:calloutTools");
     const pluginItem = itemByLabel(menu, "插件");
     pointAt(pluginItem);
     expect(itemByLabel(pluginItem, "Note")).toBeTruthy();
@@ -276,7 +302,12 @@ describe("expanded plugin menu", () => {
         key: "allowedEntries",
       })],
     });
-    expect(parseExpandedPluginMenuAllowedEntries(" 转换为 Callout \r\n\r\n对比文档历史 "))
-      .toEqual(new Set(["转换为 callout", "对比文档历史"]));
+    const parsed = parseExpandedPluginMenuAllowedEntries(
+      " 转换为 Callout \r\nmodule:calloutTools\nplugin:siyuan-damophus\ndeclaration:questionBank/practice ",
+    );
+    expect(parsed.labels).toEqual(new Set(["转换为 callout"]));
+    expect(parsed.identities.get("module")).toEqual(new Set(["callouttools"]));
+    expect(parsed.identities.get("plugin")).toEqual(new Set(["siyuan-damophus"]));
+    expect(parsed.identities.get("declaration")).toEqual(new Set(["questionbank/practice"]));
   });
 });

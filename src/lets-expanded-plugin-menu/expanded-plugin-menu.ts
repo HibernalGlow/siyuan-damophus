@@ -1,3 +1,9 @@
+import {
+  MENU_DECLARATION_ATTRIBUTE,
+  MENU_MODULE_ATTRIBUTE,
+  MENU_PLUGIN_ATTRIBUTE,
+} from "@/libs/menu-identity";
+
 export const EXPANDED_PLUGIN_MENU_STYLE_ID = "damophus-expanded-plugin-menu-style";
 export const EXPANDED_PLUGIN_MENU_ATTRIBUTE = "data-damophus-expanded-plugin-menu";
 export const EXPANDED_PLUGIN_MENU_ROOT_ATTRIBUTE = "data-damophus-expanded-plugin-menu-root";
@@ -5,10 +11,12 @@ export const EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE = "data-damophus-expanded-pl
 export const EXPANDED_PLUGIN_MENU_PANEL_CLASS = "damophus-expanded-plugin-menu__panel";
 export const EXPANDED_PLUGIN_MENU_GROUP_CLASS = "damophus-expanded-plugin-menu__group";
 export const EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS = "damophus-expanded-plugin-menu__group-title";
+export const EXPANDED_PLUGIN_MENU_PRIMARY_CLASS = "damophus-expanded-plugin-menu__primary";
+export const EXPANDED_PLUGIN_MENU_OTHER_CLASS = "damophus-expanded-plugin-menu__other";
 export const DEFAULT_EXPANDED_PLUGIN_MENU_ALLOWED_ENTRIES = [
-  "转换为 Callout",
-  "从此块打开题库",
-  "对比文档历史",
+  "module:calloutTools",
+  "module:questionBank",
+  "module:documentHistoryDiff",
 ].join("\n");
 
 const MENU_SELECTOR = ".b3-menu";
@@ -16,6 +24,14 @@ const ITEM_SELECTOR = ".b3-menu__item";
 const SUBMENU_SELECTOR = ".b3-menu__submenu";
 const ITEMS_SELECTOR = ".b3-menu__items";
 const LABEL_SELECTOR = ".b3-menu__label";
+const IDENTITY_SELECTOR_PREFIXES = ["plugin", "module", "declaration"] as const;
+
+type MenuIdentityKind = typeof IDENTITY_SELECTOR_PREFIXES[number];
+
+export interface ExpandedPluginMenuAllowedEntries {
+  labels: ReadonlySet<string>;
+  identities: ReadonlyMap<MenuIdentityKind, ReadonlySet<string>>;
+}
 
 export const EXPANDED_PLUGIN_MENU_CSS = `
 @media (hover: hover) and (pointer: fine) {
@@ -52,13 +68,23 @@ export const EXPANDED_PLUGIN_MENU_CSS = `
 
   .${EXPANDED_PLUGIN_MENU_PANEL_CLASS} {
     display: grid;
-    grid-template-columns: repeat(var(--damophus-plugin-menu-columns, 1), minmax(176px, max-content));
-    grid-auto-flow: row;
+    grid-template-columns: repeat(var(--damophus-plugin-menu-sections, 1), minmax(176px, max-content));
     align-items: start;
     gap: 8px 0;
     width: max-content;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_PRIMARY_CLASS} {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 176px;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_PRIMARY_CLASS} > .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} + .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} {
+    margin-top: 8px;
   }
 
   .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} {
@@ -69,6 +95,28 @@ export const EXPANDED_PLUGIN_MENU_CSS = `
     max-width: 280px;
     padding: 0 8px;
     border-left: 1px solid var(--b3-border-color, rgba(127, 127, 127, 0.22));
+  }
+
+  .${EXPANDED_PLUGIN_MENU_PRIMARY_CLASS} > .${EXPANDED_PLUGIN_MENU_GROUP_CLASS} {
+    border-left: 0;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_OTHER_CLASS} {
+    display: grid;
+    grid-template-columns: repeat(var(--damophus-plugin-menu-other-columns, 1), minmax(176px, max-content));
+    align-items: start;
+    width: max-content;
+    max-width: unset;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_OTHER_CLASS} > .${EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS} {
+    grid-column: 1 / -1;
+  }
+
+  .${EXPANDED_PLUGIN_MENU_PANEL_CLASS}[data-layout="below"] > .${EXPANDED_PLUGIN_MENU_OTHER_CLASS} {
+    padding-top: 8px;
+    border-top: 1px solid var(--b3-border-color, rgba(127, 127, 127, 0.22));
+    border-left: 0;
   }
 
   .${EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS} {
@@ -125,12 +173,50 @@ interface EnhancedMenu {
   removeInteractionListeners: () => void;
 }
 
-export function parseExpandedPluginMenuAllowedEntries(value: unknown): Set<string> {
-  if (typeof value !== "string") return new Set();
-  return new Set(value
-    .split(/\r?\n/u)
-    .map((entry) => entry.trim().toLocaleLowerCase())
-    .filter(Boolean));
+export function parseExpandedPluginMenuAllowedEntries(value: unknown): ExpandedPluginMenuAllowedEntries {
+  const labels = new Set<string>();
+  const identities = new Map<MenuIdentityKind, Set<string>>(
+    IDENTITY_SELECTOR_PREFIXES.map((kind) => [kind, new Set<string>()]),
+  );
+  if (typeof value !== "string") return { labels, identities };
+  for (const sourceEntry of value.split(/\r?\n/u)) {
+    const entry = sourceEntry.trim();
+    if (!entry) continue;
+    const separator = entry.indexOf(":");
+    const kind = entry.slice(0, separator).toLocaleLowerCase() as MenuIdentityKind;
+    const identity = entry.slice(separator + 1).trim().toLocaleLowerCase();
+    if (separator > 0 && IDENTITY_SELECTOR_PREFIXES.includes(kind) && identity) {
+      identities.get(kind)?.add(identity);
+    } else {
+      labels.add(entry.toLocaleLowerCase());
+    }
+  }
+  return { labels, identities };
+}
+
+function allowedEntriesSignature(entries: ExpandedPluginMenuAllowedEntries): string {
+  return JSON.stringify({
+    labels: [...entries.labels].sort(),
+    identities: IDENTITY_SELECTOR_PREFIXES.map((kind) => [kind, [...(entries.identities.get(kind) ?? [])].sort()]),
+  });
+}
+
+function isAllowedEntry(item: HTMLElement, allowedEntries: ExpandedPluginMenuAllowedEntries): boolean {
+  if (allowedEntries.labels.has(normalizedLabel(item).toLocaleLowerCase())) return true;
+  const identityAttributes: Record<MenuIdentityKind, string> = {
+    plugin: MENU_PLUGIN_ATTRIBUTE,
+    module: MENU_MODULE_ATTRIBUTE,
+    declaration: MENU_DECLARATION_ATTRIBUTE,
+  };
+  return IDENTITY_SELECTOR_PREFIXES.some((kind) => {
+    const identity = item.getAttribute(identityAttributes[kind])?.trim().toLocaleLowerCase();
+    return Boolean(identity && allowedEntries.identities.get(kind)?.has(identity));
+  });
+}
+
+function hasAllowedEntries(entries: ExpandedPluginMenuAllowedEntries): boolean {
+  if (entries.labels.size > 0) return true;
+  return IDENTITY_SELECTOR_PREFIXES.some((kind) => (entries.identities.get(kind)?.size ?? 0) > 0);
 }
 
 function directChild<T extends Element>(element: Element, selector: string): T | undefined {
@@ -217,11 +303,13 @@ function localizedGroupTitle(submenu: HTMLElement, chinese: string, english: str
 
 function flattenCommands(
   submenu: HTMLElement,
-  allowedEntries: ReadonlySet<string>,
+  allowedEntries: ExpandedPluginMenuAllowedEntries,
 ): Pick<EnhancedMenu, "panel" | "movedCommands"> {
   const targetDocument = submenu.ownerDocument;
   const panel = targetDocument.createElement("div");
   panel.className = EXPANDED_PLUGIN_MENU_PANEL_CLASS;
+  const primary = targetDocument.createElement("div");
+  primary.className = EXPANDED_PLUGIN_MENU_PRIMARY_CLASS;
   const movedCommands: MovedCommand[] = [];
   let commandsGroup: HTMLElement | undefined;
   let otherEntriesGroup: HTMLElement | undefined;
@@ -231,7 +319,7 @@ function flattenCommands(
     if (!(child instanceof HTMLElement) || !child.matches(ITEM_SELECTOR)) continue;
     const label = normalizedLabel(child);
     if (!label) continue;
-    if (allowedEntries.has(label.toLocaleLowerCase())) {
+    if (isAllowedEntry(child, allowedEntries)) {
       const childSubmenu = directSubmenu(child);
       if (!childSubmenu) {
         commandsGroup ??= createGroup(
@@ -259,9 +347,13 @@ function flattenCommands(
     if (moved) movedCommands.push(moved);
   }
 
-  if (commandsGroup) panel.append(commandsGroup);
-  panel.append(...expandedGroups);
-  if (otherEntriesGroup) panel.append(otherEntriesGroup);
+  if (commandsGroup) primary.append(commandsGroup);
+  primary.append(...expandedGroups);
+  if (primary.childElementCount > 0) panel.append(primary);
+  if (otherEntriesGroup) {
+    otherEntriesGroup.classList.add(EXPANDED_PLUGIN_MENU_OTHER_CLASS);
+    panel.append(otherEntriesGroup);
+  }
   submenu.append(panel);
   return { panel, movedCommands };
 }
@@ -318,16 +410,25 @@ function positionPanel(enhanced: EnhancedMenu): void {
   const availableLeft = itemRect.left - gap - margin;
   const direction = availableRight >= 420 || availableRight >= availableLeft ? "right" : "left";
   const availableWidth = Math.max(320, direction === "right" ? availableRight : availableLeft);
-  const groupCount = Math.max(1, panel.children.length);
-  const columns = Math.max(1, Math.min(groupCount, 4, Math.floor(availableWidth / 190)));
+  const otherGroup = directChild<HTMLElement>(panel, `.${EXPANDED_PLUGIN_MENU_OTHER_CLASS}`);
+  const otherItemCount = otherGroup?.querySelectorAll(":scope > .b3-menu__item").length ?? 0;
+  const columnWidth = 176;
+  const sideOtherColumns = Math.max(1, Math.min(2, otherItemCount));
+  const sideBySideWidth = columnWidth * (1 + sideOtherColumns) + 16;
+  const sideBySide = Boolean(otherGroup) && availableWidth >= sideBySideWidth;
+  const belowColumnBudget = Math.max(1, Math.floor((availableWidth - 32) / columnWidth));
+  const otherColumns = sideBySide
+    ? sideOtherColumns
+    : Math.max(1, Math.min(3, otherItemCount, belowColumnBudget));
 
   rootItem.setAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE, direction);
-  rootItem.style.setProperty("--damophus-plugin-menu-columns", String(columns));
-  Array.from(panel.children).forEach((group, index) => {
-    if (group instanceof HTMLElement) group.style.borderLeft = index % columns === 0 ? "0" : "";
-  });
+  rootItem.style.setProperty("--damophus-plugin-menu-sections", sideBySide ? "2" : "1");
+  rootItem.style.setProperty("--damophus-plugin-menu-other-columns", String(otherColumns));
+  panel.dataset.layout = sideBySide ? "side" : "below";
   const measuredWidth = Math.min(submenu.getBoundingClientRect().width, viewportWidth - margin * 2);
-  submenu.style.left = `${Math.round(direction === "right" ? itemRect.right + gap : itemRect.left - gap - measuredWidth)}px`;
+  const desiredLeft = direction === "right" ? itemRect.right + gap : itemRect.left - gap - measuredWidth;
+  const left = Math.max(margin, Math.min(desiredLeft, viewportWidth - measuredWidth - margin));
+  submenu.style.left = `${Math.round(left)}px`;
   submenu.style.right = "auto";
   submenu.style.top = `${margin}px`;
   submenu.style.bottom = "auto";
@@ -341,7 +442,7 @@ function positionPanel(enhanced: EnhancedMenu): void {
 export class ExpandedPluginMenuController {
   private observer?: MutationObserver;
   private running = false;
-  private allowedEntries = new Set<string>();
+  private allowedEntries = parseExpandedPluginMenuAllowedEntries("");
   private readonly enhancedMenus = new Map<HTMLElement, EnhancedMenu>();
 
   constructor(private readonly targetDocument: Document = document) {}
@@ -368,7 +469,7 @@ export class ExpandedPluginMenuController {
 
   updateAllowedEntries(value: unknown): void {
     const nextEntries = parseExpandedPluginMenuAllowedEntries(value);
-    if ([...nextEntries].join("\n") === [...this.allowedEntries].join("\n")) return;
+    if (allowedEntriesSignature(nextEntries) === allowedEntriesSignature(this.allowedEntries)) return;
     for (const enhanced of this.enhancedMenus.values()) this.restoreMenu(enhanced);
     this.enhancedMenus.clear();
     this.allowedEntries = nextEntries;
@@ -421,7 +522,7 @@ export class ExpandedPluginMenuController {
       if (!isPluginBranch(rootItem) || this.enhancedMenus.has(rootItem)) continue;
       const rootMenu = rootItem.closest<HTMLElement>(MENU_SELECTOR);
       const submenu = directSubmenu(rootItem);
-      if (!rootMenu || !submenu || rootMenu.closest(".protyle-hint") || this.allowedEntries.size === 0) continue;
+      if (!rootMenu || !submenu || rootMenu.closest(".protyle-hint") || !hasAllowedEntries(this.allowedEntries)) continue;
       const flattened = flattenCommands(submenu, this.allowedEntries);
       if (flattened.movedCommands.length === 0) {
         flattened.panel.remove();
@@ -447,7 +548,8 @@ export class ExpandedPluginMenuController {
     restoreCommands(enhanced);
     enhanced.rootItem.removeAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE);
     enhanced.rootItem.removeAttribute(EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE);
-    enhanced.rootItem.style.removeProperty("--damophus-plugin-menu-columns");
+    enhanced.rootItem.style.removeProperty("--damophus-plugin-menu-sections");
+    enhanced.rootItem.style.removeProperty("--damophus-plugin-menu-other-columns");
     enhanced.submenu.style.removeProperty("left");
     enhanced.submenu.style.removeProperty("right");
     enhanced.submenu.style.removeProperty("top");

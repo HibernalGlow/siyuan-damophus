@@ -5,6 +5,11 @@ import {
   resolvePluginDeclarations,
 } from "./plugin-declarations";
 import type { PluginMetadata } from "@/types/plugin";
+import {
+  MENU_DECLARATION_ATTRIBUTE,
+  MENU_MODULE_ATTRIBUTE,
+  MENU_PLUGIN_ATTRIBUTE,
+} from "./menu-identity";
 
 const metadata: PluginMetadata = {
   name: "deep",
@@ -43,5 +48,26 @@ describe("plugin declarations", () => {
     expect(leaf).toMatchObject({ label: "Enabled", checked: true });
     await leaf?.click?.({} as HTMLElement, {} as MouseEvent);
     expect(toggle).toHaveBeenCalledWith(expect.objectContaining({ key: "enabled" }), false);
+  });
+
+  it("marks every declaration menu with its plugin, module, and full declaration path", () => {
+    const items = buildPluginDeclarationMenu(metadata, {
+      readSetting: () => true,
+      translate: (key) => key,
+      toggle: vi.fn(),
+    });
+    const attributes = new Map<string, string>();
+    const element = {
+      setAttribute: (name: string, value: string) => {
+        attributes.set(name, value);
+      },
+    } as unknown as HTMLElement;
+    const nested = items[0].submenu?.[0].submenu?.[0];
+
+    nested?.bind?.(element);
+
+    expect(attributes.get(MENU_PLUGIN_ATTRIBUTE)).toBe("siyuan-damophus");
+    expect(attributes.get(MENU_MODULE_ATTRIBUTE)).toBe("deep");
+    expect(attributes.get(MENU_DECLARATION_ATTRIBUTE)).toBe("deep/one/two/three");
   });
 });

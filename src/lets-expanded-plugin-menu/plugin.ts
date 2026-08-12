@@ -15,7 +15,7 @@ export const pluginMetadata: PluginMetadata = {
       description: "lets-expanded-plugin-menu.allowedEntriesDescription",
       key: "allowedEntries",
       value: DEFAULT_EXPANDED_PLUGIN_MENU_ALLOWED_ENTRIES,
-      placeholder: "转换为 Callout\n从此块打开题库",
+      placeholder: "module:calloutTools\nplugin:other-plugin\n菜单文字",
       height: "150px",
     },
   ],

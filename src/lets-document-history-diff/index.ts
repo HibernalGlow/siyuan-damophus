@@ -5,6 +5,7 @@ import { Dialog, getAllEditor, showMessage, type IEventBusMap, type Menu } from 
 import { mount, unmount } from "svelte";
 import DocumentHistoryDiff from "./document-history-diff.svelte";
 import { BlockHistoryService, DocumentHistoryService, type HistoryDiffService } from "./history-service";
+import { bindMenuIdentity } from "@/libs/menu-identity";
 
 type HistoryTranslationKey = `lets-document-history-diff.${string}`;
 
@@ -30,7 +31,7 @@ export default class DocumentHistoryDiffPlugin extends SubPluginBase {
     if (!this.isEntryEnabled("menu")) return;
     const lute = event.detail.protyle.lute;
     if (!event.detail.data.id || typeof lute?.BlockDOM2StdMd !== "function") return;
-    event.detail.menu.addItem({
+    event.detail.menu.addItem(bindMenuIdentity({
       icon: "iconHistory",
       label: this.translate("lets-document-history-diff.open"),
       click: () => this.open({
@@ -40,7 +41,7 @@ export default class DocumentHistoryDiffPlugin extends SubPluginBase {
         scope: "document",
         lute,
       }),
-    });
+    }, { plugin: "siyuan-damophus", module: "documentHistoryDiff" }));
   };
 
   private readonly handleBlockMenu = (
@@ -53,7 +54,7 @@ export default class DocumentHistoryDiffPlugin extends SubPluginBase {
     const lute = event.detail.protyle.lute;
     if (!blockId || !documentId || typeof lute?.BlockDOM2StdMd !== "function") return;
     const blockTitle = block.textContent?.trim().replace(/\s+/gu, " ").slice(0, 80) || blockId;
-    event.detail.menu.addItem({
+    event.detail.menu.addItem(bindMenuIdentity({
       icon: "iconHistory",
       label: this.translate("lets-document-history-diff.openBlock"),
       click: () => this.open({
@@ -63,7 +64,7 @@ export default class DocumentHistoryDiffPlugin extends SubPluginBase {
         scope: "block",
         lute,
       }),
-    });
+    }, { plugin: "siyuan-damophus", module: "documentHistoryDiff" }));
   };
 
   override onload(): void {
