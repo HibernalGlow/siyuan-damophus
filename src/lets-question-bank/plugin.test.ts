@@ -10,6 +10,7 @@ describe("question bank plugin settings", () => {
 
     expect(entrySettings.map((setting) => [setting.entrySurface, setting.value])).toEqual([
       ["menu", true],
+      ["contextMenu", true],
       ["desktopDock", true],
       ["mobileDock", true],
       ["command", true],

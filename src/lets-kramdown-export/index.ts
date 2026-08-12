@@ -27,7 +27,7 @@ export default class KramdownExportPlugin extends SubPluginBase {
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("menu")) return;
+    if (!this.isEntryEnabled("contextMenu")) return;
     const blockIds = selectedBlockIds(event.detail.blockElements);
     if (blockIds.length === 0) return;
     event.detail.menu.addItem({
@@ -40,7 +40,7 @@ export default class KramdownExportPlugin extends SubPluginBase {
   private readonly handleDocumentTitleMenu = (
     event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("menu")) return;
+    if (!this.isEntryEnabled("contextMenu")) return;
     const documentId = event.detail.data.id;
     if (!documentId) return;
     const blockIds = selectedBlockIds(Array.from(event.detail.protyle.wysiwyg.element.querySelectorAll<HTMLElement>(

@@ -9,7 +9,7 @@ const pluginMetadata: PluginMetadata = {
   enabled: true,
   icon: "paintbrush",
   settings: [
-    ...createEntrySettings({ menu: true }),
+    ...createEntrySettings({ contextMenu: true }),
   ],
   reference: "https://github.com/Achuan-2/siyuan-plugin-formatPainter",
 };

@@ -312,7 +312,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   private addLaunchMenuItem(menu: IEventBusMap["click-blockicon"]["menu"], blockId?: string): void {
-    if (!blockId || !this.isEntryEnabled("menu")) return;
+    if (!blockId || !this.isEntryEnabled("contextMenu")) return;
     menu.addItem(bindMenuIdentity({
       icon: "iconDatabase",
       label: this.t("lets-question-bank.openFromBlock"),

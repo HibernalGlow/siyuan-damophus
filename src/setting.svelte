@@ -95,8 +95,12 @@
   }
 
   function storedPluginSetting(pluginName: string, key: string, fallback: unknown) {
-    if (key === "entryDesktopDock" || key === "entryMobileDock") {
-      const surface = key === "entryDesktopDock" ? "desktopDock" : "mobileDock";
+    if (key === "entryDesktopDock" || key === "entryMobileDock" || key === "entryContextMenu") {
+      const surface = key === "entryDesktopDock"
+        ? "desktopDock"
+        : key === "entryMobileDock"
+          ? "mobileDock"
+          : "contextMenu";
       return resolveEntrySetting(
         (settingKey) => settings.getBySpace(pluginName, settingKey),
         surface,
@@ -216,7 +220,8 @@
     return {
       desktopDock: t("settings.entry.desktopDock", "Desktop sidebar"),
       mobileDock: t("settings.entry.mobileDock", "Mobile Dock"),
-      menu: t("settings.entry.menu", "Plugin menu"),
+      menu: t("settings.entry.menu", "Damophus menu"),
+      contextMenu: t("settings.entry.contextMenu", "Context menus"),
       command: t("settings.entry.command", "Command palette"),
       tab: t("settings.entry.tab", "New tab"),
       disabled: t("settings.entry.moduleDisabled", "Module disabled"),

@@ -18,6 +18,7 @@ describe("module settings model", () => {
         icon: "brain",
         settings: [
           { type: "checkbox", key: "entryMenu", title: "Menu", value: true, entrySurface: "menu", entryManagement: "central" },
+          { type: "checkbox", key: "entryContextMenu", title: "Context", value: false, entrySurface: "contextMenu", entryManagement: "central" },
           { type: "checkbox", key: "entryTab", title: "Tab", value: false, entrySurface: "tab", entryManagement: "central" },
           { type: "checkbox", key: "extra", title: "Extra", value: false },
         ],
@@ -57,6 +58,7 @@ describe("module settings model", () => {
         icon: "brain",
         surfaces: {
           menu: expect.objectContaining({ key: "entryMenu", value: true }),
+          contextMenu: expect.objectContaining({ key: "entryContextMenu", value: false }),
           tab: expect.objectContaining({ key: "entryTab", value: false }),
         },
       }),

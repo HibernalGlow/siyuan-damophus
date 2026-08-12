@@ -28,7 +28,7 @@ export default class DocumentHistoryDiffPlugin extends SubPluginBase {
   private readonly handleDocumentTitleMenu = (
     event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("menu")) return;
+    if (!this.isEntryEnabled("contextMenu")) return;
     const lute = event.detail.protyle.lute;
     if (!event.detail.data.id || typeof lute?.BlockDOM2StdMd !== "function") return;
     event.detail.menu.addItem(bindMenuIdentity({
@@ -47,7 +47,7 @@ export default class DocumentHistoryDiffPlugin extends SubPluginBase {
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("menu") || event.detail.blockElements.length !== 1) return;
+    if (!this.isEntryEnabled("contextMenu") || event.detail.blockElements.length !== 1) return;
     const block = event.detail.blockElements[0];
     const blockId = block.dataset.nodeId;
     const documentId = event.detail.protyle.block.rootID;

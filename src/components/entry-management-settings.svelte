@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from "svelte";
-  import { Menu, PanelRight, PanelsTopLeft, Smartphone, SquareTerminal } from "lucide-svelte";
+  import { Menu, MousePointerClick, PanelRight, PanelsTopLeft, Smartphone, SquareTerminal } from "lucide-svelte";
   import { Switch } from "@/components/ui/switch";
   import PluginIcon from "@/components/plugin-icon.svelte";
   import type { ConfigurableEntrySurface } from "@/libs/plugin-entry-settings";
@@ -10,6 +10,7 @@
     desktopDock: string;
     mobileDock: string;
     menu: string;
+    contextMenu: string;
     command: string;
     tab: string;
     disabled: string;
@@ -31,6 +32,7 @@
     { key: "desktopDock", icon: PanelRight },
     { key: "mobileDock", icon: Smartphone },
     { key: "menu", icon: Menu },
+    { key: "contextMenu", icon: MousePointerClick },
     { key: "command", icon: SquareTerminal },
     { key: "tab", icon: PanelsTopLeft },
   ];
@@ -42,14 +44,14 @@
   }
 
   onMount(() => {
-    const updateLayout = () => compact = mobile || root.clientWidth < 640;
+    const updateLayout = () => compact = mobile || root.clientWidth < 720;
     const observer = new ResizeObserver(updateLayout);
     updateLayout();
     observer.observe(root);
     return () => observer.disconnect();
   });
 
-  $: if (root) compact = mobile || root.clientWidth < 640;
+  $: if (root) compact = mobile || root.clientWidth < 720;
 </script>
 
 <section bind:this={root} class="border-y border-border" data-testid="entry-management-settings">
@@ -90,7 +92,7 @@
   {:else}
     <div
       class="grid min-h-11 items-center gap-3 border-b border-border bg-muted/30 px-3 text-xs font-medium text-muted-foreground"
-      style="grid-template-columns: minmax(170px, 1.25fr) repeat(5, minmax(64px, 0.55fr));"
+      style="grid-template-columns: minmax(170px, 1.25fr) repeat(6, minmax(64px, 0.55fr));"
     >
       <span class="sr-only">Module</span>
       {#each surfaces as surface (surface.key)}
@@ -104,7 +106,7 @@
     {#each modules as module (module.pluginName)}
       <div
         class="grid min-h-16 items-center gap-3 border-b border-border px-3 py-3 last:border-b-0"
-        style="grid-template-columns: minmax(170px, 1.25fr) repeat(5, minmax(64px, 0.55fr));"
+        style="grid-template-columns: minmax(170px, 1.25fr) repeat(6, minmax(64px, 0.55fr));"
       >
         <div class="flex min-w-0 items-start gap-3">
           <PluginIcon name={module.icon} className="mt-0.5 size-5 shrink-0 text-primary" />

@@ -9,7 +9,7 @@ const pluginMetadata: PluginMetadata = {
   enabled: true,
   icon: "listTree",
   settings: [
-    ...createEntrySettings({ menu: true, command: true }),
+    ...createEntrySettings({ contextMenu: true, command: true }),
     {
       type: "select",
       title: "lets-list-merge.defaultMixedSubtypeTitle",

@@ -43,7 +43,7 @@ export default class StyleBrushPlugin extends SubPluginBase {
   private readonly handleContentMenu = (
     event: CustomEvent<IEventBusMap["open-menu-content"]>,
   ): void => {
-    if (!this.isEntryEnabled("menu") || !normalizeSelectedText(event.detail.range.toString())) return;
+    if (!this.isEntryEnabled("contextMenu") || !normalizeSelectedText(event.detail.range.toString())) return;
     const range = event.detail.range.cloneRange();
     event.detail.menu.addItem({
       icon: "iconSelectText",

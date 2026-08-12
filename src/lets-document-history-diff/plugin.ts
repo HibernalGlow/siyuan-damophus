@@ -9,7 +9,7 @@ const pluginMetadata: PluginMetadata = {
   enabled: true,
   icon: "film",
   settings: [
-    ...createEntrySettings({ menu: true, command: true }, { central: true }),
+    ...createEntrySettings({ menu: true, contextMenu: true, command: true }, { central: true }),
   ],
 };
 

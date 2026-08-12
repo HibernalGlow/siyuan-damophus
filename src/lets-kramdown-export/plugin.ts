@@ -9,7 +9,7 @@ const pluginMetadata: PluginMetadata = {
   enabled: true,
   icon: "fileOutput",
   settings: [
-    ...createEntrySettings({ menu: true }),
+    ...createEntrySettings({ menu: true, contextMenu: true }),
     {
       type: "select",
       title: "lets-kramdown-export.ialModeTitle",

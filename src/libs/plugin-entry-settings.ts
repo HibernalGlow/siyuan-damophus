@@ -1,6 +1,13 @@
 import type { PluginSettingItem } from "@/types/plugin";
 
-export type PluginEntrySurface = "menu" | "dock" | "desktopDock" | "mobileDock" | "command" | "tab";
+export type PluginEntrySurface =
+  | "menu"
+  | "contextMenu"
+  | "dock"
+  | "desktopDock"
+  | "mobileDock"
+  | "command"
+  | "tab";
 export type ConfigurableEntrySurface = Exclude<PluginEntrySurface, "dock">;
 
 export interface EntrySettingsOptions {
@@ -9,6 +16,7 @@ export interface EntrySettingsOptions {
 
 const ENTRY_SETTING_KEYS: Record<PluginEntrySurface, string> = {
   menu: "entryMenu",
+  contextMenu: "entryContextMenu",
   dock: "entryDock",
   desktopDock: "entryDesktopDock",
   mobileDock: "entryMobileDock",
@@ -51,6 +59,10 @@ export function resolveEntrySetting(
 ): boolean {
   const value = getSetting(entrySettingKey(surface));
   if (typeof value === "boolean") return value;
+  if (surface === "contextMenu") {
+    const legacyMenu = getSetting(entrySettingKey("menu"));
+    if (typeof legacyMenu === "boolean") return legacyMenu;
+  }
   if (surface === "desktopDock") {
     const legacyDock = getSetting(entrySettingKey("dock"));
     if (typeof legacyDock === "boolean") return legacyDock;

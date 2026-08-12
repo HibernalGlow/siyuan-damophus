@@ -45,7 +45,7 @@ export default class ListMergePlugin extends SubPluginBase {
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("menu")) return;
+    if (!this.isEntryEnabled("contextMenu")) return;
     const numberingSelection = resolveListNumberingSelection(event.detail.blockElements);
     if (numberingSelection) {
       event.detail.menu.addItem(this.numberingMenuItem(numberingSelection, event.detail.protyle));

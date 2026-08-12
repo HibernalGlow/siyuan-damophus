@@ -24,6 +24,7 @@ const modules: ManagedEntryModule[] = [
       desktopDock: { type: "checkbox", key: "entryDesktopDock", title: "Desktop", value: false },
       mobileDock: { type: "checkbox", key: "entryMobileDock", title: "Mobile", value: true },
       menu: { type: "checkbox", key: "entryMenu", title: "Menu", value: true },
+      contextMenu: { type: "checkbox", key: "entryContextMenu", title: "Context", value: true },
       command: { type: "checkbox", key: "entryCommand", title: "Command", value: true },
       tab: { type: "checkbox", key: "entryTab", title: "Tab", value: true },
     },
@@ -45,7 +46,8 @@ const modules: ManagedEntryModule[] = [
 const labels = {
   desktopDock: "桌面侧栏",
   mobileDock: "移动 Dock",
-  menu: "插件菜单",
+  menu: "Damophus 菜单",
+  contextMenu: "上下文菜单",
   command: "命令",
   tab: "新标签页",
   disabled: "模块已停用",
@@ -81,7 +83,7 @@ describe("entry management settings", () => {
     expect(target.querySelector("svg.lucide-brain")).not.toBeNull();
     expect(target.textContent).toContain("技能管理");
     expect(target.textContent).toContain("模块已停用");
-    expect(target.querySelectorAll('[aria-label="未提供"]')).toHaveLength(3);
+    expect(target.querySelectorAll('[aria-label="未提供"]')).toHaveLength(4);
     const desktopDock = target.querySelector<HTMLButtonElement>('[role="switch"][aria-label="技能管理: 桌面侧栏"]');
     if (!desktopDock) throw new Error("Missing desktop Dock switch");
     expect(desktopDock.getBoundingClientRect().width).toBeGreaterThanOrEqual(24);
@@ -95,6 +97,20 @@ describe("entry management settings", () => {
         group: "lets-skill-manager.displayName",
         key: "entryDesktopDock",
         value: true,
+      },
+    }));
+
+    const contextMenu = target.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="技能管理: 上下文菜单"]',
+    );
+    if (!contextMenu) throw new Error("Missing context-menu switch");
+    contextMenu.click();
+    await tick();
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: {
+        group: "lets-skill-manager.displayName",
+        key: "entryContextMenu",
+        value: false,
       },
     }));
   });
