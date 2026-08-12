@@ -13,7 +13,6 @@ import { prepareToolbarIcon } from "@/toolbar-icon";
 import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 import type { ProtyleToolbarItem } from "@/types/plugin";
 import { buildPluginDeclarationMenu } from "@/libs/plugin-declarations";
-import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
@@ -135,12 +134,8 @@ export default class DamophusPlugin extends Plugin {
         },
       });
       if (declarationItems.length === 0) continue;
-      menu.addItem({
-        icon: resolveSiyuanPluginIcon(metadata.icon ?? "film"),
-        label: this.i18n[metadata.displayName] ?? metadata.displayName,
-        submenu: declarationItems,
-      });
-      itemCount += 1;
+      declarationItems.forEach((item) => menu.addItem(item));
+      itemCount += declarationItems.length;
     }
     if (itemCount > 0) menu.addSeparator();
     menu.addItem({

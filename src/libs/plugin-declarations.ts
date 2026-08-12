@@ -4,7 +4,6 @@ import type {
   PluginMetadata,
   PluginSettingItem,
 } from "@/types/plugin";
-import { resolveSiyuanPluginIcon } from "./plugin-icons";
 import { bindMenuIdentity } from "./menu-identity";
 
 export interface ResolvedPluginDeclaration extends PluginDeclaration {
@@ -55,24 +54,20 @@ function declarationMenuItems(
     const ownItems = declaration.settings.flatMap((setting): IMenu[] => {
       if (!setting.menu || setting.type !== "checkbox") return [];
       const enabled = Boolean(options.readSetting(setting.key, setting.value));
-      return [{
+      return [bindMenuIdentity({
         label: options.translate(setting.title),
         checked: enabled,
         click: () => options.toggle(setting, !enabled),
-      }];
+      }, {
+        plugin: "siyuan-damophus",
+        module: moduleId,
+        declaration: [moduleId, ...declaration.path],
+      })];
     });
-    const childItems = declarationMenuItems(declaration.children, options, moduleId);
-    const submenu = [...ownItems, ...childItems];
-    if (submenu.length === 0) return [];
-    return [bindMenuIdentity({
-      icon: declaration.icon ? resolveSiyuanPluginIcon(declaration.icon) : undefined,
-      label: options.translate(declaration.title),
-      submenu,
-    }, {
-      plugin: "siyuan-damophus",
-      module: moduleId,
-      declaration: [moduleId, ...declaration.path],
-    })];
+    return [
+      ...ownItems,
+      ...declarationMenuItems(declaration.children, options, moduleId),
+    ];
   });
 }
 

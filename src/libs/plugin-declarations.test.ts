@@ -37,20 +37,20 @@ describe("plugin declarations", () => {
     expect(collectPluginSettings(metadata).map((setting) => setting.key)).toEqual(["root", "enabled"]);
   });
 
-  it("builds a recursive checked menu and delegates one persisted toggle", async () => {
+  it("projects a deeply nested checked setting as one direct menu item", async () => {
     const toggle = vi.fn();
     const items = buildPluginDeclarationMenu(metadata, {
       readSetting: () => true,
       translate: (key) => key,
       toggle,
     });
-    const leaf = items[0].submenu?.[0].submenu?.[0].submenu?.[0];
-    expect(leaf).toMatchObject({ label: "Enabled", checked: true });
-    await leaf?.click?.({} as HTMLElement, {} as MouseEvent);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ label: "Enabled", checked: true });
+    await items[0].click?.({} as HTMLElement, {} as MouseEvent);
     expect(toggle).toHaveBeenCalledWith(expect.objectContaining({ key: "enabled" }), false);
   });
 
-  it("marks every declaration menu with its plugin, module, and full declaration path", () => {
+  it("marks each direct item with its plugin, module, and full declaration path", () => {
     const items = buildPluginDeclarationMenu(metadata, {
       readSetting: () => true,
       translate: (key) => key,
@@ -62,9 +62,8 @@ describe("plugin declarations", () => {
         attributes.set(name, value);
       },
     } as unknown as HTMLElement;
-    const nested = items[0].submenu?.[0].submenu?.[0];
 
-    nested?.bind?.(element);
+    items[0].bind?.(element);
 
     expect(attributes.get(MENU_PLUGIN_ATTRIBUTE)).toBe("siyuan-damophus");
     expect(attributes.get(MENU_MODULE_ATTRIBUTE)).toBe("deep");
