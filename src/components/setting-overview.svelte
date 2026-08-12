@@ -93,13 +93,14 @@
   }
 
   function categoryRects(): Map<string, DOMRect> {
+    if (!overviewRoot) return new Map();
     return new Map([...overviewRoot.querySelectorAll<HTMLElement>("[data-dnd-category]")]
       .map((element) => [element.dataset.dndCategory ?? "", element.getBoundingClientRect()]));
   }
 
   async function animateCategoryLayout(before: Map<string, DOMRect>): Promise<void> {
     await tick();
-    if (prefersReducedMotion) return;
+    if (compact || prefersReducedMotion || !overviewRoot) return;
     const animations = [...overviewRoot.querySelectorAll<HTMLElement>("[data-dnd-category]")]
       .map((element) => {
         const previous = before.get(element.dataset.dndCategory ?? "");
@@ -124,6 +125,10 @@
   }
 
   function selectModule(selectId: string) {
+    if (compact) {
+      dispatch("select", selectId);
+      return;
+    }
     const before = categoryRects();
     dispatch("select", selectId);
     void animateCategoryLayout(before).then(() => {
@@ -149,7 +154,7 @@
 </script>
 
 <div class={mode === "navigation" ? "min-w-0" : "contents"} data-testid="setting-overview-shell" data-mode={mode}>
-  {#if mode === "navigation"}
+  {#if mode === "navigation" && !compact}
     <div in:fade={{ duration: 140 }}>
       <Button
         variant="ghost"
@@ -183,7 +188,7 @@
   {#each visibleCategories as category (category.id)}
     {@const categoryModules = visibleModules(category)}
     {@const categoryIsActive = category.modules.some((module) => module.selectId === activeSelectId)}
-    <div class="min-w-0" data-dnd-category={category.id} transition:fade={{ duration: 160 }}>
+    <div class="min-w-0" data-dnd-category={category.id} in:fade={{ duration: 160 }}>
     <section
       role="group"
       aria-label={category.label}

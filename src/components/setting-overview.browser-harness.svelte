@@ -3,6 +3,7 @@
 
   export let categories: OverviewCategory[] = [];
   export let reorderHint = "Drag to reorder";
+  export let compact = false;
 
   let mode: "overview" | "navigation" = "overview";
   let activeSelectId = "";
@@ -17,6 +18,7 @@
   {categories}
   {mode}
   {activeSelectId}
+  {compact}
   {reorderHint}
   on:select={selectModule}
   on:overview={() => mode = "overview"}

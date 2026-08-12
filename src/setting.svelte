@@ -485,13 +485,14 @@
     class:settings-stage--compact={compactLayout}
     data-testid={showOverview ? "setting-overview-page" : "setting-detail-page"}
   >
-    {#if showOverview}
+    {#if showOverview && !compactLayout}
       <header class="settings-stage__heading border-b border-border pb-4" in:fade={{ duration: 140 }}>
         <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
         <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
       </header>
     {/if}
 
+    {#if showOverview || !compactLayout}
     <div class="settings-stage__navigation">
       <SettingOverview
         categories={overviewCategories}
@@ -507,9 +508,13 @@
         on:reorder={onOverviewReorder}
       />
     </div>
+    {/if}
 
   {#if !showOverview}
-  <main class="settings-stage__detail min-w-0 overflow-y-auto overscroll-contain" in:fade={{ duration: 180 }}>
+  <main
+    class="settings-stage__detail min-w-0 overflow-y-auto overscroll-contain"
+    in:fade={{ duration: compactLayout ? 0 : 180 }}
+  >
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
       {#if !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
         <header class="border-b border-border pb-4">
@@ -667,15 +672,16 @@
 
   .settings-stage--compact.settings-stage--overview {
     padding: 1rem;
-    gap: 1rem;
+    gap: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "navigation";
   }
 
   .settings-stage--compact.settings-stage--detail {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas:
-      "navigation"
-      "detail";
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "detail";
   }
 
   .settings-stage--compact.settings-stage--detail .settings-stage__navigation {

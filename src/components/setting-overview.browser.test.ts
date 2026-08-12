@@ -234,14 +234,28 @@ describe("setting overview", () => {
     ))).toBe(true);
   });
 
-  it("opens mobile detail without retaining a category card", async () => {
+  it("opens mobile detail immediately without retaining overview UI or outro animations", async () => {
     await page.viewport(390, 760);
-    const { target } = render({ mode: "navigation", activeSelectId: "题库", compact: true });
+    const target = createTarget();
+    mounted.push(mount(SettingOverviewBrowserHarness, {
+      target,
+      props: { categories: createCategories(), reorderHint: "拖动调整顺序", compact: true },
+    }));
+    await tick();
+
+    const cards = [...target.querySelectorAll<HTMLElement>("[data-dnd-category]")];
+    const moduleButton = [...target.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("题库"),
+    );
+    if (!moduleButton) throw new Error("Missing mobile overview module");
+    moduleButton.click();
     await tick();
 
     expect(target.querySelector('section[data-testid^="overview-category-"]')).toBeNull();
     expect([...target.querySelectorAll<HTMLButtonElement>("button")]
-      .some((button) => button.textContent?.includes("Back to overview"))).toBe(true);
+      .some((button) => button.textContent?.includes("Back to overview"))).toBe(false);
+    expect(cards.every((card) => !card.isConnected)).toBe(true);
+    expect(cards.every((card) => card.getAnimations().length === 0)).toBe(true);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 
