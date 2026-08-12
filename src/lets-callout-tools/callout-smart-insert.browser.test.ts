@@ -102,6 +102,13 @@ function clickCallout(editor: TestEditor, value = NOTE_VALUE): void {
   editor.hint.fill(value, editor.protyle, false);
 }
 
+function setSavedRange(editor: TestEditor, container: Node, offset: number): void {
+  const range = document.createRange();
+  range.setStart(container, offset);
+  range.collapse(true);
+  editor.protyle.toolbar!.range = range;
+}
+
 function operationElement(root: HTMLElement, id: string | undefined): HTMLElement | null {
   return id ? root.querySelector<HTMLElement>(`[data-node-id="${id}"]`) : null;
 }
@@ -198,6 +205,48 @@ describe("smart Callout insertion", () => {
       "slash",
       1,
     );
+    editor.hint.lastIndex = -1;
+
+    clickCallout(editor);
+
+    const callout = editor.root.firstElementChild as HTMLElement;
+    expect(callout.dataset.nodeId).toBe("slash");
+    expect(callout.textContent).not.toContain("/");
+    expect(callout.querySelector(":scope > .callout-content > [data-node-id=target]")).not.toBeNull();
+    expect(editor.originalFill).not.toHaveBeenCalled();
+    expect(editor.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes a slash query split across adjacent text nodes", () => {
+    const editor = createEditor(
+      '<div data-node-id="slash" data-type="NodeParagraph" contenteditable="true">/callout<div class="protyle-attr" contenteditable="false"></div></div><div data-node-id="target" data-type="NodeParagraph" contenteditable="true">Body</div>',
+    );
+    const block = editor.root.querySelector<HTMLElement>('[data-node-id="slash"]')!;
+    const query = block.firstChild as Text;
+    const suffix = query.splitText(1);
+    setSavedRange(editor, suffix, suffix.data.length);
+    editor.hint.lastIndex = 0;
+
+    clickCallout(editor);
+
+    const callout = editor.root.firstElementChild as HTMLElement;
+    expect(callout.dataset.nodeId).toBe("slash");
+    expect(callout.textContent).not.toContain("/");
+    expect(callout.querySelector(":scope > .callout-content > [data-node-id=target]")).not.toBeNull();
+    expect(editor.originalFill).not.toHaveBeenCalled();
+    expect(editor.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes the slash when the saved caret is on the editable container", () => {
+    const editor = createEditor(
+      '<div data-node-id="slash" data-type="NodeParagraph"><div contenteditable="true"><span>/callout</span></div><div class="protyle-attr" contenteditable="false"></div></div><div data-node-id="target" data-type="NodeParagraph" contenteditable="true">Body</div>',
+      "slash",
+      0,
+    );
+    const editable = editor.root.querySelector<HTMLElement>(
+      '[data-node-id="slash"] > [contenteditable="true"]',
+    )!;
+    setSavedRange(editor, editable, editable.childNodes.length);
     editor.hint.lastIndex = -1;
 
     clickCallout(editor);

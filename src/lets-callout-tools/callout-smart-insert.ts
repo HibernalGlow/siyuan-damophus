@@ -103,27 +103,48 @@ function cloneAfterDeletingRange(block: HTMLElement, range: Range): HTMLElement 
 }
 
 function queryRangeFromHint(
+  block: HTMLElement,
   activeRange: Range,
   hint: Pick<SmartInsertHint, "lastIndex" | "splitChar">,
 ): Range | undefined {
-  if (activeRange.startContainer !== activeRange.endContainer) return undefined;
-  const container = activeRange.startContainer;
-  if (container.nodeType !== Node.TEXT_NODE) return undefined;
+  const beforeCaret = block.ownerDocument.createRange();
+  beforeCaret.selectNodeContents(block);
+  try {
+    beforeCaret.setEnd(activeRange.endContainer, activeRange.endOffset);
+  } catch {
+    return undefined;
+  }
 
-  const text = container.textContent ?? "";
-  const caretOffset = activeRange.startOffset;
+  const text = beforeCaret.toString();
   const hintedIndex = hint.lastIndex;
   const hintedStartIsValid = hintedIndex >= 0
-    && hintedIndex < caretOffset
+    && hintedIndex < text.length
     && text.startsWith(hint.splitChar, hintedIndex);
   const queryStart = hintedStartIsValid
     ? hintedIndex
-    : text.lastIndexOf(hint.splitChar, caretOffset - 1);
+    : text.lastIndexOf(hint.splitChar);
   if (queryStart < 0) return undefined;
 
-  const queryRange = activeRange.cloneRange();
+  const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+  let startNode: Text | undefined;
+  let startOffset = 0;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const textNode = node as Text;
+    const nextOffset = offset + textNode.data.length;
+    if (queryStart < nextOffset) {
+      startNode = textNode;
+      startOffset = queryStart - offset;
+      break;
+    }
+    offset = nextOffset;
+  }
+  if (!startNode || !startNode.data.startsWith(hint.splitChar, startOffset)) return undefined;
+
+  const queryRange = block.ownerDocument.createRange();
   try {
-    queryRange.setStart(container, queryStart);
+    queryRange.setStart(startNode, startOffset);
+    queryRange.setEnd(activeRange.endContainer, activeRange.endOffset);
   } catch {
     return undefined;
   }
@@ -280,10 +301,10 @@ export class CalloutSmartInsert {
     }
     const activeRange = protyle.toolbar.range;
     if (!activeRange) return false;
-    const block = blockElementAt(activeRange.startContainer, protyle.wysiwyg.element);
+    const block = blockElementAt(activeRange.endContainer, protyle.wysiwyg.element);
     if (!block) return false;
 
-    const queryRange = queryRangeFromHint(activeRange, hint);
+    const queryRange = queryRangeFromHint(block, activeRange, hint);
     if (!queryRange) return false;
     const simulated = cloneAfterDeletingRange(block, queryRange);
     if (!simulated) return false;
