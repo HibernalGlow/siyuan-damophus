@@ -71,14 +71,6 @@ export const EXPANDED_PLUGIN_MENU_CSS = `
     border-left: 1px solid var(--b3-border-color, rgba(127, 127, 127, 0.22));
   }
 
-  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS}:nth-child(var(--damophus-plugin-menu-columns, 1)n + 1) {
-    border-left: 0;
-  }
-
-  .${EXPANDED_PLUGIN_MENU_GROUP_CLASS}:first-child {
-    border-left: 0;
-  }
-
   .${EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS} {
     box-sizing: border-box;
     min-height: 28px;
@@ -330,6 +322,9 @@ function positionPanel(enhanced: EnhancedMenu): void {
 
   rootItem.setAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE, direction);
   rootItem.style.setProperty("--damophus-plugin-menu-columns", String(columns));
+  Array.from(panel.children).forEach((group, index) => {
+    if (group instanceof HTMLElement) group.style.borderLeft = index % columns === 0 ? "0" : "";
+  });
   const measuredWidth = Math.min(submenu.getBoundingClientRect().width, viewportWidth - margin * 2);
   submenu.style.left = `${Math.round(direction === "right" ? itemRect.right + gap : itemRect.left - gap - measuredWidth)}px`;
   submenu.style.right = "auto";

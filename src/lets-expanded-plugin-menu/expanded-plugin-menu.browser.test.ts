@@ -156,8 +156,13 @@ describe("expanded plugin menu", () => {
     pointAt(pluginItem);
     const panel = pluginItem.querySelector<HTMLElement>(":scope > .b3-menu__submenu")!;
     expect(pluginItem.getAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE)).toBe("left");
+    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-columns")).toBe("2");
     expect(Math.abs(panel.getBoundingClientRect().right - pluginItem.getBoundingClientRect().left)).toBeLessThanOrEqual(6);
     expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(12);
+    const groups = panel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS}`);
+    expect(groups[0].style.borderLeft).toBe("0px");
+    expect(groups[1].style.borderLeft).toBe("");
+    expect(groups[2].style.borderLeft).toBe("0px");
 
     controller.destroy();
   });
