@@ -207,9 +207,11 @@ describe("expanded plugin menu", () => {
 
     pointAt(pluginItem);
     expect(getComputedStyle(pluginSubmenu).display).toBe("block");
+    const stableTop = pluginSubmenu.style.top;
     const flatCommand = itemByLabel(pluginSubmenu, "Note");
     pointAt(flatCommand);
     expect(getComputedStyle(pluginSubmenu).display).toBe("block");
+    expect(pluginSubmenu.style.top).toBe(stableTop);
     controller.destroy();
   });
 

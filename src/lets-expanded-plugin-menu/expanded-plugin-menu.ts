@@ -288,8 +288,9 @@ function topLevelItemForTarget(target: EventTarget | null, rootItem: HTMLElement
 }
 
 function setPanelVisible(enhanced: EnhancedMenu, visible: boolean): void {
+  const wasVisible = enhanced.rootItem.hasAttribute(EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE);
   enhanced.rootItem.toggleAttribute(EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE, visible);
-  if (visible) positionPanel(enhanced);
+  if (visible && !wasVisible) positionPanel(enhanced);
 }
 
 function installInteractionHandling(enhanced: EnhancedMenu): () => void {
