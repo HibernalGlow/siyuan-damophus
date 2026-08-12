@@ -11,6 +11,7 @@ import {
   selectedBlockIds,
 } from "./surface-helpers";
 import { AgentAutomationController, type AgentApprovalNotice } from "./agent-automation";
+import { applyConfiguredAgentModel, resolveAgentModel, type AgentModel } from "./agent-model";
 import { AgentPanelPortal } from "./agent-panel-portal";
 import { MobileAgentDropdownController } from "./mobile-dropdown-controller";
 import "./agent-surface.css";
@@ -19,10 +20,6 @@ const log = getLogger("lets-agent-surface");
 const AGENT_TAB_TYPE = "damophus-agent-surface-tab";
 const AGENT_MOBILE_DOCK_TYPE = "damophus-agent-surface-mobile-dock";
 const MAX_YOLO_APPROVAL_DELAY_SECONDS = 300;
-type AgentModel = {
-  panelElement?: HTMLElement;
-  insertBlockMentions?: (mentions: BlockMention[]) => void;
-};
 type BlockMention = { id: string; label: string };
 type DockHost = {
   layout?: { element?: HTMLElement };
@@ -58,6 +55,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   private mobileDropdownController?: MobileAgentDropdownController;
   private allowingNativeDockClick = false;
   private allowingNativeMobileAgentClick = false;
+  private desktopAgentModel?: AgentModel;
   private panelOrigin?: { parent: Node; nextSibling: ChildNode | null };
   private readonly tabTargets = new Set<HTMLElement>();
   private readonly handleDocumentClick = (event: MouseEvent): void => {
@@ -163,6 +161,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
     this.closeNativeMobileAgent();
     document.getElementById("model")?.classList.remove("damophus-agent-dropdown-mobile");
     for (const target of this.tabTargets) this.detachTab(target);
+    this.desktopAgentModel = undefined;
     this.panelOrigin = undefined;
   }
 
@@ -342,14 +341,12 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 
   private async ensureMobileAgentModel(): Promise<AgentModel | undefined> {
-    const existing = agentModel();
-    if (existing?.panelElement) return existing;
-    this.openMobileAgent();
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 25));
-      const model = agentModel();
-      if (model?.panelElement) return model;
-    }
+    const result = await resolveAgentModel({
+      resolve: agentModel,
+      activate: () => this.openMobileAgent(),
+    });
+    if (result.created && result.model) this.applyConfiguredModel(result.model);
+    if (result.model) return result.model;
     log.warn("native mobile agent model did not become available");
     return undefined;
   }
@@ -387,6 +384,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
 
   private async openAgentTab(ids: string[]): Promise<void> {
     if (!await this.ensureDesktopAgentModel()) return;
+    this.collapseNativeAgentDock();
     await openTab({
       app: plugin.app,
       custom: {
@@ -399,16 +397,23 @@ export default class AgentSurfacePlugin extends SubPluginBase {
   }
 
   private async ensureDesktopAgentModel(): Promise<AgentModel | undefined> {
-    const existing = agentModel();
-    if (existing?.panelElement) return existing;
-    this.openDesktopAgent();
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 25));
-      const model = agentModel();
-      if (model?.panelElement) return model;
+    if (this.desktopAgentModel?.panelElement) return this.desktopAgentModel;
+    const result = await resolveAgentModel({
+      resolve: agentModel,
+      activate: () => this.openDesktopAgent(),
+    });
+    if (result.created && result.model) this.applyConfiguredModel(result.model);
+    if (result.model) {
+      this.desktopAgentModel = result.model;
+      return result.model;
     }
     log.warn("native agent model did not become available");
     return undefined;
+  }
+
+  private applyConfiguredModel(model: AgentModel): void {
+    const config = (window.siyuan.config as unknown as { ai?: unknown }).ai;
+    applyConfiguredAgentModel(model, config);
   }
 
   private async attachTab(target: HTMLElement): Promise<void> {
@@ -457,7 +462,7 @@ export default class AgentSurfacePlugin extends SubPluginBase {
       }
       return { id, label: id };
     }));
-    const model = agentModel();
+    const model = this.desktopAgentModel ?? agentModel();
     model?.insertBlockMentions?.(mentions);
   }
 
