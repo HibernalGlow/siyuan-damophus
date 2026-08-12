@@ -486,7 +486,7 @@
     data-testid={showOverview ? "setting-overview-page" : "setting-detail-page"}
   >
     {#if showOverview}
-      <header class="settings-stage__heading border-b border-border pb-4" transition:fade={{ duration: 140 }}>
+      <header class="settings-stage__heading border-b border-border pb-4" in:fade={{ duration: 140 }}>
         <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
         <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
       </header>
@@ -509,7 +509,7 @@
     </div>
 
   {#if !showOverview}
-  <main class="settings-stage__detail min-w-0 overflow-y-auto overscroll-contain" transition:fade={{ duration: 180 }}>
+  <main class="settings-stage__detail min-w-0 overflow-y-auto overscroll-contain" in:fade={{ duration: 180 }}>
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
       {#if !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
         <header class="border-b border-border pb-4">
@@ -529,12 +529,16 @@
           on:expandedChanged={onSwitchesExpandedChanged}
         />
       {:else if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
+        <!--
+          Module enable controls are managed from the settings overview.
+          Uncomment this panel to restore the enable switch inside plugin details.
         <SettingPanel
           group={focusGroup}
           settingItems={moduleEnabledSettingItems}
           mobile={compactLayout}
           on:changed={onChanged}
         />
+        -->
       {/if}
 
       {#if showEntryManagement}
@@ -620,7 +624,6 @@
     min-height: 0;
     flex: 1;
     display: grid;
-    transition: grid-template-columns 280ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 280ms ease, gap 280ms ease;
   }
 
   .settings-stage--overview {
@@ -630,7 +633,7 @@
     margin-inline: auto;
     padding: 1.5rem;
     gap: 1.25rem;
-    grid-template-columns: minmax(0, 1fr) 0fr;
+    grid-template-columns: minmax(0, 100%) minmax(0, 0fr);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "heading heading"
@@ -639,7 +642,7 @@
   }
 
   .settings-stage--detail {
-    grid-template-columns: 16rem minmax(0, 1fr);
+    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
     grid-template-areas: "navigation detail";
     overflow: hidden;
@@ -651,7 +654,7 @@
     grid-area: navigation;
     min-width: 0;
     overflow-y: auto;
-    transition: background-color 200ms ease, border-color 200ms ease, padding 280ms ease;
+    transition: background-color 200ms ease, border-color 200ms ease;
   }
 
   .settings-stage--detail .settings-stage__navigation {

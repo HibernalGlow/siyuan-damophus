@@ -40,6 +40,9 @@
   export let labels: QuestionBankSettingsLabelsBundle;
   export let mobile = false;
 
+  // Kept in the component contract so the commented detail switch can be restored directly.
+  void moduleSettingItems;
+
   const sectionIds = ["practice", "review", "index", "display", "timing", "mask"] as const;
   type SectionId = typeof sectionIds[number];
   type StandardSectionId = Exclude<SectionId, "mask">;
@@ -149,7 +152,11 @@
     </nav>
   </header>
 
+  <!--
+    Module enable controls are managed from the settings overview.
+    Uncomment this panel to restore the enable switch inside plugin details.
   <SettingPanel group={group} settingItems={moduleSettingItems} {mobile} on:changed />
+  -->
 
   <div class="question-bank-settings-list">
     {#each sections as section (section.id)}

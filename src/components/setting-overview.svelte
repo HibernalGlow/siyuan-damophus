@@ -49,7 +49,10 @@
     reorder: { categoryOrder?: string[]; moduleOrder?: { categoryId: string; order: string[] } };
   }>();
 
-  const flipDurationMs = 160;
+  const prefersReducedMotion = typeof window !== "undefined"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const moduleFlipDurationMs = prefersReducedMotion ? 0 : 160;
+  const cardLayoutDurationMs = prefersReducedMotion ? 0 : 280;
   let renderedCategories = categories;
   let sourceCategories = categories;
   let overviewRoot: HTMLDivElement;
@@ -58,21 +61,9 @@
     sourceCategories = categories;
     renderedCategories = categories;
   }
-  $: activeCategory = renderedCategories.find((category) =>
-    category.modules.some((module) => module.selectId === activeSelectId),
-  ) ?? renderedCategories[0];
-  $: visibleCategories = mode === "navigation" && compact
-    ? activeCategory ? [activeCategory] : []
-    : renderedCategories;
-  $: if (mode === "navigation" && !compact && overviewRoot && activeSelectId) {
-    void tick().then(() => {
-      overviewRoot.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
-    });
-  }
-
+  $: visibleCategories = mode === "navigation" && compact ? [] : renderedCategories;
   function visibleModules(category: OverviewCategory) {
-    if (mode !== "navigation" || !compact) return category.modules;
-    return category.modules.filter((module) => module.selectId === activeSelectId);
+    return category.modules;
   }
 
   function considerCategories(event: CustomEvent<DndEvent<OverviewCategory>>) {
@@ -100,16 +91,71 @@
       moduleOrder: { categoryId, order: event.detail.items.map((module) => module.id) },
     });
   }
+
+  function categoryRects(): Map<string, DOMRect> {
+    return new Map([...overviewRoot.querySelectorAll<HTMLElement>("[data-dnd-category]")]
+      .map((element) => [element.dataset.dndCategory ?? "", element.getBoundingClientRect()]));
+  }
+
+  async function animateCategoryLayout(before: Map<string, DOMRect>): Promise<void> {
+    await tick();
+    if (prefersReducedMotion) return;
+    const animations = [...overviewRoot.querySelectorAll<HTMLElement>("[data-dnd-category]")]
+      .map((element) => {
+        const previous = before.get(element.dataset.dndCategory ?? "");
+        const next = element.getBoundingClientRect();
+        if (!previous || !next.width || !next.height) return undefined;
+        const deltaX = previous.left - next.left;
+        const deltaY = previous.top - next.top;
+        const scaleX = previous.width / next.width;
+        const scaleY = previous.height / next.height;
+        if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5
+          && Math.abs(scaleX - 1) < 0.005 && Math.abs(scaleY - 1) < 0.005) return undefined;
+        return element.animate([
+          { transformOrigin: "top left", transform: `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})` },
+          { transformOrigin: "top left", transform: "none" },
+        ], {
+          duration: cardLayoutDurationMs,
+          easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        });
+      })
+      .filter((animation): animation is Animation => animation !== undefined);
+    await Promise.allSettled(animations.map((animation) => animation.finished));
+  }
+
+  function selectModule(selectId: string) {
+    const before = categoryRects();
+    dispatch("select", selectId);
+    void animateCategoryLayout(before).then(() => {
+      const active = renderedCategories.some((category) =>
+        category.modules.some((module) => module.selectId === activeSelectId));
+      revealActiveItem(active);
+    });
+  }
+
+  function returnToOverview() {
+    const before = categoryRects();
+    dispatch("overview");
+    void animateCategoryLayout(before);
+  }
+
+  function revealActiveItem(categoryIsActive: boolean) {
+    if (mode !== "navigation" || compact || !categoryIsActive) return;
+    overviewRoot.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({
+      block: "nearest",
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
+  }
 </script>
 
 <div class={mode === "navigation" ? "min-w-0" : "contents"} data-testid="setting-overview-shell" data-mode={mode}>
   {#if mode === "navigation"}
-    <div transition:fade={{ duration: 160 }}>
+    <div in:fade={{ duration: 140 }}>
       <Button
         variant="ghost"
         size="sm"
         class="mb-2 w-full justify-start gap-2 px-2 text-muted-foreground"
-        onclick={() => dispatch("overview")}
+        onclick={returnToOverview}
       >
         <ArrowLeft class="size-4" aria-hidden="true" />
         <span class="truncate">{overviewLabel}</span>
@@ -126,7 +172,7 @@
     use:dragHandleZone={{
       items: visibleCategories,
       type: "damophus-settings-categories",
-      flipDurationMs,
+      flipDurationMs: 0,
       dragDisabled: mode === "navigation",
       dropTargetClasses: ["damophus-settings-dropzone-active"],
       delayTouchStart: true,
@@ -137,6 +183,7 @@
   {#each visibleCategories as category (category.id)}
     {@const categoryModules = visibleModules(category)}
     {@const categoryIsActive = category.modules.some((module) => module.selectId === activeSelectId)}
+    <div class="min-w-0" data-dnd-category={category.id} transition:fade={{ duration: 160 }}>
     <section
       role="group"
       aria-label={category.label}
@@ -144,8 +191,6 @@
         ? "min-w-0 overflow-hidden rounded-lg border border-primary/30 bg-card shadow-sm transition-[border-color,box-shadow]"
         : "min-w-0 overflow-hidden rounded-lg border border-border bg-card/70 shadow-sm transition-[border-color,box-shadow]"}
       data-testid={`overview-category-${category.id}`}
-      animate:flip={{ duration: flipDurationMs }}
-      transition:fade={{ duration: 160 }}
     >
       <div
         class={mode === "navigation"
@@ -182,7 +227,7 @@
         use:dragHandleZone={{
           items: categoryModules,
           type: `damophus-settings-modules-${category.id}`,
-          flipDurationMs,
+          flipDurationMs: moduleFlipDurationMs,
           dragDisabled: mode === "navigation",
           dropTargetClasses: ["damophus-settings-module-dropzone-active"],
           delayTouchStart: true,
@@ -191,7 +236,7 @@
         onfinalize={(event) => finalizeModules(category.id, event)}
       >
         {#each categoryModules as module (module.id)}
-          <li aria-label={module.label} animate:flip={{ duration: flipDurationMs }}>
+          <li aria-label={module.label} animate:flip={{ duration: moduleFlipDurationMs }}>
             <div
               role="listitem"
               class="group flex min-w-0 items-center gap-0.5 rounded-md transition-[background-color,box-shadow]"
@@ -212,7 +257,7 @@
                   ? "h-8 min-w-0 flex-1 justify-start gap-2 rounded-md border-l-2 border-primary px-2 text-foreground"
                   : "h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-foreground"}
                 aria-current={mode === "navigation" && module.selectId === activeSelectId ? "page" : undefined}
-                onclick={() => dispatch("select", module.selectId)}
+                onclick={() => selectModule(module.selectId)}
               >
                 <PluginIcon name={module.icon} className="size-4 shrink-0 text-muted-foreground" />
                 <span class="min-w-0 flex-1 truncate text-left text-[13px]">{module.label}</span>
@@ -232,16 +277,17 @@
         {/each}
       </ul>
     </section>
+    </div>
   {/each}
   </div>
 </div>
 
 <style>
-  :global(.damophus-settings-dropzone-active > [data-testid^="overview-category-"]) {
+  :global(.damophus-settings-dropzone-active > [data-dnd-category]) {
     transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   }
 
-  :global(.damophus-settings-dropzone-active > [data-testid^="overview-category-"]:focus-within) {
+  :global(.damophus-settings-dropzone-active > [data-dnd-category]:focus-within) {
     border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
   }
 

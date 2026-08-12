@@ -25,6 +25,9 @@
   export let labels: CalloutAppearanceSettingsLabels;
   export let mobile = false;
 
+  // Kept in the component contract so the commented detail switch can be restored directly.
+  void moduleSettingItems;
+
   const dispatch = createEventDispatcher();
   let previewOverrides: Record<string, unknown> = {};
 
@@ -62,12 +65,16 @@
     <div class="text-lg font-semibold" role="heading" aria-level="2">{title}</div>
   </header>
 
+  <!--
+    Module enable controls are managed from the settings overview.
+    Uncomment this panel to restore the enable switch inside plugin details.
   <SettingPanel
     {group}
     settingItems={moduleSettingItems}
     {mobile}
     on:changed={(event) => dispatch("changed", event.detail)}
   />
+  -->
 
   <section class="border-y border-border py-4" aria-labelledby="callout-appearance-preview-title">
     <div class="mb-3 px-3">

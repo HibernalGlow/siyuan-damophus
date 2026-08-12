@@ -35,7 +35,7 @@
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Switch } from "@/components/ui/switch";
-  import SettingPanel from "@/libs/setting-panel.svelte";
+  // import SettingPanel from "@/libs/setting-panel.svelte"; // Restore with the commented detail switch below.
   import * as Select from "@/components/ui/select";
   import {
     DEFAULT_ACTIONS,
@@ -56,6 +56,9 @@
   export let dockPosition: TPluginDockPosition = "RightBottom";
   export let labels: LayoutActionsSettingsLabels;
   export let mobile = false;
+
+  // Kept in the component contract so the commented detail switch can be restored directly.
+  void moduleSettingItems;
 
   const dispatch = createEventDispatcher();
   let catalog: Record<ActionKind, CommandOption[]> = { system: [], plugin: [], editor: [] };
@@ -118,7 +121,11 @@
     <div class="text-lg font-semibold" role="heading" aria-level="2">{title}</div>
   </header>
 
+  <!--
+    Module enable controls are managed from the settings overview.
+    Uncomment this panel to restore the enable switch inside plugin details.
   <SettingPanel group={group} settingItems={moduleSettingItems} {mobile} on:changed />
+  -->
 
   <div class="border-y border-border">
     <div class="grid min-h-16 grid-cols-[minmax(0,1fr)_minmax(180px,auto)] items-center gap-5 px-3 py-3 max-[640px]:grid-cols-1 max-[640px]:gap-3">

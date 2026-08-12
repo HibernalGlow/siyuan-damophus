@@ -65,6 +65,7 @@ describe("Callout appearance settings", () => {
 
     expect(target.textContent).toContain(labels.preview);
     expect(target.textContent).toContain(labels.nestedBody);
+    expect(target.textContent).not.toContain("Enabled");
     expect(getComputedStyle(callouts[0]).paddingTop).toBe("16px");
     expect(getComputedStyle(callouts[0]).borderRadius).toBe("11px");
     expect(getComputedStyle(callouts[1]).maxWidth).toBe("100%");

@@ -74,13 +74,33 @@ function render(events: Record<string, (event: any) => void> = {}, mobile = fals
   document.body.appendChild(target);
   mounted.push(mount(QuestionBankSettings, {
     target,
-    props: { group: "lets-question-bank.displayName", title: "题库", settingItems, labels, mobile },
+    props: {
+      group: "lets-question-bank.displayName",
+      title: "题库",
+      moduleSettingItems: [{
+        type: "checkbox",
+        title: "题库总开关",
+        description: "Enable question bank",
+        key: "enabled",
+        value: true,
+      }],
+      settingItems,
+      labels,
+      mobile,
+    },
     events,
   }));
   return target;
 }
 
 describe("question bank settings navigation", () => {
+  it("keeps the module switch on the overview only", async () => {
+    const target = render();
+    await tick();
+
+    expect(target.textContent).not.toContain("题库总开关");
+  });
+
   it("starts with every settings group expanded and allows independent collapsing", async () => {
     const target = render();
     await tick();

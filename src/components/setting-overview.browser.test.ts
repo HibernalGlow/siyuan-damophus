@@ -3,6 +3,7 @@ import { SOURCES, TRIGGERS } from "svelte-dnd-action";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingOverview, { type OverviewCategory } from "./setting-overview.svelte";
+import SettingOverviewBrowserHarness from "./setting-overview.browser-harness.svelte";
 
 let mounted: ReturnType<typeof mount>[] = [];
 
@@ -12,18 +13,8 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 
-function render(options: { mode?: "overview" | "navigation"; activeSelectId?: string; compact?: boolean } = {}) {
-  const target = document.createElement("div");
-  target.className = "damophus-theme-root damophus-question-bank-theme";
-  const hostileHostStyle = document.createElement("style");
-  hostileHostStyle.textContent = ".damophus-theme-root header { display: block !important; }";
-  target.appendChild(hostileHostStyle);
-  document.body.appendChild(target);
-  const select = vi.fn();
-  const toggle = vi.fn();
-  const overview = vi.fn();
-  const reorder = vi.fn();
-  const categories: OverviewCategory[] = [
+function createCategories(): OverviewCategory[] {
+  return [
     {
       id: "core",
       label: "快速入口",
@@ -47,7 +38,26 @@ function render(options: { mode?: "overview" | "navigation"; activeSelectId?: st
       ],
     },
   ];
-  mounted.push(mount(SettingOverview, {
+}
+
+function createTarget() {
+  const target = document.createElement("div");
+  target.className = "damophus-theme-root damophus-question-bank-theme";
+  const hostileHostStyle = document.createElement("style");
+  hostileHostStyle.textContent = ".damophus-theme-root header { display: block !important; }";
+  target.appendChild(hostileHostStyle);
+  document.body.appendChild(target);
+  return target;
+}
+
+function render(options: { mode?: "overview" | "navigation"; activeSelectId?: string; compact?: boolean } = {}) {
+  const target = createTarget();
+  const select = vi.fn();
+  const toggle = vi.fn();
+  const overview = vi.fn();
+  const reorder = vi.fn();
+  const categories = createCategories();
+  const component = mount(SettingOverview, {
     target,
     props: {
       reorderHint: "拖动调整顺序",
@@ -55,8 +65,22 @@ function render(options: { mode?: "overview" | "navigation"; activeSelectId?: st
       ...options,
     },
     events: { select, toggle, overview, reorder },
-  }));
+  });
+  mounted.push(component);
   return { target, select, toggle, overview, reorder, categories };
+}
+
+function renderMotionHarness() {
+  const target = createTarget();
+  mounted.push(mount(SettingOverviewBrowserHarness, {
+    target,
+    props: { categories: createCategories(), reorderHint: "拖动调整顺序" },
+  }));
+  return target;
+}
+
+async function nextAnimationFrame() {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
 function expectCategoryHeaderOnOneRow(card: HTMLElement) {
@@ -175,14 +199,49 @@ describe("setting overview", () => {
     expect(overview).toHaveBeenCalledOnce();
   });
 
-  it("compresses detail navigation to the active item on mobile", async () => {
+  it("animates cards through the complete overview and navigation round trip", async () => {
+    await page.viewport(1100, 800);
+    const target = renderMotionHarness();
+    await tick();
+    await nextAnimationFrame();
+
+    const moduleButton = [...target.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("题库"),
+    );
+    if (!moduleButton) throw new Error("Missing overview module");
+    moduleButton.click();
+    await tick();
+    await nextAnimationFrame();
+
+    expect(target.querySelector('[data-testid="setting-overview-shell"]')?.getAttribute("data-mode")).toBe("navigation");
+    const navigationCards = [...target.querySelectorAll<HTMLElement>("[data-dnd-category]")];
+    expect(navigationCards.some((card) => card.getAnimations().some(
+      (animation) => animation.playState === "running",
+    ))).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    const backButton = [...target.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes("Back to overview"));
+    if (!backButton) throw new Error("Missing overview return control");
+    backButton.click();
+    await tick();
+    await nextAnimationFrame();
+
+    expect(target.querySelector('[data-testid="setting-overview-shell"]')?.getAttribute("data-mode")).toBe("overview");
+    const overviewCards = [...target.querySelectorAll<HTMLElement>("[data-dnd-category]")];
+    expect(overviewCards.some((card) => card.getAnimations().some(
+      (animation) => animation.playState === "running",
+    ))).toBe(true);
+  });
+
+  it("opens mobile detail without retaining a category card", async () => {
     await page.viewport(390, 760);
     const { target } = render({ mode: "navigation", activeSelectId: "题库", compact: true });
     await tick();
 
-    const rows = [...target.querySelectorAll<HTMLElement>('[data-testid="overview-module-zone-study"] li')];
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.textContent).toContain("题库");
+    expect(target.querySelector('section[data-testid^="overview-category-"]')).toBeNull();
+    expect([...target.querySelectorAll<HTMLButtonElement>("button")]
+      .some((button) => button.textContent?.includes("Back to overview"))).toBe(true);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 

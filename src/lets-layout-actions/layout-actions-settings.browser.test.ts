@@ -55,6 +55,13 @@ function render(changed = vi.fn()) {
     props: {
       group: "lets-layout-actions.displayName",
       title: "快捷操作",
+      moduleSettingItems: [{
+        type: "checkbox",
+        title: "快捷操作总开关",
+        description: "Enable layout actions",
+        key: "enabled",
+        value: true,
+      }],
       actions,
       dockPosition: "RightBottom",
       labels,
@@ -70,6 +77,7 @@ describe("layout actions settings", () => {
     await tick();
 
     expect(target.querySelector('[role="switch"][aria-label*="Dock"]')).toBeNull();
+    expect(target.textContent).not.toContain("快捷操作总开关");
     expect(target.textContent).toContain(labels.dockPosition);
     expect([...target.querySelectorAll<HTMLInputElement>("input")].some(
       (input) => input.value === "切换左侧面板布局",
