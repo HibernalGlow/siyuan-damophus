@@ -81,7 +81,12 @@ export default class CalloutToolsPlugin extends SubPluginBase {
     blocks: HTMLElement[],
     protyle: IProtyle,
   ): IMenu {
-    const plan = createCalloutConversionPlan(blocks, definition, protyle);
+    const plan = createCalloutConversionPlan(
+      blocks,
+      definition,
+      protyle,
+      this.promoteHeadingToTitleEnabled(),
+    );
     return {
       iconHTML: `<span class="b3-menu__icon" style="color:${definition.color}">${definition.icon}</span>`,
       label: this.t(TYPE_TRANSLATION_KEYS[definition.type]),
@@ -128,5 +133,9 @@ export default class CalloutToolsPlugin extends SubPluginBase {
 
   private blockMenuConversionEnabled(): boolean {
     return typeof this.getSetting !== "function" || this.getSetting("blockMenuConversion") !== false;
+  }
+
+  private promoteHeadingToTitleEnabled(): boolean {
+    return typeof this.getSetting !== "function" || this.getSetting("promoteHeadingToTitle") !== false;
   }
 }

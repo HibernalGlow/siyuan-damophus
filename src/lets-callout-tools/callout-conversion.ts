@@ -19,6 +19,7 @@ export const CALLOUT_TYPE_DEFINITIONS: readonly CalloutTypeDefinition[] = [
 export interface CalloutConversionPlan {
   blocks: HTMLElement[];
   parentId: string;
+  promoteHeadingToTitle: boolean;
   type: CalloutTypeDefinition;
 }
 
@@ -51,6 +52,7 @@ export function createCalloutConversionPlan(
   sourceBlocks: readonly HTMLElement[],
   type: CalloutTypeDefinition,
   protyle: IProtyle,
+  promoteHeadingToTitle = true,
 ): CalloutConversionPlan | undefined {
   if (protyle.disabled) return undefined;
   const blocks = conversionBlocks(sourceBlocks);
@@ -58,8 +60,13 @@ export function createCalloutConversionPlan(
   if (blocks.some((block) => DISALLOWED_BLOCK_TYPES.has(block.dataset.type ?? ""))) return undefined;
 
   if (blocks.length === 1 && blocks[0].dataset.type === "NodeCallout") {
-    return { blocks, parentId: blocks[0].parentElement?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId
-      ?? protyle.block.parentID ?? "", type };
+    return {
+      blocks,
+      parentId: blocks[0].parentElement?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId
+        ?? protyle.block.parentID ?? "",
+      promoteHeadingToTitle,
+      type,
+    };
   }
 
   const parent = blocks[0].parentElement;
@@ -72,7 +79,7 @@ export function createCalloutConversionPlan(
   const parentId = parent.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId
     ?? protyle.block.parentID;
   if (!parentId) return undefined;
-  return { blocks: ordered, parentId, type };
+  return { blocks: ordered, parentId, promoteHeadingToTitle, type };
 }
 
 function createCalloutElement(
@@ -134,7 +141,7 @@ export function convertBlocksToCallout(
   }
 
   const first = plan.blocks[0];
-  const titleBlock = plan.blocks.length > 1
+  const titleBlock = plan.promoteHeadingToTitle && plan.blocks.length > 1
     ? plan.blocks.find((block) => block.dataset.type === "NodeHeading")
     : undefined;
   const bodyBlocks = titleBlock ? plan.blocks.filter((block) => block !== titleBlock) : plan.blocks;

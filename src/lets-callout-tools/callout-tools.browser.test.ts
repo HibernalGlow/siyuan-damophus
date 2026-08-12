@@ -4,6 +4,8 @@ import type { IProtyle } from "siyuan";
 import CalloutToolsPlugin from "./index";
 import pluginMetadata from "./plugin";
 
+const ORIGINAL_LUTE = window.Lute;
+
 interface EventBusMock {
   listeners: Map<string, Set<(event: CustomEvent<unknown>) => void>>;
   on: ReturnType<typeof vi.fn>;
@@ -42,14 +44,16 @@ function createPlugin(settings: Record<string, unknown>, eventBus: EventBusMock)
 afterEach(() => {
   document.body.replaceChildren();
   setPlugin(undefined);
+  window.Lute = ORIGINAL_LUTE;
 });
 
 describe("Callout tools module", () => {
-  it("is independent and exposes two enabled-by-default behavior switches", () => {
+  it("is independent and exposes enabled-by-default behavior switches", () => {
     expect(pluginMetadata).toMatchObject({ name: "calloutTools", enabled: true });
     expect(pluginMetadata.settings?.map((setting) => [setting.key, setting.value])).toEqual([
       ["smartInsert", true],
       ["blockMenuConversion", true],
+      ["promoteHeadingToTitle", true],
     ]);
   });
 
@@ -108,6 +112,43 @@ describe("Callout tools module", () => {
     expect(addItem.mock.calls[0]?.[0].submenu.every(
       (item: { disabled?: boolean }) => item.disabled !== true,
     )).toBe(true);
+    module.onunload();
+  });
+
+  it("keeps headings in the body when title promotion is switched off", () => {
+    const eventBus = createEventBus();
+    const module = createPlugin({
+      smartInsert: false,
+      blockMenuConversion: true,
+      promoteHeadingToTitle: false,
+    }, eventBus);
+    const addItem = vi.fn();
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="heading" data-type="NodeHeading">Section title</div>
+      <div data-node-id="body" data-type="NodeParagraph">Body</div>
+    `;
+    document.body.append(root);
+    const blocks = ["heading", "body"].map(
+      (id) => root.querySelector<HTMLElement>(`[data-node-id="${id}"]`)!,
+    );
+    const transaction = vi.fn();
+    const protyle = {
+      block: { parentID: "document-root" },
+      disabled: false,
+      getInstance: () => ({ transaction }),
+    } as unknown as IProtyle;
+    window.Lute = { ...ORIGINAL_LUTE, NewNodeID: () => "callout" } as typeof window.Lute;
+
+    module.onload();
+    eventBus.emit("click-blockicon", { menu: { addItem }, protyle, blockElements: blocks });
+    addItem.mock.calls[0]?.[0].submenu[0].click();
+
+    const callout = root.querySelector<HTMLElement>('[data-node-id="callout"]')!;
+    expect(callout.querySelector(".callout-title")?.textContent).toBe("Note");
+    expect(Array.from(callout.querySelector(":scope > .callout-content")!.children)
+      .map((item) => (item as HTMLElement).dataset.nodeId)).toEqual(["heading", "body"]);
+    expect(transaction).toHaveBeenCalledOnce();
     module.onunload();
   });
 

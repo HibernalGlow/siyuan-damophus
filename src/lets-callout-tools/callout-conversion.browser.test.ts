@@ -174,6 +174,29 @@ describe("Callout block conversion", () => {
       .toEqual(["insert", "move"]);
   });
 
+  it("keeps headings in the body when title promotion is disabled", () => {
+    const root = render(`
+      <div data-node-id="heading" data-type="NodeHeading">Section title</div>
+      <div data-node-id="body" data-type="NodeParagraph">Body</div>
+    `);
+    const { protyle, transaction } = createProtyle(root);
+    const blocks = ["heading", "body"].map(
+      (id) => root.querySelector<HTMLElement>(`[data-node-id="${id}"]`)!,
+    );
+    const warning = CALLOUT_TYPE_DEFINITIONS.find((item) => item.type === "WARNING")!;
+    const plan = createCalloutConversionPlan(blocks, warning, protyle, false)!;
+
+    expect(plan.promoteHeadingToTitle).toBe(false);
+    expect(convertBlocksToCallout(plan, protyle, () => "callout")).toBe(true);
+
+    const callout = root.querySelector<HTMLElement>('[data-node-id="callout"]')!;
+    expect(callout.querySelector(".callout-title")?.textContent).toBe("Warning");
+    expect(Array.from(callout.querySelector(":scope > .callout-content")!.children)
+      .map((item) => (item as HTMLElement).dataset.nodeId)).toEqual(["heading", "body"]);
+    expect(transaction.mock.calls[0]?.[0].map((operation: IOperation) => operation.action))
+      .toEqual(["insert", "move", "move"]);
+  });
+
   it("uses the first heading even when an introductory block precedes it", () => {
     const root = render(`
       <div data-node-id="intro" data-type="NodeParagraph">Introduction</div>

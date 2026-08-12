@@ -22,6 +22,13 @@ export const pluginMetadata: PluginMetadata = {
       key: "blockMenuConversion",
       value: true,
     },
+    {
+      type: "checkbox",
+      title: "lets-callout-tools.promoteHeadingTitle",
+      description: "lets-callout-tools.promoteHeadingDescription",
+      key: "promoteHeadingToTitle",
+      value: true,
+    },
   ],
 };
 
