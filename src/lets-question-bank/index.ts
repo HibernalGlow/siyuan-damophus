@@ -142,16 +142,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         onFailure: (error) => log.warn("tinybase.post-sync-merge-failed", error),
       },
     );
-    this.stopSourceAnswerMask?.();
-    this.stopSourceAnswerMask = undefined;
-    if (settings.getBySpace("questionBank", "maskSourceAnswers") === true) {
-      const storedStyle = settings.getBySpace("questionBank", "answerMaskStyle");
-      const answerMaskStyle = ANSWER_MASK_STYLES.find((style) => style === storedStyle)
-        ?? DEFAULT_ANSWER_MASK_STYLE;
-      this.stopSourceAnswerMask = installSourceAnswerMask(
-        answerMaskStyle,
-      );
-    }
+    this.applySourceAnswerMaskSetting();
     if (!this.registered) {
       this.registered = true;
       this.openEntry = this.createOpenEntry();
@@ -171,8 +162,22 @@ export default class QuestionBankPlugin extends SubPluginBase {
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
   }
 
+  onDataChanged(): void {
+    this.applySourceAnswerMaskSetting();
+  }
+
   addMenuItem(menu: Menu): void {
     this.openEntry?.addMenuItem(menu);
+  }
+
+  private applySourceAnswerMaskSetting(): void {
+    this.stopSourceAnswerMask?.();
+    this.stopSourceAnswerMask = undefined;
+    if (settings.getBySpace("questionBank", "maskSourceAnswers") !== true) return;
+    const storedStyle = settings.getBySpace("questionBank", "answerMaskStyle");
+    const answerMaskStyle = ANSWER_MASK_STYLES.find((style) => style === storedStyle)
+      ?? DEFAULT_ANSWER_MASK_STYLE;
+    this.stopSourceAnswerMask = installSourceAnswerMask(answerMaskStyle);
   }
 
   private createOpenEntry(): UnifiedEntryPoint {

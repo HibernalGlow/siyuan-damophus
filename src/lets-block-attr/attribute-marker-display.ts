@@ -13,16 +13,20 @@ export default class AttributeMarkerDisplay {
   private observer?: MutationObserver;
   private refreshFrame?: number;
   private styleElement?: HTMLStyleElement;
+  private readonly pendingRoots = new Set<ParentNode>();
 
   private removeMarkers(): void {
     document.querySelectorAll(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`).forEach((marker) => marker.remove());
   }
 
-  private scheduleRefresh(refresh: () => void): void {
+  private scheduleRefresh(refresh: (root: ParentNode) => void, roots: readonly ParentNode[]): void {
+    roots.forEach((root) => this.pendingRoots.add(root));
     if (this.refreshFrame !== undefined) return;
     this.refreshFrame = requestAnimationFrame(() => {
       this.refreshFrame = undefined;
-      refresh();
+      const pending = [...this.pendingRoots];
+      this.pendingRoots.clear();
+      pending.forEach(refresh);
     });
   }
 
@@ -43,14 +47,24 @@ export default class AttributeMarkerDisplay {
 
     const properties = parseCustomProperties(customProperties);
     const selector = customPropertyTargetSelector(customPropertyBlockTypes);
-    const refresh = () => syncCustomPropertyMarkers(document, selector, properties);
+    const refresh = (root: ParentNode) => syncCustomPropertyMarkers(root, selector, properties);
 
     this.styleElement = document.createElement("style");
     this.styleElement.id = ATTRIBUTE_MARKER_STYLE_ID;
     this.styleElement.textContent = css;
     document.head.appendChild(this.styleElement);
-    refresh();
-    this.observer = new MutationObserver(() => this.scheduleRefresh(refresh));
+    refresh(document);
+    this.observer = new MutationObserver((records) => {
+      const roots = new Set<ParentNode>();
+      for (const record of records) {
+        const element = record.target instanceof Element
+          ? record.target
+          : record.target.parentElement;
+        const editor = element?.closest<HTMLElement>(".protyle-wysiwyg");
+        if (editor) roots.add(editor);
+      }
+      this.scheduleRefresh(refresh, [...roots]);
+    });
     this.observer.observe(document.body, {
       subtree: true,
       childList: true,
@@ -64,6 +78,7 @@ export default class AttributeMarkerDisplay {
     this.observer = undefined;
     if (this.refreshFrame !== undefined) cancelAnimationFrame(this.refreshFrame);
     this.refreshFrame = undefined;
+    this.pendingRoots.clear();
     this.removeMarkers();
     this.styleElement?.remove();
     this.styleElement = undefined;

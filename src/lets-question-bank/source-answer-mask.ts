@@ -113,38 +113,41 @@ function maskTextNode(node: Text, pattern: RegExp, style: AnswerMaskStyle): void
   node.replaceWith(fragment);
 }
 
-function allBlocks(root: HTMLElement): HTMLElement[] {
-  const blocks: HTMLElement[] = [];
-  if (root.matches(BLOCK_SELECTOR)) blocks.push(root);
-  blocks.push(...root.querySelectorAll<HTMLElement>(BLOCK_SELECTOR));
-  return blocks;
+function maskQuestionSolutions(root: HTMLElement, style: AnswerMaskStyle): void {
+  let activePattern: RegExp | undefined;
+  let insideSolution = false;
+  const pending: Array<{ node: Text; pattern: RegExp }> = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  let current: Node | null = walker.nextNode();
+  while (current) {
+    if (current instanceof HTMLElement && current.matches(BLOCK_SELECTOR)) {
+      if (current.matches(QUESTION_SELECTOR)) {
+        activePattern = answerPattern(current.getAttribute("custom-qb-answer") ?? "");
+        insideSolution = false;
+      } else if (activePattern && current.matches(SOLUTION_SELECTOR)) {
+        insideSolution = true;
+      }
+    } else if (insideSolution && activePattern && current.nodeType === Node.TEXT_NODE) {
+      pending.push({ node: current as Text, pattern: activePattern });
+    }
+    current = walker.nextNode();
+  }
+  pending.forEach(({ node, pattern }) => maskTextNode(node, pattern, style));
 }
 
-function maskQuestionSolutions(root: HTMLElement, style: AnswerMaskStyle): void {
-  const blocks = allBlocks(root);
-  const questions = blocks.filter((block) => block.matches(QUESTION_SELECTOR));
-  questions.forEach((question, questionPosition) => {
-    const questionIndex = blocks.indexOf(question);
-    const nextQuestionIndex = questionPosition + 1 < questions.length
-      ? blocks.indexOf(questions[questionPosition + 1])
-      : blocks.length;
-    const solutionIndex = blocks.findIndex((block, index) => (
-      index > questionIndex && index < nextQuestionIndex && block.matches(SOLUTION_SELECTOR)
-    ));
-    if (solutionIndex < 0) return;
-    const pattern = answerPattern(question.getAttribute("custom-qb-answer") ?? "");
-    if (!pattern) return;
-    for (let index = solutionIndex; index < nextQuestionIndex; index += 1) {
-      const walker = document.createTreeWalker(blocks[index], NodeFilter.SHOW_TEXT);
-      const textNodes: Text[] = [];
-      let current: Node | null = walker.nextNode();
-      while (current) {
-        if (current.nodeType === Node.TEXT_NODE) textNodes.push(current as Text);
-        current = walker.nextNode();
-      }
-      textNodes.forEach((node) => maskTextNode(node, pattern, style));
-    }
-  });
+export function sourceAnswerMaskRootsFromMutations(records: readonly MutationRecord[]): HTMLElement[] {
+  const roots = new Set<HTMLElement>();
+  const addRoot = (node: Node | null) => {
+    const element = node instanceof Element ? node : node?.parentElement;
+    const root = element?.closest<HTMLElement>(ROOT_SELECTOR);
+    if (root) roots.add(root);
+  };
+  for (const record of records) {
+    addRoot(record.target);
+    record.addedNodes.forEach(addRoot);
+    record.removedNodes.forEach(addRoot);
+  }
+  return [...roots];
 }
 
 function removeMasks(root: ParentNode): void {
@@ -166,18 +169,23 @@ export function installSourceAnswerMask(style: AnswerMaskStyle = DEFAULT_ANSWER_
   document.head.append(styleElement);
 
   let disposed = false;
-  let scheduled = false;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  const pendingRoots = new Set<HTMLElement>();
   const apply = () => {
-    scheduled = false;
+    refreshTimer = undefined;
     if (disposed) return;
-    document.querySelectorAll<HTMLElement>(ROOT_SELECTOR).forEach((root) => maskQuestionSolutions(root, normalizedStyle));
+    const roots = [...pendingRoots];
+    pendingRoots.clear();
+    roots.forEach((root) => {
+      if (root.isConnected) maskQuestionSolutions(root, normalizedStyle);
+    });
   };
-  const schedule = () => {
-    if (scheduled || disposed) return;
-    scheduled = true;
-    queueMicrotask(apply);
+  const schedule = (roots: readonly HTMLElement[]) => {
+    roots.forEach((root) => pendingRoots.add(root));
+    if (refreshTimer !== undefined || disposed || pendingRoots.size === 0) return;
+    refreshTimer = setTimeout(apply, 0);
   };
-  const observer = new MutationObserver(schedule);
+  const observer = new MutationObserver((records) => schedule(sourceAnswerMaskRootsFromMutations(records)));
   observer.observe(document.body, {
     childList: true,
     subtree: true,
@@ -199,12 +207,16 @@ export function installSourceAnswerMask(style: AnswerMaskStyle = DEFAULT_ANSWER_
   };
   document.addEventListener("click", reveal, true);
   document.addEventListener("keydown", revealKeyboard, true);
-  apply();
+  document.querySelectorAll<HTMLElement>(ROOT_SELECTOR)
+    .forEach((root) => maskQuestionSolutions(root, normalizedStyle));
 
   const cleanup = () => {
     if (disposed) return;
     disposed = true;
     observer.disconnect();
+    if (refreshTimer !== undefined) clearTimeout(refreshTimer);
+    refreshTimer = undefined;
+    pendingRoots.clear();
     document.removeEventListener("click", reveal, true);
     document.removeEventListener("keydown", revealKeyboard, true);
     document.querySelectorAll<HTMLElement>(ROOT_SELECTOR).forEach((root) => removeMasks(root));

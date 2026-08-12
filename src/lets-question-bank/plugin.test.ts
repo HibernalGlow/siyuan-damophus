@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import pluginMetadata from "./plugin";
+import { collectPluginSettings } from "@/libs/plugin-declarations";
 
 describe("question bank plugin settings", () => {
   it("declares separate centrally managed desktop and mobile Dock entries", () => {
@@ -25,5 +26,13 @@ describe("question bank plugin settings", () => {
         document: "lets-question-bank.sourceNavigationModeDocument",
       },
     });
+  });
+
+  it("declares source-answer masking as a deeply nested plugin-menu setting", () => {
+    const setting = collectPluginSettings(pluginMetadata)
+      .find((item) => item.key === "maskSourceAnswers");
+    expect(setting).toMatchObject({ type: "checkbox", value: false, menu: true });
+    expect(pluginMetadata.declarations?.[0].children?.[0].children?.[0].id)
+      .toBe("sourceAnswerVisibility");
   });
 });

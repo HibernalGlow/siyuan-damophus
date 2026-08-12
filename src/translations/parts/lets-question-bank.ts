@@ -1,4 +1,7 @@
 export const en = {
+  "lets-question-bank.sourceContent": "Source content",
+  "lets-question-bank.answerMask": "Answer masking",
+  "lets-question-bank.sourceAnswerVisibility": "Source answer visibility",
   "lets-question-bank.displayName": "Question Bank",
   "lets-question-bank.description": "Scan, practice, and review Markdown question banks",
   "lets-question-bank.open": "Open Question Bank",
@@ -394,6 +397,9 @@ export const en = {
 };
 
 export const zhCN: typeof en = {
+  "lets-question-bank.sourceContent": "原文显示",
+  "lets-question-bank.answerMask": "答案遮罩",
+  "lets-question-bank.sourceAnswerVisibility": "原文答案显示",
   "lets-question-bank.settingsPractice": "练习偏好",
   "lets-question-bank.settingsPracticeDescription": "没有上次选择时，使用这里设置的默认练习方式。",
   "lets-question-bank.defaultQuestionOrder": "默认出题顺序",

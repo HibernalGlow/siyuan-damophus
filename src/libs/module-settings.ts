@@ -2,6 +2,7 @@ import type { PluginIconName } from "./plugin-icons";
 import { resolvePluginIconName } from "./plugin-icons";
 import type { ConfigurableEntrySurface } from "./plugin-entry-settings";
 import type { PluginMetadata, PluginSettingItem } from "@/types/plugin";
+import { collectPluginSettings } from "./plugin-declarations";
 
 export const MODULE_ENABLED_SETTING_KEY = "enabled";
 
@@ -53,7 +54,7 @@ export function buildModuleSettings(
       hasSetting: true,
     });
 
-    const resolvedSettings = (pluginMeta.settings ?? []).map((item) => ({
+    const resolvedSettings = collectPluginSettings(pluginMeta).map((item) => ({
       ...item,
       value: readSetting(pluginMeta.name, item.key, item.value),
     }));

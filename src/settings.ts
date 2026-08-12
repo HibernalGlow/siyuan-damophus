@@ -9,6 +9,7 @@ import {
 } from "./settings-document";
 import { migrateLegacyModuleSettings } from "./settings-migrations";
 import { plugin } from "./utils";
+import { collectPluginSettings } from "./libs/plugin-declarations";
 
 const log = getLogger("settings");
 
@@ -16,7 +17,7 @@ function generateDefaultConfig(pluginRegistry: PluginRegistry): SettingsDocument
   const config: SettingsDocument = {};
   for (const pluginMeta of pluginRegistry.getPluginConfigs()) {
     const moduleConfig: SettingsDocument = { enabled: pluginMeta.enabled ?? false };
-    for (const setting of pluginMeta.settings ?? []) moduleConfig[setting.key] = setting.value;
+    for (const setting of collectPluginSettings(pluginMeta)) moduleConfig[setting.key] = setting.value;
     config[pluginMeta.name] = moduleConfig;
   }
   return config;

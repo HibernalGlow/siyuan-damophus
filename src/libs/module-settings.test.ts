@@ -21,6 +21,15 @@ describe("module settings model", () => {
           { type: "checkbox", key: "entryTab", title: "Tab", value: false, entrySurface: "tab", entryManagement: "central" },
           { type: "checkbox", key: "extra", title: "Extra", value: false },
         ],
+        declarations: [{
+          id: "source",
+          title: "Source",
+          children: [{
+            id: "mask",
+            title: "Mask",
+            settings: [{ type: "checkbox", key: "nested", title: "Nested", value: true, menu: true }],
+          }],
+        }],
       },
     ];
     const stored = new Map<string, unknown>([["emptyModule.enabled", false]]);
@@ -39,6 +48,7 @@ describe("module settings model", () => {
     expect(model.groups["configured.displayName"].map((item) => item.key)).toEqual([
       MODULE_ENABLED_SETTING_KEY,
       "extra",
+      "nested",
     ]);
     expect(model.entries).toEqual([
       expect.objectContaining({

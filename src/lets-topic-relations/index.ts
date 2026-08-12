@@ -62,6 +62,24 @@ function mutationContainsTopicTarget(node: Node): boolean {
   ].join(",")));
 }
 
+export function topicRelationMutationNeedsRefresh(
+  record: MutationRecord,
+  trackedElements: ReadonlySet<HTMLElement> = new Set(),
+): boolean {
+  if (record.type === "attributes") return true;
+  if (record.type !== "childList") return false;
+  return Array.from(record.addedNodes).some(mutationContainsTopicTarget)
+    || Array.from(record.removedNodes).some((node) => {
+      if (!(node instanceof HTMLElement)) return false;
+      const blockId = node.getAttribute("data-node-id");
+      if (blockId && (
+        node.hasAttribute(QUESTION_TOPICS_ATTRIBUTE)
+        || node.hasAttribute(NOTE_TOPIC_ATTRIBUTE)
+      )) return true;
+      return Array.from(trackedElements).some((element) => node.contains(element));
+    });
+}
+
 function transactionTouchesTrackedBlock(
   message: IWebSocketData,
   trackedBlockIds: ReadonlySet<string>,
@@ -85,6 +103,9 @@ export default class TopicRelationsPlugin extends SubPluginBase {
   private cacheKey = "";
   private cache?: Promise<Map<string, TopicRelationGroup>>;
   private trackedBlockIds = new Set<string>();
+  private trackedElements = new Set<HTMLElement>();
+  private refreshRunning = false;
+  private refreshQueued = false;
   private listening = false;
   private readonly dictionaryStore = new TopicDictionaryStore(
     new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
@@ -110,8 +131,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
           break;
         }
         if (record.type === "childList") {
-          const changed = [...record.addedNodes, ...record.removedNodes].some(mutationContainsTopicTarget);
-          if (changed) {
+          if (topicRelationMutationNeedsRefresh(record, this.trackedElements)) {
             invalidate = true;
             refresh = true;
             break;
@@ -142,6 +162,9 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     this.styleElement = undefined;
     this.invalidateCache();
     this.trackedBlockIds.clear();
+    this.trackedElements.clear();
+    this.refreshRunning = false;
+    this.refreshQueued = false;
     this.unlisten();
   }
 
@@ -182,8 +205,24 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = undefined;
-      void this.refresh();
+      void this.runRefresh();
     }, delay);
+  }
+
+  private async runRefresh(): Promise<void> {
+    if (this.refreshRunning) {
+      this.refreshQueued = true;
+      return;
+    }
+    this.refreshRunning = true;
+    try {
+      do {
+        this.refreshQueued = false;
+        await this.refresh();
+      } while (this.refreshQueued);
+    } finally {
+      this.refreshRunning = false;
+    }
   }
 
   private invalidateAndRefresh(delay = 0): void {
@@ -239,6 +278,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     if (inlineTargets.length === 0 && surfaceCandidates.length === 0) {
       removeTopicRelationMarkers(document);
       this.trackedBlockIds.clear();
+      this.trackedElements.clear();
       return;
     }
     try {
@@ -248,6 +288,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
       if (targets.length === 0 || topicIds.length === 0) {
         removeTopicRelationMarkers(document);
         this.trackedBlockIds = new Set(surfaceCandidates.map((candidate) => candidate.blockId));
+        this.trackedElements = new Set(surfaceCandidates.map((candidate) => candidate.element));
         return;
       }
       const index = await this.loadIndex(topicIds);
@@ -259,6 +300,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
           ...group.questions.map((entry) => entry.blockId),
         ]),
       ]);
+      this.trackedElements = new Set(targets.map((target) => target.element));
       syncTopicRelationMarkers(document, targets, index, {
         displayMode: validDisplayMode(this.getSetting("displayMode")),
         nativeHover: this.getSetting("nativeHover") !== false,

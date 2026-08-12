@@ -37,6 +37,17 @@ export interface PluginSettingItem {
   hasSetting?: boolean;
   entrySurface?: ConfigurableEntrySurface;
   entryManagement?: "central";
+  /** Expose a checkbox setting in the Damophus plugin menu. */
+  menu?: boolean;
+}
+
+export interface PluginDeclaration {
+  id: string;
+  title: string;
+  description?: string;
+  icon?: PluginIconName;
+  settings?: PluginSettingItem[];
+  children?: PluginDeclaration[];
 }
 
 export interface PluginSettings {
@@ -81,5 +92,7 @@ export interface PluginMetadata {
   legacyEnabledSetting?: string;
   defaultConfig?: Record<string, any>;
   settings?: PluginSettingItem[];
+  /** Arbitrarily nested feature declarations owned by this module. */
+  declarations?: PluginDeclaration[];
   reference?: string;
 }

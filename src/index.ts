@@ -12,6 +12,8 @@ import { reloadPetal } from "@/plugin-reload";
 import { prepareToolbarIcon } from "@/toolbar-icon";
 import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 import type { ProtyleToolbarItem } from "@/types/plugin";
+import { buildPluginDeclarationMenu } from "@/libs/plugin-declarations";
+import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
@@ -113,6 +115,32 @@ export default class DamophusPlugin extends Plugin {
       } catch (error) {
         log.error(`Failed to add menu item for plugin ${plugin.name}:`, error);
       }
+    }
+    for (const metadata of this.pluginRegistry.getPluginConfigs()) {
+      if (!this.pluginRegistry.isPluginEnabled(metadata.name)) continue;
+      const declarationItems = buildPluginDeclarationMenu(metadata, {
+        readSetting: (key, fallback) => settings.getBySpace(metadata.name, key) ?? fallback,
+        translate: (key) => this.i18n[key] ?? key,
+        toggle: async (setting, enabled) => {
+          settings.setBySpace(metadata.name, setting.key, enabled);
+          await settings.save();
+          const plugin = this.pluginRegistry.getPlugin(metadata.name);
+          if (!plugin?.enabled) return;
+          if (plugin.onDataChanged) await plugin.onDataChanged();
+          else {
+            await plugin.onunload();
+            await plugin.onload();
+            await plugin.onLayoutReady?.();
+          }
+        },
+      });
+      if (declarationItems.length === 0) continue;
+      menu.addItem({
+        icon: resolveSiyuanPluginIcon(metadata.icon ?? "film"),
+        label: this.i18n[metadata.displayName] ?? metadata.displayName,
+        submenu: declarationItems,
+      });
+      itemCount += 1;
     }
     if (itemCount > 0) menu.addSeparator();
     menu.addItem({

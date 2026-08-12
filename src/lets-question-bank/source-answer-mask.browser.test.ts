@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { installSourceAnswerMask } from "./source-answer-mask";
+import { installSourceAnswerMask, sourceAnswerMaskRootsFromMutations } from "./source-answer-mask";
 
 let cleanup: (() => void) | undefined;
 
@@ -82,5 +82,25 @@ describe("source answer masking", () => {
     if (!mask) throw new Error("Missing answer mask");
     mask.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(mask.dataset.damophusAnswerRevealed).toBe("true");
+  });
+
+  it("refreshes only the editor touched by a deletion mutation", async () => {
+    document.body.innerHTML = `
+      <div class="protyle-wysiwyg" id="first"><div data-node-id="plain">Plain</div></div>
+      <div class="protyle-wysiwyg" id="second">
+        <div data-node-id="q2" custom-qb-id="q2" custom-qb-answer="A">Question</div>
+        <div data-node-id="s2" custom-qb-section="solution">答案：A</div>
+      </div>`;
+    const first = document.querySelector<HTMLElement>("#first");
+    const plain = first?.firstElementChild;
+    if (!first || !plain) throw new Error("Missing deletion fixture");
+    let captured: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => { captured = records; });
+    observer.observe(first, { childList: true });
+    plain.remove();
+    await vi.waitFor(() => expect(captured.length).toBeGreaterThan(0));
+    observer.disconnect();
+
+    expect(sourceAnswerMaskRootsFromMutations(captured).map((root) => root.id)).toEqual(["first"]);
   });
 });

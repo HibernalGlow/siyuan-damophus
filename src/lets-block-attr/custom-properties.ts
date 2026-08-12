@@ -173,6 +173,7 @@ export function syncCustomPropertyMarkers(
   properties: readonly DisplayedCustomProperty[],
 ): void {
   const targets = new Set(root.querySelectorAll<HTMLElement>(selector));
+  if (root instanceof HTMLElement && root.matches(selector)) targets.add(root);
   root.querySelectorAll<HTMLElement>(`.${BLOCK_ATTRIBUTE_MARKER_CLASS}`).forEach((marker) => {
     if (!marker.parentElement || !targets.has(marker.parentElement)) marker.remove();
   });
