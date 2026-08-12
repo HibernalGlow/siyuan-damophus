@@ -1,9 +1,13 @@
 export const en = {
   "lets-expanded-plugin-menu.displayName": "Expanded plugin menu",
-  "lets-expanded-plugin-menu.description": "Open the block menu's Plugins branch as a complete multi-column panel, keeping every existing plugin action and a continuous hover area.",
+  "lets-expanded-plugin-menu.description": "Expand allowed entries in the Plugins branch into a multi-column panel while preserving native nested menus for every other entry.",
+  "lets-expanded-plugin-menu.allowedEntriesTitle": "Entries allowed to expand",
+  "lets-expanded-plugin-menu.allowedEntriesDescription": "One first-level menu entry per line. Matching nested entries are flattened; every other plugin entry keeps its original submenu.",
 };
 
 export const zhCN: typeof en = {
   "lets-expanded-plugin-menu.displayName": "插件菜单完全展开",
-  "lets-expanded-plugin-menu.description": "将块菜单中的“插件”分支一次展开为多列面板，保留各插件原有命令，并让父菜单到面板之间的鼠标区域保持连续。",
+  "lets-expanded-plugin-menu.description": "仅将白名单中的“插件”一级菜单项展开为多列面板，其他插件项继续保留原生子菜单。",
+  "lets-expanded-plugin-menu.allowedEntriesTitle": "允许展开的菜单项",
+  "lets-expanded-plugin-menu.allowedEntriesDescription": "每行填写一个“插件”下的一级菜单名称。匹配项会完全展开，其他插件项仍保留原来的子菜单。",
 };
