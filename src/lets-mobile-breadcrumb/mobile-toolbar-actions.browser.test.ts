@@ -10,7 +10,7 @@ describe("mobile breadcrumb toolbar actions", () => {
   it("visually relocates lock and more without cloning the native buttons", () => {
     document.documentElement.dataset.frontend = "browser-mobile";
     document.body.innerHTML = `
-      <div class="toolbar toolbar--border">
+      <div class="toolbar toolbar--border" style="height: 42px">
         <input id="toolbarName" class="toolbar__title">
         <span id="toolbarNameReadonly" class="toolbar__title"></span>
         <button id="toolbarTabs"></button>
@@ -38,7 +38,7 @@ describe("mobile breadcrumb toolbar actions", () => {
     more.addEventListener("click", moreClick);
 
     expect(getComputedStyle(lock).position).toBe("fixed");
-    expect(getComputedStyle(lock).top).toBe("4px");
+    expect(getComputedStyle(lock).top).toBe("1px");
     expect(getComputedStyle(lock).display).toBe("flex");
     expect(getComputedStyle(lock).height).toBe("40px");
     expect(getComputedStyle(lock).width).toBe("32px");
@@ -49,7 +49,7 @@ describe("mobile breadcrumb toolbar actions", () => {
     expect(getComputedStyle(more).right).toBe("100px");
     for (const action of [lock, doc, more]) {
       const icon = action.querySelector<SVGElement>("svg")!;
-      expect(action.getBoundingClientRect().top + action.getBoundingClientRect().height / 2).toBe(24);
+      expect(action.getBoundingClientRect().top + action.getBoundingClientRect().height / 2).toBe(21);
       expect(getComputedStyle(icon).display).toBe("block");
       expect(getComputedStyle(icon).width).toBe("20px");
       expect(getComputedStyle(icon).height).toBe("20px");
