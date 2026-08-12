@@ -61,6 +61,7 @@
   },
   "dependencies": {
     "@frostime/siyuan-plugin-kits": "^1.5.14",
+    "@git-diff-view/svelte": "0.1.7",
     "@hibernalglow/damophus-agent-contract": "workspace:*",
     "@internationalized/date": "^3.12.0",
     "@siyuan-community/siyuan-sdk": "^0.3.14",
@@ -70,6 +71,7 @@
     "browser-image-compression": "^2.0.2",
     "clsx": "2.1.1",
     "consola": "^3.4.2",
+    "diff": "^8.0.4",
     "lucide-svelte": "0.545.0",
     "mdast-util-to-string": "^4.0.0",
     "rehype-sanitize": "^6.0.0",

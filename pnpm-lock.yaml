@@ -11,6 +11,9 @@ importers:
       '@frostime/siyuan-plugin-kits':
         specifier: ^1.5.14
         version: 1.6.0
+      '@git-diff-view/svelte':
+        specifier: 0.1.7
+        version: 0.1.7(svelte@5.56.8)
       '@hibernalglow/damophus-agent-contract':
         specifier: workspace:*
         version: link:packages/agent-contract
@@ -38,6 +41,9 @@ importers:
       consola:
         specifier: ^3.4.2
         version: 3.4.2
+      diff:
+        specifier: ^8.0.4
+        version: 8.0.4
       lucide-svelte:
         specifier: 0.545.0
         version: 0.545.0(svelte@5.56.8)
@@ -450,6 +456,17 @@ packages:
 
   '@frostime/siyuan-plugin-kits@1.6.0':
     resolution: {integrity: sha512-MCAKG1UVDNK1yzju2rpM6M7KMzKtlRtVZiWXtReW6LYw1qys9THCyFmHBiOAa/7Bi8mX41/iBG7+FyvJIpmV5A==}
+
+  '@git-diff-view/core@0.1.7':
+    resolution: {integrity: sha512-ZW/kumNoUQ8+DgawYhcrABa7TOALYzn3pe723uTHSy6/r35qAwgswJxF1bkdV9Zr+KHuhlFeRLiVhjij59qdIA==}
+
+  '@git-diff-view/lowlight@0.1.7':
+    resolution: {integrity: sha512-Rkv2ERr83xTSsjlrJxjYVWndREEARG11viTrJ7qyUU+lnPPmSNF1aemp1lKiOLs6sNCeJJdIMhxLFJtKfmRIZw==}
+
+  '@git-diff-view/svelte@0.1.7':
+    resolution: {integrity: sha512-t4v1Kd8CBjUiBqzyEY6H8gimscIMiK0Gn645TuRXFKsZ4eAiybw/p2B5MrOW4/rDCe1YsdTRmaSYEb8+ekUaJQ==}
+    peerDependencies:
+      svelte: ^5.0.0
 
   '@inquirer/external-editor@1.0.2':
     resolution: {integrity: sha512-yy9cOoBnx58TlsPrIxauKIFQTiyH+0MK4e97y4sV9ERbI+zDxw7i2hxHLCIEGIE/8PPvDxGhgzIOTSOWcs6/MQ==}
@@ -1160,6 +1177,10 @@ packages:
     resolution: {integrity: sha512-X07nttJQkwkfKfvTPG/KSnE2OMdcUCao6+eXF3wmnIQRn2aPAHH3VxDbDOdegkd6JbPsXqShpvEOHfAT+nCNwQ==}
     engines: {node: '>=0.3.1'}
 
+  diff@8.0.4:
+    resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
+    engines: {node: '>=0.3.1'}
+
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
     engines: {node: '>=8'}
@@ -1244,6 +1265,9 @@ packages:
 
   extendable-error@0.1.7:
     resolution: {integrity: sha512-UOiS2in6/Q0FK0R0q6UY9vYpQ21mr/Qn1KOnte7vsACuNJf514WvCCUHSRCPcgjPT2bAhNIJdlE6bVap1GKmeg==}
+
+  fast-diff@1.3.0:
+    resolution: {integrity: sha512-VxPP4NqbUjj6MaAOafWeUn2cXWLcCtljklUtZf0Ind4XQ+QPtmA0b18zZy0jIQx+ExRVCR/ZQpBmik5lXshNsw==}
 
   fast-glob@3.3.3:
     resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
@@ -1364,6 +1388,10 @@ packages:
 
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
+
+  highlight.js@11.11.2:
+    resolution: {integrity: sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==}
+    engines: {node: '>=12.0.0'}
 
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
@@ -1638,6 +1666,9 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
+
+  lowlight@3.3.0:
+    resolution: {integrity: sha512-0JNhgFoPvP6U6lE/UdVsSq99tn6DhjjpAj5MxG49ewd2mOBVtwWYIT8ClyABhq198aXXODMU6Ox8DrGy/CpTZQ==}
 
   lru-cache@10.2.0:
     resolution: {integrity: sha512-2bIM8x+VAf6JT4bKAljS1qUWgMsqZRPGJS6FSahIMPVvctcNhyVp7AJu7quxOW9jwkryBReKZY5tY5JYv2n/7Q==}
@@ -2794,6 +2825,28 @@ snapshots:
 
   '@frostime/siyuan-plugin-kits@1.6.0': {}
 
+  '@git-diff-view/core@0.1.7':
+    dependencies:
+      '@git-diff-view/lowlight': 0.1.7
+      fast-diff: 1.3.0
+      highlight.js: 11.11.2
+      lowlight: 3.3.0
+
+  '@git-diff-view/lowlight@0.1.7':
+    dependencies:
+      '@types/hast': 3.0.5
+      highlight.js: 11.11.2
+      lowlight: 3.3.0
+
+  '@git-diff-view/svelte@0.1.7(svelte@5.56.8)':
+    dependencies:
+      '@git-diff-view/core': 0.1.7
+      '@types/hast': 3.0.5
+      fast-diff: 1.3.0
+      highlight.js: 11.11.2
+      lowlight: 3.3.0
+      svelte: 5.56.8
+
   '@inquirer/external-editor@1.0.2(@types/node@20.19.43)':
     dependencies:
       chardet: 2.2.0
@@ -3418,6 +3471,8 @@ snapshots:
 
   diff@4.0.4: {}
 
+  diff@8.0.4: {}
+
   dir-glob@3.0.1:
     dependencies:
       path-type: 4.0.0
@@ -3511,6 +3566,8 @@ snapshots:
   extend@3.0.2: {}
 
   extendable-error@0.1.7: {}
+
+  fast-diff@1.3.0: {}
 
   fast-glob@3.3.3:
     dependencies:
@@ -3661,6 +3718,8 @@ snapshots:
   hast-util-whitespace@3.0.0:
     dependencies:
       '@types/hast': 3.0.5
+
+  highlight.js@11.11.2: {}
 
   html-void-elements@3.0.0: {}
 
@@ -3874,6 +3933,12 @@ snapshots:
   lodash.startcase@4.4.0: {}
 
   longest-streak@3.1.0: {}
+
+  lowlight@3.3.0:
+    dependencies:
+      '@types/hast': 3.0.5
+      devlop: 1.1.0
+      highlight.js: 11.11.2
 
   lru-cache@10.2.0: {}
 

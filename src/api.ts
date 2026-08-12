@@ -284,6 +284,52 @@ export async function getBlockKramdownStrict(id: BlockId): Promise<IResGetBlockK
     return requestStrict<IResGetBlockKramdown>('/api/block/getBlockKramdown', { id, mode: 'md' });
 }
 
+export interface DocHistoryPage {
+    histories: string[];
+    pageCount: number;
+    totalCount: number;
+}
+
+export interface DocHistoryItem {
+    title: string;
+    path: string;
+    op: string;
+    notebook: string;
+}
+
+export interface DocHistoryContent {
+    id: string;
+    rootID: string;
+    content: string;
+    isLargeDoc: boolean;
+}
+
+export async function searchDocHistory(id: BlockId, page = 1): Promise<DocHistoryPage> {
+    return requestStrict<DocHistoryPage>('/api/history/searchHistory', {
+        query: id,
+        page,
+        op: 'all',
+        type: 3,
+    });
+}
+
+export async function getDocHistoryItems(id: BlockId, created: string): Promise<DocHistoryItem[]> {
+    const result = await requestStrict<{items: DocHistoryItem[]}>('/api/history/getHistoryItems', {
+        query: id,
+        created,
+        op: 'all',
+        type: 3,
+    });
+    return result.items;
+}
+
+export async function getDocHistoryContent(historyPath: string): Promise<DocHistoryContent> {
+    return requestStrict<DocHistoryContent>('/api/history/getDocHistoryContent', {
+        historyPath,
+        highlight: false,
+    });
+}
+
 export async function getDocAssetsStrict(id: DocumentId, retainQueryStr = true): Promise<string[]> {
     return requestStrict<string[]>('/api/asset/getDocAssets', { id, retainQueryStr });
 }
