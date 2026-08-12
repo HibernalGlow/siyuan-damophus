@@ -6,7 +6,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-selection-highlight.description",
   version: "1.0.0",
   enabled: true,
-  icon: "tags",
+  icon: "highlighter",
   settings: [
     {
       type: "checkbox",

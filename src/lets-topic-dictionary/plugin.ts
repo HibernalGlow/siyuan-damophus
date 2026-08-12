@@ -4,7 +4,7 @@ import type { PluginMetadata } from "../types/plugin";
 
 export const topicDictionaryAppearance = {
   displayName: "lets-topic-dictionary.displayName",
-  icon: "tags",
+  icon: "bookA",
 } as const satisfies {displayName: string; icon: PluginIconName};
 
 const pluginMetadata: PluginMetadata = {

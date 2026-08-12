@@ -6,7 +6,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-block-drag-performance.description",
   version: "1.0.0",
   enabled: false,
-  icon: "waypoints",
+  icon: "move",
   settings: [
     {
       type: "number",

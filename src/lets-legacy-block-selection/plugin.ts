@@ -6,7 +6,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-legacy-block-selection.description",
   version: "1.0.0",
   enabled: false,
-  icon: "listTree",
+  icon: "textSelect",
 };
 
 export default pluginMetadata;

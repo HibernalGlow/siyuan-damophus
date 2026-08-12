@@ -6,6 +6,7 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-ai-config-sync.description",
   version: "1.0.0",
   enabled: true,
+  icon: "cloudCog",
 };
 
 export default pluginMetadata;
