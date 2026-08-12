@@ -43,8 +43,17 @@ export interface TopicRelationRenderOptions {
 
 function preventEditorFocus(element: HTMLElement): void {
   element.addEventListener("pointerdown", (event) => {
-    if (event.button === 0) event.preventDefault();
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
   });
+}
+
+function isolateEditorGestures(element: HTMLElement): void {
+  preventEditorFocus(element);
+  for (const type of ["touchstart", "touchmove", "touchend", "touchcancel"] as const) {
+    element.addEventListener(type, (event) => event.stopPropagation(), { passive: true });
+  }
 }
 
 function replaceCount(template: string, count: number): string {
@@ -339,6 +348,7 @@ function renderMarker(
   const marker = document.createElement("div");
   marker.className = TOPIC_RELATION_MARKER_CLASS;
   marker.contentEditable = "false";
+  isolateEditorGestures(marker);
 
   if (options.error) {
     const status = document.createElement("span");

@@ -412,6 +412,57 @@ describe("topic relation editor projection", () => {
     });
   });
 
+  it("isolates mobile relation gestures from the editor without consuming clicks", () => {
+    installEditor();
+    const editor = document.querySelector<HTMLElement>(".protyle-wysiwyg");
+    if (!editor) throw new Error("Missing editor");
+    const pointerDown = vi.fn();
+    const touchStart = vi.fn();
+    const touchMove = vi.fn();
+    const touchEnd = vi.fn();
+    const click = vi.fn();
+    editor.addEventListener("pointerdown", pointerDown);
+    editor.addEventListener("touchstart", touchStart);
+    editor.addEventListener("touchmove", touchMove);
+    editor.addEventListener("touchend", touchEnd);
+    editor.addEventListener("click", click);
+
+    syncTopicRelationMarkers(
+      document,
+      findTopicRelationTargets(document),
+      new Map([[group.topicId, group]]),
+      {
+        displayMode: "compact",
+        nativeHover: true,
+        labels,
+        onRetry: vi.fn(),
+        onOpen: vi.fn(),
+      },
+    );
+    const marker = document.querySelector<HTMLElement>(".damophus-topic-relations");
+    const control = marker?.querySelector<HTMLElement>(".damophus-topic-relations__topic-button");
+    if (!marker || !control) throw new Error("Missing relation control");
+
+    const down = new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      pointerType: "touch",
+    });
+    control.dispatchEvent(down);
+    control.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    control.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, cancelable: true }));
+    control.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    control.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(down.defaultPrevented).toBe(true);
+    expect(pointerDown).not.toHaveBeenCalled();
+    expect(touchStart).not.toHaveBeenCalled();
+    expect(touchMove).not.toHaveBeenCalled();
+    expect(touchEnd).not.toHaveBeenCalled();
+    expect(click).toHaveBeenCalledOnce();
+  });
+
   it("keeps custom appearance scoped and rejects unsafe declarations", () => {
     const style = document.createElement("style");
     style.id = "topic-relations-test-style";
