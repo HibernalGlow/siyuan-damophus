@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import DocumentHistoryDiff from "./document-history-diff.svelte";
-import { normalizeHistoryBlockDOM, type DocumentHistoryService } from "./history-service";
+import { BlockHistoryService, normalizeHistoryBlockDOM, type DocumentHistoryService } from "./history-service";
 import type { HistoryVersion } from "./types";
 
 const versions: HistoryVersion[] = [
@@ -22,10 +22,13 @@ const versions: HistoryVersion[] = [
 
 const translations: Record<string, string> = {
   "lets-document-history-diff.history": "History",
+  "lets-document-history-diff.blockHistory": "Block history",
   "lets-document-history-diff.current": "Current",
+  "lets-document-history-diff.currentBlock": "Current block",
   "lets-document-history-diff.before": "Before",
   "lets-document-history-diff.after": "After",
   "lets-document-history-diff.liveDocument": "Live document",
+  "lets-document-history-diff.liveBlock": "Live block",
   "lets-document-history-diff.unified": "Unified",
   "lets-document-history-diff.split": "Side by side",
   "lets-document-history-diff.historySource": "History Kramdown",
@@ -60,7 +63,7 @@ afterEach(async () => {
   window.sessionStorage.clear();
 });
 
-function render(content: { history?: string; current?: string } = {}) {
+function render(content: { history?: string; current?: string; scope?: "document" | "block" } = {}) {
   const service = {
     loadPage: vi.fn().mockResolvedValue({
       versions,
@@ -87,6 +90,7 @@ function render(content: { history?: string; current?: string } = {}) {
       service: service as unknown as DocumentHistoryService,
       documentTitle: "Administrative license review",
       translations,
+      scope: content.scope,
     },
   });
   return { host, service };
@@ -299,5 +303,50 @@ describe("document history diff review", () => {
     expect(normalized).not.toContain("contenteditable");
     expect(normalized).not.toContain("spellcheck");
     expect(normalized).toContain('<span data-type="strong">违法转让</span>');
+  });
+
+  it("extracts and deduplicates a target block from document history snapshots", async () => {
+    const historyApi = {
+      searchDocHistory: vi.fn().mockResolvedValue({ histories: ["3", "2", "1"], pageCount: 1, totalCount: 3 }),
+      getDocHistoryItems: vi.fn().mockImplementation(async (_id: string, created: string) => [{
+        title: "Document",
+        path: `data/.siyuan/history/${created}.sy`,
+        op: "update",
+        notebook: "notebook",
+      }]),
+      getDocHistoryContent: vi.fn().mockImplementation(async (path: string) => {
+        const created = path.match(/\/(\d+)\.sy$/u)?.[1];
+        const revision = created === "1" ? "20260812120000" : "20260812130000";
+        return {
+          id: "doc-id",
+          rootID: "doc-id",
+          content: [
+            '<div data-node-id="other" data-type="NodeParagraph"><div contenteditable="false" spellcheck="false">other</div></div>',
+            `<div data-node-id="target" data-type="NodeParagraph" updated="${revision}"><div contenteditable="false" spellcheck="false">target ${revision}</div></div>`,
+          ].join(""),
+          isLargeDoc: false,
+        };
+      }),
+      getBlockKramdownStrict: vi.fn().mockResolvedValue({ kramdown: "current target" }),
+    };
+    const lute = { BlockDOM2StdMd: vi.fn((html: string) => html) };
+    const service = new BlockHistoryService("doc-id", "target", lute, historyApi);
+
+    const result = await service.loadPage(1);
+
+    expect(historyApi.searchDocHistory).toHaveBeenCalledWith("doc-id", 1);
+    expect(result.versions.map((item) => item.created)).toEqual(["3", "1"]);
+    await expect(service.loadVersionKramdown(result.versions[0])).resolves.toContain("target 20260812130000");
+    expect(await service.loadVersionKramdown(result.versions[0])).not.toContain("other");
+  });
+
+  it("renders block-specific timeline labels", async () => {
+    await page.viewport(1100, 760);
+    render({ scope: "block" });
+    await waitForDiff();
+
+    expect(document.querySelector(".sidebar-title")?.textContent).toContain("Block history");
+    expect(document.querySelector(".current-row")?.textContent).toContain("Current block");
+    expect(document.querySelector(".current-row")?.textContent).toContain("Live block");
   });
 });

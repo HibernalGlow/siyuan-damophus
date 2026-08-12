@@ -18,19 +18,20 @@
   } from "lucide-svelte";
   import { onMount, tick } from "svelte";
   import { getHostColorMode, observeHostColorMode } from "@/theme/runtime";
-  import type { DocumentHistoryService } from "./history-service";
+  import type { HistoryDiffService } from "./history-service";
   import type { HistoryVersion } from "./types";
 
   interface Props {
-    service: DocumentHistoryService;
+    service: HistoryDiffService;
     documentTitle: string;
     translations: Record<string, string>;
+    scope?: "document" | "block";
   }
 
   type Selection = { kind: "current" } | { kind: "history"; version: HistoryVersion };
   type SourceSide = "before" | "after";
 
-  let { service, documentTitle, translations }: Props = $props();
+  let { service, documentTitle, translations, scope = "document" }: Props = $props();
   let versions: HistoryVersion[] = $state([]);
   let selection: Selection | undefined = $state();
   let beforeVersion: HistoryVersion | undefined = $state();
@@ -85,6 +86,8 @@
   });
 
   const t = (key: string): string => translations[key] ?? key;
+  const historyLabel = $derived(t(scope === "block" ? "lets-document-history-diff.blockHistory" : "lets-document-history-diff.history"));
+  const currentLabel = $derived(t(scope === "block" ? "lets-document-history-diff.currentBlock" : "lets-document-history-diff.current"));
 
   function versionLabel(version: HistoryVersion | undefined, fallback: string): string {
     if (!version) return fallback;
@@ -98,7 +101,7 @@
 
   function afterLabel(): string {
     return selection?.kind === "current"
-      ? t("lets-document-history-diff.current")
+      ? currentLabel
       : versionLabel(afterVersion, t("lets-document-history-diff.after"));
   }
 
@@ -353,12 +356,12 @@
     style={`--history-sidebar-width: ${sidebarWidth}px`}
   >
     <aside class="history-sidebar">
-      <div class="sidebar-title"><span>{t("lets-document-history-diff.history")}</span><span class="count">{totalCount}</span></div>
+      <div class="sidebar-title"><span>{historyLabel}</span><span class="count">{totalCount}</span></div>
       <div class="version-list" aria-busy={loadingHistory}>
         {#if page === 1 && versions.length > 0}
           <button type="button" class="version-row current-row" class:selected={selection?.kind === "current"} aria-current={selection?.kind === "current" ? "true" : undefined} onclick={() => select({ kind: "current" })}>
             <span class="current-dot"></span>
-            <span class="version-detail"><span class="version-date">{t("lets-document-history-diff.current")}</span><span class="version-operation">{t("lets-document-history-diff.liveDocument")}</span></span>
+            <span class="version-detail"><span class="version-date">{currentLabel}</span><span class="version-operation">{t(scope === "block" ? "lets-document-history-diff.liveBlock" : "lets-document-history-diff.liveDocument")}</span></span>
           </button>
         {/if}
         {#if loadingHistory && versions.length === 0}

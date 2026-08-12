@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock(import("@/api"), () => api);
 
-import { DocumentHistoryService } from "./history-service";
+import { BlockHistoryService, DocumentHistoryService } from "./history-service";
 
 const version: HistoryVersion = {
   created: "1786521600",
@@ -68,5 +68,19 @@ describe("document history cache", () => {
 
     await expect(service.loadVersionKramdown(version)).resolves.toBe("# 09 考点9：破产法概述\n");
     expect(lute.BlockDOM2StdMd).toHaveBeenCalledWith(content);
+  });
+});
+
+describe("block history snapshots", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getBlockKramdownStrict.mockResolvedValue({ kramdown: "current block" });
+  });
+
+  it("loads the live Kramdown from the selected block ID", async () => {
+    const service = new BlockHistoryService("doc-id", "target", { BlockDOM2StdMd: vi.fn() });
+
+    await expect(service.loadCurrentKramdown()).resolves.toBe("current block");
+    expect(api.getBlockKramdownStrict).toHaveBeenCalledWith("target");
   });
 });

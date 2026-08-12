@@ -5,4 +5,5 @@ export interface HistoryVersion {
   title?: string;
   path?: string;
   operation?: HistoryOperation;
+  revision?: string;
 }
