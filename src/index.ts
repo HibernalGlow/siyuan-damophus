@@ -17,7 +17,9 @@ const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
 
 export default class DamophusPlugin extends Plugin {
-  private readonly pluginRegistry = PluginRegistry.getInstance();
+  private get pluginRegistry(): PluginRegistry {
+    return PluginRegistry.getInstance();
+  }
   private topBarElement?: HTMLElement;
 
   private init(): void {
