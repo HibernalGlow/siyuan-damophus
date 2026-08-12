@@ -11,6 +11,7 @@ const pluginMetadata: PluginMetadata = {
   settings: [
     ...createEntrySettings({ menu: true }),
   ],
+  reference: "https://github.com/Achuan-2/siyuan-plugin-formatPainter",
 };
 
 export default pluginMetadata;

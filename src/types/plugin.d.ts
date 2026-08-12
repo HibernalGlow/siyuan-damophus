@@ -4,6 +4,15 @@ import type { PluginIconName } from "@/libs/plugin-icons";
 
 export type TranslationKey = keyof typeof en;
 
+export interface ProtyleToolbarItem {
+  name: string;
+  tip?: string;
+  icon?: string;
+  hotkey?: string;
+  tipPosition?: string;
+  click?(protyle: import("siyuan").Protyle): void;
+}
+
 export interface PluginSettingItem {
   type: "checkbox" | "textinput" | "textarea" | "select" | "number" | "slider" | "button" | "list";
   title: string;
@@ -57,6 +66,7 @@ export interface SubPlugin {
 
   // Event handlers
   addMenuItem?(menu: Menu): void;
+  updateProtyleToolbar?(toolbar: Array<string | ProtyleToolbarItem>): Array<string | ProtyleToolbarItem>;
 }
 
 export interface PluginMetadata {

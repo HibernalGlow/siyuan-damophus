@@ -11,6 +11,7 @@ import { isMobile, setPlugin } from "@/utils";
 import { reloadPetal } from "@/plugin-reload";
 import { prepareToolbarIcon } from "@/toolbar-icon";
 import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
+import type { ProtyleToolbarItem } from "@/types/plugin";
 
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
@@ -82,6 +83,21 @@ export default class DamophusPlugin extends Plugin {
         if (rect) this.addMenu(rect);
       },
     });
+  }
+
+  override updateProtyleToolbar(
+    toolbar: Array<string | ProtyleToolbarItem>,
+  ): Array<string | ProtyleToolbarItem> {
+    let next = toolbar;
+    for (const subPlugin of this.pluginRegistry.getAllPlugins()) {
+      if (!subPlugin.enabled || !subPlugin.updateProtyleToolbar) continue;
+      try {
+        next = subPlugin.updateProtyleToolbar(next);
+      } catch (error) {
+        log.error(`Failed to add editor toolbar item for plugin ${subPlugin.name}:`, error);
+      }
+    }
+    return next;
   }
 
   private addMenu(rect?: DOMRect): void {
