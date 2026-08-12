@@ -1,5 +1,32 @@
 # siyuan-damophus
 
+## 0.4.0
+
+### Minor Changes
+
+- 05541aa: - 新增相同文字格式刷：调用已安装的“格式刷”插件复制行内格式，并批量应用到当前文档或当前标题下的相同文字。
+- 3778947: - 新增“经典跨块划选”开关：同一块内仍选中文字，拖拽跨入其他块后自动改为选择整块。
+- 48cba7a: - 技能管理新增“更新全部”，只更新已有且内容发生变化的技能，并与安装新增技能的“同步全部”明确区分。
+- 5f46145: - 设置页按使用场景折叠展示功能，并支持搜索、全部展开和全部收起，初始窗口内即可快速定位目标设置。
+  - 开关页新增分类启用数量、本组全开/全关与全部模块快捷操作，减少长列表滚动。
+- a819d0b: - 新增可独立启用的 Callout 外观模块、实时嵌套预览和常用外观调节项；使用 Callout 增强时保留其编辑、折叠、类型菜单和自定义图标，并约束嵌套 Callout 不超出父级。
+  - 新增可关闭的智能插入：在已有内容前插入 Callout 时，会直接将该内容纳入其中；文档末尾创建 Callout 时会立即提供可输入的空白正文。
+- be6c152: - 有序列表现在可以手动指定起始编号，也可以一键恢复为从 1 开始编号。
+- fc620a6: - 新增选中文本高亮模块：自动标出当前文档中的全部匹配项，可用快捷键快速跳转到上一个或下一个结果，并支持从 Damophus 菜单即时开关。
+- 5f46145: Group the settings sidebar and module switches into collapsible categories, and add quick switching on both: a module search filter that auto-expands matches, plus expand-all/collapse-all toggles, so the full settings tree fits the initial window without scrolling.
+- f532c65: - 新增可选的原生块拖动流畅度优化，在保留思源原有移动行为的同时减少拖动卡顿。
+
+### Patch Changes
+
+- 076162a: - 修复经典跨块划选开启后，选择框起点与鼠标实际按下位置略有错位的问题。
+- 8cec4b1: Expose panel layout actions through centrally managed entry capabilities and let each configured Dock action execute directly from its own sidebar button.
+- 5f46145: - 设置页中的每个模块现在都使用独立且更贴合功能的图标，新增模块时也会自动检查图标是否重复。
+- 130dda0: - 修复考点词典中大量民诉、刑法考点误入“未分类”的问题；扫描时可从稳定考点 ID 补全缺失的科目，并在界面中显示中文科目名。
+- 7ca3b70: - 技能管理新增可展开、复制和清空的同步日志，可查看检测、更新、校验与失败详情。
+  - 修复部分技能显示更新成功但内容没有改变的问题，并在完成后再次确认实际更新状态。
+- d8bd3e4: - 设置与界面标识现由 Damophus 独立管理，同时启用其他插件时互不干扰。
+- f0561ba: - 修复快速拖动块时无法落到块下方、列表项难以拖入其他列表的问题。
+
 ## 0.3.0
 
 ### Minor Changes
