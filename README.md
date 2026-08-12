@@ -87,6 +87,12 @@ Damophus 是一个自用的思源增强插件，集中实现现有工具没有�
 - 同步后端默认 ChezMoi 写入真实文件，移动端或未安装 ChezMoi 的环境自动回退内置复制
 - 同一管理器可打开为新标签页或 Dock，并支持 CLI（`damophus skill ...`）与软链接物化同步
 
+### 远程访问（lets-remote-access）
+
+- 自动探测公网 IP，结合桌面端伺服端口生成移动端网址，手机上输入网址即可远程访问工作区
+- 设置页展示伺服状态、移动端网址与局域网地址，一键复制；探测失败或使用固定 IP/DDNS 域名时可手动填写公网地址
+- 复制远程网址可通过 Damophus 菜单一键完成，也可绑定命令面板快捷键或加入快捷操作
+
 ### 考点关系（lets-topic-relations）
 
 - 题目块与考点笔记块下方虚拟展示考点笔记和关联题目，不写入任何块
@@ -256,6 +262,7 @@ pnpm test:package
 | `lets-agent-bridge` | 接收 Damophus CLI 粘贴与导出请求 | 后台 Worker + 外部 CLI（`@hibernalglow/damophus-cli`） |
 | `lets-layout-actions` | 面板布局与可配置快捷操作：系统/插件/编辑器命令，菜单或 Dock 入口 | 顶栏菜单、可选 Dock、设置页 |
 | `lets-skill-manager` | 思源 AI 技能管理：浏览器、编辑与 ChezMoi/内置同步 | 顶栏菜单、Dock、新标签页、CLI（`damophus skill ...`） |
+| `lets-remote-access` | 自动探测公网 IP 生成桌面端伺服网址，手机输入网址远程访问 | Damophus 菜单、命令面板（可绑定快捷键/快捷操作）、设置页 |
 | `lets-topic-relations` | 题目与考点笔记的双向虚拟关系栏 | 自动渲染（块下方）、关系面板、移动端底部面板 |
 | `lets-question-bank` | 题库：扫描、索引、练习、会话恢复、模拟考试与统计 | 顶栏菜单、命令面板、块/文档标题/文档树菜单、左侧 Dock |
 
