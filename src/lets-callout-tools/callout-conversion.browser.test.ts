@@ -43,6 +43,13 @@ function applyOperations(root: HTMLElement, operations: IOperation[]): void {
         : parent;
       const previous = operationElement(root, operation.previousID);
       if (previous?.parentElement === content) previous.after(element);
+      else if (parent.dataset.type === "NodeListItem") {
+        const firstBlock = Array.from(parent.children).find(
+          (child) => child instanceof HTMLElement && child.dataset.nodeId,
+        );
+        if (firstBlock) firstBlock.before(element);
+        else parent.querySelector(":scope > .protyle-attr")?.before(element);
+      }
       else content.prepend(element);
       continue;
     }
@@ -119,7 +126,49 @@ describe("Callout block conversion", () => {
     ]);
   });
 
-  it("rejects list items, nonconsecutive selections, and cross-parent selections", () => {
+  it("converts a list item's body without absorbing its child list", () => {
+    const root = render(`
+      <div data-node-id="list" data-type="NodeList">
+        <div data-node-id="li" data-type="NodeListItem">
+          <div class="protyle-action">1.</div>
+          <div data-node-id="body" data-type="NodeParagraph">Item body</div>
+          <div data-node-id="child-list" data-type="NodeList">
+            <div data-node-id="child-li" data-type="NodeListItem">
+              <div class="protyle-action">a.</div>
+              <div data-node-id="child-body" data-type="NodeParagraph">Child item</div>
+              <div class="protyle-attr"></div>
+            </div>
+            <div class="protyle-attr"></div>
+          </div>
+          <div class="protyle-attr"></div>
+        </div>
+        <div class="protyle-attr"></div>
+      </div>
+    `);
+    const { protyle, transaction } = createProtyle(root);
+    const listItem = root.querySelector<HTMLElement>('[data-node-id="li"]')!;
+    const warning = CALLOUT_TYPE_DEFINITIONS.find((item) => item.type === "WARNING")!;
+    const plan = createCalloutConversionPlan([listItem], warning, protyle)!;
+
+    expect(plan.blocks.map((block) => block.dataset.nodeId)).toEqual(["body"]);
+    expect(plan.parentId).toBe("li");
+    expect(convertBlocksToCallout(plan, protyle, () => "callout")).toBe(true);
+
+    const callout = listItem.querySelector<HTMLElement>(":scope > [data-node-id=callout]")!;
+    const childList = listItem.querySelector<HTMLElement>(":scope > [data-node-id=child-list]")!;
+    expect(callout.dataset.subtype).toBe("WARNING");
+    expect(callout.querySelector(":scope > .callout-content > [data-node-id=body]")).not.toBeNull();
+    expect(callout.nextElementSibling).toBe(childList);
+    expect(callout.querySelector('[data-node-id="child-list"]')).toBeNull();
+    expect(transaction).toHaveBeenCalledTimes(1);
+
+    const [, undoOperations] = transaction.mock.calls[0] as [IOperation[], IOperation[]];
+    applyOperations(root, undoOperations);
+    expect(listItem.querySelector(":scope > [data-node-id=callout]")).toBeNull();
+    expect(listItem.querySelector(":scope > [data-node-id=body]")?.nextElementSibling).toBe(childList);
+  });
+
+  it("rejects nonconsecutive selections and cross-parent selections", () => {
     const root = render(`
       <div data-node-id="list" data-type="NodeList">
         <div data-node-id="li" data-type="NodeListItem">
@@ -134,7 +183,7 @@ describe("Callout block conversion", () => {
     const note = CALLOUT_TYPE_DEFINITIONS[0];
     const block = (id: string) => root.querySelector<HTMLElement>(`[data-node-id="${id}"]`)!;
 
-    expect(createCalloutConversionPlan([block("li")], note, protyle)).toBeUndefined();
+    expect(createCalloutConversionPlan([block("li")], note, protyle)).toBeDefined();
     expect(createCalloutConversionPlan([block("first"), block("last")], note, protyle)).toBeUndefined();
     expect(createCalloutConversionPlan([block("nested"), block("first")], note, protyle)).toBeUndefined();
     expect(createCalloutConversionPlan([block("list")], note, protyle)).toBeDefined();

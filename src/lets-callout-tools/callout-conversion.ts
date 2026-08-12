@@ -22,11 +22,29 @@ export interface CalloutConversionPlan {
   type: CalloutTypeDefinition;
 }
 
-const DISALLOWED_BLOCK_TYPES = new Set(["NodeDocument", "NodeListItem"]);
+const DISALLOWED_BLOCK_TYPES = new Set(["NodeDocument"]);
 
 function uniqueTopLevelBlocks(blocks: readonly HTMLElement[]): HTMLElement[] {
   const unique = [...new Set(blocks)].filter((block) => block.dataset.nodeId && block.dataset.type);
   return unique.filter((block) => !unique.some((candidate) => candidate !== block && candidate.contains(block)));
+}
+
+function listItemBodyBlocks(listItem: HTMLElement): HTMLElement[] {
+  const blocks: HTMLElement[] = [];
+  for (const child of listItem.children) {
+    if (!(child instanceof HTMLElement)) continue;
+    if (child.dataset.type === "NodeList") break;
+    if (!child.dataset.nodeId || !child.dataset.type) continue;
+    if (DISALLOWED_BLOCK_TYPES.has(child.dataset.type) || child.dataset.type === "NodeListItem") return [];
+    blocks.push(child);
+  }
+  return blocks;
+}
+
+function conversionBlocks(sourceBlocks: readonly HTMLElement[]): HTMLElement[] {
+  const blocks = uniqueTopLevelBlocks(sourceBlocks);
+  if (blocks.length !== 1 || blocks[0].dataset.type !== "NodeListItem") return blocks;
+  return listItemBodyBlocks(blocks[0]);
 }
 
 export function createCalloutConversionPlan(
@@ -35,7 +53,7 @@ export function createCalloutConversionPlan(
   protyle: IProtyle,
 ): CalloutConversionPlan | undefined {
   if (protyle.disabled) return undefined;
-  const blocks = uniqueTopLevelBlocks(sourceBlocks);
+  const blocks = conversionBlocks(sourceBlocks);
   if (blocks.length === 0) return undefined;
   if (blocks.some((block) => DISALLOWED_BLOCK_TYPES.has(block.dataset.type ?? ""))) return undefined;
 

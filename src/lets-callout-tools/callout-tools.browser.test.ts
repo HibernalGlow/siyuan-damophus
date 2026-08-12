@@ -81,6 +81,36 @@ describe("Callout tools module", () => {
     module.onunload();
   });
 
+  it("enables conversion from a list item's own block menu", () => {
+    const eventBus = createEventBus();
+    const module = createPlugin({ smartInsert: false, blockMenuConversion: true }, eventBus);
+    const addItem = vi.fn();
+    const root = document.createElement("div");
+    root.innerHTML = `<div data-node-id="list" data-type="NodeList">
+      <div data-node-id="item" data-type="NodeListItem">
+        <div class="protyle-action">1.</div>
+        <div data-node-id="body" data-type="NodeParagraph">Body</div>
+        <div class="protyle-attr"></div>
+      </div>
+    </div>`;
+    document.body.append(root);
+    const listItem = root.querySelector<HTMLElement>('[data-node-id="item"]')!;
+    const protyle = {
+      block: { parentID: "document-root" },
+      disabled: false,
+      getInstance: () => ({ transaction: vi.fn() }),
+    } as unknown as IProtyle;
+
+    module.onload();
+    eventBus.emit("click-blockicon", { menu: { addItem }, protyle, blockElements: [listItem] });
+
+    expect(addItem).toHaveBeenCalledOnce();
+    expect(addItem.mock.calls[0]?.[0].submenu.every(
+      (item: { disabled?: boolean }) => item.disabled !== true,
+    )).toBe(true);
+    module.onunload();
+  });
+
   it("keeps block conversion disabled without disabling smart insertion lifecycle", () => {
     const eventBus = createEventBus();
     const module = createPlugin({ smartInsert: true, blockMenuConversion: false }, eventBus);
