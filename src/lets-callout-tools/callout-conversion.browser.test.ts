@@ -352,4 +352,29 @@ describe("Callout block conversion", () => {
     expect(createCalloutConversionPlan([block("nested"), block("first")], note, protyle)).toBeUndefined();
     expect(createCalloutConversionPlan([block("list")], note, protyle)).toBeDefined();
   });
+
+  it("rejects multiple list items instead of moving them directly into a Callout", () => {
+    const root = render(`
+      <div data-node-id="list" data-type="NodeList">
+        <div data-node-id="item-1" data-type="NodeListItem">
+          <div data-node-id="body-1" data-type="NodeParagraph">One</div>
+        </div>
+        <div data-node-id="item-2" data-type="NodeListItem">
+          <div data-node-id="body-2" data-type="NodeParagraph">Two</div>
+        </div>
+        <div data-node-id="item-3" data-type="NodeListItem">
+          <div data-node-id="body-3" data-type="NodeParagraph">Three</div>
+        </div>
+      </div>
+      <div data-node-id="paragraph" data-type="NodeParagraph">Outside</div>
+    `);
+    const { protyle } = createProtyle(root);
+    const note = CALLOUT_TYPE_DEFINITIONS[0];
+    const block = (id: string) => root.querySelector<HTMLElement>(`[data-node-id="${id}"]`)!;
+
+    expect(createCalloutConversionPlan([block("item-2"), block("item-3")], note, protyle))
+      .toBeUndefined();
+    expect(createCalloutConversionPlan([block("item-2"), block("paragraph")], note, protyle))
+      .toBeUndefined();
+  });
 });

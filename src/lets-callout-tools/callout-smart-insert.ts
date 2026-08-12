@@ -364,13 +364,20 @@ export class CalloutSmartInsert {
 
     if (createsEmptyBody) {
       if (!emptyParagraph) return false;
+      const shellHtml = callout.outerHTML;
       calloutContent.append(emptyParagraph);
-      const calloutHtml = callout.outerHTML;
       block.replaceWith(callout);
       const doOperations: IOperation[] = [
-        { action: "update", id: blockId, data: calloutHtml },
+        { action: "update", id: blockId, data: shellHtml },
+        {
+          action: "insert",
+          id: emptyParagraph.dataset.nodeId,
+          data: emptyParagraph.outerHTML,
+          parentID: blockId,
+        },
       ];
       const undoOperations: IOperation[] = [
+        { action: "delete", id: emptyParagraph.dataset.nodeId },
         { action: "update", id: blockId, data: originalBlockHtml },
       ];
       transaction.call(instance, doOperations, undoOperations);

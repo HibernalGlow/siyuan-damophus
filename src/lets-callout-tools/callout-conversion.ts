@@ -44,8 +44,10 @@ function listItemBodyBlocks(listItem: HTMLElement): HTMLElement[] {
 
 function conversionBlocks(sourceBlocks: readonly HTMLElement[]): HTMLElement[] {
   const blocks = uniqueTopLevelBlocks(sourceBlocks);
-  if (blocks.length !== 1 || blocks[0].dataset.type !== "NodeListItem") return blocks;
-  return listItemBodyBlocks(blocks[0]);
+  const listItems = blocks.filter((block) => block.dataset.type === "NodeListItem");
+  if (listItems.length === 0) return blocks;
+  if (blocks.length !== 1) return [];
+  return listItemBodyBlocks(listItems[0]);
 }
 
 export function createCalloutConversionPlan(

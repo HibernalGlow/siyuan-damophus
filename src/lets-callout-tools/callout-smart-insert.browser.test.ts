@@ -278,8 +278,18 @@ describe("smart Callout insertion", () => {
     expect(editor.originalFill).not.toHaveBeenCalled();
     expect(editor.transaction).toHaveBeenCalledTimes(1);
     const [doOperations, undoOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
-    expect(doOperations.map((operation) => operation.action)).toEqual(["update"]);
-    expect(undoOperations.map((operation) => operation.action)).toEqual(["update"]);
+    expect(doOperations).toEqual([
+      expect.objectContaining({ action: "update", id: "slash" }),
+      expect.objectContaining({
+        action: "insert",
+        id: "new-callout-1",
+        parentID: "slash",
+      }),
+    ]);
+    expect(undoOperations).toEqual([
+      expect.objectContaining({ action: "delete", id: "new-callout-1" }),
+      expect.objectContaining({ action: "update", id: "slash" }),
+    ]);
     applyOperations(editor.root, undoOperations);
     expect(editor.root.innerHTML).toBe(before);
   });
@@ -323,8 +333,14 @@ describe("smart Callout insertion", () => {
     expect(editor.originalFill).not.toHaveBeenCalled();
     expect(editor.transaction).toHaveBeenCalledTimes(1);
     const [doOperations, undoOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
-    expect(doOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
-    expect(undoOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
+    expect(doOperations).toEqual([
+      expect.objectContaining({ action: "update", id: "slash" }),
+      expect.objectContaining({ action: "insert", id: "new-callout-1", parentID: "slash" }),
+    ]);
+    expect(undoOperations).toEqual([
+      expect.objectContaining({ action: "delete", id: "new-callout-1" }),
+      expect.objectContaining({ action: "update", id: "slash" }),
+    ]);
   });
 
   it("keeps a child ordered list outside an empty Callout", () => {
@@ -364,7 +380,10 @@ describe("smart Callout insertion", () => {
     expect(childList.textContent).toContain("Child item");
     expect(editor.transaction).toHaveBeenCalledTimes(1);
     const [doOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
-    expect(doOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
+    expect(doOperations).toEqual([
+      expect.objectContaining({ action: "update", id: "slash" }),
+      expect.objectContaining({ action: "insert", id: "new-callout-1", parentID: "slash" }),
+    ]);
   });
 
   it("keeps a top-level list outside an empty Callout", () => {
@@ -396,7 +415,10 @@ describe("smart Callout insertion", () => {
     expect(list.textContent).toContain("List item");
     expect(editor.transaction).toHaveBeenCalledTimes(1);
     const [doOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
-    expect(doOperations).toEqual([expect.objectContaining({ action: "update", id: "slash" })]);
+    expect(doOperations).toEqual([
+      expect.objectContaining({ action: "update", id: "slash" }),
+      expect.objectContaining({ action: "insert", id: "new-callout-1", parentID: "slash" }),
+    ]);
   });
 
   it("falls back when the following block cannot be a Callout child", () => {
