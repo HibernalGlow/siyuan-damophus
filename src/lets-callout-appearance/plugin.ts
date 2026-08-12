@@ -11,13 +11,6 @@ export const pluginMetadata: PluginMetadata = {
   settings: [
     {
       type: "checkbox",
-      title: "lets-callout-appearance.smartInsertTitle",
-      description: "lets-callout-appearance.smartInsertDescription",
-      key: "smartInsert",
-      value: true,
-    },
-    {
-      type: "checkbox",
       title: "lets-callout-appearance.followCalloutTextColorTitle",
       description: "lets-callout-appearance.followCalloutTextColorDescription",
       key: "followCalloutTextColor",

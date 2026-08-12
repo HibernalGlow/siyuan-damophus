@@ -22,6 +22,14 @@ export function migrateLegacyModuleSettings(
     changed = true;
   }
 
+  const calloutAppearance = isRecord(config.calloutAppearance) ? config.calloutAppearance : undefined;
+  const calloutTools = isRecord(config.calloutTools) ? config.calloutTools : undefined;
+  if (calloutAppearance && calloutTools && typeof calloutAppearance.smartInsert === "boolean") {
+    calloutTools.smartInsert = calloutAppearance.smartInsert;
+    delete calloutAppearance.smartInsert;
+    changed = true;
+  }
+
   return changed;
 }
 

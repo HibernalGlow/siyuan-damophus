@@ -33,4 +33,17 @@ describe("legacy module settings migration", () => {
     expect(migrateLegacyModuleSettings(config, pluginConfigs)).toBe(false);
     expect(config).toEqual({ mobileAppearance: { enabled: false } });
   });
+
+  it("moves smart Callout insertion from appearance to Callout tools", () => {
+    const config = {
+      calloutAppearance: { enabled: true, smartInsert: false, paddingTop: 16 },
+      calloutTools: { enabled: true, smartInsert: true, blockMenuConversion: true },
+    };
+
+    expect(migrateLegacyModuleSettings(config, pluginConfigs)).toBe(true);
+    expect(config).toEqual({
+      calloutAppearance: { enabled: true, paddingTop: 16 },
+      calloutTools: { enabled: true, smartInsert: false, blockMenuConversion: true },
+    });
+  });
 });

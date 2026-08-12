@@ -36,6 +36,7 @@ export const SETTING_CATEGORY_DEFINITIONS: SettingCategoryDefinition[] = [
       "listMerge",
       "legacyBlockSelection",
       "styleBrush",
+      "calloutTools",
       "blockDragPerformance",
       "layoutActions",
       // "imageConverter", // Parked until a small, reliable encoder is available.
