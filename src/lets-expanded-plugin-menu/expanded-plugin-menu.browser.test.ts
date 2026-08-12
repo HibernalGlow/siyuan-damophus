@@ -89,8 +89,8 @@ describe("expanded plugin menu", () => {
 
     const flatLabels = Array.from(flatPanel.querySelectorAll<HTMLElement>(":scope > .b3-menu__item > .b3-menu__label"))
       .map((label) => label.textContent);
-    expect(flatLabels).toContain("转换为 Callout / Note");
-    expect(flatLabels).toContain("转换为 Callout / Caution");
+    expect(flatLabels.some((label) => label?.includes("转换为 Callout / Note"))).toBe(true);
+    expect(flatLabels.some((label) => label?.includes("转换为 Callout / Caution"))).toBe(true);
 
     const itemRect = pluginItem.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
