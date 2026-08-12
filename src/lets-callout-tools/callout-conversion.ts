@@ -79,6 +79,7 @@ function createCalloutElement(
   document: Document,
   id: string,
   definition: CalloutTypeDefinition,
+  titleHtml?: string,
 ): HTMLElement {
   const callout = document.createElement("div");
   callout.className = "callout";
@@ -87,7 +88,25 @@ function createCalloutElement(
   callout.dataset.subtype = definition.type;
   callout.contentEditable = "false";
   callout.innerHTML = `<div class="callout-info"><span class="callout-icon">${definition.icon}</span><span class="callout-title">${definition.title}</span></div><div class="callout-content"></div><div class="protyle-attr" contenteditable="false">\u200b</div>`;
+  if (titleHtml !== undefined) {
+    callout.querySelector<HTMLElement>(":scope > .callout-info > .callout-title")!.innerHTML = titleHtml;
+  }
   return callout;
+}
+
+function headingTitleHtml(heading: HTMLElement): string {
+  const editable = heading.matches('[contenteditable="true"]')
+    ? heading
+    : heading.querySelector<HTMLElement>(":scope > [contenteditable=\"true\"]");
+  const clone = (editable ?? heading).cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".protyle-attr, .protyle-action, .protyle-icons").forEach((item) => item.remove());
+  return clone.innerHTML;
+}
+
+function clearSelectionMarkers(block: HTMLElement): void {
+  block.classList.remove("protyle-wysiwyg--select");
+  block.removeAttribute("select-start");
+  block.removeAttribute("select-end");
 }
 
 export function convertBlocksToCallout(
@@ -115,9 +134,18 @@ export function convertBlocksToCallout(
   }
 
   const first = plan.blocks[0];
-  const previousAtParent = first.previousElementSibling?.getAttribute("data-node-id") ?? undefined;
+  const titleBlock = plan.blocks.length > 1
+    ? plan.blocks.find((block) => block.dataset.type === "NodeHeading")
+    : undefined;
+  const bodyBlocks = titleBlock ? plan.blocks.filter((block) => block !== titleBlock) : plan.blocks;
+  if (bodyBlocks.length === 0 || plan.blocks.some((block) => !block.dataset.nodeId)) return false;
   const calloutId = newNodeId();
-  const callout = createCalloutElement(first.ownerDocument, calloutId, plan.type);
+  const callout = createCalloutElement(
+    first.ownerDocument,
+    calloutId,
+    plan.type,
+    titleBlock ? headingTitleHtml(titleBlock) : undefined,
+  );
   const content = callout.querySelector<HTMLElement>(":scope > .callout-content")!;
   const shellHtml = callout.outerHTML;
   first.before(callout);
@@ -131,18 +159,13 @@ export function convertBlocksToCallout(
   }];
   const undoOperations: IOperation[] = [];
   let previousMovedId: string | undefined;
-  for (const block of plan.blocks) {
-    const blockId = block.dataset.nodeId;
-    if (!blockId) return false;
-    block.classList.remove("protyle-wysiwyg--select");
-    block.removeAttribute("select-start");
-    block.removeAttribute("select-end");
-    undoOperations.push({
-      action: "move",
-      id: blockId,
-      previousID: previousMovedId ?? previousAtParent,
-      parentID: plan.parentId,
-    });
+  if (titleBlock) {
+    clearSelectionMarkers(titleBlock);
+    doOperations.push({ action: "delete", id: titleBlock.dataset.nodeId });
+  }
+  for (const block of bodyBlocks) {
+    const blockId = block.dataset.nodeId!;
+    clearSelectionMarkers(block);
     doOperations.push({
       action: "move",
       id: blockId,
@@ -152,6 +175,28 @@ export function convertBlocksToCallout(
     content.append(block);
     previousMovedId = blockId;
   }
+  let previousRestoredId = calloutId;
+  for (const block of plan.blocks) {
+    const blockId = block.dataset.nodeId!;
+    if (block === titleBlock) {
+      undoOperations.push({
+        action: "insert",
+        id: blockId,
+        data: block.outerHTML,
+        previousID: previousRestoredId,
+        parentID: plan.parentId,
+      });
+    } else {
+      undoOperations.push({
+        action: "move",
+        id: blockId,
+        previousID: previousRestoredId,
+        parentID: plan.parentId,
+      });
+    }
+    previousRestoredId = blockId;
+  }
+  titleBlock?.remove();
   undoOperations.push({ action: "delete", id: calloutId });
   instance.transaction(doOperations, undoOperations);
   return true;
