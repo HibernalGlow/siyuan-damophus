@@ -16,5 +16,7 @@ describe("same-text format painter", () => {
       .toBe("20260812090001-bbbbbbb");
     expect(nearestHeadingId("20260812090002-ccccccc", false, breadcrumbs))
       .toBe("20260812090001-bbbbbbb");
+    expect(nearestHeadingId("20260812090002-ccccccc", false, [], "20260812090003-ddddddd"))
+      .toBe("20260812090003-ddddddd");
   });
 });

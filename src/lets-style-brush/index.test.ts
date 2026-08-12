@@ -37,7 +37,7 @@ describe("same-text format painter integration", () => {
       },
     } as unknown as CustomEvent<unknown>);
     expect(addItem).toHaveBeenCalledWith(expect.objectContaining({
-      icon: "iconFormat",
+      icon: "iconSelectText",
       label: "lets-style-brush.menuLabel",
       submenu: expect.any(Array),
     }));
@@ -51,7 +51,7 @@ describe("same-text format painter integration", () => {
     const first = styleBrush.updateProtyleToolbar([]);
     expect(first).toContainEqual(expect.objectContaining({
       name: "damophus-same-text-painter",
-      icon: "iconFormat",
+      icon: "iconSelectText",
     }));
     expect(styleBrush.updateProtyleToolbar(first)).toBe(first);
   });

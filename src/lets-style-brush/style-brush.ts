@@ -55,13 +55,53 @@ export function nearestHeadingId(
   sourceBlockId: string,
   sourceIsHeading: boolean,
   breadcrumbs: Array<{ id: string; type: string }>,
+  loadedHeadingId?: string,
 ): string | undefined {
   if (sourceIsHeading) return sourceBlockId;
   for (let index = breadcrumbs.length - 1; index >= 0; index -= 1) {
     const item = breadcrumbs[index];
     if (item?.type === "h" || item?.type === "NodeHeading") return item.id;
   }
+  return loadedHeadingId;
+}
+
+export function nearestLoadedHeadingId(
+  editor: HTMLElement,
+  sourceBlockId: string,
+): string | undefined {
+  let nearest: string | undefined;
+  for (const element of editor.querySelectorAll<HTMLElement>("[data-node-id]")) {
+    const id = element.dataset.nodeId;
+    if (id === sourceBlockId) return nearest;
+    if (element.dataset.type !== "NodeHeading") continue;
+    if (element.closest(".bq, .callout-content, [data-type=\"NodeList\"]")) continue;
+    nearest = id;
+  }
   return undefined;
+}
+
+export function loadedHeadingScopeBlockIds(
+  editor: HTMLElement,
+  headingId: string,
+  headingChildIds: Iterable<string>,
+): Set<string> {
+  const scopeRoots = new Set([headingId, ...headingChildIds]);
+  const allowedIds = new Set(scopeRoots);
+
+  editor.querySelectorAll<HTMLElement>("[data-node-id]").forEach((element) => {
+    const id = element.dataset.nodeId;
+    if (!id || allowedIds.has(id)) return;
+    let ancestor = element.parentElement?.closest<HTMLElement>("[data-node-id]");
+    while (ancestor && editor.contains(ancestor)) {
+      if (scopeRoots.has(ancestor.dataset.nodeId ?? "")) {
+        allowedIds.add(id);
+        return;
+      }
+      ancestor = ancestor.parentElement?.closest<HTMLElement>("[data-node-id]");
+    }
+  });
+
+  return allowedIds;
 }
 
 function textMap(editable: HTMLElement): { text: string; segments: TextSegment[] } {

@@ -2,13 +2,38 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyWithFormatPainter,
   findSameTextMatches,
+  loadedHeadingScopeBlockIds,
+  nearestLoadedHeadingId,
   rangeForTextMatch,
   type FormatPainterRuntime,
 } from "./style-brush";
 
-afterEach(() => document.body.replaceChildren());
+const IDS = {
+  heading: "20260812100000-aaaaaaa",
+  list: "20260812100001-bbbbbbb",
+  item: "20260812100002-ccccccc",
+  paragraph: "20260812100003-ddddddd",
+  nextHeading: "20260812100004-eeeeeee",
+  outside: "20260812100005-fffffff",
+};
 
 function renderEditor(): HTMLElement {
+  document.body.innerHTML = `
+    <div data-testid="editor">
+      <div data-node-id="${IDS.heading}" data-type="NodeHeading"><div contenteditable="true">Section</div></div>
+      <div data-node-id="${IDS.list}" data-type="NodeList">
+        <div data-node-id="${IDS.item}" data-type="NodeListItem">
+          <div data-node-id="${IDS.paragraph}" data-type="NodeParagraph"><div contenteditable="true">target text</div></div>
+        </div>
+      </div>
+      <div data-node-id="${IDS.nextHeading}" data-type="NodeHeading"><div contenteditable="true">Next</div></div>
+      <div data-node-id="${IDS.outside}" data-type="NodeParagraph"><div contenteditable="true">target text</div></div>
+    </div>
+  `;
+  return document.querySelector<HTMLElement>('[data-testid="editor"]')!;
+}
+
+function renderMatchingEditor(): HTMLElement {
   const editor = document.createElement("div");
   editor.className = "protyle-wysiwyg";
   editor.innerHTML = `
@@ -23,9 +48,34 @@ function renderEditor(): HTMLElement {
   return editor;
 }
 
+afterEach(() => {
+  document.body.innerHTML = "";
+});
+
+describe("same-text painter heading scope", () => {
+  it("finds the preceding loaded heading when breadcrumbs have no heading", () => {
+    const editor = renderEditor();
+    expect(nearestLoadedHeadingId(editor, IDS.paragraph)).toBe(IDS.heading);
+  });
+
+  it("includes nested text blocks under heading child containers only", () => {
+    const editor = renderEditor();
+    const allowedIds = loadedHeadingScopeBlockIds(editor, IDS.heading, [IDS.list]);
+
+    expect(allowedIds).toEqual(new Set([
+      IDS.heading,
+      IDS.list,
+      IDS.item,
+      IDS.paragraph,
+    ]));
+    expect(findSameTextMatches(editor, "target text", allowedIds).map((match) => match.blockId))
+      .toEqual([IDS.paragraph]);
+  });
+});
+
 describe("same-text range matching", () => {
   it("finds literal matches across adjacent inline nodes", () => {
-    const matches = findSameTextMatches(renderEditor(), "same text");
+    const matches = findSameTextMatches(renderMatchingEditor(), "same text");
     expect(matches).toHaveLength(3);
     expect(matches.map((match) => rangeForTextMatch(match)?.toString()))
       .toEqual(["same text", "same text", "same text"]);
@@ -33,7 +83,7 @@ describe("same-text range matching", () => {
 
   it("limits matching to allowed heading block IDs", () => {
     const matches = findSameTextMatches(
-      renderEditor(),
+      renderMatchingEditor(),
       "same text",
       new Set(["20260812090001-bbbbbbb"]),
     );
@@ -42,7 +92,7 @@ describe("same-text range matching", () => {
   });
 
   it("delegates every other match to Format Painter in reverse DOM order", () => {
-    const editor = renderEditor();
+    const editor = renderMatchingEditor();
     const allMatches = findSameTextMatches(editor, "same text");
     const sourceRange = rangeForTextMatch(allMatches[0]);
     expect(sourceRange).toBeDefined();

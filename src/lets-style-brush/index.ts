@@ -9,7 +9,9 @@ import {
   captureFormatPainterData,
   findFormatPainter,
   findSameTextMatches,
+  loadedHeadingScopeBlockIds,
   nearestHeadingId,
+  nearestLoadedHeadingId,
   normalizeSelectedText,
   selectedRangeBlockId,
   type FormatPainterData,
@@ -44,7 +46,7 @@ export default class StyleBrushPlugin extends SubPluginBase {
     if (!this.isEntryEnabled("menu") || !normalizeSelectedText(event.detail.range.toString())) return;
     const range = event.detail.range.cloneRange();
     event.detail.menu.addItem({
-      icon: "iconFormat",
+      icon: "iconSelectText",
       label: this.t("lets-style-brush.menuLabel"),
       submenu: this.scopeMenu(event.detail.protyle, range),
     });
@@ -70,7 +72,7 @@ export default class StyleBrushPlugin extends SubPluginBase {
     }
     return [...toolbar, {
       name: "damophus-same-text-painter",
-      icon: "iconFormat",
+      icon: "iconSelectText",
       tipPosition: "n",
       tip: this.t("lets-style-brush.toolbarTip"),
       click: (instance: Protyle) => this.openScopeDialog(instance.protyle),
@@ -154,13 +156,21 @@ export default class StyleBrushPlugin extends SubPluginBase {
       let allowedIds: Set<string> | undefined;
       if (scope === "heading") {
         const breadcrumbs = await getBlockBreadcrumb(captured.sourceBlockId);
-        const headingId = nearestHeadingId(captured.sourceBlockId, captured.sourceIsHeading, breadcrumbs);
+        const headingId = nearestHeadingId(
+          captured.sourceBlockId,
+          captured.sourceIsHeading,
+          breadcrumbs,
+          nearestLoadedHeadingId(captured.editor, captured.sourceBlockId),
+        );
         if (!headingId) {
           showMessage(this.t("lets-style-brush.noHeading"), 5000, "error");
           return;
         }
-        allowedIds = new Set(await getHeadingChildrenIDs(headingId));
-        allowedIds.add(headingId);
+        allowedIds = loadedHeadingScopeBlockIds(
+          captured.editor,
+          headingId,
+          await getHeadingChildrenIDs(headingId),
+        );
       }
       const matches = findSameTextMatches(
         captured.editor,
