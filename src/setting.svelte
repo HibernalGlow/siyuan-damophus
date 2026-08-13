@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { fade } from "svelte/transition";
-  import { Columns3, Grid2X2, Info } from "lucide-svelte";
+  import { Info } from "lucide-svelte";
   import { showMessage } from "siyuan";
   import { Button } from "@/components/ui/button";
-  import * as Tabs from "@/components/ui/tabs";
+  import { Switch } from "@/components/ui/switch";
   import EntryManagementSettings from "@/components/entry-management-settings.svelte";
+  import MobileSettingsTitlebar from "@/components/mobile-settings-titlebar.svelte";
   import SwitchSettings from "@/components/switch-settings.svelte";
   import { enableLogging } from "@/libs/logger";
   import { buildModuleSettings, MODULE_ENABLED_SETTING_KEY } from "@/libs/module-settings";
@@ -27,6 +28,11 @@
   import QuestionBankSettings from "./lets-question-bank/QuestionBankSettings.svelte";
   import LayoutActionsSettings from "./lets-layout-actions/LayoutActionsSettings.svelte";
   import CalloutAppearanceSettings from "./lets-callout-appearance/CalloutAppearanceSettings.svelte";
+  import ExpandedPluginMenuSettings from "./lets-expanded-plugin-menu/ExpandedPluginMenuSettings.svelte";
+  import AppearanceTweaksSettings from "./lets-appearance-tweaks/AppearanceTweaksSettings.svelte";
+  import SnippetAuditSettings from "./lets-snippet-audit/SnippetAuditSettings.svelte";
+  import RemoteAccessSettings from "./lets-remote-access/RemoteAccessSettings.svelte";
+  import SlashMenuSettings from "./lets-mobile-slash-menu/SlashMenuSettings.svelte";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
     DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
@@ -34,6 +40,7 @@
   } from "./lets-block-attr/custom-properties";
   import { PluginRegistry } from "./plugin-registry";
   import { isMobile, plugin } from "./utils";
+  import PluginIcon from "./components/plugin-icon.svelte";
   import SettingOverview from "./components/setting-overview.svelte";
 
   const SWITCH_GROUP = "开关";
@@ -44,6 +51,11 @@
   const COMPACT_LAYOUT_MAX_WIDTH = 720;
   const LAYOUT_ACTIONS_PLUGIN = "layoutActions";
   const CALLOUT_APPEARANCE_PLUGIN = "calloutAppearance";
+  const EXPANDED_PLUGIN_MENU_PLUGIN = "expandedPluginMenu";
+  const APPEARANCE_TWEAKS_PLUGIN = "appearanceTweaks";
+  const SNIPPET_AUDIT_PLUGIN = "snippetAudit";
+  const REMOTE_ACCESS_PLUGIN = "remoteAccess";
+  const MOBILE_SLASH_MENU_PLUGIN = "mobileSlashMenu";
 
   interface ChangeEvent {
     group: string;
@@ -177,14 +189,26 @@
   $: showQuestionBankSettings = focusedPlugin?.name === QUESTION_BANK_PLUGIN;
   $: showLayoutActionsSettings = focusedPlugin?.name === LAYOUT_ACTIONS_PLUGIN;
   $: showCalloutAppearanceSettings = focusedPlugin?.name === CALLOUT_APPEARANCE_PLUGIN;
+  $: showExpandedPluginMenuSettings = focusedPlugin?.name === EXPANDED_PLUGIN_MENU_PLUGIN;
+  $: showAppearanceTweaksSettings = focusedPlugin?.name === APPEARANCE_TWEAKS_PLUGIN;
+  $: showSnippetAuditSettings = focusedPlugin?.name === SNIPPET_AUDIT_PLUGIN;
+  $: showRemoteAccessSettings = focusedPlugin?.name === REMOTE_ACCESS_PLUGIN;
+  $: showSlashMenuSettings = focusedPlugin?.name === MOBILE_SLASH_MENU_PLUGIN;
   $: showEntryManagement = focusGroup === ENTRY_GROUP;
   $: focusedSettingItems = settingItems[focusGroup] ?? [];
   $: moduleEnabledSettingItems = focusedPlugin
     ? focusedSettingItems.filter((item) => item.key === MODULE_ENABLED_SETTING_KEY)
     : [];
   $: moduleSpecificSettingItems = focusedPlugin
-    ? focusedSettingItems.filter((item) => item.key !== MODULE_ENABLED_SETTING_KEY)
+    ? focusedSettingItems.filter((item) => item.key !== MODULE_ENABLED_SETTING_KEY && !(
+      focusedPlugin.name === MOBILE_SLASH_MENU_PLUGIN
+      && ["mobileMenuConfig", "desktopMenuConfig", "menuCatalog"].includes(item.key)
+    ))
     : focusedSettingItems;
+  $: focusedModuleEnabled = Boolean(moduleEnabledSettingItems[0]?.value);
+  $: expandedMenuModuleStates = Object.fromEntries(
+    settingItems[SWITCH_GROUP].map((item) => [item.key, Boolean(item.value)]),
+  );
   $: layoutActions = settingItems[focusGroup]?.find((item) => item.key === "actions")?.value ?? [];
   $: layoutActionsDockPosition = settingItems[focusGroup]?.find((item) => item.key === "dockPosition")?.value ?? "RightBottom";
   $: if (groups && !groups.includes(focusGroup)) focusGroup = SWITCH_GROUP;
@@ -216,6 +240,26 @@
     return plugin.i18n[key] || key;
   }
 
+  function expandedPluginMenuSettingsLabels() {
+    return {
+      listTitle: t("lets-expanded-plugin-menu.discoveredListTitle", "Discovered menu entries"),
+      listDescription: t("lets-expanded-plugin-menu.discoveredListDescription", "Entries appear automatically after the Plugins menu has been opened. These switches only control expansion."),
+      empty: t("lets-expanded-plugin-menu.emptyDiscovered", "No menu entries discovered yet"),
+      emptyHint: t("lets-expanded-plugin-menu.emptyDiscoveredHint", "Open a block menu and point to Plugins once, then return here."),
+      allowExpansion: t("lets-expanded-plugin-menu.allowExpansion", "Allow expansion"),
+      moduleEnabled: t("lets-expanded-plugin-menu.moduleEnabled", "Module on"),
+      moduleDisabled: t("lets-expanded-plugin-menu.moduleDisabled", "Module off"),
+      externalPlugin: t("lets-expanded-plugin-menu.externalPlugin", "External plugin"),
+      textMatch: t("lets-expanded-plugin-menu.textMatch", "Text match"),
+      moduleId: t("lets-expanded-plugin-menu.moduleId", "Module"),
+      pluginId: t("lets-expanded-plugin-menu.pluginId", "Plugin"),
+      declaration: t("lets-expanded-plugin-menu.declaration", "Declaration"),
+      advanced: t("lets-expanded-plugin-menu.advancedRules", "Advanced rules"),
+      advancedDescription: t("lets-expanded-plugin-menu.advancedRulesDescription", "External plugin IDs, declaration paths, and legacy exact-text rules."),
+      advancedPlaceholder: t("lets-expanded-plugin-menu.advancedRulesPlaceholder", "plugin:other-plugin\ndeclaration:module/path\nExact menu text"),
+    };
+  }
+
   function entryManagementLabels() {
     return {
       desktopDock: t("settings.entry.desktopDock", "Desktop sidebar"),
@@ -224,6 +268,8 @@
       contextMenu: t("settings.entry.contextMenu", "Context menus"),
       command: t("settings.entry.command", "Command palette"),
       tab: t("settings.entry.tab", "New tab"),
+      quickSwitches: t("settings.entry.quickSwitches", "Quick switches"),
+      showModuleDetailSwitches: t("settings.showModuleDetailSwitches", "Show enable switch inside modules"),
       disabled: t("settings.entry.moduleDisabled", "Module disabled"),
       unavailable: t("settings.entry.unavailable", "Not provided by this module"),
     };
@@ -232,6 +278,11 @@
   function getFocusedSettingValue(key: string, fallback: string) {
     const value = settingItems[focusGroup]?.find((item) => item.key === key)?.value;
     return typeof value === "string" ? value : fallback;
+  }
+
+  function getFocusedBooleanSettingValue(key: string, fallback: boolean) {
+    const value = settingItems[focusGroup]?.find((item) => item.key === key)?.value;
+    return typeof value === "boolean" ? value : fallback;
   }
 
   function updateLocalSetting(group: string, key: string, value: any) {
@@ -344,6 +395,59 @@
     };
   }
 
+  function appearanceTweaksSettingsLabels() {
+    return {
+      preview: t("lets-appearance-tweaks.preview", "Live preview"),
+      previewDescription: t("lets-appearance-tweaks.previewDescription", "Tag and reference adjustments update here immediately."),
+      sampleText: t("lets-appearance-tweaks.sampleText", "Study note"),
+      sampleTag: t("lets-appearance-tweaks.sampleTag", "administrative-law"),
+      sampleReference: t("lets-appearance-tweaks.sampleReference", "source"),
+      sampleSubReference: t("lets-appearance-tweaks.sampleSubReference", "note"),
+      refCount: t("lets-appearance-tweaks.refCount", "2 references"),
+    };
+  }
+
+  function remoteAccessSettingsLabels() {
+    return {
+      serveStatus: t("lets-remote-access.serveStatus", "Serve status"),
+      serveEnabled: t("lets-remote-access.serveEnabled", "On"),
+      serveDisabled: t("lets-remote-access.serveDisabled", "Off"),
+      serveDisabledHint: t("lets-remote-access.serveDisabledHint", "Enable Network Serve in SiYuan Settings - About, then restart SiYuan."),
+      desktopOnlyHint: t("lets-remote-access.desktopOnlyHint", "This module is meant for the desktop app hosting your workspace."),
+      publicUrl: t("lets-remote-access.publicUrl", "Mobile URL"),
+      publicUrlDescription: t("lets-remote-access.publicUrlDescription", "Open this address on your phone. Enter the access authorization code once to connect."),
+      publicHost: t("lets-remote-access.publicHost", "Public address"),
+      publicHostDescription: t("lets-remote-access.publicHostDescription", "Public IP or domain used for the mobile URL. Leave empty to detect the public IP automatically."),
+      publicHostPlaceholder: t("lets-remote-access.publicHostPlaceholder", "e.g. 1.2.3.4 or home.example.com"),
+      lanUrls: t("lets-remote-access.lanUrls", "LAN addresses"),
+      lanUrlsDescription: t("lets-remote-access.lanUrlsDescription", "Also work on the same Wi-Fi network."),
+      autoDetected: t("lets-remote-access.autoDetected", "Auto-detected public IP"),
+      detecting: t("lets-remote-access.detecting", "Detecting public IP..."),
+      detectFailed: t("lets-remote-access.detectFailed", "Detection failed"),
+      copy: t("lets-remote-access.copy", "Copy"),
+      copied: t("lets-remote-access.copied", "Copied"),
+      refresh: t("lets-remote-access.refresh", "Refresh"),
+    };
+  }
+
+  function slashMenuSettingsLabels() {
+    return {
+      description: t("lets-mobile-slash-menu.menuSettingsDescription", "Choose visibility, display mode, and order independently for each device."),
+      mobile: t("lets-mobile-slash-menu.mobileTab", "Mobile"),
+      desktop: t("lets-mobile-slash-menu.desktopTab", "Desktop"),
+      enabled: t("lets-mobile-slash-menu.surfaceEnabled", "Enable on this surface"),
+      visible: t("lets-mobile-slash-menu.visible", "Show"),
+      display: t("lets-mobile-slash-menu.display", "Display"),
+      icon: t("lets-mobile-slash-menu.icon", "Icon available"),
+      full: t("lets-mobile-slash-menu.full", "Full text"),
+      iconOnly: t("lets-mobile-slash-menu.iconOnly", "Icon only"),
+      moveUp: t("lets-mobile-slash-menu.moveUp", "Move up"),
+      moveDown: t("lets-mobile-slash-menu.moveDown", "Move down"),
+      noIcon: t("lets-mobile-slash-menu.noIcon", "No icon; text required"),
+      empty: t("lets-mobile-slash-menu.empty", "Type / in an editor once to discover the native commands."),
+    };
+  }
+
   async function onClick({ detail }: CustomEvent<ChangeEvent>) {
     if (detail.group === GENERAL_GROUP && detail.key === "resetData") {
       await settings.resetData();
@@ -438,18 +542,21 @@
     persistNavState();
   }
 
-  function setOverviewLayout(layout: string) {
-    if (layout !== "masonry" && layout !== "bento") return;
-    navState = { ...navState, overviewLayout: layout };
+  function setAdaptiveOverview(enabled: boolean) {
+    navState = { ...navState, adaptiveOverview: enabled };
     persistNavState();
   }
 
-  function onOverviewResize({ detail }: CustomEvent<{ categoryId: string; span: number }>) {
-    navState = {
-      ...navState,
-      categorySpans: { ...navState.categorySpans, [detail.categoryId]: detail.span },
-    };
+  function setModuleDetailSwitches(enabled: boolean) {
+    navState = { ...navState, moduleDetailSwitches: enabled };
     persistNavState();
+  }
+
+  function setFocusedModuleEnabled(enabled: boolean) {
+    if (!focusedPlugin) return;
+    void onChanged(new CustomEvent("changed", {
+      detail: { group: focusGroup, key: MODULE_ENABLED_SETTING_KEY, value: enabled },
+    }));
   }
 
   function onSwitchesExpandedChanged({ detail }: CustomEvent<Record<string, boolean>>) {
@@ -506,28 +613,20 @@
     data-testid={showOverview ? "setting-overview-page" : "setting-detail-page"}
   >
     {#if showOverview && !compactLayout}
-      <header class="settings-stage__heading flex items-start justify-between gap-4 border-b border-border pb-4" in:fade={{ duration: 140 }}>
-        <div class="min-w-0">
-          <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
-          <p class="mt-1 text-sm text-muted-foreground">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
+      <header class="settings-stage__heading border-b border-border pb-4" in:fade={{ duration: 140 }}>
+        <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
+        <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <p class="m-0">{t("settings.overviewDescription", "Every module at a glance. Open one to adjust its settings, or drag the grips to reorder.")}</p>
+          <label class="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+            <Switch
+              size="sm"
+              checked={navState.adaptiveOverview ?? true}
+              aria-label={t("settings.adaptiveOverview", "Adaptive layout")}
+              onCheckedChange={setAdaptiveOverview}
+            />
+            <span>{t("settings.adaptiveOverview", "Adaptive layout")}</span>
+          </label>
         </div>
-        <Tabs.Root
-          value={navState.overviewLayout ?? "masonry"}
-          class="shrink-0"
-          aria-label={t("settings.overviewLayoutLabel", "Overview layout")}
-          onValueChange={setOverviewLayout}
-        >
-          <Tabs.List>
-            <Tabs.Trigger value="masonry" title={t("settings.overviewLayoutMasonry", "Adaptive")}>
-              <Columns3 class="size-3.5" aria-hidden="true" />
-              <span>{t("settings.overviewLayoutMasonry", "Adaptive")}</span>
-            </Tabs.Trigger>
-            <Tabs.Trigger value="bento" title={t("settings.overviewLayoutBento", "Bento")}>
-              <Grid2X2 class="size-3.5" aria-hidden="true" />
-              <span>{t("settings.overviewLayoutBento", "Bento")}</span>
-            </Tabs.Trigger>
-          </Tabs.List>
-        </Tabs.Root>
       </header>
     {/if}
 
@@ -538,17 +637,14 @@
         mode={showOverview ? "overview" : "navigation"}
         activeSelectId={focusGroup}
         compact={compactLayout}
-        layoutMode={navState.overviewLayout ?? "masonry"}
-        categorySpans={navState.categorySpans ?? {}}
+        adaptive={navState.adaptiveOverview ?? true}
         reorderHint={t("settings.dragToReorder", "Drag to reorder")}
-        resizeHint={t("settings.resizeCategory", "Drag to resize card")}
         enabledLabel={t("settings.moduleEnabled", "Enable this module")}
         overviewLabel={t("settings.backToOverview", "Back to overview")}
         on:select={(event) => selectFromOverview(event.detail)}
         on:toggle={onOverviewToggle}
         on:overview={showOverviewPage}
         on:reorder={onOverviewReorder}
-        on:resize={onOverviewResize}
       />
     </div>
     {/if}
@@ -558,8 +654,15 @@
     class="settings-stage__detail min-w-0 overflow-y-auto overscroll-contain"
     in:fade={{ duration: compactLayout ? 0 : 180 }}
   >
+    {#if compactLayout}
+      <MobileSettingsTitlebar
+        title={getGroupLabel(focusGroup)}
+        backLabel={t("settings.backToOverview", "Back to overview")}
+        on:back={showOverviewPage}
+      />
+    {/if}
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
-      {#if !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
+      {#if !compactLayout && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
         <header class="border-b border-border pb-4">
           <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
         </header>
@@ -576,7 +679,7 @@
           on:bulkChanged={onBulkSwitchChanged}
           on:expandedChanged={onSwitchesExpandedChanged}
         />
-      {:else if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings}
+      {:else if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
         <!--
           Module enable controls are managed from the settings overview.
           Uncomment this panel to restore the enable switch inside plugin details.
@@ -589,13 +692,30 @@
         -->
       {/if}
 
+      {#if focusedPlugin && (navState.moduleDetailSwitches ?? true)}
+        <label class="module-detail-switch" data-testid="module-detail-switch">
+          <span class="module-detail-switch__copy">
+            <PluginIcon name={getGroupIcon(focusGroup, 0)} className="size-3.5 shrink-0" />
+            <span>{t("settings.moduleEnabled", "Enable this module")}</span>
+          </span>
+          <Switch
+            size="sm"
+            checked={focusedModuleEnabled}
+            aria-label={`${t("settings.moduleEnabled", "Enable this module")}: ${getGroupLabel(focusGroup)}`}
+            onCheckedChange={setFocusedModuleEnabled}
+          />
+        </label>
+      {/if}
+
       {#if showEntryManagement}
         <EntryManagementSettings
           modules={settingItems[ENTRY_GROUP] ?? []}
           labels={entryManagementLabels()}
           translate={translateKey}
           mobile={compactLayout}
+          showModuleDetailSwitches={navState.moduleDetailSwitches ?? true}
           on:changed={onChanged}
+          on:moduleDetailSwitchesChanged={(event) => setModuleDetailSwitches(event.detail)}
         />
       {:else if showBlockAttributeSettings}
         <BlockAttributeSettings
@@ -642,6 +762,48 @@
           mobile={compactLayout}
           on:changed={onChanged}
           on:preview={onPreview}
+        />
+      {:else if showExpandedPluginMenuSettings}
+        <ExpandedPluginMenuSettings
+          group={focusGroup}
+          title={getGroupLabel(focusGroup)}
+          discoveredEntries={getFocusedSettingValue("discoveredEntries", "[]")}
+          allowedEntries={getFocusedSettingValue("allowedEntries", "")}
+          moduleStates={expandedMenuModuleStates}
+          labels={expandedPluginMenuSettingsLabels()}
+          on:changed={onChanged}
+        />
+      {:else if showAppearanceTweaksSettings}
+        <AppearanceTweaksSettings
+          group={focusGroup}
+          title={getGroupLabel(focusGroup)}
+          settingItems={moduleSpecificSettingItems}
+          labels={appearanceTweaksSettingsLabels()}
+          mobile={compactLayout}
+          on:changed={onChanged}
+          on:preview={onPreview}
+        />
+      {:else if showSnippetAuditSettings}
+        <SnippetAuditSettings title={getGroupLabel(focusGroup)} />
+      {:else if showRemoteAccessSettings}
+        <RemoteAccessSettings
+          group={focusGroup}
+          title={getGroupLabel(focusGroup)}
+          publicHost={getFocusedSettingValue("publicHost", "")}
+          labels={remoteAccessSettingsLabels()}
+          mobile={compactLayout}
+          on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
+        />
+      {:else if showSlashMenuSettings}
+        <SlashMenuSettings
+          title={getGroupLabel(focusGroup)}
+          mobileConfig={getFocusedSettingValue("mobileMenuConfig", "[]")}
+          desktopConfig={getFocusedSettingValue("desktopMenuConfig", "[]")}
+          mobileEnabled={getFocusedBooleanSettingValue("mobileEnabled", true)}
+          desktopEnabled={getFocusedBooleanSettingValue("desktopEnabled", false)}
+          catalog={getFocusedSettingValue("menuCatalog", "[]")}
+          labels={slashMenuSettingsLabels()}
+          on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
         />
       {:else if focusGroup !== SWITCH_GROUP && moduleSpecificSettingItems.length > 0}
         <SettingPanel
@@ -712,6 +874,33 @@
   }
 
   .settings-stage__detail { grid-area: detail; }
+
+  .settings-stage--compact :global(.question-bank-settings-title),
+  .settings-stage--compact :global(.callout-appearance-settings > header:first-child),
+  .settings-stage--compact :global(.appearance-tweaks-settings > header:first-child),
+  .settings-stage--compact :global(section[data-mobile="true"] > header:first-child) {
+    display: none;
+  }
+
+  .module-detail-switch {
+    display: flex;
+    min-height: 34px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 10px;
+    border-block: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+
+  .module-detail-switch__copy {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+  }
 
   .settings-stage--compact.settings-stage--overview {
     padding: 1rem;

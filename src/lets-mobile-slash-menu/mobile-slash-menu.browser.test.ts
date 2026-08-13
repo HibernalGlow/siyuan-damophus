@@ -3,119 +3,178 @@ import { type MobileSlashMenuRuntime, MobileSlashMenuShortcut } from "./mobile-s
 
 afterEach(() => {
   document.body.innerHTML = "";
+  document.getSelection()?.removeAllRanges();
 });
+
+function placeCaretAtEnd(element: HTMLElement) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  const selection = document.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return range;
+}
 
 function renderEditor() {
   document.body.innerHTML = `<div id="sidebar"></div><div class="protyle-wysiwyg">
-    <div data-node-id="block" contenteditable="true">note</div>
+    <div data-node-id="block" contenteditable="true">note<span data-type="text"></span></div>
   </div>`;
   const editable = document.querySelector<HTMLElement>("[contenteditable='true']")!;
+  const inline = editable.querySelector<HTMLElement>("span")!;
   const hintElement = document.createElement("div");
   hintElement.className = "protyle-hint fn__none";
   hintElement.innerHTML = '<div class="fn__loading">stale loading</div>';
   document.body.append(hintElement);
-  const gateStates: boolean[] = [];
-  const hintRender = vi.fn(function (this: {
-    element: HTMLElement;
-    genHTML: (value: string) => void;
-    lastIndex: number;
-    splitChar: string;
-  }, _protyle: unknown) {
-    // This models the native mobile gate and the desktop slash rendering path.
-    const mobileGatePresent = document.getElementById("sidebar") !== null;
-    gateStates.push(mobileGatePresent);
-    if (mobileGatePresent) return;
-    const slashIndex = (editable.textContent ?? "").lastIndexOf("/");
-    if (slashIndex < 0) {
-      this.element.classList.add("fn__none");
-      return;
-    }
-    this.splitChar = "/";
-    this.lastIndex = slashIndex;
-    this.genHTML(`command:${(editable.textContent ?? "").slice(slashIndex + 1)}`);
+  const nativeCommands = [
+    { html: "<span>一级标题</span>", value: "heading1", filter: ["heading1", "h1", "一级标题"] },
+    { html: "<span>二级标题</span>", value: "heading2", filter: ["heading2", "h2", "二级标题"] },
+    { html: "<span>无序列表</span>", value: "list", filter: ["list", "无序列表"] },
+  ];
+  const slashProvider = vi.fn((key: string) => nativeCommands
+    .filter((command) => !key || command.filter.some((value) => value.includes(key))));
+  const originalRender = vi.fn(function (this: { element: HTMLElement }, _protyle: unknown) {
+    this.element.innerHTML = '<div class="fn__loading">native mobile fallback</div>';
+    this.element.classList.remove("fn__none");
+  });
+  const genHTML = vi.fn(function (this: { element: HTMLElement }, commands: typeof nativeCommands) {
+    this.element.innerHTML = commands
+      .map((command) => `<button data-id="${command.value}" class="b3-list-item">${command.html}</button>`)
+      .join("");
+    this.element.classList.toggle("fn__none", commands.length === 0);
   });
   const hint = {
-    render: hintRender,
+    render: originalRender,
     element: hintElement,
     enableExtend: false,
     enableSlash: false,
     lastIndex: 2,
     splitChar: "((",
     timeId: window.setTimeout(() => undefined, 10_000),
-    genHTML(this: { element: HTMLElement }, value: string) {
-      this.element.innerHTML = `<button class="b3-list-item">${value}</button>`;
-      this.element.classList.remove("fn__none");
-    },
+    genHTML,
   };
-  const range = document.createRange();
-  range.selectNodeContents(editable);
-  range.collapse(false);
-  const selection = document.getSelection()!;
-  selection.removeAllRanges();
-  selection.addRange(range);
-  const protyle = { hint, toolbar: { range }, wysiwyg: { element: editable.parentElement! } };
+  const protyle = {
+    hint,
+    options: { hint: { extend: [{ key: "/", hint: slashProvider }] } },
+    toolbar: { range: placeCaretAtEnd(inline) },
+    wysiwyg: { element: editable.parentElement! },
+  };
   const input = vi.fn(() => hint.render(protyle));
   editable.addEventListener("input", input);
   return {
     editable,
+    inline,
     hint,
-    gateStates,
     hintElement,
-    hintRender,
+    slashProvider,
+    originalRender,
+    genHTML,
     input,
+    protyle,
     runtime: { getEditors: () => [{ protyle }] } satisfies MobileSlashMenuRuntime,
   };
 }
 
+function typeText(editor: ReturnType<typeof renderEditor>, value: string) {
+  editor.inline.append(value);
+  placeCaretAtEnd(editor.inline);
+  editor.inline.dispatchEvent(new InputEvent("input", {
+    bubbles: true,
+    data: value,
+    inputType: "insertText",
+  }));
+}
+
 describe("mobile slash menu shortcut", () => {
-  it("lets direct slash input open the native filterable menu", () => {
+  it("opens the complete native menu from direct slash input and filters subsequent text", () => {
     const editor = renderEditor();
     const shortcut = new MobileSlashMenuShortcut(document, editor.runtime);
     shortcut.start();
 
     expect(document.querySelector("[data-type='add']")).toBeNull();
-    editor.editable.append("/");
-    editor.editable.dispatchEvent(new InputEvent("input", { bubbles: true, data: "/", inputType: "insertText" }));
+    expect(document.getElementById("damophus-mobile-slash-menu-style")).not.toBeNull();
+    typeText(editor, "/");
 
     expect(editor.editable.textContent).toBe("note/");
-    expect(editor.input).toHaveBeenCalledOnce();
-    expect(editor.hintRender).toHaveBeenCalledOnce();
+    expect(editor.originalRender).not.toHaveBeenCalled();
+    expect(editor.slashProvider).toHaveBeenLastCalledWith("", editor.protyle, "hint");
     expect(editor.hintElement.querySelector(".fn__loading")).toBeNull();
-    expect(editor.hintElement.textContent).toBe("command:");
-    editor.hint.genHTML("stale async reference result");
-    expect(editor.hintElement.textContent).toBe("command:");
+    expect(editor.hintElement.querySelectorAll(".b3-list-item")).toHaveLength(3);
+    expect(editor.hintElement.textContent).toContain("一级标题");
 
-    editor.editable.append("ta");
-    editor.editable.dispatchEvent(new InputEvent("input", { bubbles: true, data: "ta", inputType: "insertText" }));
-    expect(editor.hintElement.textContent).toBe("command:ta");
-    expect(editor.gateStates).toEqual([false, false]);
+    typeText(editor, "h1");
+    expect(editor.slashProvider).toHaveBeenLastCalledWith("h1", editor.protyle, "hint");
+    expect(editor.hintElement.querySelectorAll(".b3-list-item")).toHaveLength(1);
+    expect(editor.hintElement.textContent).toBe("一级标题");
+    expect(editor.hint.splitChar).toBe("/");
+    expect(editor.hint.lastIndex).toBe(4);
 
     shortcut.stop();
-    editor.hint.genHTML("native async result after unload");
-    expect(editor.hintElement.textContent).toBe("native async result after unload");
-    editor.editable.append("/");
-    editor.editable.dispatchEvent(new InputEvent("input", { bubbles: true, data: "/", inputType: "insertText" }));
-    expect(editor.hintRender).toHaveBeenCalledTimes(3);
-    expect(editor.gateStates).toEqual([false, false, true]);
+    expect(document.getElementById("damophus-mobile-slash-menu-style")).toBeNull();
+    editor.hint.render(editor.protyle);
+    expect(editor.originalRender).toHaveBeenCalledOnce();
   });
 
-  it("patches editors created after module startup and restores their native render", async () => {
-    document.body.innerHTML = "<div id='sidebar'></div>";
-    const editors: Array<{ protyle: { hint: { render: ReturnType<typeof vi.fn> } } }> = [];
-    const shortcut = new MobileSlashMenuShortcut(document, { getEditors: () => editors });
+  it("leaves non-slash and code contexts on the original native path", () => {
+    const editor = renderEditor();
+    const shortcut = new MobileSlashMenuShortcut(document, editor.runtime);
     shortcut.start();
-    const gateStates: boolean[] = [];
-    const render = vi.fn(() => gateStates.push(document.getElementById("sidebar") !== null));
-    editors.push({ protyle: { hint: { render } } });
-    document.body.append(document.createElement("div"));
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-    editors[0].protyle.hint.render({});
-    expect(render).toHaveBeenCalledOnce();
-    expect(gateStates).toEqual([false]);
+
+    editor.inline.textContent = "plain text";
+    placeCaretAtEnd(editor.inline);
+    editor.hint.render(editor.protyle);
+    expect(editor.originalRender).toHaveBeenCalledOnce();
+
+    editor.inline.dataset.type = "code";
+    editor.inline.textContent = "/h1";
+    placeCaretAtEnd(editor.inline);
+    editor.hint.render(editor.protyle);
+    expect(editor.originalRender).toHaveBeenCalledTimes(2);
+    expect(editor.slashProvider).not.toHaveBeenCalled();
+  });
+
+  it("keeps desktop slash rendering native and only enhances its resulting menu", () => {
+    const editor = renderEditor();
+    editor.hint.enableSlash = true;
+    editor.originalRender.mockImplementation(function (this: { element: HTMLElement }) {
+      (editor.hint.genHTML as unknown as (
+        data: Array<{ html: string; value: string }>,
+        protyle: typeof editor.protyle,
+        escape: boolean,
+        source: "hint",
+      ) => void)?.([
+        { html: '<span class="b3-list-item__graphic"></span><span class="b3-list-item__text">heading</span>', value: "heading1" },
+      ], editor.protyle, false, "hint");
+    });
+    const shortcut = new MobileSlashMenuShortcut(
+      document,
+      editor.runtime,
+      { enableDirectSlash: false },
+    );
+    shortcut.start();
+    typeText(editor, "/");
+
+    expect(editor.originalRender).toHaveBeenCalledOnce();
+    expect(editor.slashProvider).not.toHaveBeenCalled();
+    expect(editor.hintElement.dataset.damophusMobileSlashMenu).toBe("true");
+    const item = editor.hintElement.querySelector(".b3-list-item");
+    expect(item?.classList.contains("damophus-slash-item--icon")).toBe(true);
+    expect(item?.getAttribute("title")).toBe("heading");
+  });
+
+  it("attaches editors delivered by the SiYuan event bus and restores their native render", () => {
+    const shortcut = new MobileSlashMenuShortcut(document, { getEditors: () => [] });
+    shortcut.start();
+    const render = vi.fn();
+    const wysiwyg = document.createElement("div");
+    const protyle = { hint: { render }, wysiwyg: { element: wysiwyg } };
+
+    shortcut.attach(protyle);
+    expect(wysiwyg.dataset.damophusMobileSlashMenu).toBe("true");
+    shortcut.detach(protyle);
+    expect(wysiwyg.hasAttribute("data-damophus-mobile-slash-menu")).toBe(false);
     shortcut.stop();
-    document.getElementById("sidebar")!.id = "sidebar";
-    editors[0].protyle.hint.render({});
-    expect(render).toHaveBeenCalledTimes(2);
-    expect(gateStates).toEqual([false, true]);
+    protyle.hint.render(protyle);
+    expect(render).toHaveBeenCalledOnce();
   });
 });
