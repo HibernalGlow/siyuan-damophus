@@ -1,4 +1,5 @@
 import { mount, tick, unmount } from "svelte";
+import { SOURCES, TRIGGERS } from "svelte-dnd-action";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SlashMenuSettings from "./SlashMenuSettings.svelte";
@@ -11,73 +12,92 @@ const labels = {
 };
 const catalog = JSON.stringify([
   { id: "heading", label: "Heading", hasIcon: true }, { id: "paragraph", label: "Paragraph", hasIcon: false },
-  { id: "list", label: "List", hasIcon: true },
+  { id: "list", label: "List", hasIcon: true }, { id: "quote", label: "Quote", hasIcon: true },
+  { id: "code", label: "Code", hasIcon: true },
 ]);
+const mobileConfig = [
+  { id: "heading", visible: true, display: "icon" as const }, { id: "paragraph", visible: true, display: "full" as const },
+  { id: "list", visible: false, display: "icon" as const }, { id: "quote", visible: true, display: "full" as const },
+  { id: "code", visible: true, display: "icon" as const },
+];
+const desktopConfig = [
+  { id: "list", visible: true, display: "full" as const }, { id: "heading", visible: true, display: "icon" as const },
+];
 
 afterEach(async () => { if (component) await unmount(component); component = undefined; document.body.innerHTML = ""; });
 
-function render(changed = vi.fn(), width = "1000px") {
+function render(changed = vi.fn(), width = "1000px", refresh = vi.fn()) {
   const target = document.createElement("div"); target.style.width = width; document.body.append(target);
   component = mount(SlashMenuSettings, { target, props: {
     title: "Responsive slash menu", mobileEnabled: true, desktopEnabled: false,
-    mobileConfig: JSON.stringify([
-      { id: "heading", visible: true, display: "icon" }, { id: "paragraph", visible: true, display: "full" },
-      { id: "list", visible: false, display: "icon" },
-    ]),
-    desktopConfig: JSON.stringify([{ id: "list", visible: true, display: "full" }, { id: "heading", visible: true, display: "icon" }]),
-    catalog, labels,
-  }, events: { changed } });
-  return { target, changed };
+    mobileConfig: JSON.stringify(mobileConfig), desktopConfig: JSON.stringify(desktopConfig), catalog, labels,
+  }, events: { changed, refresh } });
+  return { target, changed, refresh };
 }
 
-const itemIds = (surface: Element) => [...surface.querySelectorAll<HTMLElement>("[data-slash-item]")].map((row) => row.dataset.slashItem);
+const itemIds = (target: Element) => [...target.querySelectorAll<HTMLElement>("[data-slash-item]")].map((row) => row.dataset.slashItem);
 
 describe("slash menu settings", () => {
-  it("offers an explicit command refresh action", async () => {
-    const refresh = vi.fn();
-    const target = document.createElement("div"); document.body.append(target);
-    component = mount(SlashMenuSettings, { target, props: {
-      title: "Responsive slash menu", mobileEnabled: true, desktopEnabled: false,
-      mobileConfig: "[]", desktopConfig: "[]", catalog: "[]", labels,
-    }, events: { refresh } });
-    await tick();
-    target.querySelector<HTMLButtonElement>(".slash-settings__refresh")?.click(); await tick();
-    expect(refresh).toHaveBeenCalledOnce();
-  });
-
-  it("shows and edits mobile and desktop independently at the same time", async () => {
+  it("switches between independent mobile and desktop tabs", async () => {
     const { target, changed } = render(); await tick();
-    const mobile = target.querySelector<HTMLElement>("[data-slash-surface='mobile']")!;
-    const desktop = target.querySelector<HTMLElement>("[data-slash-surface='desktop']")!;
-    expect(mobile).not.toBeNull(); expect(desktop).not.toBeNull();
-    expect(itemIds(mobile)).toEqual(["heading", "paragraph", "list"]);
-    expect(itemIds(desktop)).toEqual(["list", "heading", "paragraph"]);
+    expect(target.querySelectorAll("[data-slash-surface]")).toHaveLength(1);
+    expect(target.querySelector("[data-slash-surface='mobile']")).not.toBeNull();
+    expect(itemIds(target)).toEqual(["heading", "paragraph", "list", "quote", "code"]);
 
-    mobile.querySelector<HTMLButtonElement>("[aria-label='Move down: Heading']")?.click(); await tick();
-    expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ detail: expect.objectContaining({ key: "mobileMenuConfig" }) }));
-    expect(JSON.parse(changed.mock.lastCall?.[0].detail.value).map((item: { id: string }) => item.id)).toEqual(["paragraph", "heading", "list"]);
-    expect(itemIds(desktop)).toEqual(["list", "heading", "paragraph"]);
-
-    desktop.querySelector<HTMLElement>("[role='switch'][aria-label='Enabled: Desktop']")?.click(); await tick();
+    target.querySelector<HTMLButtonElement>("[role='tab'][aria-selected='false']")?.click(); await tick();
+    expect(target.querySelector("[data-slash-surface='desktop']")).not.toBeNull();
+    expect(itemIds(target)).toEqual(["list", "heading", "paragraph", "quote", "code"]);
+    target.querySelector<HTMLElement>("[role='switch'][aria-label='Enabled: Desktop']")?.click(); await tick();
     expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { key: "desktopEnabled", value: true } }));
   });
 
-  it("forces text for no-icon commands and persists each surface visibility", async () => {
+  it("uses inline tabs for icon or full text and forces full text without an icon", async () => {
     const { target, changed } = render(); await tick();
-    const mobileParagraph = target.querySelector<HTMLElement>("[data-slash-surface='mobile'] [data-slash-item='paragraph']")!;
-    expect(mobileParagraph.querySelector(".slash-settings__forced")?.textContent).toBe(labels.full);
-    expect(mobileParagraph.querySelector("[data-slot='select-trigger']")).toBeNull();
-    mobileParagraph.querySelector<HTMLElement>("[role='switch']")?.click(); await tick();
+    const heading = target.querySelector<HTMLElement>("[data-slash-item='heading']")!;
+    const displayTabs = heading.querySelector<HTMLElement>("[role='tablist'][aria-label='Display: Heading']")!;
+    expect(displayTabs.querySelectorAll("[role='tab']")).toHaveLength(2);
+    expect(displayTabs.querySelector("[role='tab'][aria-selected='true']")?.textContent).toBe(labels.iconOnly);
+    displayTabs.querySelectorAll<HTMLButtonElement>("[role='tab']")[1]?.click(); await tick();
     expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ detail: expect.objectContaining({ key: "mobileMenuConfig" }) }));
-    expect(JSON.parse(changed.mock.lastCall?.[0].detail.value).find((item: { id: string }) => item.id === "paragraph").visible).toBe(false);
+    expect(JSON.parse(changed.mock.lastCall?.[0].detail.value).find((item: { id: string }) => item.id === "heading").display).toBe("full");
+
+    const paragraph = target.querySelector<HTMLElement>("[data-slash-item='paragraph']")!;
+    expect(paragraph.querySelector(".slash-settings__forced")?.textContent).toBe(labels.full);
+    expect(paragraph.querySelector("[role='tablist']")).toBeNull();
   });
 
-  it("stacks both complete surface panels without horizontal overflow on narrow screens", async () => {
-    await page.viewport(390, 760);
-    const { target } = render(vi.fn(), "360px"); await tick();
-    const mobile = target.querySelector<HTMLElement>("[data-slash-surface='mobile']")!;
-    const desktop = target.querySelector<HTMLElement>("[data-slash-surface='desktop']")!;
-    expect(desktop.getBoundingClientRect().top).toBeGreaterThan(mobile.getBoundingClientRect().bottom);
+  it("persists DND card order instead of using arrow controls", async () => {
+    const { target, changed } = render(); await tick();
+    expect(target.querySelector("[aria-label^='Move up']")).toBeNull();
+    expect(target.querySelector("[aria-label^='Move down']")).toBeNull();
+    const zone = target.querySelector<HTMLElement>("[data-slash-menu-dnd]")!;
+    zone.dispatchEvent(new CustomEvent("finalize", { detail: {
+      items: [mobileConfig[2], mobileConfig[0], mobileConfig[1], mobileConfig[3], mobileConfig[4]],
+      info: { id: "list", source: SOURCES.POINTER, trigger: TRIGGERS.DROPPED_INTO_ZONE },
+    } }));
+    await tick();
+    expect(itemIds(target)).toEqual(["list", "heading", "paragraph", "quote", "code"]);
+    expect(JSON.parse(changed.mock.lastCall?.[0].detail.value).map((item: { id: string }) => item.id))
+      .toEqual(["list", "heading", "paragraph", "quote", "code"]);
+  });
+
+  it("adapts the number of card columns to available width", async () => {
+    await page.viewport(1200, 800);
+    const { target } = render(vi.fn(), "960px"); await tick();
+    const cards = [...target.querySelectorAll<HTMLElement>("[data-slash-item]")];
+    const wideFirstRow = cards.filter((card) => Math.abs(card.getBoundingClientRect().top - cards[0].getBoundingClientRect().top) < 2).length;
+    expect(wideFirstRow).toBeGreaterThanOrEqual(3);
+
+    target.style.width = "280px"; await tick(); await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    const narrowCards = [...target.querySelectorAll<HTMLElement>("[data-slash-item]")];
+    const narrowFirstRow = narrowCards.filter((card) => Math.abs(card.getBoundingClientRect().top - narrowCards[0].getBoundingClientRect().top) < 2).length;
+    expect(narrowFirstRow).toBe(1);
     expect(target.scrollWidth).toBeLessThanOrEqual(target.clientWidth);
+  });
+
+  it("offers an explicit command refresh action", async () => {
+    const { target, refresh } = render(); await tick();
+    target.querySelector<HTMLButtonElement>(".slash-settings__refresh")?.click(); await tick();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });
