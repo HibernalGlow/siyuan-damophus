@@ -21,7 +21,7 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 
-function render(changed = vi.fn()) {
+function render(changed = vi.fn(), preview = vi.fn()) {
   const target = document.createElement("div");
   target.className = "damophus-theme-root damophus-question-bank-theme";
   target.style.width = "560px";
@@ -44,9 +44,9 @@ function render(changed = vi.fn()) {
         value: item.value ?? "",
       })),
     },
-    events: { changed },
+    events: { changed, preview },
   }));
-  return { target, changed };
+  return { target, changed, preview };
 }
 
 describe("Callout appearance settings", () => {
@@ -78,7 +78,7 @@ describe("Callout appearance settings", () => {
   });
 
   it("updates the preview immediately when a slider changes", async () => {
-    const { target, changed } = render();
+    const { target, changed, preview: previewEvent } = render();
     await tick();
     const slider = target.querySelector<HTMLElement>('[role="slider"]');
     if (!slider) throw new Error("Missing top padding slider");
@@ -89,12 +89,16 @@ describe("Callout appearance settings", () => {
 
     const preview = target.querySelector<HTMLElement>("[data-callout-appearance-preview]");
     const outer = target.querySelector<HTMLElement>("[data-callout-appearance-preview] > .callout");
+    expect(previewEvent).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({ key: "paddingTop", value: 17 }),
+    }));
     expect(changed).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.objectContaining({ key: "paddingTop", value: 17 }),
     }));
     expect(preview?.getAttribute("style")).toContain("--preview-padding-top: 17px");
     expect(getComputedStyle(preview!).getPropertyValue("--preview-padding-top").trim()).toBe("17px");
     expect(getComputedStyle(outer!).paddingTop).toBe("17px");
+
   });
 
   it("previews optional body text tinting without leaking the outer type color", async () => {

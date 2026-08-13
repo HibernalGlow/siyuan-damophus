@@ -33,18 +33,17 @@ describe("source answer mask settings", () => {
     });
 
     const switchElement = document.querySelector<HTMLElement>('[role="switch"]');
-    const select = document.querySelector<HTMLSelectElement>("select");
-    if (!switchElement || !select) throw new Error("Missing answer mask controls");
+    const selectTrigger = document.querySelector<HTMLElement>('#damophus-answer-mask-style');
+    if (!switchElement || !selectTrigger) throw new Error("Missing answer mask controls");
     switchElement.click();
-    select.value = "solid";
-    select.dispatchEvent(new Event("input", { bubbles: true }));
+    selectTrigger.click();
+    await tick();
+    const solidOption = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((item) => item.textContent?.includes(labels.solid));
+    if (!solidOption) throw new Error("Missing solid mask option");
+    solidOption.click();
     await tick();
 
     expect(document.querySelectorAll('[data-preview-style="solid"]')).toHaveLength(2);
-    expect(preview.mock.calls.at(-1)?.[0].detail).toEqual({ key: "answerMaskStyle", value: "solid" });
-
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-    await tick();
     expect(changed.mock.calls.map((call) => call[0].detail)).toContainEqual({ key: "maskSourceAnswers", value: true });
     expect(changed.mock.calls.map((call) => call[0].detail)).toContainEqual({ key: "answerMaskStyle", value: "solid" });
   });

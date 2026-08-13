@@ -22,6 +22,7 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
   import { Switch } from "@/components/ui/switch";
+  import LiveStylePreview from "@/components/live-style-preview.svelte";
   import * as Select from "@/components/ui/select";
   import type { AnswerMaskStyle } from "./source-answer-mask";
 
@@ -73,15 +74,14 @@
     </Select.Root>
   </div>
 
-  <div class="px-3 py-4">
-    <div class="mb-3 text-xs font-medium text-muted-foreground">{labels.preview}</div>
-    <div class="rounded-md border border-border bg-background px-4 py-5 text-base text-foreground">
+  <LiveStylePreview title={labels.preview} ariaLabel={labels.preview} contentClass="text-base">
+    <div>
       {labels.answerPrefix}
       <span class="answer-mask" data-preview-style={style}>A</span>
       <span aria-hidden="true">, </span>
       <span class="answer-mask" data-preview-style={style}>C</span>
     </div>
-  </div>
+  </LiveStylePreview>
 </section>
 
 <style>

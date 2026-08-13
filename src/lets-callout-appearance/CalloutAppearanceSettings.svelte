@@ -13,9 +13,10 @@
   import { createEventDispatcher } from "svelte";
   import { ChevronDown, Lightbulb, MessageSquareText } from "lucide-svelte";
   import SettingPanel from "@/libs/setting-panel.svelte";
+  import LiveStylePreview from "@/components/live-style-preview.svelte";
+  import { mergeLivePreviewValues, updateLivePreviewOverride } from "@/libs/live-style-preview";
   import {
     resolveCalloutAppearanceSettings,
-    type CalloutAppearanceSettings,
   } from "./callout-appearance";
 
   export let group: string;
@@ -31,23 +32,17 @@
   const dispatch = createEventDispatcher();
   let previewOverrides: Record<string, unknown> = {};
 
+  function updatePreview(event: CustomEvent<{ key: string; value: unknown }>): void {
+    previewOverrides = updateLivePreviewOverride(previewOverrides, event.detail);
+    dispatch("preview", event.detail);
+  }
+
   function handleSettingChanged(event: CustomEvent<{ key: string; value: unknown }>): void {
-    const item = settingItems.find((candidate) => candidate.key === event.detail.key);
-    if (item) {
-      item.value = event.detail.value;
-      settingItems = [...settingItems];
-    }
-    previewOverrides = {
-      ...previewOverrides,
-      [event.detail.key]: event.detail.value,
-    };
+    previewOverrides = updateLivePreviewOverride(previewOverrides, event.detail);
     dispatch("changed", event.detail);
   }
 
-  $: appearance = resolveCalloutAppearanceSettings({
-    ...Object.fromEntries(settingItems.map((item) => [item.key, item.value])),
-    ...previewOverrides,
-  } as Partial<Record<keyof CalloutAppearanceSettings, unknown>>);
+  $: appearance = resolveCalloutAppearanceSettings(mergeLivePreviewValues(settingItems, previewOverrides));
   $: previewVariables = [
     `--preview-padding-top: ${appearance.paddingTop}px`,
     `--preview-padding-x: ${appearance.paddingX}px`,
@@ -76,14 +71,9 @@
   />
   -->
 
-  <section class="border-y border-border py-4" aria-labelledby="callout-appearance-preview-title">
-    <div class="mb-3 px-3">
-      <h3 id="callout-appearance-preview-title" class="text-sm font-semibold">{labels.preview}</h3>
-      <p class="mt-1 text-xs leading-5 text-muted-foreground">{labels.previewDescription}</p>
-    </div>
-
+  <LiveStylePreview title={labels.preview} description={labels.previewDescription} contentClass="b3-typography">
     <div
-      class="damophus-callout-appearance-preview b3-typography mx-3 min-w-0 overflow-hidden"
+      class="damophus-callout-appearance-preview min-w-0 overflow-hidden"
       class:follow-callout-text-color={appearance.followCalloutTextColor}
       data-callout-appearance-preview
       style={previewVariables}
@@ -113,14 +103,14 @@
         </div>
       </div>
     </div>
-  </section>
+  </LiveStylePreview>
 
   <SettingPanel
     {group}
     {settingItems}
     {mobile}
     on:changed={handleSettingChanged}
-    on:preview={(event) => dispatch("preview", event.detail)}
+    on:preview={updatePreview}
   />
 </section>
 
