@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
-  import { ArrowDown, ArrowUp, CircleHelp, Image } from "lucide-svelte";
+  import { ArrowDown, ArrowUp, CircleHelp, Image, RefreshCw } from "lucide-svelte";
   import { Switch } from "@/components/ui/switch";
   import * as Select from "@/components/ui/select";
   import {
@@ -33,6 +33,7 @@
     moveDown: string;
     noIcon: string;
     empty: string;
+    refresh: string;
   };
 
   const dispatch = createEventDispatcher();
@@ -68,8 +69,11 @@
 
 <section class="slash-settings" data-slash-menu-settings>
   <header class="slash-settings__header">
-    <div class="text-lg font-semibold" role="heading" aria-level="2">{title}</div>
-    <p class="m-0 mt-1 text-xs leading-5 text-muted-foreground">{labels.description}</p>
+    <div class="slash-settings__heading-copy">
+      <div class="text-lg font-semibold" role="heading" aria-level="2">{title}</div>
+      <p class="m-0 mt-1 text-xs leading-5 text-muted-foreground">{labels.description}</p>
+    </div>
+    <button class="slash-settings__refresh" onclick={() => dispatch("refresh")}><RefreshCw class="size-4" />{labels.refresh}</button>
   </header>
 
   <div class="slash-settings__surfaces">
@@ -127,7 +131,10 @@
 
 <style>
   .slash-settings { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
-  .slash-settings__header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .slash-settings__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .slash-settings__heading-copy { min-width: 0; }
+  .slash-settings__refresh { display: inline-flex; min-height: 32px; flex: 0 0 auto; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); font-size: 12px; }
+  .slash-settings__refresh:hover { background: var(--muted); }
   .slash-settings__surfaces { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
   .slash-settings__surface { min-width: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .slash-settings__surface-header { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 45%, transparent); }

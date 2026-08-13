@@ -23,7 +23,8 @@ export const en = {
   "lets-mobile-slash-menu.moveUp": "Move up",
   "lets-mobile-slash-menu.moveDown": "Move down",
   "lets-mobile-slash-menu.noIcon": "No icon; text required",
-  "lets-mobile-slash-menu.empty": "Type / in an editor once to discover the native commands.",
+  "lets-mobile-slash-menu.empty": "No slash commands were found. Open a document and reload commands.",
+  "lets-mobile-slash-menu.refresh": "Reload commands",
 };
 
 export const zhCN: typeof en = {
@@ -51,5 +52,6 @@ export const zhCN: typeof en = {
   "lets-mobile-slash-menu.moveUp": "上移",
   "lets-mobile-slash-menu.moveDown": "下移",
   "lets-mobile-slash-menu.noIcon": "无图标，必须显示文字",
-  "lets-mobile-slash-menu.empty": "在编辑器中输入一次 / 后，这里会自动发现思源原生命令。",
+  "lets-mobile-slash-menu.empty": "暂未读取到斜杠命令。请打开任意文档后重新读取命令。",
+  "lets-mobile-slash-menu.refresh": "重新读取命令",
 };

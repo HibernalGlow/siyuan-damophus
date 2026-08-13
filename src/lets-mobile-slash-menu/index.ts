@@ -16,6 +16,7 @@ export default class MobileSlashMenuPlugin extends SubPluginBase {
   private shortcut?: MobileSlashMenuShortcut;
   private listening = false;
   private frontend = "";
+  private surfaceEnabled = false;
 
   private readonly handleProtyle = (
     event: CustomEvent<
@@ -24,7 +25,8 @@ export default class MobileSlashMenuPlugin extends SubPluginBase {
       | IEventBusMap["switch-protyle"]
     >,
   ): void => {
-    this.shortcut?.attach(event.detail.protyle);
+    if (this.surfaceEnabled) this.shortcut?.attach(event.detail.protyle);
+    else this.shortcut?.scan(event.detail.protyle);
   };
 
   private readonly handleProtyleDestroyed = (
@@ -46,6 +48,12 @@ export default class MobileSlashMenuPlugin extends SubPluginBase {
     this.applySettings();
   }
 
+  refreshCatalog(): string | undefined {
+    this.frontend ||= getFrontend();
+    this.ensureShortcut(isMobileSlashMenuFrontend(this.frontend));
+    return this.shortcut?.scanEditors();
+  }
+
   override onunload(): void {
     this.stopShortcut();
   }
@@ -53,13 +61,20 @@ export default class MobileSlashMenuPlugin extends SubPluginBase {
   private applySettings(): void {
     if (!supportsMobileSlashMenu(this.frontend)) return;
     const mobile = isMobileSlashMenuFrontend(this.frontend);
-    const enabled = mobile
+    this.surfaceEnabled = mobile
       ? this.getSetting("mobileEnabled") !== false
       : this.getSetting("desktopEnabled") === true;
-    if (!enabled) {
-      this.stopShortcut();
+    this.ensureShortcut(mobile);
+    this.bindEvents();
+    if (!this.surfaceEnabled) {
+      this.shortcut?.scanEditors();
+      this.shortcut?.stop();
       return;
     }
+    this.shortcut?.start(this.t("lets-mobile-slash-menu.buttonLabel"));
+  }
+
+  private ensureShortcut(mobile: boolean): void {
     this.shortcut ??= new MobileSlashMenuShortcut(
       document,
       undefined,
@@ -71,8 +86,6 @@ export default class MobileSlashMenuPlugin extends SubPluginBase {
         onCatalog: (value) => this.setSetting("menuCatalog", value),
       },
     );
-    this.bindEvents();
-    this.shortcut.start(this.t("lets-mobile-slash-menu.buttonLabel"));
   }
 
   private stopShortcut(): void {

@@ -210,7 +210,28 @@ export class MobileSlashMenuShortcut {
     for (const editor of this.runtime.getEditors()) this.attach(editor.protyle);
   }
 
+  scanEditors(): string | undefined {
+    let catalog = this.options.getCatalog?.();
+    for (const editor of this.runtime.getEditors()) {
+      catalog = this.scan(editor.protyle) ?? catalog;
+    }
+    return catalog;
+  }
+
+  scan(protyle: SlashProtyle): string | undefined {
+    const provider = protyle.options?.hint?.extend?.find((item) => item.key === "/");
+    if (!provider?.hint) return;
+    try {
+      const data = provider.hint("", protyle, "hint");
+      if (!Array.isArray(data) || data.length === 0) return;
+      return this.persistDiscovered(this.toMenuItems(data));
+    } catch {
+      return;
+    }
+  }
+
   attach(protyle: SlashProtyle): void {
+    this.scan(protyle);
     const hint = protyle.hint;
     if (!hint) return;
     this.attachedProtyles.add(protyle);
@@ -301,12 +322,8 @@ export class MobileSlashMenuShortcut {
   }
 
   private applyMenuConfig(data: SlashHintData[], query = ""): { data: SlashHintData[]; displayById: Map<string, "icon" | "full"> } {
-    const discovered: SlashMenuItem[] = data.map((item, index) => ({
-      id: this.dataId(item, index),
-      label: this.dataLabel(item.html),
-      hasIcon: item.html.includes("b3-list-item__graphic") || item.html.includes("<svg"),
-      separator: item.html === "separator",
-    }));
+    const discovered = this.toMenuItems(data);
+    if (!query) this.persistDiscovered(discovered);
     const catalog = parseSlashMenuItems(this.options.getCatalog?.());
     const config = mergeSlashMenuItems(catalog.length > 0 ? catalog : discovered, parseSlashMenuConfig(this.options.getConfig?.()));
     const discoveredById = new Map(discovered.map((item, index) => [item.id, { item, index }]));
@@ -320,11 +337,29 @@ export class MobileSlashMenuShortcut {
     }
     const serialized = serializeSlashMenuConfig(config);
     if (serialized !== this.options.getConfig?.()) this.options.onDiscovered?.(serialized);
-    if (!query) {
-      const catalogSerialized = serializeSlashMenuItems(discovered);
-      if (catalogSerialized !== this.options.getCatalog?.()) this.options.onCatalog?.(catalogSerialized);
-    }
     return { data: nextData, displayById };
+  }
+
+  private toMenuItems(data: SlashHintData[]): SlashMenuItem[] {
+    return data.map((item, index) => ({
+      id: this.dataId(item, index),
+      label: this.dataLabel(item.html),
+      hasIcon: item.html.includes("b3-list-item__graphic") || item.html.includes("<svg"),
+      separator: item.html === "separator",
+    }));
+  }
+
+  private persistDiscovered(discovered: SlashMenuItem[]): string {
+    const previous = parseSlashMenuItems(this.options.getCatalog?.());
+    const discoveredById = new Map(discovered.map((item) => [item.id, item]));
+    const next = previous.map((item) => discoveredById.get(item.id) ?? item);
+    const known = new Set(previous.map((item) => item.id));
+    next.push(...discovered.filter((item) => !known.has(item.id)));
+    const catalog = serializeSlashMenuItems(next);
+    if (catalog !== this.options.getCatalog?.()) this.options.onCatalog?.(catalog);
+    const config = serializeSlashMenuConfig(mergeSlashMenuItems(next, parseSlashMenuConfig(this.options.getConfig?.())));
+    if (config !== this.options.getConfig?.()) this.options.onDiscovered?.(config);
+    return catalog;
   }
 
   private dataId(item: SlashHintData, index: number): string {

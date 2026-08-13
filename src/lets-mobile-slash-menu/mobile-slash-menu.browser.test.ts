@@ -91,6 +91,7 @@ describe("mobile slash menu shortcut", () => {
     const shortcut = new MobileSlashMenuShortcut(document, editor.runtime);
     shortcut.start();
 
+    expect(editor.slashProvider).toHaveBeenCalledWith("", editor.protyle, "hint");
     expect(document.querySelector("[data-type='add']")).toBeNull();
     expect(document.getElementById("damophus-mobile-slash-menu-style")).not.toBeNull();
     typeText(editor, "/");
@@ -130,7 +131,7 @@ describe("mobile slash menu shortcut", () => {
     placeCaretAtEnd(editor.inline);
     editor.hint.render(editor.protyle);
     expect(editor.originalRender).toHaveBeenCalledTimes(2);
-    expect(editor.slashProvider).not.toHaveBeenCalled();
+    expect(editor.slashProvider).toHaveBeenCalledTimes(1);
   });
 
   it("keeps desktop slash rendering native and only enhances its resulting menu", () => {
@@ -155,11 +156,39 @@ describe("mobile slash menu shortcut", () => {
     typeText(editor, "/");
 
     expect(editor.originalRender).toHaveBeenCalledOnce();
-    expect(editor.slashProvider).not.toHaveBeenCalled();
+    expect(editor.slashProvider).toHaveBeenCalledTimes(1);
     expect(editor.hintElement.dataset.damophusMobileSlashMenu).toBe("true");
     const item = editor.hintElement.querySelector(".b3-list-item");
     expect(item?.classList.contains("damophus-slash-item--icon")).toBe(true);
     expect(item?.getAttribute("title")).toBe("heading");
+  });
+
+  it("discovers and persists native commands on startup without editor input", () => {
+    const editor = renderEditor();
+    let catalog = "[]";
+    let config = "[]";
+    const onCatalog = vi.fn((value: string) => { catalog = value; });
+    const onDiscovered = vi.fn((value: string) => { config = value; });
+    const shortcut = new MobileSlashMenuShortcut(document, editor.runtime, {
+      enableDirectSlash: true,
+      getCatalog: () => catalog,
+      onCatalog,
+      getConfig: () => config,
+      onDiscovered,
+    });
+
+    shortcut.start();
+
+    expect(editor.editable.textContent).toBe("note");
+    expect(editor.slashProvider).toHaveBeenCalledOnce();
+    expect(JSON.parse(catalog)).toHaveLength(3);
+    expect(JSON.parse(config)).toEqual([
+      { id: "heading1", visible: true, display: "full" },
+      { id: "heading2", visible: true, display: "full" },
+      { id: "list", visible: true, display: "full" },
+    ]);
+    expect(onCatalog).toHaveBeenCalledOnce();
+    expect(onDiscovered).toHaveBeenCalledOnce();
   });
 
   it("attaches editors delivered by the SiYuan event bus and restores their native render", () => {

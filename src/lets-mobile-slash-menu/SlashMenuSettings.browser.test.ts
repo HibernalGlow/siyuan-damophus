@@ -7,7 +7,7 @@ let component: ReturnType<typeof mount> | undefined;
 const labels = {
   description: "Configure each surface", mobile: "Mobile", desktop: "Desktop", enabled: "Enabled", visible: "Show", display: "Display",
   icon: "Icon available", full: "Full text", iconOnly: "Icon only", moveUp: "Move up", moveDown: "Move down",
-  noIcon: "No icon; text required", empty: "No commands",
+  noIcon: "No icon; text required", empty: "No commands", refresh: "Reload commands",
 };
 const catalog = JSON.stringify([
   { id: "heading", label: "Heading", hasIcon: true }, { id: "paragraph", label: "Paragraph", hasIcon: false },
@@ -33,6 +33,18 @@ function render(changed = vi.fn(), width = "1000px") {
 const itemIds = (surface: Element) => [...surface.querySelectorAll<HTMLElement>("[data-slash-item]")].map((row) => row.dataset.slashItem);
 
 describe("slash menu settings", () => {
+  it("offers an explicit command refresh action", async () => {
+    const refresh = vi.fn();
+    const target = document.createElement("div"); document.body.append(target);
+    component = mount(SlashMenuSettings, { target, props: {
+      title: "Responsive slash menu", mobileEnabled: true, desktopEnabled: false,
+      mobileConfig: "[]", desktopConfig: "[]", catalog: "[]", labels,
+    }, events: { refresh } });
+    await tick();
+    target.querySelector<HTMLButtonElement>(".slash-settings__refresh")?.click(); await tick();
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
   it("shows and edits mobile and desktop independently at the same time", async () => {
     const { target, changed } = render(); await tick();
     const mobile = target.querySelector<HTMLElement>("[data-slash-surface='mobile']")!;

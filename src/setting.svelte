@@ -452,7 +452,17 @@
       moveDown: t("lets-mobile-slash-menu.moveDown", "Move down"),
       noIcon: t("lets-mobile-slash-menu.noIcon", "No icon; text required"),
       empty: t("lets-mobile-slash-menu.empty", "Type / in an editor once to discover the native commands."),
+      refresh: t("lets-mobile-slash-menu.refresh", "Reload commands"),
     };
+  }
+
+  async function refreshSlashMenuCatalog() {
+    const module = PluginRegistry.getInstance().getPlugin(MOBILE_SLASH_MENU_PLUGIN) as { refreshCatalog?: () => string | undefined } | undefined;
+    const value = module?.refreshCatalog?.();
+    if (!value) return;
+    settings.setBySpace(MOBILE_SLASH_MENU_PLUGIN, "menuCatalog", value);
+    updateLocalSetting(focusGroup, "menuCatalog", value);
+    await settings.save();
   }
 
   async function onClick({ detail }: CustomEvent<ChangeEvent>) {
@@ -812,6 +822,7 @@
           desktopEnabled={getFocusedBooleanSettingValue("desktopEnabled", false)}
           catalog={getFocusedSettingValue("menuCatalog", "[]")}
           labels={slashMenuSettingsLabels()}
+          on:refresh={() => void refreshSlashMenuCatalog()}
           on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
         />
       {:else if focusGroup !== SWITCH_GROUP && moduleSpecificSettingItems.length > 0}
