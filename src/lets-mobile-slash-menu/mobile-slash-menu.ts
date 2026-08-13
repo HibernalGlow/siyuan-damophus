@@ -44,6 +44,8 @@ interface SlashEditor {
 interface PatchedHint {
   original: SlashHint["render"];
   wrapped: SlashHint["render"];
+  originalGenHTML?: NonNullable<SlashHint["genHTML"]>;
+  wrappedGenHTML?: NonNullable<SlashHint["genHTML"]>;
 }
 
 interface SlashContext {
@@ -76,19 +78,26 @@ const mobileSlashMenuStyle = `
   box-sizing: border-box;
   width: min(calc(100vw - 16px), 720px) !important;
   max-height: min(64vh, 560px);
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px;
 }
 .protyle-hint[data-damophus-mobile-slash-menu="true"]:not(.fn__none) > div {
   display: grid !important;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
   gap: 2px;
   align-content: start;
 }
 .protyle-hint[data-damophus-mobile-slash-menu="true"] .b3-list-item {
   min-width: 0;
+  max-width: 100%;
   width: auto !important;
+  overflow: hidden;
   min-height: 48px;
   box-sizing: border-box;
   margin: 0 !important;
@@ -99,6 +108,8 @@ const mobileSlashMenuStyle = `
 }
 .protyle-hint[data-damophus-mobile-slash-menu="true"] .b3-list-item > .b3-list-item__first {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   justify-content: center;
 }
 .protyle-hint[data-damophus-mobile-slash-menu="true"] .damophus-slash-item--icon .b3-list-item__text,
@@ -202,6 +213,9 @@ export class MobileSlashMenuShortcut {
     this.attachedProtyles.clear();
     for (const [hint, patch] of this.patchedHints) {
       if (hint.render === patch.wrapped) hint.render = patch.original;
+      if (patch.originalGenHTML && hint.genHTML === patch.wrappedGenHTML) {
+        hint.genHTML = patch.originalGenHTML;
+      }
     }
     this.patchedHints.clear();
   }
@@ -273,6 +287,26 @@ export class MobileSlashMenuShortcut {
     if (this.patchedHints.has(hint)) return;
     const original = hint.render;
     const shortcut = this;
+    const originalGenHTML = hint.genHTML;
+    const wrappedGenHTML = !this.options.enableDirectSlash && originalGenHTML
+      ? function (
+          this: SlashHint,
+          data: SlashHintData[],
+          protyle: SlashProtyle,
+          escape: boolean,
+          source: "hint",
+        ): void {
+          const context = shortcut.getSlashContext(protyle);
+          if (!context) {
+            originalGenHTML.call(this, data, protyle, escape, source);
+            return;
+          }
+          const configured = shortcut.applyMenuConfig(data, context.key);
+          originalGenHTML.call(this, configured.data, protyle, escape, source);
+          shortcut.enhanceMenu(this.element, configured.displayById);
+        }
+      : undefined;
+    if (wrappedGenHTML) hint.genHTML = wrappedGenHTML;
     const wrapped: SlashHint["render"] = function (this: SlashHint, protyle): void {
       const context = shortcut.getSlashContext(protyle);
       const provider = protyle.options?.hint?.extend?.find((item) => item.key === "/");
@@ -283,21 +317,7 @@ export class MobileSlashMenuShortcut {
       }
 
       if (!shortcut.options.enableDirectSlash) {
-        if (!this.genHTML) {
-          original.call(this, protyle);
-          return;
-        }
-        const nativeGenHTML = this.genHTML;
-        this.genHTML = (data, nextProtyle, escape, source) => {
-          const configured = shortcut.applyMenuConfig(data);
-          nativeGenHTML.call(this, configured.data, nextProtyle, escape, source);
-          shortcut.enhanceMenu(this.element, configured.displayById);
-        };
-        try {
-          original.call(this, protyle);
-        } finally {
-          this.genHTML = nativeGenHTML;
-        }
+        original.call(this, protyle);
         return;
       }
 
@@ -318,7 +338,7 @@ export class MobileSlashMenuShortcut {
       shortcut.enhanceMenu(this.element, configured.displayById);
     };
     hint.render = wrapped;
-    this.patchedHints.set(hint, { original, wrapped });
+    this.patchedHints.set(hint, { original, wrapped, originalGenHTML, wrappedGenHTML });
   }
 
   private applyMenuConfig(data: SlashHintData[], query = ""): { data: SlashHintData[]; displayById: Map<string, "icon" | "full"> } {

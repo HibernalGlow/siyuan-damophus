@@ -134,33 +134,76 @@ describe("mobile slash menu shortcut", () => {
     expect(editor.slashProvider).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps desktop slash rendering native and only enhances its resulting menu", () => {
+  it("keeps desktop slash rendering native and enhances its asynchronously generated menu", async () => {
     const editor = renderEditor();
     editor.hint.enableSlash = true;
     editor.originalRender.mockImplementation(function (this: { element: HTMLElement }) {
-      (editor.hint.genHTML as unknown as (
-        data: Array<{ html: string; value: string }>,
-        protyle: typeof editor.protyle,
-        escape: boolean,
-        source: "hint",
-      ) => void)?.([
-        { html: '<span class="b3-list-item__graphic"></span><span class="b3-list-item__text">heading</span>', value: "heading1" },
-      ], editor.protyle, false, "hint");
+      window.setTimeout(() => {
+        (editor.hint.genHTML as unknown as (
+          data: Array<{ html: string; value: string }>,
+          protyle: typeof editor.protyle,
+          escape: boolean,
+          source: "hint",
+        ) => void)?.([
+          { html: '<span class="b3-list-item__graphic"></span><span class="b3-list-item__text">heading</span>', value: "heading1" },
+          { html: '<span class="b3-list-item__graphic"></span><span class="b3-list-item__text">AI</span>', value: "ai" },
+        ], editor.protyle, false, "hint");
+      }, 0);
     });
+    let config = JSON.stringify([
+      { id: "heading1", visible: true, display: "icon" },
+      { id: "ai", visible: false, display: "icon" },
+    ]);
     const shortcut = new MobileSlashMenuShortcut(
       document,
       editor.runtime,
-      { enableDirectSlash: false },
+      { enableDirectSlash: false, getConfig: () => config },
     );
     shortcut.start();
     typeText(editor, "/");
+    await vi.waitFor(() => expect(editor.genHTML).toHaveBeenCalledOnce());
 
     expect(editor.originalRender).toHaveBeenCalledOnce();
     expect(editor.slashProvider).toHaveBeenCalledTimes(1);
     expect(editor.hintElement.dataset.damophusMobileSlashMenu).toBe("true");
+    expect(editor.hintElement.querySelector("[data-id='ai']")).toBeNull();
     const item = editor.hintElement.querySelector(".b3-list-item");
     expect(item?.classList.contains("damophus-slash-item--icon")).toBe(true);
     expect(item?.getAttribute("title")).toBe("heading");
+
+    const patchedGenHTML = editor.hint.genHTML;
+    shortcut.stop();
+    expect(editor.hint.genHTML).not.toBe(patchedGenHTML);
+  });
+
+  it("contains the native desktop list and its rightmost item within the menu width", () => {
+    const editor = renderEditor();
+    const shortcut = new MobileSlashMenuShortcut(document, editor.runtime, { enableDirectSlash: false });
+    shortcut.start();
+
+    editor.hintElement.classList.remove("fn__none");
+    editor.hintElement.dataset.damophusMobileSlashMenu = "true";
+    editor.hintElement.innerHTML = `<div class="b3-list" style="min-width: 960px">
+      ${Array.from({ length: 20 }, (_, index) => `
+        <button class="b3-list-item damophus-slash-item--full">
+          <span class="b3-list-item__first">
+            <span class="b3-list-item__graphic">${index + 1}</span>
+            <span class="b3-list-item__text">command ${index + 1}</span>
+          </span>
+        </button>`).join("")}
+    </div>`;
+
+    const grid = editor.hintElement.firstElementChild as HTMLElement;
+    const items = Array.from(grid.querySelectorAll<HTMLElement>(".b3-list-item"));
+    const menuRect = editor.hintElement.getBoundingClientRect();
+    const rightmostItem = Math.max(...items.map((item) => item.getBoundingClientRect().right));
+
+    expect(grid.clientWidth).toBeLessThanOrEqual(editor.hintElement.clientWidth - 8);
+    expect(grid.scrollWidth).toBeLessThanOrEqual(grid.clientWidth);
+    expect(editor.hintElement.scrollWidth).toBeLessThanOrEqual(editor.hintElement.clientWidth);
+    expect(rightmostItem).toBeLessThanOrEqual(menuRect.right - 4);
+
+    shortcut.stop();
   });
 
   it("discovers and persists native commands on startup without editor input", () => {
