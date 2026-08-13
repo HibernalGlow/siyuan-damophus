@@ -1,6 +1,6 @@
 export const en = {
   "lets-exercise-focus.displayName": "Exercise focus",
-  "lets-exercise-focus.description": "Keep exercise headings and question blocks visible while blurring the surrounding explanation.",
+  "lets-exercise-focus.description": "Keep exercise headings and question blocks visible while masking the surrounding explanation at a uniform height.",
   "lets-exercise-focus.modeEnabledTitle": "Exercise focus mode",
   "lets-exercise-focus.modeEnabledDescription": "Apply the configured visibility rule to matching blockquotes.",
   "lets-exercise-focus.headingTextTitle": "Exercise heading text",
@@ -9,8 +9,8 @@ export const en = {
   "lets-exercise-focus.headingLevelDescription": "Heading level used together with the exact text match.",
   "lets-exercise-focus.visibleBlockTypesTitle": "Visible block types",
   "lets-exercise-focus.visibleBlockTypesDescription": "Choose the SiYuan block types that stay visible. The matched heading is always visible.",
-  "lets-exercise-focus.blurRadiusTitle": "Blur strength",
-  "lets-exercise-focus.blurRadiusDescription": "Blur radius for hidden blocks in pixels. Hover or focus restores the content.",
+  "lets-exercise-focus.maskHeightTitle": "Answer mask height",
+  "lets-exercise-focus.maskHeightDescription": "Fixed height for each concealed answer group. Hovering reveals the complete group.",
   "lets-exercise-focus.toggleCommand": "Toggle exercise focus mode",
   "lets-exercise-focus.enabledMessage": "Exercise focus mode enabled",
   "lets-exercise-focus.disabledMessage": "Exercise focus mode disabled",
@@ -24,7 +24,7 @@ export const en = {
 
 export const zhCN: typeof en = {
   "lets-exercise-focus.displayName": "\u4e60\u9898\u4e13\u6ce8",
-  "lets-exercise-focus.description": "\u4fdd\u7559\u4e60\u9898\u6807\u9898\u548c\u9898\u5e72\u5757\uff0c\u6a21\u7cca\u540c\u4e00\u5f15\u8ff0\u5757\u5185\u7684\u56de\u7b54\u4e0e\u89e3\u6790\u3002",
+  "lets-exercise-focus.description": "\u4fdd\u7559\u4e60\u9898\u6807\u9898\u548c\u9898\u5e72\u5757\uff0c\u7528\u7edf\u4e00\u9ad8\u5ea6\u7684\u906e\u7f69\u9690\u85cf\u540c\u4e00\u5f15\u8ff0\u5757\u5185\u7684\u56de\u7b54\u4e0e\u89e3\u6790\u3002",
   "lets-exercise-focus.modeEnabledTitle": "\u4e60\u9898\u4e13\u6ce8\u6a21\u5f0f",
   "lets-exercise-focus.modeEnabledDescription": "\u5bf9\u7b26\u5408\u8bbe\u7f6e\u7684\u5f15\u8ff0\u5757\u5e94\u7528\u5185\u5bb9\u53ef\u89c1\u6027\u89c4\u5219\u3002",
   "lets-exercise-focus.headingTextTitle": "\u4e60\u9898\u6807\u9898\u6587\u672c",
@@ -33,8 +33,8 @@ export const zhCN: typeof en = {
   "lets-exercise-focus.headingLevelDescription": "\u4e0e\u6807\u9898\u6587\u672c\u4e00\u8d77\u7528\u4e8e\u8bc6\u522b\u4e60\u9898\u5f15\u8ff0\u5757\u3002",
   "lets-exercise-focus.visibleBlockTypesTitle": "\u4fdd\u6301\u53ef\u89c1\u7684\u5757\u7c7b\u578b",
   "lets-exercise-focus.visibleBlockTypesDescription": "\u9009\u62e9\u9700\u8981\u4fdd\u6301\u53ef\u89c1\u7684\u601d\u6e90\u5757\u7c7b\u578b\u3002\u547d\u4e2d\u7684\u6807\u9898\u59cb\u7ec8\u53ef\u89c1\u3002",
-  "lets-exercise-focus.blurRadiusTitle": "\u6a21\u7cca\u5f3a\u5ea6",
-  "lets-exercise-focus.blurRadiusDescription": "\u9690\u85cf\u5757\u7684\u6a21\u7cca\u534a\u5f84\uff08\u50cf\u7d20\uff09\u3002\u9f20\u6807\u60ac\u505c\u6216\u805a\u7126\u65f6\u6062\u590d\u663e\u793a\u3002",
+  "lets-exercise-focus.maskHeightTitle": "\u7b54\u6848\u906e\u7f69\u9ad8\u5ea6",
+  "lets-exercise-focus.maskHeightDescription": "\u6bcf\u7ec4\u9690\u85cf\u7b54\u6848\u4f7f\u7528\u76f8\u540c\u7684\u56fa\u5b9a\u9ad8\u5ea6\uff0c\u9f20\u6807\u60ac\u505c\u65f6\u5c55\u5f00\u6574\u7ec4\u5185\u5bb9\u3002",
   "lets-exercise-focus.toggleCommand": "\u5207\u6362\u4e60\u9898\u4e13\u6ce8\u6a21\u5f0f",
   "lets-exercise-focus.enabledMessage": "\u5df2\u5f00\u542f\u4e60\u9898\u4e13\u6ce8\u6a21\u5f0f",
   "lets-exercise-focus.disabledMessage": "\u5df2\u5173\u95ed\u4e60\u9898\u4e13\u6ce8\u6a21\u5f0f",

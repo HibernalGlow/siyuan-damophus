@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { page } from "vitest/browser";
 import {
   applyExerciseFocus,
   EXERCISE_CONTAINER_ATTRIBUTE,
   EXERCISE_FOCUS_STYLE_ID,
+  EXERCISE_MASK_GROUP_ATTRIBUTE,
+  EXERCISE_MASK_ROLE_ATTRIBUTE,
+  EXERCISE_REVEALED_ATTRIBUTE,
   EXERCISE_VISIBILITY_ATTRIBUTE,
   ExerciseFocusController,
 } from "./exercise-focus";
@@ -67,17 +69,48 @@ describe("exercise focus", () => {
     expect(root.querySelector(`[${EXERCISE_CONTAINER_ATTRIBUTE}]`)).not.toBeNull();
   });
 
-  it("applies a real blur and reveals a hidden block on hover", async () => {
+  it("gives short and multi-block answers the same concealed height", () => {
+    const root = renderEditor();
+    root.insertAdjacentHTML("beforeend", `
+      <div data-node-id="quote-short" data-type="NodeBlockquote"><div class="bq">
+        <div class="h6" data-node-id="heading-short" data-type="NodeHeading" data-subtype="h6">\u4e60\u9898</div>
+        <div data-node-id="stem-short" data-type="NodeCodeBlock"><div>Short stem</div></div>
+        <div data-node-id="answer-short" data-type="NodeParagraph">\u6b63\u786e</div>
+      </div></div>`);
+    const controller = new ExerciseFocusController(document);
+    controllers.add(controller);
+    controller.start({ maskHeight: 80 });
+
+    const answer = document.querySelector<HTMLElement>('[data-node-id="answer"]')!;
+    const list = document.querySelector<HTMLElement>('[data-node-id="list"]')!;
+    const shortAnswer = document.querySelector<HTMLElement>('[data-node-id="answer-short"]')!;
+    expect(answer.getAttribute(EXERCISE_MASK_ROLE_ATTRIBUTE)).toBe("lead");
+    expect(list.getAttribute(EXERCISE_MASK_ROLE_ATTRIBUTE)).toBe("member");
+    expect(answer.getAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE)).toBe(list.getAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE));
+    expect(getComputedStyle(answer).height).toBe("80px");
+    expect(getComputedStyle(shortAnswer).height).toBe("80px");
+    expect(getComputedStyle(list).display).toBe("none");
+    expect(getComputedStyle(answer).filter).toBe("none");
+    expect(getComputedStyle(answer).color).toBe("rgba(0, 0, 0, 0)");
+  });
+
+  it("reveals and restores a complete hidden group on hover", async () => {
     renderEditor();
     const controller = new ExerciseFocusController(document);
     controllers.add(controller);
-    controller.start({ blurRadius: 7 });
+    controller.start({ maskHeight: 72 });
     const answer = document.querySelector<HTMLElement>('[data-node-id="answer"]')!;
+    const list = document.querySelector<HTMLElement>('[data-node-id="list"]')!;
 
-    expect(getComputedStyle(answer).filter).toBe("blur(7px)");
-    await page.getByText("Answer and explanation").hover();
-    await vi.waitFor(() => expect(answer.dataset.damophusExerciseHovered).toBe("true"));
-    await vi.waitFor(() => expect(getComputedStyle(answer).filter).toBe("none"));
+    answer.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await vi.waitFor(() => expect(answer.getAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe("true"));
+    expect(list.getAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe("true");
+    expect(getComputedStyle(list).display).not.toBe("none");
+
+    answer.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await vi.waitFor(() => expect(answer.hasAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe(false));
+    expect(list.hasAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe(false);
+    expect(getComputedStyle(list).display).toBe("none");
   });
 
   it("updates a lazily loaded exercise and removes all state when stopped", async () => {

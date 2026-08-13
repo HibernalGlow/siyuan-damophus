@@ -46,11 +46,11 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "slider",
-      title: "lets-exercise-focus.blurRadiusTitle",
-      description: "lets-exercise-focus.blurRadiusDescription",
-      key: "blurRadius",
-      value: 5,
-      slider: { min: 1, max: 20, step: 1 },
+      title: "lets-exercise-focus.maskHeightTitle",
+      description: "lets-exercise-focus.maskHeightDescription",
+      key: "maskHeight",
+      value: 72,
+      slider: { min: 48, max: 160, step: 8 },
     },
   ],
 };

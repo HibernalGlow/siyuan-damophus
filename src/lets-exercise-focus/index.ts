@@ -65,7 +65,7 @@ export default class ExerciseFocusPlugin extends SubPluginBase {
       headingText: this.getSetting("headingText"),
       headingLevel: this.getSetting("headingLevel"),
       visibleBlockTypes: this.getSetting("visibleBlockTypes"),
-      blurRadius: this.getSetting("blurRadius"),
+      maskHeight: this.getSetting("maskHeight"),
     };
     this.controller.start(settings);
   }
