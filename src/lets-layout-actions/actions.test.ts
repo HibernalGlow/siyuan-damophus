@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ICommand, Plugin } from "siyuan";
 import {
   actionAppearsOn,
+  editorCategoryLabel,
   executeConfiguredAction,
   normalizeConfiguredActions,
+  pluginCommandLabel,
+  systemCommandLabel,
   type ActionRuntime,
 } from "./actions";
 import { PANEL_LAYOUT_ICONS } from "./icons";
@@ -66,5 +70,48 @@ describe("configured actions", () => {
     expect(host.executePlugin).toHaveBeenCalledWith("example", "open");
     expect(host.getEditorHotkey).toHaveBeenCalledWith("general", "switchReadonly");
     expect(host.simulateHotkey).toHaveBeenCalledWith("Ctrl+Alt+L");
+  });
+});
+
+const LANGUAGES: Record<string, string> = {
+  syncNow: "立即同步",
+  general: "常规",
+  element: "元素",
+  headings: "标题",
+  list1: "列表",
+  table: "表格",
+};
+
+describe("command option labels", () => {
+  it("localizes system commands through the SiYuan language dictionary", () => {
+    expect(systemCommandLabel(LANGUAGES, "syncNow")).toBe("立即同步");
+    expect(systemCommandLabel(LANGUAGES, "missingKey")).toBe("missingKey");
+    expect(systemCommandLabel(undefined, "syncNow")).toBe("syncNow");
+  });
+
+  it("maps editor categories to the language keys used by SiYuan's shortcut settings", () => {
+    expect(editorCategoryLabel(LANGUAGES, "general")).toBe("常规");
+    expect(editorCategoryLabel(LANGUAGES, "insert")).toBe("元素");
+    expect(editorCategoryLabel(LANGUAGES, "heading")).toBe("标题");
+    expect(editorCategoryLabel(LANGUAGES, "list")).toBe("列表");
+    expect(editorCategoryLabel(LANGUAGES, "table")).toBe("表格");
+    expect(editorCategoryLabel(LANGUAGES, "unknown")).toBe("unknown");
+  });
+
+  it("resolves plugin command names from langText, the plugin i18n dict, then the raw key", () => {
+    const item = {
+      name: "damophus",
+      displayName: "Damophus",
+      i18n: { "lets-layout-actions.switchLeft": "切换左侧面板布局" },
+    } as unknown as Plugin;
+    const commands = [
+      { langKey: "lets-layout-actions.switchLeft" },
+      { langKey: "lets-layout-actions.switchRight", langText: "Switch right" },
+      { langKey: "missingKey" },
+    ] as unknown as ICommand[];
+
+    expect(pluginCommandLabel(item, commands[0])).toBe("切换左侧面板布局");
+    expect(pluginCommandLabel(item, commands[1])).toBe("Switch right");
+    expect(pluginCommandLabel(item, commands[2])).toBe("missingKey");
   });
 });

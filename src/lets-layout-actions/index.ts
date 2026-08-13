@@ -115,15 +115,9 @@ export default class LayoutActionsPlugin extends SubPluginBase {
   }
 
   private configuredActions(): ConfiguredAction[] {
-    const translations = (window as Window & { siyuan?: { languages?: Record<string, string> } }).siyuan?.languages;
     return normalizeConfiguredActions(this.getSetting("actions")).map((action) => ({
       ...action,
-      title: resolveActionTitle(action, {
-        ...(translations ?? {}),
-        "lets-layout-actions.switchLeft": this.t("lets-layout-actions.switchLeft"),
-        "lets-layout-actions.switchRight": this.t("lets-layout-actions.switchRight"),
-        "lets-layout-actions.switchBottom": this.t("lets-layout-actions.switchBottom"),
-      }),
+      title: resolveActionTitle(action, plugin.i18n ?? {}),
     }));
   }
 

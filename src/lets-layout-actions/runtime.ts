@@ -1,6 +1,13 @@
 import { globalCommand } from "siyuan";
+import type { Config, Plugin } from "siyuan";
 import { plugin } from "@/utils";
-import type { ActionKind, ActionRuntime } from "./actions";
+import {
+  editorCategoryLabel,
+  pluginCommandLabel,
+  systemCommandLabel,
+  type ActionKind,
+  type ActionRuntime,
+} from "./actions";
 
 export interface CommandOption {
   value: string;
@@ -8,58 +15,44 @@ export interface CommandOption {
   available: boolean;
 }
 
-type SiyuanWindow = Window & {
-  siyuan?: {
-    languages?: Record<string, string>;
-    config?: {
-      keymap?: {
-        general?: Record<string, unknown>;
-        editor?: Record<string, Record<string, { custom?: string }>>;
-      };
-    };
-    ws?: {
-      app?: {
-        plugins?: Array<{
-          name: string;
-          displayName?: string;
-          commands?: Array<{
-            langKey: string;
-            langText?: string;
-            customHotkey?: string;
-            callback?: () => void;
-            globalCallback?: () => void;
-          }>;
-        }>;
-      };
-    };
-  };
-};
+/**
+ * The subset of the global `window.siyuan` state that layout actions reads,
+ * typed from the official siyuan package shapes instead of duplicating them.
+ */
+interface SiyuanRuntimeState {
+  languages?: Record<string, string>;
+  config?: { keymap?: Config.IKeymap };
+  ws?: { app?: { plugins?: Plugin[] } };
+}
 
-function siyuanWindow(): SiyuanWindow {
-  return window as SiyuanWindow;
+function siyuanState(): SiyuanRuntimeState {
+  return (window.siyuan ?? {}) as SiyuanRuntimeState;
 }
 
 export function collectCommandOptions(): Record<ActionKind, CommandOption[]> {
-  const siyuan = siyuanWindow().siyuan;
-  const languages = siyuan?.languages ?? {};
-  const system = Object.keys(siyuan?.config?.keymap?.general ?? {}).map((key) => ({
+  const siyuan = siyuanState();
+  const languages = siyuan.languages;
+
+  const system = Object.keys(siyuan.config?.keymap?.general ?? {}).map((key) => ({
     value: key,
-    label: languages[key] || key,
+    label: systemCommandLabel(languages, key),
     available: true,
   }));
 
-  const editor = Object.entries(siyuan?.config?.keymap?.editor ?? {}).flatMap(([category, commands]) =>
+  const editor = Object.entries(
+    (siyuan.config?.keymap?.editor ?? {}) as Record<string, Record<string, Config.IKey>>,
+  ).flatMap(([category, commands]) =>
     Object.entries(commands).map(([key, keymap]) => ({
       value: `editor::${category}::${key}`,
-      label: `${languages[key] || key} (${category})`,
+      label: `${systemCommandLabel(languages, key)} (${editorCategoryLabel(languages, category)})`,
       available: Boolean(keymap.custom),
     })),
   );
 
-  const pluginCommands = (siyuan?.ws?.app?.plugins ?? []).flatMap((item) =>
+  const pluginCommands = (siyuan.ws?.app?.plugins ?? []).flatMap((item) =>
     (item.commands ?? []).map((command) => ({
       value: `plugin::${item.name}::${command.langKey}`,
-      label: `${item.displayName || item.name}: ${command.langText || command.langKey}`,
+      label: `${item.displayName || item.name}: ${pluginCommandLabel(item, command)}`,
       available: Boolean(command.callback || command.globalCallback),
     })),
   );
@@ -77,7 +70,7 @@ export function createActionRuntime(): ActionRuntime {
       globalCommand(command, plugin.app);
     },
     executePlugin(pluginName, commandKey) {
-      const target = (siyuanWindow().siyuan?.ws?.app?.plugins ?? []).find((item) => item.name === pluginName);
+      const target = (siyuanState().ws?.app?.plugins ?? []).find((item) => item.name === pluginName);
       const command = target?.commands?.find((item) =>
         item.langKey === commandKey || item.customHotkey === commandKey,
       );
@@ -92,10 +85,10 @@ export function createActionRuntime(): ActionRuntime {
       return false;
     },
     getEditorHotkey(category, commandKey) {
-      const editor = siyuanWindow().siyuan?.config?.keymap?.editor;
-      const direct = editor?.[category]?.[commandKey]?.custom;
+      const editor = (siyuanState().config?.keymap?.editor ?? {}) as Record<string, Record<string, Config.IKey>>;
+      const direct = editor[category]?.[commandKey]?.custom;
       if (direct) return direct;
-      for (const [otherCategory, commands] of Object.entries(editor ?? {})) {
+      for (const [otherCategory, commands] of Object.entries(editor)) {
         if (otherCategory === category) continue;
         const fallback = commands[commandKey]?.custom;
         if (fallback) return fallback;

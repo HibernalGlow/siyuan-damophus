@@ -1,3 +1,4 @@
+import type { ICommand, Plugin } from "siyuan";
 import { PANEL_LAYOUT_ICONS } from "./icons";
 
 export type ActionKind = "system" | "plugin" | "editor";
@@ -99,6 +100,34 @@ export function normalizeIcon(icon: unknown): string {
 
 export function resolveActionTitle(action: ConfiguredAction, translations: Record<string, string>): string {
   return translations[action.title] || action.title;
+}
+
+/**
+ * Editor keymap categories resolve through the same language-dictionary keys
+ * that SiYuan's shortcut settings (keymapUi.ts) uses for their group labels.
+ */
+const EDITOR_CATEGORY_LANGUAGE_KEYS: Readonly<Record<string, string>> = {
+  general: "general",
+  insert: "element",
+  heading: "headings",
+  list: "list1",
+  table: "table",
+};
+
+export function systemCommandLabel(languages: Record<string, string> | undefined, key: string): string {
+  return languages?.[key] || key;
+}
+
+export function editorCategoryLabel(languages: Record<string, string> | undefined, category: string): string {
+  return systemCommandLabel(languages, EDITOR_CATEGORY_LANGUAGE_KEYS[category] ?? category);
+}
+
+/**
+ * Resolves a plugin command name with the same fallback chain as SiYuan's
+ * shortcut settings: langText, then the plugin i18n dict, then the raw key.
+ */
+export function pluginCommandLabel(item: Plugin, command: ICommand): string {
+  return command.langText || item.i18n[command.langKey] || command.langKey;
 }
 
 export function executeConfiguredAction(action: ConfiguredAction, runtime: ActionRuntime): boolean {
