@@ -13,6 +13,7 @@ import { prepareToolbarIcon } from "@/toolbar-icon";
 import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 import type { ProtyleToolbarItem } from "@/types/plugin";
 import { buildPluginDeclarationMenu } from "@/libs/plugin-declarations";
+import { withMenuIdentity } from "@/libs/menu-identity";
 
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
@@ -109,7 +110,7 @@ export default class DamophusPlugin extends Plugin {
     for (const plugin of this.pluginRegistry.getAllPlugins()) {
       if (!plugin.enabled || !plugin.addMenuItem) continue;
       try {
-        plugin.addMenuItem(menu);
+        withMenuIdentity(menu, { plugin: "siyuan-damophus", module: plugin.name }, () => plugin.addMenuItem?.(menu));
         itemCount += 1;
       } catch (error) {
         log.error(`Failed to add menu item for plugin ${plugin.name}:`, error);

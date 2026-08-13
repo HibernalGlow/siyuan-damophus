@@ -3,6 +3,12 @@ import {
   MENU_MODULE_ATTRIBUTE,
   MENU_PLUGIN_ATTRIBUTE,
 } from "@/libs/menu-identity";
+import {
+  discoverPluginMenuEntry,
+  mergeDiscoveredPluginMenuEntries,
+  parseDiscoveredPluginMenuEntries,
+  type DiscoveredPluginMenuEntry,
+} from "./discovered-entries";
 
 export const EXPANDED_PLUGIN_MENU_STYLE_ID = "damophus-expanded-plugin-menu-style";
 export const EXPANDED_PLUGIN_MENU_ATTRIBUTE = "data-damophus-expanded-plugin-menu";
@@ -173,6 +179,44 @@ interface EnhancedMenu {
   removeInteractionListeners: () => void;
 }
 
+export interface ExpandedPluginMenuLayoutMeasurement {
+  layout: "side" | "below";
+  otherColumns: number;
+  width: number;
+  height: number;
+  occupiedArea?: number;
+}
+
+export function chooseCompactPanelLayout(
+  measurements: readonly ExpandedPluginMenuLayoutMeasurement[],
+  maximumWidth: number,
+  maximumHeight: number,
+): ExpandedPluginMenuLayoutMeasurement | undefined {
+  return [...measurements].sort((left, right) => {
+    const leftFits = left.width <= maximumWidth && left.height <= maximumHeight;
+    const rightFits = right.width <= maximumWidth && right.height <= maximumHeight;
+    if (leftFits !== rightFits) return leftFits ? -1 : 1;
+    if (leftFits && left.layout !== right.layout) {
+      // A complete side layout uses the horizontal space beside the native
+      // menu and avoids adding another row to the menu's vertical footprint.
+      return left.layout === "side" ? -1 : 1;
+    }
+    if (!leftFits) {
+      const leftOverflow = Math.max(0, left.width - maximumWidth) * Math.max(1, left.height)
+        + Math.max(0, left.height - maximumHeight) * Math.max(1, left.width);
+      const rightOverflow = Math.max(0, right.width - maximumWidth) * Math.max(1, right.height)
+        + Math.max(0, right.height - maximumHeight) * Math.max(1, right.width);
+      if (leftOverflow !== rightOverflow) return leftOverflow - rightOverflow;
+    }
+    const areaDifference = (left.occupiedArea ?? left.width * left.height)
+      - (right.occupiedArea ?? right.width * right.height);
+    if (areaDifference !== 0) return areaDifference;
+    if (left.width !== right.width) return left.width - right.width;
+    if (left.layout !== right.layout) return left.layout === "below" ? -1 : 1;
+    return left.otherColumns - right.otherColumns;
+  })[0];
+}
+
 export function parseExpandedPluginMenuAllowedEntries(value: unknown): ExpandedPluginMenuAllowedEntries {
   const labels = new Set<string>();
   const identities = new Map<MenuIdentityKind, Set<string>>(
@@ -210,7 +254,10 @@ function isAllowedEntry(item: HTMLElement, allowedEntries: ExpandedPluginMenuAll
   };
   return IDENTITY_SELECTOR_PREFIXES.some((kind) => {
     const identity = item.getAttribute(identityAttributes[kind])?.trim().toLocaleLowerCase();
-    return Boolean(identity && allowedEntries.identities.get(kind)?.has(identity));
+    if (!identity) return false;
+    const configured = allowedEntries.identities.get(kind);
+    if (configured?.has(identity)) return true;
+    return kind === "plugin" && Boolean(configured?.has(`${identity}|${normalizedLabel(item).toLocaleLowerCase()}`));
   });
 }
 
@@ -398,6 +445,47 @@ function installInteractionHandling(enhanced: EnhancedMenu): () => void {
   };
 }
 
+function applyPanelLayout(
+  rootItem: HTMLElement,
+  panel: HTMLElement,
+  layout: "side" | "below",
+  otherColumns: number,
+): void {
+  rootItem.style.setProperty("--damophus-plugin-menu-sections", layout === "side" ? "2" : "1");
+  rootItem.style.setProperty("--damophus-plugin-menu-other-columns", String(otherColumns));
+  panel.dataset.layout = layout;
+}
+
+function measurePanelLayouts(
+  enhanced: EnhancedMenu,
+  otherItemCount: number,
+  maximumColumns: number,
+): ExpandedPluginMenuLayoutMeasurement[] {
+  const { rootItem, submenu, panel } = enhanced;
+  const measurements: ExpandedPluginMenuLayoutMeasurement[] = [];
+  const layouts: Array<"side" | "below"> = otherItemCount > 0 ? ["below", "side"] : ["below"];
+  const previousVisibility = submenu.style.visibility;
+  const previousWidth = submenu.style.width;
+  submenu.style.visibility = "hidden";
+  submenu.style.width = "auto";
+  for (const layout of layouts) {
+    const columnLimit = layout === "side" ? Math.min(2, maximumColumns) : maximumColumns;
+    for (let columns = 1; columns <= columnLimit; columns += 1) {
+      applyPanelLayout(rootItem, panel, layout, columns);
+      const rect = panel.getBoundingClientRect();
+      measurements.push({
+        layout,
+        otherColumns: columns,
+        width: Math.ceil(Math.max(rect.width, panel.scrollWidth) + 16),
+        height: Math.ceil(Math.max(rect.height, panel.scrollHeight) + 16),
+      });
+    }
+  }
+  submenu.style.visibility = previousVisibility;
+  submenu.style.width = previousWidth;
+  return measurements;
+}
+
 function positionPanel(enhanced: EnhancedMenu): void {
   const { rootItem, submenu, panel } = enhanced;
   const view = rootItem.ownerDocument.defaultView;
@@ -409,22 +497,34 @@ function positionPanel(enhanced: EnhancedMenu): void {
   const availableRight = viewportWidth - itemRect.right - gap - margin;
   const availableLeft = itemRect.left - gap - margin;
   const direction = availableRight >= 420 || availableRight >= availableLeft ? "right" : "left";
-  const availableWidth = Math.max(320, direction === "right" ? availableRight : availableLeft);
+  // Keep the real side budget. A synthetic minimum here makes a narrow
+  // viewport appear wide enough for a side panel and causes horizontal
+  // overflow instead of selecting the below layout.
+  // The fixed panel is clamped back into the viewport after measurement, so
+  // it may use the full viewport width even when the space immediately beside
+  // the Plugins item is narrower. This lets a compact right-hand column fill
+  // otherwise empty panel space instead of forcing another row.
+  const availableWidth = Math.max(0, viewportWidth - margin * 2);
   const otherGroup = directChild<HTMLElement>(panel, `.${EXPANDED_PLUGIN_MENU_OTHER_CLASS}`);
   const otherItemCount = otherGroup?.querySelectorAll(":scope > .b3-menu__item").length ?? 0;
   const columnWidth = 176;
-  const sideOtherColumns = Math.max(1, Math.min(2, otherItemCount));
-  const sideBySideWidth = columnWidth * (1 + sideOtherColumns) + 16;
-  const sideBySide = Boolean(otherGroup) && availableWidth >= sideBySideWidth;
-  const belowColumnBudget = Math.max(1, Math.floor((availableWidth - 32) / columnWidth));
-  const otherColumns = sideBySide
-    ? sideOtherColumns
-    : Math.max(1, Math.min(3, otherItemCount, belowColumnBudget));
+  const maximumColumns = Math.max(1, Math.min(3, otherItemCount, Math.floor((availableWidth - 16) / columnWidth)));
+  const maximumHeight = viewportHeight - margin * 2;
 
   rootItem.setAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE, direction);
-  rootItem.style.setProperty("--damophus-plugin-menu-sections", sideBySide ? "2" : "1");
-  rootItem.style.setProperty("--damophus-plugin-menu-other-columns", String(otherColumns));
-  panel.dataset.layout = sideBySide ? "side" : "below";
+  const layoutMeasurements = measurePanelLayouts(enhanced, otherItemCount, maximumColumns);
+  for (const measurement of layoutMeasurements) {
+    // The submenu is positioned as one fixed panel in either mode. Its measured
+    // box already includes the primary and other-plugin columns, so adding the
+    // original host menu here would reject valid side-by-side layouts.
+    measurement.occupiedArea = Math.ceil(measurement.width * measurement.height);
+  }
+  const selectedLayout = chooseCompactPanelLayout(
+    layoutMeasurements,
+    availableWidth,
+    maximumHeight,
+  ) ?? { layout: "below" as const, otherColumns: 1 };
+  applyPanelLayout(rootItem, panel, selectedLayout.layout, selectedLayout.otherColumns);
   const measuredWidth = Math.min(submenu.getBoundingClientRect().width, viewportWidth - margin * 2);
   const desiredLeft = direction === "right" ? itemRect.right + gap : itemRect.left - gap - measuredWidth;
   const left = Math.max(margin, Math.min(desiredLeft, viewportWidth - measuredWidth - margin));
@@ -443,13 +543,21 @@ export class ExpandedPluginMenuController {
   private observer?: MutationObserver;
   private running = false;
   private allowedEntries = parseExpandedPluginMenuAllowedEntries("");
+  private discoveredEntries: DiscoveredPluginMenuEntry[] = [];
   private readonly enhancedMenus = new Map<HTMLElement, EnhancedMenu>();
 
-  constructor(private readonly targetDocument: Document = document) {}
+  constructor(
+    private readonly targetDocument: Document = document,
+    private readonly onEntriesDiscovered?: (entries: readonly DiscoveredPluginMenuEntry[]) => void,
+  ) {}
 
-  start(allowedEntries: unknown = DEFAULT_EXPANDED_PLUGIN_MENU_ALLOWED_ENTRIES): void {
+  start(
+    allowedEntries: unknown = DEFAULT_EXPANDED_PLUGIN_MENU_ALLOWED_ENTRIES,
+    discoveredEntries: unknown = [],
+  ): void {
     this.running = true;
     this.allowedEntries = parseExpandedPluginMenuAllowedEntries(allowedEntries);
+    this.discoveredEntries = parseDiscoveredPluginMenuEntries(discoveredEntries);
     this.mountStyle();
     this.enhanceMenus(this.targetDocument);
     if (this.observer) return;
@@ -474,6 +582,10 @@ export class ExpandedPluginMenuController {
     this.enhancedMenus.clear();
     this.allowedEntries = nextEntries;
     this.enhanceMenus(this.targetDocument);
+  }
+
+  updateDiscoveredEntries(value: unknown): void {
+    this.discoveredEntries = parseDiscoveredPluginMenuEntries(value);
   }
 
   refresh(): void {
@@ -522,7 +634,9 @@ export class ExpandedPluginMenuController {
       if (!isPluginBranch(rootItem) || this.enhancedMenus.has(rootItem)) continue;
       const rootMenu = rootItem.closest<HTMLElement>(MENU_SELECTOR);
       const submenu = directSubmenu(rootItem);
-      if (!rootMenu || !submenu || rootMenu.closest(".protyle-hint") || !hasAllowedEntries(this.allowedEntries)) continue;
+      if (!rootMenu || !submenu || rootMenu.closest(".protyle-hint")) continue;
+      this.discoverEntries(submenu);
+      if (!hasAllowedEntries(this.allowedEntries)) continue;
       const flattened = flattenCommands(submenu, this.allowedEntries);
       if (flattened.movedCommands.length === 0) {
         flattened.panel.remove();
@@ -541,6 +655,19 @@ export class ExpandedPluginMenuController {
       enhanced.removeInteractionListeners = installInteractionHandling(enhanced);
       setPanelVisible(enhanced, rootItem.matches(":hover") || rootItem.classList.contains("b3-menu__item--show"));
     }
+  }
+
+  private discoverEntries(submenu: HTMLElement): void {
+    const observed: DiscoveredPluginMenuEntry[] = [];
+    for (const child of submenuItems(submenu).children) {
+      if (!(child instanceof HTMLElement) || !child.matches(ITEM_SELECTOR)) continue;
+      const label = normalizedLabel(child);
+      if (label) observed.push(discoverPluginMenuEntry(child, label));
+    }
+    const merged = mergeDiscoveredPluginMenuEntries(this.discoveredEntries, observed);
+    if (!merged.changed) return;
+    this.discoveredEntries = merged.entries;
+    this.onEntriesDiscovered?.(this.discoveredEntries);
   }
 
   private restoreMenu(enhanced: EnhancedMenu): void {

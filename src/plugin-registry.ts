@@ -3,6 +3,7 @@ import type { PluginMetadata, SubPlugin } from "./types/plugin";
 import { getLogger } from "@/libs/logger";
 import { registerPluginModels } from "./plugin-models";
 import { beginSubPlugin, unloadSubPlugin } from "./plugin-lifecycle";
+import { withMenuEventIdentityRegistration } from "@/libs/menu-identity";
 const log = getLogger("plugin-registry");
 
 export class PluginRegistry {
@@ -124,6 +125,16 @@ export class PluginRegistry {
         settings.getBySpace(pluginInstance.name, "enabled") ??
         metadata.enabled ??
         false;
+      const identity = { plugin: "siyuan-damophus", module: metadata.name };
+      for (const lifecycle of ["onload", "onLayoutReady", "onunload"] as const) {
+        const original = pluginInstance[lifecycle];
+        if (typeof original !== "function") continue;
+        pluginInstance[lifecycle] = (...args: unknown[]) => withMenuEventIdentityRegistration(
+          this.mainPlugin.eventBus,
+          identity,
+          () => original.apply(pluginInstance, args),
+        );
+      }
       // enabled will be read from settings when needed
 
       // Dynamically inject helper methods for sub-plugins

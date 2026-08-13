@@ -12,6 +12,7 @@ import {
   EXPANDED_PLUGIN_MENU_STYLE_ID,
   EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE,
   ExpandedPluginMenuController,
+  chooseCompactPanelLayout,
   parseExpandedPluginMenuAllowedEntries,
 } from "./expanded-plugin-menu";
 
@@ -98,7 +99,20 @@ afterEach(() => {
 });
 
 describe("expanded plugin menu", () => {
-  it("opens the existing plugin branch as one multi-column panel", async () => {
+  it("uses a complete side panel before adding a second row", () => {
+    expect(chooseCompactPanelLayout([
+      { layout: "side", otherColumns: 2, width: 660, height: 310 },
+      { layout: "below", otherColumns: 2, width: 440, height: 390 },
+      { layout: "below", otherColumns: 1, width: 310, height: 520, occupiedArea: 150_000 },
+    ], 900, 700)).toMatchObject({ layout: "side", otherColumns: 2 });
+
+    expect(chooseCompactPanelLayout([
+      { layout: "side", otherColumns: 2, width: 660, height: 310 },
+      { layout: "below", otherColumns: 1, width: 310, height: 760 },
+    ], 900, 700)).toMatchObject({ layout: "side", otherColumns: 2 });
+  });
+
+  it("opens the plugin branch in the smallest complete panel", async () => {
     await page.viewport(1440, 900);
     const menu = renderBlockMenu();
     const controller = new ExpandedPluginMenuController();
@@ -118,7 +132,6 @@ describe("expanded plugin menu", () => {
     expect(flatPanel.querySelectorAll(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS}`)).toHaveLength(3);
     expect(flatPanel.querySelectorAll(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item`)).toHaveLength(12);
     expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-sections")).toBe("2");
-    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-other-columns")).toBe("2");
     expect(flatPanel.dataset.layout).toBe("side");
 
     const groupTitles = Array.from(flatPanel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_TITLE_CLASS}`))
@@ -130,7 +143,8 @@ describe("expanded plugin menu", () => {
     expect(primaryGroups[1].getBoundingClientRect().top)
       .toBeGreaterThanOrEqual(primaryGroups[0].getBoundingClientRect().bottom + 7);
     const otherGroup = flatPanel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_OTHER_CLASS}`)!;
-    expect(otherGroup.getBoundingClientRect().left).toBeGreaterThan(primary.getBoundingClientRect().right - 1);
+    expect(otherGroup.getBoundingClientRect().left)
+      .toBeGreaterThanOrEqual(primary.getBoundingClientRect().right - 1);
     const flatLabels = Array.from(flatPanel.querySelectorAll<HTMLElement>(`.${EXPANDED_PLUGIN_MENU_GROUP_CLASS} > .b3-menu__item > .b3-menu__label`))
       .map((label) => label.textContent);
     expect(flatLabels).toContain("Note");
@@ -142,7 +156,7 @@ describe("expanded plugin menu", () => {
     const itemRect = pluginItem.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
     expect(Math.abs(panelRect.left - itemRect.right)).toBeLessThanOrEqual(6);
-    expect(panelRect.width).toBeGreaterThan(360);
+    expect(panelRect.width).toBeLessThanOrEqual(552);
     expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth);
 
     controller.destroy();
@@ -177,18 +191,18 @@ describe("expanded plugin menu", () => {
     pointAt(pluginItem);
     const panel = pluginItem.querySelector<HTMLElement>(":scope > .b3-menu__submenu")!;
     expect(pluginItem.getAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE)).toBe("left");
-    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-sections")).toBe("1");
-    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-other-columns")).toBe("2");
+    expect(pluginItem.style.getPropertyValue("--damophus-plugin-menu-sections")).toBe("2");
+    expect(Number(pluginItem.style.getPropertyValue("--damophus-plugin-menu-other-columns"))).toBeGreaterThanOrEqual(1);
     expect(Math.abs(panel.getBoundingClientRect().right - pluginItem.getBoundingClientRect().left)).toBeLessThanOrEqual(6);
     expect(panel.getBoundingClientRect().left).toBeGreaterThanOrEqual(12);
     const flatPanel = panel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_PANEL_CLASS}`)!;
-    expect(flatPanel.dataset.layout).toBe("below");
+    expect(flatPanel.dataset.layout).toBe("side");
     const primary = flatPanel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_PRIMARY_CLASS}`)!;
     const otherGroup = flatPanel.querySelector<HTMLElement>(`:scope > .${EXPANDED_PLUGIN_MENU_OTHER_CLASS}`)!;
-    expect(otherGroup.getBoundingClientRect().top).toBeGreaterThan(primary.getBoundingClientRect().bottom);
-    const otherItems = otherGroup.querySelectorAll<HTMLElement>(`:scope > .b3-menu__item`);
-    expect(otherItems[0].getBoundingClientRect().top).toBe(otherItems[1].getBoundingClientRect().top);
-    expect(otherItems[2].getBoundingClientRect().top).toBeGreaterThan(otherItems[1].getBoundingClientRect().top);
+    expect(otherGroup.getBoundingClientRect().left)
+      .toBeGreaterThanOrEqual(primary.getBoundingClientRect().right - 1);
+    expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth);
+    expect(panel.clientHeight).toBeGreaterThan(0);
 
     controller.destroy();
   });
@@ -292,15 +306,15 @@ describe("expanded plugin menu", () => {
     expect(secondMenu.querySelector(`[${EXPANDED_PLUGIN_MENU_ATTRIBUTE}]`)).toBeNull();
   });
 
-  it("registers as an enabled independent module", () => {
+  it("registers as an independent, disabled-by-default module", () => {
     expect(pluginMetadata).toMatchObject({
       name: "expandedPluginMenu",
-      enabled: true,
+      enabled: false,
       icon: "layoutGrid",
-      settings: [expect.objectContaining({
-        type: "textarea",
-        key: "allowedEntries",
-      })],
+      settings: expect.arrayContaining([
+        expect.objectContaining({ type: "textarea", key: "allowedEntries" }),
+        expect.objectContaining({ type: "textarea", key: "discoveredEntries" }),
+      ]),
     });
     const parsed = parseExpandedPluginMenuAllowedEntries(
       " 转换为 Callout \r\nmodule:calloutTools\nplugin:siyuan-damophus\ndeclaration:questionBank/practice ",
@@ -309,5 +323,19 @@ describe("expanded plugin menu", () => {
     expect(parsed.identities.get("module")).toEqual(new Set(["callouttools"]));
     expect(parsed.identities.get("plugin")).toEqual(new Set(["siyuan-damophus"]));
     expect(parsed.identities.get("declaration")).toEqual(new Set(["questionbank/practice"]));
+  });
+
+  it("reports all first-level plugin entries before applying the expansion whitelist", async () => {
+    const discovered = vi.fn();
+    const controller = new ExpandedPluginMenuController(document, discovered);
+    controller.start("module:calloutTools");
+    renderBlockMenu();
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(discovered).toHaveBeenCalled();
+    const entries = discovered.mock.calls.at(-1)?.[0] ?? [];
+    expect(entries.some((entry: { key: string }) => entry.key === "module:calloutTools")).toBe(true);
+    expect(entries.some((entry: { label: string }) => entry.label === "从此块打开题库")).toBe(true);
+    controller.destroy();
   });
 });

@@ -18,6 +18,13 @@ export const pluginMetadata: PluginMetadata = {
       placeholder: "module:calloutTools\nplugin:other-plugin\n菜单文字",
       height: "150px",
     },
+    {
+      type: "textarea",
+      title: "lets-expanded-plugin-menu.discoveredEntriesTitle",
+      description: "lets-expanded-plugin-menu.discoveredEntriesDescription",
+      key: "discoveredEntries",
+      value: "[]",
+    },
   ],
 };
 
