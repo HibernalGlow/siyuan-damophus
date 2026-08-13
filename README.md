@@ -23,7 +23,8 @@ Damophus 是一个自用的思源增强插件，集中实现现有工具没有�
   <a href="#分模块介绍">模块</a> ·
   <a href="#快速开始">快速开始</a> ·
   <a href="#数据边界">数据边界</a> ·
-  <a href="#文档地图">文档</a>
+  <a href="#文档地图">文档</a> ·
+  <a href="#赞赏">赞赏</a>
 </p>
 
 ## 功能一览
@@ -358,6 +359,14 @@ Damophus 延续并参考了以下项目的工作：
 
 - [Neo](https://github.com/QYLexpired/Neo)：思源主题与移动端视觉参考，Damophus 的顶部折射几何针对 Neo 的移动布局进行了适配。
 - [Neo-Plus](https://github.com/QYLexpired/Neo-Plus)：Neo 配套插件，为移动端毛玻璃与一体式顶部表面的设计提供参考。
+
+## 赞赏
+
+如果你觉得这个项目对你有帮助，欢迎赞赏支持，我会更有动力持续维护与更新。
+
+<p align="center">
+  <img src="https://pic1.imgdb.cn/i/0346VYPyiwwqJXc5T1tXSN.jpg" width="280" alt="Damophus 赞赏码">
+</p>
 
 ## 开发
 
