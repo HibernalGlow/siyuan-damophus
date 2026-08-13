@@ -16,9 +16,10 @@ import {
   parseExpandedPluginMenuAllowedEntries,
 } from "./expanded-plugin-menu";
 
-function createItem(label: string, childSubmenu?: HTMLElement): HTMLButtonElement {
+function createItem(label: string, childSubmenu?: HTMLElement, id?: string): HTMLButtonElement {
   const menuItem = document.createElement("button");
   menuItem.className = "b3-menu__item";
+  if (id) menuItem.dataset.id = id;
   const labelElement = document.createElement("span");
   labelElement.className = "b3-menu__label";
   labelElement.textContent = label;
@@ -41,6 +42,13 @@ function createSubmenu(labels: string[]): HTMLElement {
   items.append(...labels.map((label) => createItem(label)));
   panel.append(items);
   return panel;
+}
+
+function createSeparator(id: string): HTMLButtonElement {
+  const separator = document.createElement("button");
+  separator.className = "b3-menu__separator";
+  separator.dataset.id = id;
+  return separator;
 }
 
 function renderBlockMenu(): HTMLElement {
@@ -70,9 +78,11 @@ function renderBlockMenu(): HTMLElement {
     ),
   );
   menu.append(
-    createItem("复制"),
-    createItem("转换为", createSubmenu(["一级标题", "二级标题"])),
-    createItem("插件", pluginSubmenu),
+    createItem("复制", undefined, "copy"),
+    createItem("转换为", createSubmenu(["一级标题", "二级标题"]), "transform"),
+    createItem("快速制卡", undefined, "quickMakeCard"),
+    createItem("插件", pluginSubmenu, "plugin"),
+    createItem("属性", undefined, "updateAndCreatedAt"),
   );
   document.body.append(menu);
   return menu;
@@ -99,6 +109,90 @@ afterEach(() => {
 });
 
 describe("expanded plugin menu", () => {
+  function topLevelIds(menu: HTMLElement): string[] {
+    return Array.from(menu.children)
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child.matches(ITEM_SELECTOR))
+      .map((item) => item.dataset.id ?? "");
+  }
+
+  it("moves the native Plugins entry to the configured top position and restores it on destroy", () => {
+    const menu = renderBlockMenu();
+    const controller = new ExpandedPluginMenuController();
+    controller.start(undefined, undefined, { mode: "top" });
+    expect(topLevelIds(menu)).toEqual(["plugin", "copy", "transform", "quickMakeCard", "updateAndCreatedAt"]);
+
+    controller.destroy();
+    expect(topLevelIds(menu)).toEqual(["copy", "transform", "quickMakeCard", "plugin", "updateAndCreatedAt"]);
+  });
+
+  it("places Plugins before and after a stable native data-id anchor", () => {
+    const menu = renderBlockMenu();
+    const controller = new ExpandedPluginMenuController();
+    controller.start(undefined, undefined, { mode: "before", anchorId: "quickMakeCard" });
+    expect(topLevelIds(menu)).toEqual(["copy", "transform", "plugin", "quickMakeCard", "updateAndCreatedAt"]);
+
+    controller.updatePlacement({ mode: "after", anchorId: "copy" });
+    expect(topLevelIds(menu)).toEqual(["copy", "plugin", "transform", "quickMakeCard", "updateAndCreatedAt"]);
+    controller.destroy();
+  });
+
+  it("preserves native order when the configured anchor is absent", () => {
+    const menu = renderBlockMenu();
+    const nativeOrder = topLevelIds(menu);
+    const controller = new ExpandedPluginMenuController();
+    controller.start(undefined, undefined, { mode: "before", anchorId: "not-installed" });
+    expect(topLevelIds(menu)).toEqual(nativeOrder);
+    controller.destroy();
+  });
+
+  it("discovers top-level native anchors by data-id", () => {
+    const anchorsDiscovered = vi.fn();
+    const menu = renderBlockMenu();
+    const controller = new ExpandedPluginMenuController(document, undefined, anchorsDiscovered);
+    controller.start();
+    expect(anchorsDiscovered).toHaveBeenCalled();
+    const anchors = anchorsDiscovered.mock.calls.at(-1)?.[0] ?? [];
+    expect(anchors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "copy", label: "复制" }),
+      expect.objectContaining({ id: "quickMakeCard", label: "快速制卡" }),
+    ]));
+    expect(anchors.some((anchor: { id: string }) => anchor.id === "plugin")).toBe(false);
+    controller.destroy();
+    menu.remove();
+  });
+
+  it("moves and restores the Plugins group separator without leaving an empty gap", () => {
+    const menu = renderBlockMenu();
+    const plugin = itemByLabel(menu, "插件");
+    plugin.before(createSeparator("separator_pluginTop"));
+    plugin.after(createSeparator("separator_pluginBottom"));
+    const nativeOrder = Array.from(menu.children).map((child) => (child as HTMLElement).dataset.id);
+    const controller = new ExpandedPluginMenuController();
+    controller.start(undefined, undefined, { mode: "top" });
+
+    expect((menu.firstElementChild as HTMLElement).dataset.id).toBe("plugin");
+    expect((menu.children[1] as HTMLElement).dataset.id).toBe("separator_pluginBottom");
+    expect(Array.from(menu.children).map((child) => (child as HTMLElement).dataset.id))
+      .toContain("separator_pluginTop");
+
+    controller.destroy();
+    expect(Array.from(menu.children).map((child) => (child as HTMLElement).dataset.id)).toEqual(nativeOrder);
+  });
+
+  it("places Plugins after an anchor's complete native group boundary", () => {
+    const menu = renderBlockMenu();
+    const copy = itemByLabel(menu, "复制");
+    copy.after(createSeparator("separator_copy"));
+    const plugin = itemByLabel(menu, "插件");
+    plugin.after(createSeparator("separator_pluginBottom"));
+    const controller = new ExpandedPluginMenuController();
+    controller.start(undefined, undefined, { mode: "after", anchorId: "copy" });
+
+    expect(Array.from(menu.children).slice(0, 4).map((child) => (child as HTMLElement).dataset.id))
+      .toEqual(["copy", "separator_copy", "plugin", "separator_pluginBottom"]);
+    controller.destroy();
+  });
+
   it("uses a complete side panel before adding a second row", () => {
     expect(chooseCompactPanelLayout([
       { layout: "side", otherColumns: 2, width: 660, height: 310 },
@@ -314,6 +408,8 @@ describe("expanded plugin menu", () => {
       settings: expect.arrayContaining([
         expect.objectContaining({ type: "textarea", key: "allowedEntries" }),
         expect.objectContaining({ type: "textarea", key: "discoveredEntries" }),
+        expect.objectContaining({ type: "textarea", key: "pluginMenuPlacement" }),
+        expect.objectContaining({ type: "textarea", key: "pluginMenuAnchors" }),
       ]),
     });
     const parsed = parseExpandedPluginMenuAllowedEntries(

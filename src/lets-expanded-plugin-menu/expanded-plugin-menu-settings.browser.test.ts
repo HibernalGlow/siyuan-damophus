@@ -1,5 +1,5 @@
 import { mount, tick, unmount } from "svelte";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ExpandedPluginMenuSettings from "./ExpandedPluginMenuSettings.svelte";
 
@@ -14,7 +14,13 @@ const labels = {
   allowExpansion: "允许展开", moduleEnabled: "模块已启用", moduleDisabled: "模块已停用",
   externalPlugin: "外部插件", textMatch: "文字匹配", moduleId: "模块", pluginId: "插件", declaration: "声明路径",
   advanced: "高级规则", advancedDescription: "外部插件与旧文字规则。", advancedPlaceholder: "plugin:other-plugin",
+  placementTitle: "插件入口位置", placementDescription: "不修改原生配置。", placementNative: "原生位置",
+  placementTop: "菜单顶部", placementBefore: "放在某项之前", placementAfter: "放在某项之后", placementAnchor: "菜单项",
 };
+const pluginMenuAnchors = JSON.stringify([
+  { id: "copy", label: "复制", lastSeen: 3 },
+  { id: "quickMakeCard", label: "快速制卡", lastSeen: 3 },
+]);
 
 afterEach(async () => {
   await Promise.all(mounted.map((component) => unmount(component)));
@@ -32,6 +38,7 @@ function render(changed = vi.fn(), entries: unknown = discoveredEntries) {
     props: {
       group: "插件菜单完全展开", title: "插件菜单完全展开", discoveredEntries: entries,
       moduleStates: { calloutTools: true }, allowedEntries: "转换为 Callout\nplugin:future-plugin", labels,
+      pluginMenuPlacement: '{"mode":"before","anchorId":"quickMakeCard"}', pluginMenuAnchors,
     },
     events: { changed },
   }));
@@ -39,6 +46,27 @@ function render(changed = vi.fn(), entries: unknown = discoveredEntries) {
 }
 
 describe("expanded plugin menu settings", () => {
+  it("renders dedicated placement controls with discovered native labels and IDs", async () => {
+    const { target } = render();
+    await tick();
+    expect(target.textContent).toContain("插件入口位置");
+    expect(target.querySelector('[aria-label="插件入口位置"]')?.textContent).toContain("放在某项之前");
+    expect(target.querySelector('[aria-label="菜单项"]')?.textContent).toContain("快速制卡");
+  });
+
+  it("persists placement changes independently from the expansion whitelist", async () => {
+    const { target, changed } = render();
+    await tick();
+    await userEvent.click(target.querySelector<HTMLElement>('[aria-label="插件入口位置"]')!);
+    await expect.poll(() => document.querySelectorAll('[data-slot="select-item"]').length).toBeGreaterThan(0);
+    await userEvent.click(Array.from(document.querySelectorAll<HTMLElement>('[data-slot="select-item"]'))
+      .find((item) => item.textContent?.includes("菜单顶部"))!);
+    await tick();
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({ detail: {
+      group: "插件菜单完全展开", key: "pluginMenuPlacement", value: '{"mode":"top"}',
+    } }));
+  });
+
   it("renders only automatically identified entries with dedicated identity details", async () => {
     await page.viewport(900, 760);
     const { target } = render();

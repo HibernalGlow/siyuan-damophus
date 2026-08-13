@@ -20,6 +20,15 @@ export const en = {
   "lets-expanded-plugin-menu.advancedRules": "Advanced rules",
   "lets-expanded-plugin-menu.advancedRulesDescription": "External plugin IDs, declaration paths, and legacy exact-text rules.",
   "lets-expanded-plugin-menu.advancedRulesPlaceholder": "plugin:other-plugin\ndeclaration:module/path\nExact menu text",
+  "lets-expanded-plugin-menu.placementTitle": "Plugin entry position",
+  "lets-expanded-plugin-menu.placementDescription": "Move only the native Plugins entry after the menu is built. Native entry visibility and ordering settings are not modified.",
+  "lets-expanded-plugin-menu.placementNative": "Native position",
+  "lets-expanded-plugin-menu.placementTop": "At menu top",
+  "lets-expanded-plugin-menu.placementBefore": "Before a menu item",
+  "lets-expanded-plugin-menu.placementAfter": "After a menu item",
+  "lets-expanded-plugin-menu.placementAnchor": "Menu item",
+  "lets-expanded-plugin-menu.discoveredAnchorsTitle": "Discovered native menu items",
+  "lets-expanded-plugin-menu.discoveredAnchorsDescription": "Internal cache of stable native menu IDs used by the placement selector.",
 };
 
 export const zhCN: typeof en = {
@@ -44,4 +53,13 @@ export const zhCN: typeof en = {
   "lets-expanded-plugin-menu.advancedRules": "高级规则",
   "lets-expanded-plugin-menu.advancedRulesDescription": "用于外部插件 ID、声明路径和兼容旧配置的精确文字规则。",
   "lets-expanded-plugin-menu.advancedRulesPlaceholder": "plugin:其他插件包名\ndeclaration:模块/声明路径\n精确菜单文字",
+  "lets-expanded-plugin-menu.placementTitle": "插件入口位置",
+  "lets-expanded-plugin-menu.placementDescription": "仅在菜单生成后移动原生“插件”入口，不修改思源原生的入口显示和排序配置。",
+  "lets-expanded-plugin-menu.placementNative": "原生位置",
+  "lets-expanded-plugin-menu.placementTop": "菜单顶部",
+  "lets-expanded-plugin-menu.placementBefore": "放在某项之前",
+  "lets-expanded-plugin-menu.placementAfter": "放在某项之后",
+  "lets-expanded-plugin-menu.placementAnchor": "菜单项",
+  "lets-expanded-plugin-menu.discoveredAnchorsTitle": "已发现的原生菜单项",
+  "lets-expanded-plugin-menu.discoveredAnchorsDescription": "位置选择器使用的原生菜单稳定 ID 内部缓存。",
 };

@@ -1,5 +1,6 @@
 import type { PluginMetadata } from "@/types/plugin";
 import { DEFAULT_EXPANDED_PLUGIN_MENU_ALLOWED_ENTRIES } from "./expanded-plugin-menu";
+import { DEFAULT_PLUGIN_MENU_PLACEMENT } from "./settings-model";
 
 export const pluginMetadata: PluginMetadata = {
   name: "expandedPluginMenu",
@@ -23,6 +24,20 @@ export const pluginMetadata: PluginMetadata = {
       title: "lets-expanded-plugin-menu.discoveredEntriesTitle",
       description: "lets-expanded-plugin-menu.discoveredEntriesDescription",
       key: "discoveredEntries",
+      value: "[]",
+    },
+    {
+      type: "textarea",
+      title: "lets-expanded-plugin-menu.placementTitle",
+      description: "lets-expanded-plugin-menu.placementDescription",
+      key: "pluginMenuPlacement",
+      value: DEFAULT_PLUGIN_MENU_PLACEMENT,
+    },
+    {
+      type: "textarea",
+      title: "lets-expanded-plugin-menu.discoveredAnchorsTitle",
+      description: "lets-expanded-plugin-menu.discoveredAnchorsDescription",
+      key: "pluginMenuAnchors",
       value: "[]",
     },
   ],

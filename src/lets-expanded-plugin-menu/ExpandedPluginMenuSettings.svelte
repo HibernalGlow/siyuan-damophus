@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
   import { ChevronDown, Plug, Puzzle } from "lucide-svelte";
+  import * as Select from "@/components/ui/select";
   import { Switch } from "@/components/ui/switch";
   import { Textarea } from "@/components/ui/textarea";
   import { parseDiscoveredPluginMenuEntries, type DiscoveredPluginMenuEntry } from "./discovered-entries";
@@ -9,11 +10,19 @@
     selectedDiscoveredEntryKeys,
     serializeExpandedMenuSettings,
   } from "./settings-model";
+  import {
+    parseDiscoveredPluginMenuAnchors,
+    parsePluginMenuPlacement,
+    serializePluginMenuPlacement,
+    type PluginMenuPlacement,
+  } from "./settings-model";
 
   export let group: string;
   export let title: string;
   export let discoveredEntries: unknown = "[]";
   export let allowedEntries = "";
+  export let pluginMenuPlacement: unknown = "{\"mode\":\"native\"}";
+  export let pluginMenuAnchors: unknown = "[]";
   export let moduleStates: Record<string, boolean> = {};
   export let labels: {
     listTitle: string;
@@ -31,12 +40,20 @@
     advanced: string;
     advancedDescription: string;
     advancedPlaceholder: string;
+    placementTitle: string;
+    placementDescription: string;
+    placementNative: string;
+    placementTop: string;
+    placementBefore: string;
+    placementAfter: string;
+    placementAnchor: string;
   };
 
   const dispatch = createEventDispatcher();
   let syncedState = "";
   let selectedKeys = new Set<string>();
   let advancedRules = "";
+  let placement: PluginMenuPlacement = parsePluginMenuPlacement(pluginMenuPlacement);
   $: entries = parseDiscoveredPluginMenuEntries(discoveredEntries)
     .filter((entry) => entry.source === "identity")
     .sort((left, right) => right.lastSeen - left.lastSeen || left.label.localeCompare(right.label));
@@ -46,6 +63,10 @@
     selectedKeys = selectedDiscoveredEntryKeys(allowedEntries, entries);
     advancedRules = extractAdvancedExpandedMenuRules(allowedEntries, entries);
   }
+  // Preserve SiYuan's observed menu order so the selector mirrors the real
+  // menu instead of alphabetically scrambling native groups.
+  $: anchors = parseDiscoveredPluginMenuAnchors(pluginMenuAnchors);
+  $: placement = parsePluginMenuPlacement(pluginMenuPlacement);
 
   function persist(nextSelectedKeys = selectedKeys, nextAdvancedRules = advancedRules) {
     const value = serializeExpandedMenuSettings(entries, nextSelectedKeys, nextAdvancedRules);
@@ -65,6 +86,30 @@
     if (entry.moduleId) return moduleStates[entry.moduleId] ? labels.moduleEnabled : labels.moduleDisabled;
     return entry.pluginId ? labels.externalPlugin : labels.textMatch;
   }
+
+  function setPlacement(next: PluginMenuPlacement) {
+    placement = next;
+    dispatch("changed", {
+      group,
+      key: "pluginMenuPlacement",
+      value: serializePluginMenuPlacement(next),
+    });
+  }
+
+  function placementMode(): string {
+    return placement.mode === "native" || placement.mode === "top" ? placement.mode : placement.mode;
+  }
+
+  function selectPlacementMode(mode: string) {
+    if (mode === "native") setPlacement({ mode: "native" });
+    else if (mode === "top") setPlacement({ mode: "top" });
+    else if (mode === "before" || mode === "after") {
+      const anchorId = placement.mode === "before" || placement.mode === "after"
+        ? placement.anchorId
+        : anchors[0]?.id;
+      if (anchorId) setPlacement({ mode, anchorId });
+    }
+  }
 </script>
 
 <section class="expanded-menu-settings" data-expanded-plugin-menu-settings>
@@ -73,6 +118,39 @@
   </header>
 
   <div class="expanded-menu-settings__surface">
+    <div class="expanded-menu-settings__placement">
+      <div>
+        <div class="text-sm font-medium">{labels.placementTitle}</div>
+        <p class="m-0 mt-1 text-xs leading-5 text-muted-foreground">{labels.placementDescription}</p>
+      </div>
+      <div class="expanded-menu-settings__placement-grid">
+        <Select.Root type="single" value={placementMode()} onValueChange={selectPlacementMode}>
+          <Select.Trigger class="w-full" aria-label={labels.placementTitle}>
+            {placement.mode === "native" ? labels.placementNative : placement.mode === "top" ? labels.placementTop : placement.mode === "before" ? labels.placementBefore : labels.placementAfter}
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="native" label={labels.placementNative} />
+            <Select.Item value="top" label={labels.placementTop} />
+            <Select.Item value="before" label={labels.placementBefore} />
+            <Select.Item value="after" label={labels.placementAfter} />
+          </Select.Content>
+        </Select.Root>
+        {#if placement.mode === "before" || placement.mode === "after"}
+          <Select.Root type="single" value={placement.anchorId} onValueChange={(anchorId) => setPlacement({ mode: placement.mode, anchorId })}>
+            <Select.Trigger class="w-full" aria-label={labels.placementAnchor}>{labels.placementAnchor}: {anchors.find((anchor) => anchor.id === placement.anchorId)?.label ?? placement.anchorId}</Select.Trigger>
+            <Select.Content>
+              {#each anchors as anchor (anchor.id)}
+                <Select.Item value={anchor.id} label={`${anchor.label} (${anchor.id})`} />
+              {/each}
+            </Select.Content>
+          </Select.Root>
+        {/if}
+      </div>
+      {#if anchors.length === 0}
+        <p class="m-0 text-xs text-muted-foreground">{labels.emptyHint}</p>
+      {/if}
+    </div>
+
     <div class="expanded-menu-settings__intro">
       <div class="text-sm font-medium">{labels.listTitle}</div>
       <p class="m-0 mt-1 text-xs leading-5 text-muted-foreground">{labels.listDescription}</p>
@@ -133,6 +211,8 @@
   .expanded-menu-settings { display: flex; min-width: 0; flex-direction: column; gap: 20px; }
   .expanded-menu-settings__header { padding-bottom: 16px; border-bottom: 1px solid var(--border); }
   .expanded-menu-settings__surface { overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--card) 72%, transparent); }
+  .expanded-menu-settings__placement { display: grid; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .expanded-menu-settings__placement-grid { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr); gap: 10px; }
   .expanded-menu-settings__intro { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
   .expanded-menu-settings__entries { display: flex; flex-direction: column; }
   .expanded-menu-settings__entry { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; min-height: 68px; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
@@ -149,6 +229,7 @@
   .expanded-menu-settings__advanced summary::-webkit-details-marker { display: none; }
   .expanded-menu-settings__advanced[open] summary :global(svg) { transform: rotate(180deg); }
   @media (max-width: 640px) {
+    .expanded-menu-settings__placement-grid { grid-template-columns: 1fr; }
     .expanded-menu-settings__entry { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 9px; padding-inline: 12px; }
     .expanded-menu-settings__icon { width: 28px; height: 28px; }
   }

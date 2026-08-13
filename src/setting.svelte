@@ -257,6 +257,13 @@
       advanced: t("lets-expanded-plugin-menu.advancedRules", "Advanced rules"),
       advancedDescription: t("lets-expanded-plugin-menu.advancedRulesDescription", "External plugin IDs, declaration paths, and legacy exact-text rules."),
       advancedPlaceholder: t("lets-expanded-plugin-menu.advancedRulesPlaceholder", "plugin:other-plugin\ndeclaration:module/path\nExact menu text"),
+      placementTitle: t("lets-expanded-plugin-menu.placementTitle", "Plugin entry position"),
+      placementDescription: t("lets-expanded-plugin-menu.placementDescription", "Move only the native Plugins entry after the menu is built. The native entryVisibility configuration is unchanged."),
+      placementNative: t("lets-expanded-plugin-menu.placementNative", "Native position"),
+      placementTop: t("lets-expanded-plugin-menu.placementTop", "At menu top"),
+      placementBefore: t("lets-expanded-plugin-menu.placementBefore", "Before a menu item"),
+      placementAfter: t("lets-expanded-plugin-menu.placementAfter", "After a menu item"),
+      placementAnchor: t("lets-expanded-plugin-menu.placementAnchor", "Menu item"),
     };
   }
 
@@ -769,6 +776,8 @@
           title={getGroupLabel(focusGroup)}
           discoveredEntries={getFocusedSettingValue("discoveredEntries", "[]")}
           allowedEntries={getFocusedSettingValue("allowedEntries", "")}
+          pluginMenuPlacement={getFocusedSettingValue("pluginMenuPlacement", "{\"mode\":\"native\"}")}
+          pluginMenuAnchors={getFocusedSettingValue("pluginMenuAnchors", "[]")}
           moduleStates={expandedMenuModuleStates}
           labels={expandedPluginMenuSettingsLabels()}
           on:changed={onChanged}

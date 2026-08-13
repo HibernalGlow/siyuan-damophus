@@ -9,6 +9,13 @@ import {
   parseDiscoveredPluginMenuEntries,
   type DiscoveredPluginMenuEntry,
 } from "./discovered-entries";
+import {
+  mergeDiscoveredPluginMenuAnchors,
+  parseDiscoveredPluginMenuAnchors,
+  parsePluginMenuPlacement,
+  type DiscoveredPluginMenuAnchor,
+  type PluginMenuPlacement,
+} from "./settings-model";
 
 export const EXPANDED_PLUGIN_MENU_STYLE_ID = "damophus-expanded-plugin-menu-style";
 export const EXPANDED_PLUGIN_MENU_ATTRIBUTE = "data-damophus-expanded-plugin-menu";
@@ -179,6 +186,14 @@ interface EnhancedMenu {
   removeInteractionListeners: () => void;
 }
 
+interface PlacedMenuItem {
+  item: HTMLElement;
+  parent: HTMLElement;
+  itemPlaceholder: Comment;
+  nextSeparator?: HTMLElement;
+  nextSeparatorPlaceholder?: Comment;
+}
+
 export interface ExpandedPluginMenuLayoutMeasurement {
   layout: "side" | "below";
   otherColumns: number;
@@ -288,8 +303,23 @@ function normalizedLabel(item: HTMLElement): string {
 
 function isPluginBranch(item: HTMLElement): boolean {
   if (!directSubmenu(item)) return false;
+  if (item.dataset.id === "plugin") return true;
   const label = normalizedLabel(item).toLocaleLowerCase();
   return label === "插件" || label === "plugins" || label === "plugin";
+}
+
+function directMenuItems(parent: HTMLElement): HTMLElement[] {
+  return Array.from(parent.children).filter(
+    (child): child is HTMLElement => child instanceof HTMLElement && child.matches(ITEM_SELECTOR),
+  );
+}
+
+function isMenuSeparator(node: ChildNode | null): node is HTMLElement {
+  return node instanceof HTMLElement && node.classList.contains("b3-menu__separator");
+}
+
+function placementSignature(placement: PluginMenuPlacement): string {
+  return JSON.stringify(placement);
 }
 
 function collectLeafCommands(
@@ -544,20 +574,28 @@ export class ExpandedPluginMenuController {
   private running = false;
   private allowedEntries = parseExpandedPluginMenuAllowedEntries("");
   private discoveredEntries: DiscoveredPluginMenuEntry[] = [];
+  private discoveredAnchors: DiscoveredPluginMenuAnchor[] = [];
+  private placement: PluginMenuPlacement = { mode: "native" };
   private readonly enhancedMenus = new Map<HTMLElement, EnhancedMenu>();
+  private readonly placedMenus = new Map<HTMLElement, PlacedMenuItem>();
 
   constructor(
     private readonly targetDocument: Document = document,
     private readonly onEntriesDiscovered?: (entries: readonly DiscoveredPluginMenuEntry[]) => void,
+    private readonly onAnchorsDiscovered?: (anchors: readonly DiscoveredPluginMenuAnchor[]) => void,
   ) {}
 
   start(
     allowedEntries: unknown = DEFAULT_EXPANDED_PLUGIN_MENU_ALLOWED_ENTRIES,
     discoveredEntries: unknown = [],
+    placement: unknown = { mode: "native" },
+    discoveredAnchors: unknown = [],
   ): void {
     this.running = true;
     this.allowedEntries = parseExpandedPluginMenuAllowedEntries(allowedEntries);
     this.discoveredEntries = parseDiscoveredPluginMenuEntries(discoveredEntries);
+    this.placement = parsePluginMenuPlacement(placement);
+    this.discoveredAnchors = parseDiscoveredPluginMenuAnchors(discoveredAnchors);
     this.mountStyle();
     this.enhanceMenus(this.targetDocument);
     if (this.observer) return;
@@ -588,8 +626,22 @@ export class ExpandedPluginMenuController {
     this.discoveredEntries = parseDiscoveredPluginMenuEntries(value);
   }
 
+  updateDiscoveredAnchors(value: unknown): void {
+    this.discoveredAnchors = parseDiscoveredPluginMenuAnchors(value);
+  }
+
+  updatePlacement(value: unknown): void {
+    const placement = parsePluginMenuPlacement(value);
+    if (placementSignature(placement) === placementSignature(this.placement)) return;
+    for (const placed of [...this.placedMenus.values()]) this.restorePlacement(placed);
+    this.placedMenus.clear();
+    this.placement = placement;
+    this.enhanceMenus(this.targetDocument);
+  }
+
   refresh(): void {
     this.pruneDisconnectedMenus();
+    this.enhanceMenus(this.targetDocument);
     for (const enhanced of this.enhancedMenus.values()) positionPanel(enhanced);
   }
 
@@ -600,6 +652,8 @@ export class ExpandedPluginMenuController {
     this.observer = undefined;
     for (const enhanced of this.enhancedMenus.values()) this.restoreMenu(enhanced);
     this.enhancedMenus.clear();
+    for (const placed of [...this.placedMenus.values()]) this.restorePlacement(placed);
+    this.placedMenus.clear();
     this.targetDocument.getElementById(EXPANDED_PLUGIN_MENU_STYLE_ID)?.remove();
   }
 
@@ -623,6 +677,9 @@ export class ExpandedPluginMenuController {
         this.enhancedMenus.delete(item);
       }
     }
+    for (const [item] of this.placedMenus) {
+      if (!item.isConnected) this.placedMenus.delete(item);
+    }
   }
 
   private enhanceMenus(root: ParentNode): void {
@@ -631,10 +688,13 @@ export class ExpandedPluginMenuController {
     if (root instanceof HTMLElement && root.matches(ITEM_SELECTOR)) candidates.push(root);
     root.querySelectorAll<HTMLElement>(ITEM_SELECTOR).forEach((item) => candidates.push(item));
     for (const rootItem of candidates) {
-      if (!isPluginBranch(rootItem) || this.enhancedMenus.has(rootItem)) continue;
+      if (!isPluginBranch(rootItem)) continue;
       const rootMenu = rootItem.closest<HTMLElement>(MENU_SELECTOR);
       const submenu = directSubmenu(rootItem);
       if (!rootMenu || !submenu || rootMenu.closest(".protyle-hint")) continue;
+      this.discoverAnchors(rootItem);
+      this.applyPlacement(rootItem);
+      if (this.enhancedMenus.has(rootItem)) continue;
       this.discoverEntries(submenu);
       if (!hasAllowedEntries(this.allowedEntries)) continue;
       const flattened = flattenCommands(submenu, this.allowedEntries);
@@ -654,6 +714,79 @@ export class ExpandedPluginMenuController {
       positionPanel(enhanced);
       enhanced.removeInteractionListeners = installInteractionHandling(enhanced);
       setPanelVisible(enhanced, rootItem.matches(":hover") || rootItem.classList.contains("b3-menu__item--show"));
+    }
+  }
+
+  private discoverAnchors(rootItem: HTMLElement): void {
+    const parent = rootItem.parentElement;
+    if (!parent) return;
+    const now = Date.now();
+    const observed = directMenuItems(parent).flatMap((item) => {
+      const id = item.dataset.id?.trim();
+      const label = normalizedLabel(item);
+      return id && id !== "plugin" && label ? [{ id, label, lastSeen: now }] : [];
+    });
+    const merged = mergeDiscoveredPluginMenuAnchors(this.discoveredAnchors, observed);
+    if (!merged.changed) return;
+    this.discoveredAnchors = merged.anchors;
+    this.onAnchorsDiscovered?.(this.discoveredAnchors);
+  }
+
+  private applyPlacement(rootItem: HTMLElement): void {
+    if (this.placement.mode === "native" || this.placedMenus.has(rootItem)) return;
+    const parent = rootItem.parentElement;
+    if (!parent) return;
+    let reference: HTMLElement | null = null;
+    let insertAfter = false;
+    if (this.placement.mode === "top") {
+      reference = directMenuItems(parent).find((item) => item !== rootItem) ?? null;
+    } else {
+      reference = directMenuItems(parent).find(
+        (item) => item !== rootItem && item.dataset.id === this.placement.anchorId,
+      ) ?? null;
+      insertAfter = this.placement.mode === "after";
+    }
+    if (!reference) return;
+    const referenceBoundary = insertAfter && isMenuSeparator(reference.nextSibling)
+      ? reference.nextSibling.nextSibling
+      : reference.nextSibling;
+    const target = insertAfter ? referenceBoundary : reference;
+    if (target === rootItem || (!target && rootItem === parent.lastChild)) return;
+    const nextSeparator = isMenuSeparator(rootItem.nextSibling) ? rootItem.nextSibling : undefined;
+    const itemPlaceholder = parent.ownerDocument.createComment("damophus-plugin-menu-placement");
+    const nextSeparatorPlaceholder = nextSeparator
+      ? parent.ownerDocument.createComment("damophus-plugin-menu-placement-separator")
+      : undefined;
+    rootItem.replaceWith(itemPlaceholder);
+    if (nextSeparatorPlaceholder) nextSeparator!.replaceWith(nextSeparatorPlaceholder);
+    const placed: PlacedMenuItem = {
+      item: rootItem,
+      parent,
+      itemPlaceholder,
+      nextSeparator,
+      nextSeparatorPlaceholder,
+    };
+    const resolvedTarget = target === nextSeparator
+        ? nextSeparatorPlaceholder ?? itemPlaceholder
+        : target;
+    parent.insertBefore(rootItem, resolvedTarget);
+    if (nextSeparator) rootItem.after(nextSeparator);
+    this.placedMenus.set(rootItem, placed);
+  }
+
+  private restorePlacement(placed: PlacedMenuItem): void {
+    const {
+      item,
+      parent,
+      itemPlaceholder,
+      nextSeparator,
+      nextSeparatorPlaceholder,
+    } = placed;
+    if (!item.isConnected || !parent.isConnected) return;
+    if (itemPlaceholder.parentNode === parent) itemPlaceholder.replaceWith(item);
+    else parent.append(item);
+    if (nextSeparator && nextSeparatorPlaceholder?.parentNode === parent) {
+      nextSeparatorPlaceholder.replaceWith(nextSeparator);
     }
   }
 
