@@ -329,14 +329,17 @@ export class CalloutSmartInsert {
       return false;
     }
 
-    const calloutId = wrapsCurrent ? this.runtime.newNodeId() : blockId;
+    const calloutId = createsEmptyBody ? blockId : this.runtime.newNodeId();
     const callout = createCalloutShell(protyle, value, type, calloutId);
     const calloutContent = callout?.querySelector<HTMLElement>(":scope > .callout-content");
     if (!callout || !calloutContent) return false;
-    const emptyParagraph = createsEmptyBody
-      ? prepareEmptyParagraph(simulated, this.runtime.newNodeId())
+    const emptyParagraph = !wrapsCurrent
+      ? prepareEmptyParagraph(
+        simulated,
+        createsEmptyBody ? this.runtime.newNodeId() : blockId,
+      )
       : undefined;
-    if (createsEmptyBody && !emptyParagraph) return false;
+    if (!wrapsCurrent && !emptyParagraph) return false;
 
     const originalBlockHtml = block.outerHTML;
     queryRange.deleteContents();
@@ -386,19 +389,30 @@ export class CalloutSmartInsert {
     }
 
     const target = nextBlock as HTMLElement;
+    if (!emptyParagraph) return false;
     const shellHtml = callout.outerHTML;
     block.replaceWith(callout);
-    calloutContent.append(target);
+    calloutContent.append(emptyParagraph, target);
     const doOperations: IOperation[] = [
-      { action: "update", id: blockId, data: shellHtml },
-      { action: "move", id: targetId, parentID: blockId },
+      {
+        action: "insert",
+        id: calloutId,
+        data: shellHtml,
+        nextID: blockId,
+        parentID: outerParentId,
+      },
+      { action: "update", id: blockId, data: emptyParagraph.outerHTML },
+      { action: "move", id: blockId, parentID: calloutId },
+      { action: "move", id: targetId, previousID: blockId, parentID: calloutId },
     ];
     const undoOperations: IOperation[] = [
-      { action: "move", id: targetId, previousID: blockId, parentID: outerParentId },
+      { action: "move", id: blockId, previousID: calloutId, parentID: outerParentId },
       { action: "update", id: blockId, data: originalBlockHtml },
+      { action: "move", id: targetId, previousID: blockId, parentID: outerParentId },
+      { action: "delete", id: calloutId },
     ];
     transaction.call(instance, doOperations, undoOperations);
-    focusStart(target);
+    focusStart(emptyParagraph);
     return true;
   }
 }

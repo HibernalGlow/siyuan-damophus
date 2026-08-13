@@ -156,7 +156,7 @@ describe("smart Callout insertion", () => {
   it.each([
     ["paragraph", '<div data-node-id="target" data-type="NodeParagraph" contenteditable="true">Body</div>'],
     ["heading", '<div data-node-id="target" data-type="NodeHeading" contenteditable="true">Heading</div>'],
-  ])("moves the following %s into the Callout", (_label, target) => {
+  ])("keeps an empty body before absorbing the following %s", (_label, target) => {
     const editor = createEditor(
       `<div data-node-id="slash" data-type="NodeParagraph" contenteditable="true">/callout<div class="protyle-attr" contenteditable="false"></div></div>${target}`,
     );
@@ -165,16 +165,41 @@ describe("smart Callout insertion", () => {
     runCallout(editor);
 
     const callout = editor.root.firstElementChild as HTMLElement;
-    expect(callout.dataset.nodeId).toBe("slash");
+    expect(callout.dataset.nodeId).toBe("new-callout-1");
     expect(callout.dataset.type).toBe("NodeCallout");
     expect(callout.dataset.subtype).toBe("NOTE");
+    const emptyParagraph = callout.querySelector<HTMLElement>(
+      ":scope > .callout-content > [data-node-id=slash]",
+    );
+    expect(emptyParagraph?.querySelector('[contenteditable="true"] > wbr')).not.toBeNull();
+    expect(document.getSelection()?.anchorNode).toBe(emptyParagraph?.querySelector('[contenteditable="true"]'));
     expect(callout.querySelector(":scope > .callout-content > [data-node-id=target]")).not.toBeNull();
     expect(editor.originalFill).not.toHaveBeenCalled();
     expect(editor.transaction).toHaveBeenCalledTimes(1);
 
     const [doOperations, undoOperations] = editor.transaction.mock.calls[0] as [IOperation[], IOperation[]];
-    expect(doOperations.map((operation) => operation.action)).toEqual(["update", "move"]);
-    expect(undoOperations.map((operation) => operation.action)).toEqual(["move", "update"]);
+    expect(doOperations).toEqual([
+      expect.objectContaining({
+        action: "insert",
+        id: "new-callout-1",
+        nextID: "slash",
+        parentID: "document-root",
+      }),
+      expect.objectContaining({ action: "update", id: "slash" }),
+      expect.objectContaining({ action: "move", id: "slash", parentID: "new-callout-1" }),
+      expect.objectContaining({
+        action: "move",
+        id: "target",
+        previousID: "slash",
+        parentID: "new-callout-1",
+      }),
+    ]);
+    expect(undoOperations.map((operation) => operation.action)).toEqual([
+      "move",
+      "update",
+      "move",
+      "delete",
+    ]);
     applyOperations(editor.root, undoOperations);
     expect(editor.root.innerHTML).toBe(before);
   });
@@ -210,8 +235,11 @@ describe("smart Callout insertion", () => {
     clickCallout(editor);
 
     const callout = editor.root.firstElementChild as HTMLElement;
-    expect(callout.dataset.nodeId).toBe("slash");
+    expect(callout.dataset.nodeId).toBe("new-callout-1");
     expect(callout.textContent).not.toContain("/");
+    expect(callout.querySelector(
+      ':scope > .callout-content > [data-node-id=slash] [contenteditable="true"] > wbr',
+    )).not.toBeNull();
     expect(callout.querySelector(":scope > .callout-content > [data-node-id=target]")).not.toBeNull();
     expect(editor.originalFill).not.toHaveBeenCalled();
     expect(editor.transaction).toHaveBeenCalledTimes(1);
@@ -230,8 +258,11 @@ describe("smart Callout insertion", () => {
     clickCallout(editor);
 
     const callout = editor.root.firstElementChild as HTMLElement;
-    expect(callout.dataset.nodeId).toBe("slash");
+    expect(callout.dataset.nodeId).toBe("new-callout-1");
     expect(callout.textContent).not.toContain("/");
+    expect(callout.querySelector(
+      ':scope > .callout-content > [data-node-id=slash] [contenteditable="true"] > wbr',
+    )).not.toBeNull();
     expect(callout.querySelector(":scope > .callout-content > [data-node-id=target]")).not.toBeNull();
     expect(editor.originalFill).not.toHaveBeenCalled();
     expect(editor.transaction).toHaveBeenCalledTimes(1);
@@ -252,8 +283,11 @@ describe("smart Callout insertion", () => {
     clickCallout(editor);
 
     const callout = editor.root.firstElementChild as HTMLElement;
-    expect(callout.dataset.nodeId).toBe("slash");
+    expect(callout.dataset.nodeId).toBe("new-callout-1");
     expect(callout.textContent).not.toContain("/");
+    expect(callout.querySelector(
+      ':scope > .callout-content > [data-node-id=slash] [contenteditable="true"] > wbr',
+    )).not.toBeNull();
     expect(callout.querySelector(":scope > .callout-content > [data-node-id=target]")).not.toBeNull();
     expect(editor.originalFill).not.toHaveBeenCalled();
     expect(editor.transaction).toHaveBeenCalledTimes(1);
