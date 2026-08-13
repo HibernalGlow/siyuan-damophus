@@ -28,6 +28,9 @@ const modules: ManagedEntryModule[] = [
       command: { type: "checkbox", key: "entryCommand", title: "Command", value: true },
       tab: { type: "checkbox", key: "entryTab", title: "Tab", value: true },
     },
+    leafSwitches: [
+      { type: "checkbox", key: "hideSourceAnswers", title: "Hide source answers", value: true, menu: true },
+    ],
   },
   {
     pluginName: "agentSurface",
@@ -40,6 +43,7 @@ const modules: ManagedEntryModule[] = [
       menu: { type: "checkbox", key: "entryMenu", title: "Menu", value: true },
       tab: { type: "checkbox", key: "entryTab", title: "Tab", value: false },
     },
+    leafSwitches: [],
   },
 ];
 
@@ -50,6 +54,8 @@ const labels = {
   contextMenu: "上下文菜单",
   command: "命令",
   tab: "新标签页",
+  quickSwitches: "快捷开关",
+  showModuleDetailSwitches: "在模块内部显示启用开关",
   disabled: "模块已停用",
   unavailable: "未提供",
 };
@@ -67,6 +73,7 @@ function render(mobile: boolean, changed = vi.fn()) {
       translate: (key: string) => ({
         "lets-skill-manager.displayName": "技能管理",
         "lets-agent-surface.displayName": "智能体",
+        "Hide source answers": "隐藏原文答案",
       })[key] ?? key,
     },
     events: { changed },
@@ -83,7 +90,7 @@ describe("entry management settings", () => {
     expect(target.querySelector("svg.lucide-brain")).not.toBeNull();
     expect(target.textContent).toContain("技能管理");
     expect(target.textContent).toContain("模块已停用");
-    expect(target.querySelectorAll('[aria-label="未提供"]')).toHaveLength(4);
+    expect(target.querySelectorAll('[aria-label="未提供"]')).toHaveLength(0);
     const desktopDock = target.querySelector<HTMLButtonElement>('[role="switch"][aria-label="技能管理: 桌面侧栏"]');
     if (!desktopDock) throw new Error("Missing desktop Dock switch");
     expect(desktopDock.getBoundingClientRect().width).toBeGreaterThanOrEqual(24);
@@ -113,6 +120,21 @@ describe("entry management settings", () => {
         value: false,
       },
     }));
+
+    const leafSwitch = target.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="技能管理: 隐藏原文答案"]',
+    );
+    if (!leafSwitch) throw new Error("Missing declaration leaf switch");
+    expect(leafSwitch.getBoundingClientRect().height).toBeLessThanOrEqual(24);
+    leafSwitch.click();
+    await tick();
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: {
+        group: "lets-skill-manager.displayName",
+        key: "hideSourceAnswers",
+        value: false,
+      },
+    }));
   });
 
   it("uses a stacked layout without horizontal overflow on mobile", async () => {
@@ -136,5 +158,28 @@ describe("entry management settings", () => {
         value: false,
       },
     }));
+  });
+
+  it("updates the module-detail switch visibility preference", async () => {
+    await page.viewport(1000, 720);
+    const target = document.createElement("div");
+    target.className = "damophus-theme-root";
+    document.body.appendChild(target);
+    const changed = vi.fn();
+    mounted.push(mount(EntryManagementSettings, {
+      target,
+      props: { modules, labels, showModuleDetailSwitches: false },
+      events: { moduleDetailSwitchesChanged: changed },
+    }));
+    await tick();
+
+    const control = target.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="在模块内部显示启用开关"]',
+    );
+    if (!control) throw new Error("Missing module-detail visibility switch");
+    expect(control.dataset.state).toBe("unchecked");
+    control.click();
+    await tick();
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({ detail: true }));
   });
 });

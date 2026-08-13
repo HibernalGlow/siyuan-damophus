@@ -61,6 +61,7 @@ describe("module settings model", () => {
           contextMenu: expect.objectContaining({ key: "entryContextMenu", value: false }),
           tab: expect.objectContaining({ key: "entryTab", value: false }),
         },
+        leafSwitches: [expect.objectContaining({ key: "nested", value: true })],
       }),
     ]);
   });

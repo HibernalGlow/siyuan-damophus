@@ -2,7 +2,7 @@ import type { PluginIconName } from "./plugin-icons";
 import { resolvePluginIconName } from "./plugin-icons";
 import type { ConfigurableEntrySurface } from "./plugin-entry-settings";
 import type { PluginMetadata, PluginSettingItem } from "@/types/plugin";
-import { collectPluginSettings } from "./plugin-declarations";
+import { collectPluginDeclarationSettings, collectPluginSettings } from "./plugin-declarations";
 
 export const MODULE_ENABLED_SETTING_KEY = "enabled";
 
@@ -26,6 +26,7 @@ export interface ManagedEntryModule {
   icon: PluginIconName;
   enabled: boolean;
   surfaces: Partial<Record<ConfigurableEntrySurface, ResolvedPluginSettingItem>>;
+  leafSwitches: ResolvedPluginSettingItem[];
 }
 
 export function buildModuleSettings(
@@ -61,6 +62,12 @@ export function buildModuleSettings(
     const managedEntrySettings = resolvedSettings.filter(
       (item) => item.entryManagement === "central" && item.entrySurface,
     );
+    const leafSwitches = collectPluginDeclarationSettings(pluginMeta)
+      .map((item) => ({
+        ...item,
+        value: readSetting(pluginMeta.name, item.key, item.value),
+      }))
+      .filter((item) => item.type === "checkbox" && item.menu === true);
 
     groups[pluginMeta.displayName] = [
       {
@@ -74,7 +81,7 @@ export function buildModuleSettings(
       ...resolvedSettings.filter((item) => item.entryManagement !== "central"),
     ];
 
-    if (managedEntrySettings.length > 0) {
+    if (managedEntrySettings.length > 0 || leafSwitches.length > 0) {
       entries.push({
         pluginName: pluginMeta.name,
         group: pluginMeta.displayName,
@@ -83,6 +90,7 @@ export function buildModuleSettings(
         icon,
         enabled,
         surfaces: Object.fromEntries(managedEntrySettings.map((item) => [item.entrySurface, item])),
+        leafSwitches,
       });
     }
   }

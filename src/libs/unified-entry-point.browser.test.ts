@@ -140,4 +140,5 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     window.removeEventListener("click", nativeDockClick);
     replacement.remove();
   });
+
 });

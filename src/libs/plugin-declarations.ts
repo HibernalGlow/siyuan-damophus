@@ -5,6 +5,7 @@ import type {
   PluginSettingItem,
 } from "@/types/plugin";
 import { bindMenuIdentity } from "./menu-identity";
+import { resolveSiyuanPluginIcon } from "./plugin-icons";
 
 export interface ResolvedPluginDeclaration extends PluginDeclaration {
   path: string[];
@@ -39,6 +40,18 @@ export function collectPluginSettings(metadata: PluginMetadata): PluginSettingIt
   return settings;
 }
 
+export function collectPluginDeclarationSettings(metadata: PluginMetadata): PluginSettingItem[] {
+  const settings: PluginSettingItem[] = [];
+  const visit = (declarations: readonly PluginDeclaration[]) => {
+    for (const declaration of declarations) {
+      settings.push(...(declaration.settings ?? []));
+      visit(declaration.children ?? []);
+    }
+  };
+  visit(metadata.declarations ?? []);
+  return settings;
+}
+
 export interface DeclarationMenuOptions {
   readSetting: (key: string, fallback: unknown) => unknown;
   translate: (key: string) => string;
@@ -49,12 +62,15 @@ function declarationMenuItems(
   declarations: readonly ResolvedPluginDeclaration[],
   options: DeclarationMenuOptions,
   moduleId: string,
+  inheritedIcon: PluginMetadata["icon"],
 ): IMenu[] {
   return declarations.flatMap((declaration) => {
+    const icon = declaration.icon ?? inheritedIcon;
     const ownItems = declaration.settings.flatMap((setting): IMenu[] => {
       if (!setting.menu || setting.type !== "checkbox") return [];
       const enabled = Boolean(options.readSetting(setting.key, setting.value));
       return [bindMenuIdentity({
+        icon: resolveSiyuanPluginIcon(icon ?? "film"),
         label: options.translate(setting.title),
         checked: enabled,
         click: () => options.toggle(setting, !enabled),
@@ -66,7 +82,7 @@ function declarationMenuItems(
     });
     return [
       ...ownItems,
-      ...declarationMenuItems(declaration.children, options, moduleId),
+      ...declarationMenuItems(declaration.children, options, moduleId, icon),
     ];
   });
 }
@@ -75,5 +91,10 @@ export function buildPluginDeclarationMenu(
   metadata: PluginMetadata,
   options: DeclarationMenuOptions,
 ): IMenu[] {
-  return declarationMenuItems(resolvePluginDeclarations(metadata.declarations), options, metadata.name);
+  return declarationMenuItems(
+    resolvePluginDeclarations(metadata.declarations),
+    options,
+    metadata.name,
+    metadata.icon,
+  );
 }

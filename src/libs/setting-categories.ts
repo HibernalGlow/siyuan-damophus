@@ -24,7 +24,7 @@ export const SETTING_CATEGORY_DEFINITIONS: SettingCategoryDefinition[] = [
     label: "settings.category.study",
     description: "settings.category.studyDescription",
     icon: "graduationCap",
-    modules: ["questionBank", "quickAttr", "topicDictionary", "topicRelations", "selectionHighlight", "tableFit"],
+    modules: ["questionBank", "exerciseFocus", "quickAttr", "topicDictionary", "topicRelations", "selectionHighlight", "tableFit"],
   },
   {
     id: "workflow",
@@ -48,14 +48,14 @@ export const SETTING_CATEGORY_DEFINITIONS: SettingCategoryDefinition[] = [
     label: "settings.category.appearance",
     description: "settings.category.appearanceDescription",
     icon: "palette",
-    modules: ["mobileAppearance", "mobileBreadcrumb", "mobileLiquidGlass", "animatedImageReplay", "calloutAppearance"],
+    modules: ["mobileAppearance", "mobileBreadcrumb", "mobileLiquidGlass", "animatedImageReplay", "calloutAppearance", "appearanceTweaks", "snippetAudit"],
   },
   {
     id: "integrations",
     label: "settings.category.integrations",
     description: "settings.category.integrationsDescription",
     icon: "plug",
-    modules: ["agentBridge", "agentSurface", "aiConfigSync", "skillManager"],
+    modules: ["agentBridge", "agentSurface", "aiConfigSync", "skillManager", "remoteAccess"],
   },
   {
     id: "other",

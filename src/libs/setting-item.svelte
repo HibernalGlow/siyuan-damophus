@@ -10,6 +10,7 @@
   import * as Select from "@/components/ui/select";
   import { plugin } from "../utils";
   import SettingListItem from "./SettingListItem.svelte";
+  import SiyuanBlockTypeSelector from "./SiyuanBlockTypeSelector.svelte";
 
   export let type: string;
   export let title: string;
@@ -40,9 +41,20 @@
   function changed() {
     dispatch("changed", { key: settingKey, value: settingValue });
   }
+
+  function preview() {
+    dispatch("preview", { key: settingKey, value: settingValue });
+  }
+
+  let previewFrame = 0;
+  function scheduleSliderPreview() {
+    cancelAnimationFrame(previewFrame);
+    previewFrame = requestAnimationFrame(preview);
+  }
+
 </script>
 
-{#if type === "textarea" || type === "list"}
+{#if type === "textarea" || type === "list" || type === "blockTypes"}
   <div class="flex flex-col gap-3 border-b border-border px-3 py-4 last:border-b-0" class:damophus-setting-item-mobile={mobile}>
     <div>
       <div class="text-sm font-medium">{@html translatedTitle}</div>
@@ -57,8 +69,14 @@
         oninput={() => dispatch("preview", { key: settingKey, value: settingValue })}
         onchange={changed}
       />
-    {:else}
+    {:else if type === "list"}
       <SettingListItem value={settingValue} {columns} on:value={(event) => { settingValue = event.detail; changed(); }} />
+    {:else}
+      <SiyuanBlockTypeSelector
+        value={settingValue}
+        labels={i18n}
+        on:value={(event) => { settingValue = event.detail; changed(); }}
+      />
     {/if}
   </div>
 {:else}
@@ -74,7 +92,7 @@
       {#if type === "checkbox"}
         <Switch checked={Boolean(settingValue)} onCheckedChange={(checked) => { settingValue = checked; changed(); }} aria-label={translatedTitle} />
       {:else if type === "textinput" || type === "number"}
-        <Input class="w-52 max-w-full damophus-setting-input" id={settingKey} type={type === "number" ? "number" : "text"} placeholder={translatedPlaceholder} bind:value={settingValue} onchange={changed} />
+        <Input class="w-52 max-w-full damophus-setting-input" id={settingKey} type={type === "number" ? "number" : "text"} placeholder={translatedPlaceholder} bind:value={settingValue} oninput={preview} onchange={changed} />
       {:else if type === "button"}
         <Button variant="outline" onclick={() => dispatch("click", { key: settingKey, value: settingValue })}>{buttonLabel}</Button>
       {:else if type === "select"}
@@ -86,7 +104,7 @@
         </Select.Root>
       {:else if type === "slider"}
         <div class="grid w-56 max-w-full grid-cols-[1fr_42px] items-center gap-3 damophus-setting-slider">
-          <Slider type="single" min={slider.min} max={slider.max} step={slider.step} bind:value={settingValue} onValueChange={changed} aria-label={translatedTitle} />
+          <Slider type="single" min={slider.min} max={slider.max} step={slider.step} bind:value={settingValue} onpointermove={scheduleSliderPreview} onkeydown={scheduleSliderPreview} onValueCommit={changed} aria-label={translatedTitle} />
           <output class="text-right font-mono text-xs">{settingValue}</output>
         </div>
       {/if}

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildPluginDeclarationMenu,
+  collectPluginDeclarationSettings,
   collectPluginSettings,
   resolvePluginDeclarations,
 } from "./plugin-declarations";
@@ -14,6 +15,7 @@ import {
 const metadata: PluginMetadata = {
   name: "deep",
   displayName: "Deep",
+  icon: "brain",
   settings: [{ type: "textinput", key: "root", title: "Root", value: "root" }],
   declarations: [{
     id: "one",
@@ -35,6 +37,7 @@ describe("plugin declarations", () => {
     const declarations = resolvePluginDeclarations(metadata.declarations);
     expect(declarations[0].children[0].children[0].path).toEqual(["one", "two", "three"]);
     expect(collectPluginSettings(metadata).map((setting) => setting.key)).toEqual(["root", "enabled"]);
+    expect(collectPluginDeclarationSettings(metadata).map((setting) => setting.key)).toEqual(["enabled"]);
   });
 
   it("projects a deeply nested checked setting as one direct menu item", async () => {
@@ -45,7 +48,7 @@ describe("plugin declarations", () => {
       toggle,
     });
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ label: "Enabled", checked: true });
+    expect(items[0]).toMatchObject({ icon: "iconBrain", label: "Enabled", checked: true });
     await items[0].click?.({} as HTMLElement, {} as MouseEvent);
     expect(toggle).toHaveBeenCalledWith(expect.objectContaining({ key: "enabled" }), false);
   });

@@ -14,7 +14,7 @@ export interface ProtyleToolbarItem {
 }
 
 export interface PluginSettingItem {
-  type: "checkbox" | "textinput" | "textarea" | "select" | "number" | "slider" | "button" | "list";
+  type: "checkbox" | "textinput" | "textarea" | "select" | "number" | "slider" | "button" | "list" | "blockTypes";
   title: string;
   description?: string;
   key: string;

@@ -7,7 +7,8 @@ type TSettingItemType =
   | "slider"
   | "button"
   | "hint"
-  | "list";
+  | "list"
+  | "blockTypes";
 interface ISettingItem {
   key: string;
   value: any;

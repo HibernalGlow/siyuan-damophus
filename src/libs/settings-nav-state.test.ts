@@ -15,20 +15,28 @@ describe("settings nav state", () => {
       sidebarExpanded: { study: false },
       categoryOrder: ["study", "core"],
       moduleOrder: { study: ["b", "a"] },
-      overviewLayout: "bento",
-      categorySpans: { study: 2 },
+      adaptiveOverview: false,
     })).toEqual({
       sidebarExpanded: { study: false },
       switchesExpanded: undefined,
       categoryOrder: ["study", "core"],
       moduleOrder: { study: ["b", "a"] },
-      overviewLayout: "bento",
-      categorySpans: { study: 2 },
+      adaptiveOverview: false,
     });
-    expect(parseSettingsNavState({
-      overviewLayout: "freeform",
-      categorySpans: { study: 0, core: 4 },
-    })).toEqual({});
+    expect(parseSettingsNavState({ overviewLayout: "masonry" })).toEqual({
+      adaptiveOverview: true,
+    });
+    expect(parseSettingsNavState({ overviewLayout: "bento" })).toEqual({
+      adaptiveOverview: false,
+    });
+    expect(parseSettingsNavState({ overviewLayout: "freeform" })).toEqual({});
+  });
+
+  it("parses the module-detail switch visibility preference", () => {
+    expect(parseSettingsNavState({ moduleDetailSwitches: false })).toEqual({
+      moduleDetailSwitches: false,
+    });
+    expect(parseSettingsNavState({ moduleDetailSwitches: "no" })).toEqual({});
   });
 
   it("orders known ids by preference and appends unknown ids", () => {

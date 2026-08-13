@@ -2,8 +2,6 @@ import type { SettingCategoryId } from "@/libs/setting-categories";
 
 export const SETTINGS_NAV_STATE_KEY = "uiSettingsNavigation";
 
-export type SettingsOverviewLayout = "masonry" | "bento";
-
 export interface SettingsNavState {
   /** Sidebar category id -> expanded. Missing entries count as expanded. */
   sidebarExpanded?: Record<string, boolean>;
@@ -13,10 +11,10 @@ export interface SettingsNavState {
   categoryOrder?: string[];
   /** Category id -> module keys in the user's preferred order. Unknown keys append at the end. */
   moduleOrder?: Record<string, string[]>;
-  /** Card layout used on the desktop settings overview. */
-  overviewLayout?: SettingsOverviewLayout;
-  /** Category id -> preferred Bento width in responsive grid columns. */
-  categorySpans?: Record<string, number>;
+  /** Whether desktop overview cards fill vertical gaps. Missing means enabled. */
+  adaptiveOverview?: boolean;
+  /** Whether module detail pages show their own compact enable switch. */
+  moduleDetailSwitches?: boolean;
 }
 
 export function parseSettingsNavState(raw: unknown): SettingsNavState {
@@ -27,10 +25,16 @@ export function parseSettingsNavState(raw: unknown): SettingsNavState {
     switchesExpanded: isBooleanRecord(candidate.switchesExpanded) ? candidate.switchesExpanded : undefined,
     categoryOrder: isStringArray(candidate.categoryOrder) ? candidate.categoryOrder : undefined,
     moduleOrder: isStringArrayRecord(candidate.moduleOrder) ? candidate.moduleOrder : undefined,
-    overviewLayout: candidate.overviewLayout === "masonry" || candidate.overviewLayout === "bento"
-      ? candidate.overviewLayout
+    adaptiveOverview: typeof candidate.adaptiveOverview === "boolean"
+      ? candidate.adaptiveOverview
+      : candidate.overviewLayout === "masonry"
+        ? true
+        : candidate.overviewLayout === "bento"
+          ? false
+          : undefined,
+    moduleDetailSwitches: typeof candidate.moduleDetailSwitches === "boolean"
+      ? candidate.moduleDetailSwitches
       : undefined,
-    categorySpans: isSpanRecord(candidate.categorySpans) ? candidate.categorySpans : undefined,
   };
 }
 
@@ -46,13 +50,6 @@ function isStringArray(value: unknown): value is string[] {
 function isStringArrayRecord(value: unknown): value is Record<string, string[]> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
     && Object.values(value as Record<string, unknown>).every(isStringArray);
-}
-
-function isSpanRecord(value: unknown): value is Record<string, number> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-    && Object.values(value as Record<string, unknown>).every(
-      (entry) => Number.isInteger(entry) && Number(entry) >= 1 && Number(entry) <= 3,
-    );
 }
 
 /**
