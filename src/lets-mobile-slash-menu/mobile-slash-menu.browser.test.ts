@@ -196,6 +196,34 @@ describe("mobile slash menu shortcut", () => {
     expect(onDiscovered).toHaveBeenCalledOnce();
   });
 
+  it("applies visibility changes from the live configuration on the next render", () => {
+    const editor = renderEditor();
+    let config = JSON.stringify([
+      { id: "heading1", visible: true, display: "icon" },
+      { id: "heading2", visible: true, display: "icon" },
+      { id: "list", visible: true, display: "icon" },
+    ]);
+    const shortcut = new MobileSlashMenuShortcut(document, editor.runtime, {
+      enableDirectSlash: true,
+      getConfig: () => config,
+    });
+    shortcut.start();
+    typeText(editor, "/");
+    expect(editor.hintElement.querySelectorAll(".b3-list-item")).toHaveLength(3);
+
+    config = JSON.stringify([
+      { id: "heading1", visible: false, display: "icon" },
+      { id: "heading2", visible: true, display: "icon" },
+      { id: "list", visible: true, display: "icon" },
+    ]);
+    editor.inline.textContent = "/";
+    placeCaretAtEnd(editor.inline);
+    editor.hint.render(editor.protyle);
+
+    expect(editor.hintElement.querySelector("[data-id='heading1']")).toBeNull();
+    expect(editor.hintElement.querySelectorAll(".b3-list-item")).toHaveLength(2);
+  });
+
   it("attaches editors delivered by the SiYuan event bus and restores their native render", () => {
     const shortcut = new MobileSlashMenuShortcut(document, { getEditors: () => [] });
     shortcut.start();

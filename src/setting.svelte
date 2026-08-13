@@ -499,7 +499,13 @@
       } else {
         settings.setBySpace(pluginSetting.key, detail.key, detail.value);
         if (pluginSetting.value === true) {
-          await PluginRegistry.getInstance().beginPlugin(pluginSetting.key);
+          const plugin = PluginRegistry.getInstance().getPlugin(pluginSetting.key);
+          if (plugin?.onDataChanged) await plugin.onDataChanged();
+          else {
+            await plugin?.onunload();
+            await plugin?.onload();
+            await plugin?.onLayoutReady?.();
+          }
         }
       }
       settingItems = initData();
