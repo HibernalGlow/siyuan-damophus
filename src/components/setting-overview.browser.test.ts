@@ -54,15 +54,13 @@ function render(options: {
   mode?: "overview" | "navigation";
   activeSelectId?: string;
   compact?: boolean;
-  layoutMode?: "masonry" | "bento";
-  categorySpans?: Record<string, number>;
+  adaptive?: boolean;
 } = {}) {
   const target = createTarget();
   const select = vi.fn();
   const toggle = vi.fn();
   const overview = vi.fn();
   const reorder = vi.fn();
-  const resize = vi.fn();
   const categories = createCategories();
   const component = mount(SettingOverview, {
     target,
@@ -71,10 +69,10 @@ function render(options: {
       categories,
       ...options,
     },
-    events: { select, toggle, overview, reorder, resize },
+    events: { select, toggle, overview, reorder },
   });
   mounted.push(component);
-  return { target, select, toggle, overview, reorder, resize, categories };
+  return { target, select, toggle, overview, reorder, categories };
 }
 
 function renderMotionHarness() {
@@ -178,7 +176,7 @@ describe("setting overview", () => {
         modules: [{ id: "theme", selectId: "theme", label: "主题", icon: "palette" }],
       },
     ];
-    mounted.push(mount(SettingOverview, { target, props: { categories, layoutMode: "masonry" } }));
+    mounted.push(mount(SettingOverview, { target, props: { categories, adaptive: true } }));
     await tick();
     await nextAnimationFrame();
 
@@ -191,26 +189,21 @@ describe("setting overview", () => {
     expect(cards[3].getBoundingClientRect().top).toBeLessThan(cards[2].getBoundingClientRect().bottom);
   });
 
-  it("uses persisted Bento spans and supports keyboard resizing", async () => {
+  it("returns to a regular equal-column grid when adaptive layout is disabled", async () => {
     await page.viewport(1100, 800);
-    const { target, resize } = render({ layoutMode: "bento", categorySpans: { core: 2 } });
+    const { target } = render({ adaptive: false });
     target.style.width = "800px";
     await tick();
     await nextAnimationFrame();
 
     const board = target.querySelector<HTMLElement>('[data-testid="setting-overview"]');
-    const core = target.querySelector<HTMLElement>('[data-testid="overview-category-core"]')?.parentElement;
-    const handle = target.querySelector<HTMLButtonElement>('[aria-label^="Drag to resize card: 快速入口"]');
-    if (!board || !core || !handle) throw new Error("Missing Bento fixtures");
+    const cards = [...target.querySelectorAll<HTMLElement>("[data-dnd-category]")];
+    if (!board || cards.length !== 2) throw new Error("Missing regular-grid fixtures");
 
-    expect(board.classList.contains("settings-overview-board--bento")).toBe(true);
-    expect(core.dataset.columnSpan).toBe("2");
-    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
-    await tick();
-    expect(core.dataset.columnSpan).toBe("3");
-    expect(resize).toHaveBeenCalledWith(expect.objectContaining({
-      detail: { categoryId: "core", span: 3 },
-    }));
+    expect(board.classList.contains("settings-overview-board--regular")).toBe(true);
+    expect(getComputedStyle(board).gridAutoRows).toBe("auto");
+    expect(cards.every((card) => getComputedStyle(card).gridRowEnd === "auto")).toBe(true);
+    expect(target.querySelector('[aria-label^="Drag to resize card"]')).toBeNull();
   });
 
   it("dispatches select when a module is opened", async () => {
