@@ -11,9 +11,9 @@ const labels = {
   noIcon: "No icon; text required", empty: "No commands", refresh: "Reload commands",
 };
 const catalog = JSON.stringify([
-  { id: "heading", label: "Heading", hasIcon: true }, { id: "paragraph", label: "Paragraph", hasIcon: false },
-  { id: "list", label: "List", hasIcon: true }, { id: "quote", label: "Quote", hasIcon: true },
-  { id: "code", label: "Code", hasIcon: true },
+  { id: "heading", label: "Heading", hasIcon: true, iconId: "iconHeading1" }, { id: "paragraph", label: "Paragraph", hasIcon: false },
+  { id: "list", label: "List", hasIcon: true, iconId: "iconList" }, { id: "quote", label: "Quote", hasIcon: true, iconText: "❝" },
+  { id: "code", label: "Code", hasIcon: true, iconId: "iconCode" },
 ]);
 const mobileConfig = [
   { id: "heading", visible: true, display: "icon" as const }, { id: "paragraph", visible: true, display: "full" as const },
@@ -51,19 +51,24 @@ describe("slash menu settings", () => {
     expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ detail: { key: "desktopEnabled", value: true } }));
   });
 
-  it("uses inline tabs for icon or full text and forces full text without an icon", async () => {
+  it("uses an inline icon button for display mode and fixes text-only commands", async () => {
     const { target, changed } = render(); await tick();
     const heading = target.querySelector<HTMLElement>("[data-slash-item='heading']")!;
-    const displayTabs = heading.querySelector<HTMLElement>("[role='tablist'][aria-label='Display: Heading']")!;
-    expect(displayTabs.querySelectorAll("[role='tab']")).toHaveLength(2);
-    expect(displayTabs.querySelector("[role='tab'][aria-selected='true']")?.textContent).toBe(labels.iconOnly);
-    displayTabs.querySelectorAll<HTMLButtonElement>("[role='tab']")[1]?.click(); await tick();
+    const displayToggle = heading.querySelector<HTMLButtonElement>(".slash-settings__display-toggle")!;
+    expect(displayToggle.getAttribute("aria-label")).toBe("Display: Heading; Icon only");
+    expect(displayToggle.closest(".slash-settings__card-header")).not.toBeNull();
+    expect(displayToggle.querySelector("use")?.getAttribute("href")).toBe("#iconHeading1");
+    expect(displayToggle.classList.contains("active")).toBe(true);
+    expect(heading.querySelector(".slash-settings__icon")).toBeNull();
+    displayToggle.click(); await tick();
+    expect(displayToggle.querySelector("use")?.getAttribute("href")).toBe("#iconHeading1");
+    expect(displayToggle.classList.contains("active")).toBe(false);
     expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ detail: expect.objectContaining({ key: "mobileMenuConfig" }) }));
     expect(JSON.parse(changed.mock.lastCall?.[0].detail.value).find((item: { id: string }) => item.id === "heading").display).toBe("full");
 
     const paragraph = target.querySelector<HTMLElement>("[data-slash-item='paragraph']")!;
-    expect(paragraph.querySelector(".slash-settings__forced")?.textContent).toBe(labels.full);
-    expect(paragraph.querySelector("[role='tablist']")).toBeNull();
+    expect(paragraph.querySelector("button.slash-settings__display-toggle")).toBeNull();
+    expect(paragraph.querySelector(".slash-settings__display-toggle--fixed")?.getAttribute("aria-label")).toBe("Display: Paragraph; Full text");
   });
 
   it("persists DND card order instead of using arrow controls", async () => {

@@ -27,9 +27,9 @@ function renderEditor() {
   hintElement.innerHTML = '<div class="fn__loading">stale loading</div>';
   document.body.append(hintElement);
   const nativeCommands = [
-    { html: "<span>一级标题</span>", value: "heading1", filter: ["heading1", "h1", "一级标题"] },
-    { html: "<span>二级标题</span>", value: "heading2", filter: ["heading2", "h2", "二级标题"] },
-    { html: "<span>无序列表</span>", value: "list", filter: ["list", "无序列表"] },
+    { html: '<svg class="b3-list-item__graphic"><use href="#iconHeading1"></use></svg><span>一级标题</span>', value: "heading1", filter: ["heading1", "h1", "一级标题"] },
+    { html: '<svg class="b3-list-item__graphic"><use xlink:href="#iconHeading2"></use></svg><span>二级标题</span>', value: "heading2", filter: ["heading2", "h2", "二级标题"] },
+    { html: '<span class="b3-list-item__graphic">•</span><span>无序列表</span>', value: "list", filter: ["list", "无序列表"] },
   ];
   const slashProvider = vi.fn((key: string) => nativeCommands
     .filter((command) => !key || command.filter.some((value) => value.includes(key))));
@@ -182,10 +182,15 @@ describe("mobile slash menu shortcut", () => {
     expect(editor.editable.textContent).toBe("note");
     expect(editor.slashProvider).toHaveBeenCalledOnce();
     expect(JSON.parse(catalog)).toHaveLength(3);
+    expect(JSON.parse(catalog)).toEqual([
+      expect.objectContaining({ id: "heading1", iconId: "iconHeading1", hasIcon: true }),
+      expect.objectContaining({ id: "heading2", iconId: "iconHeading2", hasIcon: true }),
+      expect.objectContaining({ id: "list", iconText: "•", hasIcon: true }),
+    ]);
     expect(JSON.parse(config)).toEqual([
-      { id: "heading1", visible: true, display: "full" },
-      { id: "heading2", visible: true, display: "full" },
-      { id: "list", visible: true, display: "full" },
+      { id: "heading1", visible: true, display: "icon" },
+      { id: "heading2", visible: true, display: "icon" },
+      { id: "list", visible: true, display: "icon" },
     ]);
     expect(onCatalog).toHaveBeenCalledOnce();
     expect(onDiscovered).toHaveBeenCalledOnce();

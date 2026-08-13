@@ -5,6 +5,8 @@ export interface SlashMenuItem {
   id: string;
   label: string;
   hasIcon: boolean;
+  iconId?: string;
+  iconText?: string;
   separator?: boolean;
 }
 
@@ -16,8 +18,24 @@ export interface SlashMenuItemConfig {
 
 export const DEFAULT_SLASH_MENU_ITEMS = "[]";
 
+const safeIconId = (value: unknown): string | undefined =>
+  typeof value === "string" && /^[A-Za-z][\w:.-]{0,127}$/u.test(value) ? value : undefined;
+
+const safeIconText = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return;
+  const normalized = value.replace(/\s+/gu, " ").trim();
+  return normalized && [...normalized].length <= 8 ? normalized : undefined;
+};
+
 export function serializeSlashMenuItems(items: SlashMenuItem[]): string {
-  return JSON.stringify(items.map(({ id, label, hasIcon, separator }) => ({ id, label, hasIcon, separator })));
+  return JSON.stringify(items.map(({ id, label, hasIcon, iconId, iconText, separator }) => ({
+    id,
+    label,
+    hasIcon,
+    iconId: safeIconId(iconId),
+    iconText: safeIconText(iconText),
+    separator,
+  })));
 }
 
 export function parseSlashMenuItems(value: unknown): SlashMenuItem[] {
@@ -33,6 +51,8 @@ export function parseSlashMenuItems(value: unknown): SlashMenuItem[] {
         id: record.id,
         label: record.label,
         hasIcon: record.hasIcon === true,
+        iconId: safeIconId(record.iconId),
+        iconText: safeIconText(record.iconText),
         separator: record.separator === true,
       }];
     });

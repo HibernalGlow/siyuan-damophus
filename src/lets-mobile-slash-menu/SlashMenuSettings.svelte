@@ -2,7 +2,7 @@
   import { createEventDispatcher } from "svelte";
   import { flip } from "svelte/animate";
   import { dragHandle, dragHandleZone, type DndEvent } from "svelte-dnd-action";
-  import { CircleHelp, GripVertical, Image, RefreshCw } from "lucide-svelte";
+  import { CircleHelp, GripVertical, Image, Monitor, RefreshCw, Smartphone, Type } from "lucide-svelte";
   import { Switch } from "@/components/ui/switch";
   import {
     mergeSlashMenuItems,
@@ -97,13 +97,18 @@
       <div class="text-lg font-semibold" role="heading" aria-level="2">{title}</div>
       <p class="m-0 mt-1 text-xs leading-5 text-muted-foreground">{labels.description}</p>
     </div>
-    <button class="slash-settings__refresh" onclick={() => dispatch("refresh")}><RefreshCw class="size-4" />{labels.refresh}</button>
+    <div class="slash-settings__actions">
+      <div class="slash-settings__surface-tabs" role="tablist" aria-label={title}>
+        <button role="tab" aria-label={labels.mobile} title={labels.mobile} aria-selected={surface === "mobile"} class:active={surface === "mobile"} onclick={() => surface = "mobile"}>
+          <Smartphone class="size-4" aria-hidden="true" />
+        </button>
+        <button role="tab" aria-label={labels.desktop} title={labels.desktop} aria-selected={surface === "desktop"} class:active={surface === "desktop"} onclick={() => surface = "desktop"}>
+          <Monitor class="size-4" aria-hidden="true" />
+        </button>
+      </div>
+      <button class="slash-settings__refresh" onclick={() => dispatch("refresh")}><RefreshCw class="size-4" />{labels.refresh}</button>
+    </div>
   </header>
-
-  <div class="slash-settings__surface-tabs" role="tablist" aria-label={title}>
-    <button role="tab" aria-selected={surface === "mobile"} class:active={surface === "mobile"} onclick={() => surface = "mobile"}>{labels.mobile}</button>
-    <button role="tab" aria-selected={surface === "desktop"} class:active={surface === "desktop"} onclick={() => surface = "desktop"}>{labels.desktop}</button>
-  </div>
 
   <section class="slash-settings__surface" data-slash-surface={surface} aria-labelledby={`slash-surface-${surface}`}>
     <header class="slash-settings__surface-header">
@@ -138,20 +143,30 @@
               <span use:dragHandle class="slash-settings__drag" title={`${labels.display}: ${item?.label ?? entry.id}`} aria-label={`Drag: ${item?.label ?? entry.id}`}>
                 <GripVertical class="size-4" aria-hidden="true" />
               </span>
-              <span class="slash-settings__icon" title={item?.hasIcon ? labels.icon : labels.noIcon}>
-                {#if item?.hasIcon}<Image class="size-4" aria-hidden="true" />{:else}<span class="slash-settings__text-icon">T</span>{/if}
-              </span>
               <span class="slash-settings__label" title={item?.label}>{item?.label ?? entry.id}</span>
+              {#if item?.hasIcon}
+                <button
+                  class="slash-settings__display-toggle"
+                  class:active={entry.display === "icon"}
+                  aria-label={`${labels.display}: ${item.label}; ${entry.display === "icon" ? labels.iconOnly : labels.full}`}
+                  title={entry.display === "icon" ? labels.iconOnly : labels.full}
+                  onclick={() => update(surface, config, index, { display: entry.display === "icon" ? "full" : "icon" })}
+                >
+                  {#if item.iconId}
+                    <svg class="size-4" aria-hidden="true"><use href={`#${item.iconId}`}></use></svg>
+                  {:else if item.iconText}
+                    <span class="slash-settings__native-icon-text" aria-hidden="true">{item.iconText}</span>
+                  {:else}
+                    <Image class="size-4" aria-hidden="true" />
+                  {/if}
+                </button>
+              {:else}
+                <span class="slash-settings__display-toggle slash-settings__display-toggle--fixed" title={labels.noIcon} aria-label={`${labels.display}: ${item?.label ?? entry.id}; ${labels.full}`}>
+                  <Type class="size-4" aria-hidden="true" />
+                </span>
+              {/if}
               <Switch checked={entry.visible} aria-label={`${labels.visible}: ${item?.label ?? entry.id}`} onCheckedChange={(visible) => update(surface, config, index, { visible })} />
             </div>
-            {#if item?.hasIcon}
-              <div class="slash-settings__display-tabs" role="tablist" aria-label={`${labels.display}: ${item.label}`}>
-                <button role="tab" aria-selected={entry.display === "icon"} class:active={entry.display === "icon"} onclick={() => update(surface, config, index, { display: "icon" })}>{labels.iconOnly}</button>
-                <button role="tab" aria-selected={entry.display === "full"} class:active={entry.display === "full"} onclick={() => update(surface, config, index, { display: "full" })}>{labels.full}</button>
-              </div>
-            {:else}
-              <span class="slash-settings__forced" title={labels.noIcon}>{labels.full}</span>
-            {/if}
           </article>
         {/each}
       </div>
@@ -163,31 +178,31 @@
   .slash-settings { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
   .slash-settings__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   .slash-settings__heading-copy { min-width: 0; }
+  .slash-settings__actions { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; }
   .slash-settings__refresh { display: inline-flex; min-height: 32px; flex: 0 0 auto; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); font-size: 12px; }
   .slash-settings__refresh:hover { background: var(--muted); }
-  .slash-settings__surface-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 7px; background: var(--muted); }
-  .slash-settings__surface-tabs button, .slash-settings__display-tabs button { border: 0; border-radius: 5px; background: transparent; color: var(--muted-foreground); }
-  .slash-settings__surface-tabs button { min-height: 36px; font-size: 13px; font-weight: 600; }
-  .slash-settings__surface-tabs button.active, .slash-settings__display-tabs button.active { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 12%, transparent); }
+  .slash-settings__surface-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 7px; background: var(--muted); }
+  .slash-settings__surface-tabs button { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 0; border-radius: 5px; background: transparent; color: var(--muted-foreground); }
+  .slash-settings__surface-tabs button.active { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 12%, transparent); }
   .slash-settings__surface { min-width: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .slash-settings__surface-header { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 45%, transparent); }
   .slash-settings__surface-title { font-size: 14px; font-weight: 600; }
   .slash-settings__surface-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 12px; }
   .slash-settings__list { display: grid; min-width: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 8px; padding: 8px; background: color-mix(in srgb, var(--muted) 18%, transparent); }
   :global(.slash-settings__list--drop-target) { background: color-mix(in srgb, var(--primary) 7%, transparent); }
-  .slash-settings__card { display: flex; min-width: 0; flex-direction: column; gap: 9px; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent); }
-  .slash-settings__card-header { display: grid; min-width: 0; grid-template-columns: 18px 30px minmax(0, 1fr) auto; align-items: center; gap: 7px; }
+  .slash-settings__card { min-width: 0; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent); }
+  .slash-settings__card-header { display: grid; min-width: 0; grid-template-columns: 18px minmax(0, 1fr) 30px auto; align-items: center; gap: 7px; }
   .slash-settings__drag { display: inline-flex; width: 18px; height: 30px; cursor: grab; touch-action: none; align-items: center; justify-content: center; color: var(--muted-foreground); opacity: .65; }
   .slash-settings__drag:active { cursor: grabbing; }
-  .slash-settings__icon { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 6px; background: var(--muted); color: var(--muted-foreground); }
-  .slash-settings__text-icon { font-size: 12px; font-weight: 700; }
   .slash-settings__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-  .slash-settings__display-tabs { display: grid; grid-template-columns: repeat(2, minmax(72px, 1fr)); gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--muted); }
-  .slash-settings__display-tabs button { min-height: 28px; padding-inline: 8px; font-size: 12px; }
-  .slash-settings__forced { width: 100%; color: var(--muted-foreground); font-size: 12px; text-align: center; }
+  .slash-settings__display-toggle { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted-foreground); }
+  button.slash-settings__display-toggle:hover { background: var(--muted); color: var(--foreground); }
+  .slash-settings__display-toggle.active { border-color: var(--border); background: var(--muted); color: var(--foreground); }
+  .slash-settings__display-toggle--fixed { opacity: .45; }
+  .slash-settings__native-icon-text { max-width: 24px; overflow: hidden; font-size: 14px; line-height: 1; text-overflow: clip; white-space: nowrap; }
   .slash-settings__empty { display: flex; align-items: center; gap: 8px; padding: 20px; color: var(--muted-foreground); font-size: 13px; }
   @media (max-width: 640px) {
     .slash-settings__header { align-items: stretch; flex-direction: column; }
-    .slash-settings__refresh { align-self: flex-start; }
+    .slash-settings__actions { justify-content: space-between; }
   }
 </style>

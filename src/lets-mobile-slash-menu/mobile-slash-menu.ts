@@ -341,12 +341,17 @@ export class MobileSlashMenuShortcut {
   }
 
   private toMenuItems(data: SlashHintData[]): SlashMenuItem[] {
-    return data.map((item, index) => ({
-      id: this.dataId(item, index),
-      label: this.dataLabel(item.html),
-      hasIcon: item.html.includes("b3-list-item__graphic") || item.html.includes("<svg"),
-      separator: item.html === "separator",
-    }));
+    return data.map((item, index) => {
+      const icon = this.dataIcon(item.html);
+      return {
+        id: this.dataId(item, index),
+        label: this.dataLabel(item.html),
+        hasIcon: icon.hasIcon,
+        iconId: icon.iconId,
+        iconText: icon.iconText,
+        separator: item.html === "separator",
+      };
+    });
   }
 
   private persistDiscovered(discovered: SlashMenuItem[]): string {
@@ -369,6 +374,24 @@ export class MobileSlashMenuShortcut {
   private dataLabel(html: string): string {
     if (html === "separator") return "separator";
     return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  private dataIcon(html: string): Pick<SlashMenuItem, "hasIcon" | "iconId" | "iconText"> {
+    if (html === "separator") return { hasIcon: false };
+    const template = this.targetDocument.createElement("template");
+    template.innerHTML = html;
+    const graphic = template.content.querySelector<HTMLElement>(".b3-list-item__graphic")
+      ?? template.content.querySelector<SVGElement>("svg");
+    if (!graphic) return { hasIcon: false };
+
+    const use = graphic.matches("use") ? graphic : graphic.querySelector("use");
+    const href = use?.getAttribute("href") ?? use?.getAttribute("xlink:href");
+    const iconId = href?.match(/^#([A-Za-z][\w:.-]{0,127})$/u)?.[1];
+    if (iconId) return { hasIcon: true, iconId };
+
+    const iconText = graphic.textContent?.replace(/\s+/gu, " ").trim();
+    if (iconText && [...iconText].length <= 8) return { hasIcon: true, iconText };
+    return { hasIcon: true };
   }
 
   private enhanceMenu(element?: HTMLElement, displayById = new Map<string, "icon" | "full">()): void {

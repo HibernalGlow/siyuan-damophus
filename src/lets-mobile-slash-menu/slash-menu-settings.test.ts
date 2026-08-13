@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   mergeSlashMenuItems,
   parseSlashMenuConfig,
+  parseSlashMenuItems,
   reorderSlashMenuConfig,
   serializeSlashMenuConfig,
+  serializeSlashMenuItems,
 } from "./slash-menu-settings";
 
 describe("slash menu settings", () => {
@@ -28,6 +30,17 @@ describe("slash menu settings", () => {
       { id: "custom", label: "Custom", hasIcon: false },
     ], []);
     expect(merged.every((item) => item.display === "full")).toBe(true);
+  });
+
+  it("round-trips only safe native icon references", () => {
+    const parsed = parseSlashMenuItems(serializeSlashMenuItems([
+      { id: "heading", label: "Heading", hasIcon: true, iconId: "iconHeading1" },
+      { id: "quote", label: "Quote", hasIcon: true, iconText: "❝" },
+      { id: "unsafe", label: "Unsafe", hasIcon: true, iconId: 'x\" onload=\"alert(1)' },
+    ]));
+    expect(parsed[0].iconId).toBe("iconHeading1");
+    expect(parsed[1].iconText).toBe("❝");
+    expect(parsed[2].iconId).toBeUndefined();
   });
 
   it("moves only within bounds", () => {
