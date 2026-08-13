@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-callout-tools.displayName",
   description: "lets-callout-tools.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "messageSquareText",
   settings: [
     {

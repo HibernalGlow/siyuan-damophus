@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-mobile-breadcrumb.displayName",
   description: "lets-mobile-breadcrumb.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "smartphone",
   settings: [
     {

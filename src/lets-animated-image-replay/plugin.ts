@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-animated-image-replay.displayName",
   description: "lets-animated-image-replay.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "imagePlay",
   settings: [
     {

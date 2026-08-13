@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-callout-appearance.displayName",
   description: "lets-callout-appearance.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "messageSquareText",
   reference: "https://github.com/QYLexpired/Neo",
   settings: [

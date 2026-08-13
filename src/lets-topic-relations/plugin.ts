@@ -10,7 +10,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-topic-relations.displayName",
   description: "lets-topic-relations.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "network",
   settings: [
     {

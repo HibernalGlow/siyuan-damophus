@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-style-brush.displayName",
   description: "lets-style-brush.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "paintbrush",
   settings: [
     ...createEntrySettings({ contextMenu: true }),

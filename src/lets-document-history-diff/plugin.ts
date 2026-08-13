@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-document-history-diff.displayName",
   description: "lets-document-history-diff.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "film",
   settings: [
     ...createEntrySettings({ menu: true, contextMenu: true, command: true }, { central: true }),

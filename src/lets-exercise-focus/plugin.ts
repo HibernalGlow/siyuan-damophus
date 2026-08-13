@@ -5,7 +5,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-exercise-focus.displayName",
   description: "lets-exercise-focus.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "graduationCap",
   settings: [
     {

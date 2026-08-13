@@ -7,7 +7,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-layout-actions.displayName",
   description: "lets-layout-actions.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "panelRight",
   settings: [
     ...createEntrySettings({ menu: true, desktopDock: true, command: true }, { central: true }),

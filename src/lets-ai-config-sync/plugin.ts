@@ -5,7 +5,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-ai-config-sync.displayName",
   description: "lets-ai-config-sync.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "cloudCog",
 };
 

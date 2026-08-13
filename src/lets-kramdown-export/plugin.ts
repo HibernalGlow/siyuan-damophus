@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-kramdown-export.displayName",
   description: "lets-kramdown-export.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "fileOutput",
   settings: [
     ...createEntrySettings({ menu: true, contextMenu: true }),

@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-table-fit.displayName",
   description: "lets-table-fit.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "tableProperties",
   settings: [
     {

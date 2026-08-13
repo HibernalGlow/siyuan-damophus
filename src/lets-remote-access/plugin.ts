@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-remote-access.displayName",
   description: "lets-remote-access.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "plug",
   settings: [
     ...createEntrySettings({ menu: true, command: true }, { central: true }),

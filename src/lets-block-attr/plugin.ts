@@ -10,7 +10,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-block-attr.displayName",
   description: "lets-block-attr.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "tags",
   settings: [
     {

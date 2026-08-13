@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-mobile-appearance.displayName",
   description: "lets-mobile-appearance.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "sunMoon",
   legacyEnabledSetting: "showMobileAppearanceShortcut",
 };

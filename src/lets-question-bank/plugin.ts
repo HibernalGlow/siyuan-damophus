@@ -8,7 +8,7 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-question-bank.description",
   version: "1.0.0",
   author: "HibernalGlow",
-  enabled: true,
+  enabled: false,
   icon: "bookOpenCheck",
   settings: [
     ...createEntrySettings({

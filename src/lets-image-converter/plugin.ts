@@ -5,7 +5,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-image-converter.displayName",
   description: "lets-image-converter.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "images",
   settings: [
     {

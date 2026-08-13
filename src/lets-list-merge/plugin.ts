@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-list-merge.displayName",
   description: "lets-list-merge.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "listTree",
   settings: [
     ...createEntrySettings({ contextMenu: true, command: true }),

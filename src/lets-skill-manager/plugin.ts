@@ -12,7 +12,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: skillManagerAppearance.displayName,
   description: "lets-skill-manager.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: skillManagerAppearance.icon,
   settings: [
     ...createEntrySettings({ menu: true, dock: true, command: true, tab: true }, { central: true }),

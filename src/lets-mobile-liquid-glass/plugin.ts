@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-mobile-liquid-glass.displayName",
   description: "lets-mobile-liquid-glass.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "glassWater",
   reference: "https://github.com/QYLexpired/Neo-Plus",
   settings: [

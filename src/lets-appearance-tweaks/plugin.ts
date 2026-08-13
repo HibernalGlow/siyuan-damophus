@@ -5,7 +5,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-appearance-tweaks.displayName",
   description: "lets-appearance-tweaks.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "palette",
   settings: [
     { type: "checkbox", title: "lets-appearance-tweaks.browserMobileFontSizeTitle", description: "lets-appearance-tweaks.browserMobileFontSizeDescription", key: "browserMobileFontSize", value: false },

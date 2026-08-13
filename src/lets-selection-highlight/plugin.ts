@@ -5,7 +5,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-selection-highlight.displayName",
   description: "lets-selection-highlight.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "highlighter",
   settings: [
     {

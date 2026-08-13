@@ -6,7 +6,7 @@ export const pluginMetadata: PluginMetadata = {
   displayName: "lets-expanded-plugin-menu.displayName",
   description: "lets-expanded-plugin-menu.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "layoutGrid",
   settings: [
     {

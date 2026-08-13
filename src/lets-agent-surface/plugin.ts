@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: "lets-agent-surface.displayName",
   description: "lets-agent-surface.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: "sparkles",
   settings: [
     ...createEntrySettings({ menu: true, mobileDock: true, tab: true }, { central: true }),

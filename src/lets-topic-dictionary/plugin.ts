@@ -12,7 +12,7 @@ const pluginMetadata: PluginMetadata = {
   displayName: topicDictionaryAppearance.displayName,
   description: "lets-topic-dictionary.description",
   version: "1.0.0",
-  enabled: true,
+  enabled: false,
   icon: topicDictionaryAppearance.icon,
   settings: [
     ...createEntrySettings({menu: true, dock: true, command: true, tab: true}, {central: true}),
