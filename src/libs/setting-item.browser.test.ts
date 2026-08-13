@@ -9,22 +9,26 @@ afterEach(async () => {
 });
 
 describe("setting item live preview events", () => {
-  it("previews every slider value change and commits the final value", async () => {
+  it("previews text input changes and commits the final value", async () => {
     const preview = vi.fn();
     const changed = vi.fn();
     mounted.push(mount(SettingItem, {
       target: document.body,
-      props: { type: "slider", title: "Size", description: "", settingKey: "size", settingValue: 3, slider: { min: 0, max: 10, step: 1 } },
+      props: { type: "textinput", title: "Name", description: "", settingKey: "name", settingValue: "abc", placeholder: "" },
       events: { preview, changed },
     }));
-    const slider = document.querySelector<HTMLElement>('[role="slider"]')!;
-    slider.focus();
-    slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    const input = document.querySelector<HTMLInputElement>('input[data-slot="input"]');
+    if (!input) throw new Error("Missing text input");
+    input.value = "abc2";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
     await vi.waitFor(() => expect(preview).toHaveBeenCalled());
-    await vi.waitFor(() => expect(changed).toHaveBeenCalled());
     expect(preview).toHaveBeenCalledWith(expect.objectContaining({
-      detail: expect.objectContaining({ key: "size", value: 4 }),
+      detail: expect.objectContaining({ key: "name", value: "abc2" }),
     }));
-    expect(changed).toHaveBeenCalledTimes(1);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(changed).toHaveBeenCalled());
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({
+      detail: expect.objectContaining({ key: "name", value: "abc2" }),
+    }));
   });
 });
