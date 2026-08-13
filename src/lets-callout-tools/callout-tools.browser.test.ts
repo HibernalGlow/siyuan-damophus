@@ -48,8 +48,8 @@ afterEach(() => {
 });
 
 describe("Callout tools module", () => {
-  it("is independent and exposes enabled-by-default behavior switches", () => {
-    expect(pluginMetadata).toMatchObject({ name: "calloutTools", enabled: true });
+  it("is independent and exposes disabled-by-default behavior switches", () => {
+    expect(pluginMetadata).toMatchObject({ name: "calloutTools", enabled: false });
     expect(pluginMetadata.settings?.map((setting) => [setting.key, setting.value])).toEqual([
       ["smartInsert", true],
       ["blockMenuConversion", true],
