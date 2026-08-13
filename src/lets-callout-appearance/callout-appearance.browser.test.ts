@@ -138,6 +138,21 @@ afterEach(() => {
 });
 
 describe("callout appearance", () => {
+  it("emits migrated legacy features independently", () => {
+    const css = createCalloutAppearanceCss({
+      palette: false,
+      contentPadding: true,
+      removeQuoteShadow: false,
+      removeEmbedOutline: true,
+      riffMarker: false,
+    });
+    expect(css).not.toContain('.bq[style*="background1)"]');
+    expect(css).toContain(".callout-content { padding-inline-start: 4px; }");
+    expect(css).not.toContain("filter: none");
+    expect(css).toContain("outline: none !important");
+    expect(css).not.toContain("custom-riff-decks");
+  });
+
   it("mounts once and removes only its own style node", () => {
     const unrelated = document.createElement("style");
     unrelated.id = "unrelated-style";
@@ -316,10 +331,10 @@ describe("callout appearance", () => {
     styles.destroy();
   });
 
-  it("is an independent, enabled-by-default Damophus sub-plugin", () => {
+  it("is an independent, disabled-by-default Damophus sub-plugin", () => {
     expect(pluginMetadata).toMatchObject({
       name: "calloutAppearance",
-      enabled: true,
+      enabled: false,
       icon: "messageSquareText",
     });
     expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({

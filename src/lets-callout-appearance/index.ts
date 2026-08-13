@@ -31,6 +31,11 @@ export default class CalloutAppearancePlugin extends SubPluginBase {
       outlineOpacity: this.getSetting("outlineOpacity"),
       titleSize: this.getSetting("titleSize"),
       titleWeight: this.getSetting("titleWeight"),
+      palette: this.getSetting("palette"),
+      contentPadding: this.getSetting("contentPadding"),
+      removeQuoteShadow: this.getSetting("removeQuoteShadow"),
+      removeEmbedOutline: this.getSetting("removeEmbedOutline"),
+      riffMarker: this.getSetting("riffMarker"),
     };
   }
 }

@@ -12,6 +12,11 @@ export interface CalloutAppearanceSettings {
   outlineOpacity: number;
   titleSize: number;
   titleWeight: number;
+  palette: boolean;
+  contentPadding: boolean;
+  removeQuoteShadow: boolean;
+  removeEmbedOutline: boolean;
+  riffMarker: boolean;
 }
 
 export const DEFAULT_CALLOUT_APPEARANCE_SETTINGS: CalloutAppearanceSettings = {
@@ -24,9 +29,14 @@ export const DEFAULT_CALLOUT_APPEARANCE_SETTINGS: CalloutAppearanceSettings = {
   outlineOpacity: 8,
   titleSize: 16,
   titleWeight: 500,
+  palette: true,
+  contentPadding: true,
+  removeQuoteShadow: true,
+  removeEmbedOutline: true,
+  riffMarker: true,
 };
 
-type NumericCalloutAppearanceSetting = Exclude<keyof CalloutAppearanceSettings, "followCalloutTextColor">;
+type NumericCalloutAppearanceSetting = Exclude<keyof CalloutAppearanceSettings, "followCalloutTextColor" | "palette" | "contentPadding" | "removeQuoteShadow" | "removeEmbedOutline" | "riffMarker">;
 
 const SETTING_LIMITS = {
   paddingTop: [8, 24],
@@ -70,6 +80,11 @@ export function resolveCalloutAppearanceSettings(
     outlineOpacity: clampSetting("outlineOpacity", settings.outlineOpacity),
     titleSize: clampSetting("titleSize", settings.titleSize),
     titleWeight: clampSetting("titleWeight", settings.titleWeight),
+    palette: settings.palette !== false && settings.palette !== "false",
+    contentPadding: settings.contentPadding !== false && settings.contentPadding !== "false",
+    removeQuoteShadow: settings.removeQuoteShadow !== false && settings.removeQuoteShadow !== "false",
+    removeEmbedOutline: settings.removeEmbedOutline !== false && settings.removeEmbedOutline !== "false",
+    riffMarker: settings.riffMarker !== false && settings.riffMarker !== "false",
   };
 }
 
@@ -123,6 +138,17 @@ ${directBodySelectors} {
 }
 `
     : "";
+  const paletteCss = settings.palette ? Array.from({ length: 13 }, (_, index) => {
+    const color = index + 1;
+    return `.bq[style*="background${color})"] { border: none !important; background-color: var(--b3-bq-background${color}) !important; box-shadow: 0 0 0 2px var(--b3-font-background${color}) inset !important; }`;
+  }).join("\n") + `\n.bq[style*="error"] { border: none !important; background-color: var(--b3-bq-background13) !important; box-shadow: 0 0 0 2px var(--b3-font-background13) inset !important; }\n.bq[style*="warning"] { border: none !important; background-color: var(--b3-bq-background6) !important; box-shadow: 0 0 0 2px var(--b3-font-background6) inset !important; }\n.bq[style*="info"] { border: none !important; background-color: var(--b3-bq-background10) !important; box-shadow: 0 0 0 2px var(--b3-font-background10) inset !important; }\n.bq[style*="success"] { border: none !important; background-color: var(--b3-bq-background8) !important; box-shadow: 0 0 0 2px var(--b3-font-background8) inset !important; }` : "";
+  const legacyCss = [
+    paletteCss,
+    settings.contentPadding ? `:is(.b3-typography,.protyle-wysiwyg) .callout-content { padding-inline-start: 4px; }` : "",
+    settings.removeQuoteShadow ? `.protyle-wysiwyg [data-node-id][style*="--b3-font-background1)"] { box-shadow: none !important; filter: none !important; }` : "",
+    settings.removeEmbedOutline ? `.protyle-wysiwyg [data-node-id][style*="--b3-font-background1)"] { outline: none !important; }` : "",
+    settings.riffMarker ? `.protyle-wysiwyg .callout[data-type="NodeCallout"][custom-riff-decks] { box-shadow: 2px 0 0 0 var(--b3-protyle-inline-mark-background) inset !important; }` : "",
+  ].filter(Boolean).join("\n");
 
   return `
 ${EDITOR_CALLOUT_SELECTORS.join(",\n")} {
@@ -211,6 +237,8 @@ ${subtypeTitleSelectors(["NOTE", "Info", "TIP", "IMPORTANT", "WARNING", "Questio
   color: inherit !important;
 }
 ${textColorCss}
+
+${legacyCss}
 
 ${nativePseudoSelectors} {
   display: none !important;

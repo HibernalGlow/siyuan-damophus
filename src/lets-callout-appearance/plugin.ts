@@ -16,6 +16,11 @@ export const pluginMetadata: PluginMetadata = {
       key: "followCalloutTextColor",
       value: false,
     },
+    { type: "checkbox", title: "lets-callout-appearance.paletteTitle", description: "lets-callout-appearance.paletteDescription", key: "palette", value: true },
+    { type: "checkbox", title: "lets-callout-appearance.contentPaddingTitle", description: "lets-callout-appearance.contentPaddingDescription", key: "contentPadding", value: true },
+    { type: "checkbox", title: "lets-callout-appearance.removeQuoteShadowTitle", description: "lets-callout-appearance.removeQuoteShadowDescription", key: "removeQuoteShadow", value: true },
+    { type: "checkbox", title: "lets-callout-appearance.removeEmbedOutlineTitle", description: "lets-callout-appearance.removeEmbedOutlineDescription", key: "removeEmbedOutline", value: true },
+    { type: "checkbox", title: "lets-callout-appearance.riffMarkerTitle", description: "lets-callout-appearance.riffMarkerDescription", key: "riffMarker", value: true },
     {
       type: "slider",
       title: "lets-callout-appearance.paddingTopTitle",
