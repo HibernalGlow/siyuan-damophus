@@ -87,14 +87,10 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     expect(addDock).toHaveBeenCalledOnce();
   });
 
-  it("executes an action Dock without allowing SiYuan to open a panel", () => {
+  it("executes an action Dock created after registration without allowing SiYuan to open a panel", () => {
     const execute = vi.fn();
     const nativeDockClick = vi.fn();
-    const dockButton = document.createElement("button");
-    dockButton.className = "dock__item";
-    dockButton.dataset.type = "siyuan-damophusdirect-action-dock";
     window.addEventListener("click", nativeDockClick);
-    document.body.append(dockButton);
 
     const entry = new UnifiedEntryPoint({
       id: "direct-action",
@@ -119,18 +115,29 @@ describe("UnifiedEntryPoint Dock visibility", () => {
     });
 
     entry.registerDock();
+    const dockButton = document.createElement("button");
+    dockButton.className = "dock__item";
+    dockButton.dataset.type = "siyuan-damophusdirect-action-dock";
+    dockButton.innerHTML = "<svg><use></use></svg>";
+    document.body.append(dockButton);
     const event = new MouseEvent("click", { bubbles: true, cancelable: true });
-    dockButton.dispatchEvent(event);
+    dockButton.querySelector("svg")?.dispatchEvent(event);
 
     expect(execute).toHaveBeenCalledOnce();
     expect(nativeDockClick).not.toHaveBeenCalled();
     expect(event.defaultPrevented).toBe(true);
 
+    const replacement = dockButton.cloneNode(true) as HTMLElement;
+    dockButton.replaceWith(replacement);
+    replacement.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(nativeDockClick).not.toHaveBeenCalled();
+
     entry.setEnabled(false);
-    dockButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(execute).toHaveBeenCalledOnce();
+    replacement.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(execute).toHaveBeenCalledTimes(2);
     expect(nativeDockClick).toHaveBeenCalledOnce();
     window.removeEventListener("click", nativeDockClick);
-    dockButton.remove();
+    replacement.remove();
   });
 });

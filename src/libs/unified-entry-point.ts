@@ -40,7 +40,7 @@ export class UnifiedEntryPoint {
   private dockKey?: string;
   private dockTarget?: HTMLElement;
   private dockInitialized = false;
-  private dockActionElement?: HTMLElement;
+  private dockActionListenerAttached = false;
   private enabled = true;
   private surfaces: Record<ManagedEntrySurface, boolean> = {
     menu: true,
@@ -167,6 +167,7 @@ export class UnifiedEntryPoint {
     const dockType = this.definition.dock?.type;
     if (!dockType) return;
     const active = this.enabled && this.surfaces.dock;
+    this.syncDockActionListener(active);
     if (active && !this.dockRegistered) this.registerDock();
     if (!active && this.dockRegistered && this.dockKey && this.host.docks) {
       delete this.host.docks[this.dockKey];
@@ -190,24 +191,29 @@ export class UnifiedEntryPoint {
           use.setAttribute("href", `#${icon}`);
           use.setAttribute("xlink:href", `#${icon}`);
         }
-        this.syncDockActionElement(hidden ? undefined : element);
       });
-      if (hidden) this.syncDockActionElement(undefined);
     };
     apply();
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(apply);
   }
 
-  private syncDockActionElement(element: HTMLElement | undefined): void {
+  private syncDockActionListener(active: boolean): void {
     if (this.definition.dock?.activation !== "action") return;
-    if (this.dockActionElement === element) return;
-    this.dockActionElement?.removeEventListener("click", this.handleDockActionClick);
-    this.dockActionElement = element;
-    this.dockActionElement?.addEventListener("click", this.handleDockActionClick);
+    const shouldAttach = active && typeof document !== "undefined" && !isMobileEntryFrontend();
+    if (shouldAttach === this.dockActionListenerAttached) return;
+    this.dockActionListenerAttached = shouldAttach;
+    document[shouldAttach ? "addEventListener" : "removeEventListener"](
+      "click",
+      this.handleDockActionClick,
+      true,
+    );
   }
 
   private readonly handleDockActionClick = (event: MouseEvent): void => {
     if (!this.enabled || !this.surfaces.dock) return;
+    const target = event.target instanceof Element ? event.target.closest<HTMLElement>(".dock__item[data-type]") : null;
+    const dockType = this.definition.dock?.type;
+    if (!target || !dockType || !this.matchesDockType(target.dataset.type, dockType)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     this.definition.execute();
