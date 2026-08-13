@@ -181,26 +181,6 @@ function prepareEmptyParagraph(paragraph: HTMLElement, id: string): HTMLElement 
   return paragraph;
 }
 
-function isLegalCalloutChild(element: Element | null): element is HTMLElement {
-  if (!(element instanceof HTMLElement)) return false;
-  const type = element.dataset.type;
-  return Boolean(type && type !== "NodeListItem" && type !== "NodeDocument");
-}
-
-function nextContentBlock(element: HTMLElement): {
-  block?: HTMLElement;
-  atContainerEnd: boolean;
-} {
-  const next = element.nextElementSibling;
-  if (!next || (next.classList.contains("protyle-attr") && next.nextElementSibling === null)) {
-    return { atContainerEnd: true };
-  }
-  if (next instanceof HTMLElement && next.dataset.nodeId && next.dataset.type) {
-    return { block: next, atContainerEnd: false };
-  }
-  return { atContainerEnd: false };
-}
-
 function parentBlockId(element: HTMLElement, protyle: IProtyle): string | undefined {
   return element.parentElement?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId
     ?? protyle.block.parentID;
@@ -310,34 +290,21 @@ export class CalloutSmartInsert {
     if (!simulated) return false;
 
     const wrapsCurrent = hasMeaningfulContent(simulated);
-    const following = nextContentBlock(block);
-    const nextBlock = following.block;
-    const createsEmptyBody = !wrapsCurrent && (
-      following.atContainerEnd || nextBlock?.dataset.type === "NodeList"
-    );
-    if (!wrapsCurrent && !createsEmptyBody && !isLegalCalloutChild(nextBlock)) return false;
 
     const blockId = block.dataset.nodeId;
     const outerParentId = parentBlockId(block, protyle);
-    const targetId = !wrapsCurrent && !createsEmptyBody
-      ? (nextBlock as HTMLElement).dataset.nodeId
-      : undefined;
     const instance = protyle.getInstance?.();
     const transaction = instance?.transaction;
-    if (!blockId || !outerParentId || (!wrapsCurrent && !createsEmptyBody && !targetId)
-      || typeof transaction !== "function") {
+    if (!blockId || !outerParentId || typeof transaction !== "function") {
       return false;
     }
 
-    const calloutId = createsEmptyBody ? blockId : this.runtime.newNodeId();
+    const calloutId = wrapsCurrent ? this.runtime.newNodeId() : blockId;
     const callout = createCalloutShell(protyle, value, type, calloutId);
     const calloutContent = callout?.querySelector<HTMLElement>(":scope > .callout-content");
     if (!callout || !calloutContent) return false;
     const emptyParagraph = !wrapsCurrent
-      ? prepareEmptyParagraph(
-        simulated,
-        createsEmptyBody ? this.runtime.newNodeId() : blockId,
-      )
+      ? prepareEmptyParagraph(simulated, this.runtime.newNodeId())
       : undefined;
     if (!wrapsCurrent && !emptyParagraph) return false;
 
@@ -365,51 +332,22 @@ export class CalloutSmartInsert {
       return true;
     }
 
-    if (createsEmptyBody) {
-      if (!emptyParagraph) return false;
-      const shellHtml = callout.outerHTML;
-      calloutContent.append(emptyParagraph);
-      block.replaceWith(callout);
-      const doOperations: IOperation[] = [
-        { action: "update", id: blockId, data: shellHtml },
-        {
-          action: "insert",
-          id: emptyParagraph.dataset.nodeId,
-          data: emptyParagraph.outerHTML,
-          parentID: blockId,
-        },
-      ];
-      const undoOperations: IOperation[] = [
-        { action: "delete", id: emptyParagraph.dataset.nodeId },
-        { action: "update", id: blockId, data: originalBlockHtml },
-      ];
-      transaction.call(instance, doOperations, undoOperations);
-      focusStart(emptyParagraph);
-      return true;
-    }
-
-    const target = nextBlock as HTMLElement;
     if (!emptyParagraph) return false;
     const shellHtml = callout.outerHTML;
+    calloutContent.append(emptyParagraph);
     block.replaceWith(callout);
-    calloutContent.append(emptyParagraph, target);
     const doOperations: IOperation[] = [
+      { action: "update", id: blockId, data: shellHtml },
       {
         action: "insert",
-        id: calloutId,
-        data: shellHtml,
-        nextID: blockId,
-        parentID: outerParentId,
+        id: emptyParagraph.dataset.nodeId,
+        data: emptyParagraph.outerHTML,
+        parentID: blockId,
       },
-      { action: "update", id: blockId, data: emptyParagraph.outerHTML },
-      { action: "move", id: blockId, parentID: calloutId },
-      { action: "move", id: targetId, previousID: blockId, parentID: calloutId },
     ];
     const undoOperations: IOperation[] = [
-      { action: "move", id: blockId, previousID: calloutId, parentID: outerParentId },
+      { action: "delete", id: emptyParagraph.dataset.nodeId },
       { action: "update", id: blockId, data: originalBlockHtml },
-      { action: "move", id: targetId, previousID: blockId, parentID: outerParentId },
-      { action: "delete", id: calloutId },
     ];
     transaction.call(instance, doOperations, undoOperations);
     focusStart(emptyParagraph);

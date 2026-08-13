@@ -1,8 +1,8 @@
 export const en = {
   "lets-callout-tools.displayName": "Callout tools",
-  "lets-callout-tools.description": "Insert Callouts around nearby content or convert selected blocks directly to a chosen Callout type. Each behavior can be enabled independently.",
+  "lets-callout-tools.description": "Insert a Callout from the current block or convert selected blocks directly to a chosen Callout type. Each behavior can be enabled independently.",
   "lets-callout-tools.smartInsertTitle": "Smart Callout insertion",
-  "lets-callout-tools.smartInsertDescription": "Place nearby paragraphs or headings inside a newly inserted Callout while preserving list structure.",
+  "lets-callout-tools.smartInsertDescription": "Place only the current block inside a newly inserted Callout. Following blocks remain unchanged.",
   "lets-callout-tools.blockMenuConversionTitle": "Block menu conversion",
   "lets-callout-tools.blockMenuConversionDescription": "Choose the Callout type directly from the block menu instead of converting to Note first.",
   "lets-callout-tools.promoteHeadingTitle": "Use first heading as Callout title",
@@ -17,9 +17,9 @@ export const en = {
 
 export const zhCN: typeof en = {
   "lets-callout-tools.displayName": "Callout 工具",
-  "lets-callout-tools.description": "将临近内容智能纳入 Callout，或从块菜单直接转换为指定类型；两项功能可以分别启用。",
+  "lets-callout-tools.description": "从当前块插入 Callout，或从块菜单直接转换为指定类型；两项功能可以分别启用。",
   "lets-callout-tools.smartInsertTitle": "智能插入 Callout",
-  "lets-callout-tools.smartInsertDescription": "将临近的段落或标题纳入新 Callout，同时保持列表结构不变。",
+  "lets-callout-tools.smartInsertDescription": "只将触发菜单的当前块纳入新 Callout，下方块保持不变。",
   "lets-callout-tools.blockMenuConversionTitle": "块菜单转换",
   "lets-callout-tools.blockMenuConversionDescription": "从块菜单直接选择 Callout 类型，无需先转换为 Note 再手动修改。",
   "lets-callout-tools.promoteHeadingTitle": "使用第一个标题作为 Callout 标题",
