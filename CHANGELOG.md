@@ -1,5 +1,15 @@
 # siyuan-damophus
 
+## 0.6.0
+
+### Minor Changes
+
+- 5d0c7a1: Add automatic native menu-anchor discovery and configurable placement for the top-level Plugins entry without modifying SiYuan's entry visibility configuration.
+
+### Patch Changes
+
+- 8a9d87f: - README 与集市新增赞赏入口：插件详情页可直接查看赞赏码，集市赞助按钮点击即可打开赞赏码图片。
+
 ## 0.5.0
 
 ### Minor Changes
