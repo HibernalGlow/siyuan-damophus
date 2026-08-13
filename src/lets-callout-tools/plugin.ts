@@ -6,7 +6,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-callout-tools.description",
   version: "1.0.0",
   enabled: false,
-  icon: "messageSquareText",
+  icon: "workflow",
   settings: [
     {
       type: "checkbox",

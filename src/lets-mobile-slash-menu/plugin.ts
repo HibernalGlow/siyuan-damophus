@@ -6,7 +6,7 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-mobile-slash-menu.description",
   version: "1.0.0",
   enabled: false,
-  icon: "smartphone",
+  icon: "gripVertical",
   settings: [
     {
       type: "checkbox",

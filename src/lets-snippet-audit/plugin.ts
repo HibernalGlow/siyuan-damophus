@@ -7,7 +7,7 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-snippet-audit.description",
   version: "1.0.0",
   enabled: false,
-  icon: "listTree",
+  icon: "boxes",
   settings: [
     ...createEntrySettings({ menu: true, tab: true }, { central: true }),
   ],
