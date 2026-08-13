@@ -88,8 +88,11 @@
               {@const checked = selected.includes(option.value)}
               <button
                 type="button"
-                class={`grid min-h-9 w-full grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-2.5 py-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${checked ? "border-primary bg-primary/5" : ""}`}
+                class="damophus-block-type-option grid min-h-9 w-full grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-left text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                class:selected={checked}
                 aria-pressed={checked}
+                data-selected={checked ? "true" : "false"}
+                data-slot="button"
                 aria-label={`${optionLabel(option)} (${option.value})`}
                 data-block-type={option.value}
                 onclick={() => toggle(option.value)}
@@ -112,3 +115,23 @@
     <p class="m-0 py-3 text-center text-sm text-muted-foreground">{t("settings.blockType.noResults", "No matching block types")}</p>
   {/if}
 </div>
+
+<style>
+  .damophus-block-type-option {
+    appearance: none;
+    border-color: var(--border);
+    background: var(--background);
+    color: var(--foreground);
+    font: inherit;
+  }
+
+  .damophus-block-type-option:hover {
+    background: var(--muted);
+    color: var(--foreground);
+  }
+
+  .damophus-block-type-option[data-selected="true"] {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 5%, var(--background));
+  }
+</style>

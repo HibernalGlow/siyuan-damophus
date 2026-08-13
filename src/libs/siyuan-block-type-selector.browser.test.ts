@@ -13,6 +13,7 @@ afterEach(async () => {
 function render(value: unknown = "NodeCodeBlock") {
   const changed = vi.fn();
   const target = document.createElement("div");
+  target.className = "damophus-theme-root damophus-question-bank-theme";
   target.style.width = "760px";
   document.body.append(target);
   mounted.push(mount(SiyuanBlockTypeSelector, {
@@ -50,5 +51,35 @@ describe("SiYuan block type selector", () => {
     await vi.waitFor(() => expect(target.scrollWidth).toBeLessThanOrEqual(target.clientWidth));
     const selector = target.querySelector<HTMLElement>('[data-testid="block-type-selector"]');
     expect(selector?.getBoundingClientRect().width).toBeLessThanOrEqual(target.getBoundingClientRect().width);
+  });
+
+  it("uses the active SiYuan theme for option surfaces and selection", async () => {
+    const { target } = render(["NodeCodeBlock"]);
+    target.style.setProperty("--b3-theme-background", "rgb(248, 250, 252)");
+    target.style.setProperty("--b3-theme-on-background", "rgb(24, 31, 42)");
+    target.style.setProperty("--b3-theme-surface", "rgb(236, 241, 246)");
+    target.style.setProperty("--b3-theme-on-surface", "rgb(76, 87, 102)");
+    target.style.setProperty("--b3-theme-primary", "rgb(19, 112, 87)");
+    target.style.setProperty("--b3-theme-on-primary", "rgb(255, 255, 255)");
+    target.style.setProperty("--b3-border-color", "rgb(172, 184, 197)");
+    target.style.setProperty("--b3-list-hover", "rgb(220, 232, 228)");
+
+    const paragraph = target.querySelector<HTMLElement>('[data-block-type="NodeParagraph"]')!;
+    const code = target.querySelector<HTMLElement>('[data-block-type="NodeCodeBlock"]')!;
+    await vi.waitFor(() => {
+      expect(getComputedStyle(paragraph).backgroundColor).toBe("rgb(248, 250, 252)");
+      expect(getComputedStyle(paragraph).borderColor).toBe("rgb(172, 184, 197)");
+      expect(getComputedStyle(code).borderColor).toBe("rgb(19, 112, 87)");
+    });
+
+    target.style.setProperty("--b3-theme-background", "rgb(25, 28, 35)");
+    target.style.setProperty("--b3-theme-on-background", "rgb(231, 235, 242)");
+    target.style.setProperty("--b3-theme-primary", "rgb(126, 196, 172)");
+    target.style.setProperty("--b3-border-color", "rgb(69, 78, 91)");
+    await vi.waitFor(() => {
+      expect(getComputedStyle(paragraph).backgroundColor).toBe("rgb(25, 28, 35)");
+      expect(getComputedStyle(paragraph).color).toBe("rgb(231, 235, 242)");
+      expect(getComputedStyle(code).borderColor).toBe("rgb(126, 196, 172)");
+    });
   });
 });
