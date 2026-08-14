@@ -762,9 +762,10 @@ export class ExpandedPluginMenuController {
     let insertAfter = false;
     if (this.placement.mode === "top") {
       reference = directMenuItems(parent).find((item) => item !== rootItem) ?? null;
-    } else {
+    } else if (this.placement.mode === "before" || this.placement.mode === "after") {
+      const anchorId = this.placement.anchorId;
       reference = directMenuItems(parent).find(
-        (item) => item !== rootItem && item.dataset.id === this.placement.anchorId,
+        (item) => item !== rootItem && item.dataset.id === anchorId,
       ) ?? null;
       insertAfter = this.placement.mode === "after";
     }

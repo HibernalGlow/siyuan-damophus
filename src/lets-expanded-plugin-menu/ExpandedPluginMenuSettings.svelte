@@ -58,6 +58,10 @@
   };
 
   const dispatch = createEventDispatcher();
+  type AnchoredMenuPlacement = Extract<PluginMenuPlacement, { anchorId: string }>;
+  function anchoredPlacement(value: PluginMenuPlacement): AnchoredMenuPlacement | undefined {
+    return value.mode === "before" || value.mode === "after" ? value : undefined;
+  }
   type DraggableMenuEntry = DiscoveredPluginMenuEntry & { id: string };
   let syncedState = "";
   let selectedKeys = new Set<string>();
@@ -182,8 +186,9 @@
           </Select.Content>
         </Select.Root>
         {#if placement.mode === "before" || placement.mode === "after"}
-          <Select.Root type="single" value={placement.anchorId} onValueChange={(anchorId) => setPlacement({ mode: placement.mode, anchorId })}>
-            <Select.Trigger class="w-full" aria-label={labels.placementAnchor}>{labels.placementAnchor}: {anchors.find((anchor) => anchor.id === placement.anchorId)?.label ?? placement.anchorId}</Select.Trigger>
+          {@const anchored = anchoredPlacement(placement)!}
+          <Select.Root type="single" value={anchored.anchorId} onValueChange={(anchorId) => setPlacement({ mode: anchored.mode, anchorId })}>
+            <Select.Trigger class="w-full" aria-label={labels.placementAnchor}>{labels.placementAnchor}: {anchors.find((anchor) => anchor.id === anchored.anchorId)?.label ?? anchored.anchorId}</Select.Trigger>
             <Select.Content>
               {#each anchors as anchor (anchor.id)}
                 <Select.Item value={anchor.id} label={`${anchor.label} (${anchor.id})`} />

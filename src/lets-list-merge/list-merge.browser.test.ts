@@ -183,7 +183,7 @@ describe("list item detach", () => {
     const transaction = buildListItemDetachTransaction(plan);
     applyListItemDetachDom(plan);
 
-    expect(Array.from(editor.children).map((child) => child.dataset.nodeId)).toEqual([
+    expect(Array.from(editor.children).map((child) => (child as HTMLElement).dataset.nodeId)).toEqual([
       "target", "middle-p", "after-list", "trailing",
     ]);
     expect(editor.querySelector('[data-node-id="middle"]')).toBeNull();
