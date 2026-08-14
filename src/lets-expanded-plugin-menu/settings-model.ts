@@ -14,6 +14,40 @@ export interface DiscoveredPluginMenuAnchor {
 
 export const DEFAULT_PLUGIN_MENU_PLACEMENT = JSON.stringify({ mode: "native" });
 
+export function parsePluginMenuOrder(value: unknown): string[] {
+  let parsed = value;
+  if (typeof value === "string") {
+    try { parsed = JSON.parse(value); } catch { return []; }
+  }
+  return Array.isArray(parsed) && parsed.every((entry) => typeof entry === "string") ? parsed : [];
+}
+
+export function serializePluginMenuOrder(order: readonly string[]): string {
+  return JSON.stringify(order);
+}
+
+export function orderPluginMenuKeys(keys: string[], preference: readonly string[]): string[] {
+  if (preference.length === 0) return keys;
+  const positions = new Map(preference.map((key, index) => [key.toLocaleLowerCase(), index]));
+  return [...keys].sort((left, right) => {
+    const a = positions.get(left.toLocaleLowerCase());
+    const b = positions.get(right.toLocaleLowerCase());
+    if (a === undefined && b === undefined) return 0;
+    if (a === undefined) return 1;
+    if (b === undefined) return -1;
+    return a - b;
+  });
+}
+
+export function movePluginMenuKey(keys: string[], key: string, direction: "up" | "down"): string[] {
+  const index = keys.indexOf(key);
+  const target = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || target < 0 || target >= keys.length) return keys;
+  const next = [...keys];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
 function normalized(value: string): string {
   return value.trim().toLocaleLowerCase();
 }

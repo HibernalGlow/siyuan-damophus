@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
-  import { ChevronDown, Plug, Puzzle } from "lucide-svelte";
+  import { ArrowDown, ArrowUp, ChevronDown, Plug, Puzzle } from "lucide-svelte";
   import * as Select from "@/components/ui/select";
   import { Switch } from "@/components/ui/switch";
   import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,10 @@
     extractAdvancedExpandedMenuRules,
     selectedDiscoveredEntryKeys,
     serializeExpandedMenuSettings,
+    movePluginMenuKey,
+    orderPluginMenuKeys,
+    parsePluginMenuOrder,
+    serializePluginMenuOrder,
   } from "./settings-model";
   import {
     parseDiscoveredPluginMenuAnchors,
@@ -22,6 +26,7 @@
   export let discoveredEntries: unknown = "[]";
   export let allowedEntries = "";
   export let pluginMenuPlacement: unknown = "{\"mode\":\"native\"}";
+  export let pluginMenuOrder: unknown = "[]";
   export let pluginMenuAnchors: unknown = "[]";
   export let moduleStates: Record<string, boolean> = {};
   export let labels: {
@@ -47,6 +52,9 @@
     placementBefore: string;
     placementAfter: string;
     placementAnchor: string;
+    menuOrder?: string;
+    moveUp?: string;
+    moveDown?: string;
   };
 
   const dispatch = createEventDispatcher();
@@ -54,9 +62,7 @@
   let selectedKeys = new Set<string>();
   let advancedRules = "";
   let placement: PluginMenuPlacement = parsePluginMenuPlacement(pluginMenuPlacement);
-  $: entries = parseDiscoveredPluginMenuEntries(discoveredEntries)
-    .filter((entry) => entry.source === "identity")
-    .sort((left, right) => right.lastSeen - left.lastSeen || left.label.localeCompare(right.label));
+  $: entries = orderEntries(discoveredEntries, pluginMenuOrder);
   $: stateSignature = `${allowedEntries}\n${entries.map((entry) => entry.key).join("\n")}`;
   $: if (stateSignature !== syncedState) {
     syncedState = stateSignature;
@@ -80,6 +86,21 @@
     else next.delete(entryKey);
     selectedKeys = next;
     persist(next, advancedRules);
+  }
+
+  function moveEntry(entryKey: string, direction: "up" | "down") {
+    const next = movePluginMenuKey(entries.map((entry) => entry.key), entryKey, direction);
+    dispatch("changed", { group, key: "pluginMenuOrder", value: serializePluginMenuOrder(next) });
+  }
+
+  function orderEntries(value: unknown, preference: unknown): DiscoveredPluginMenuEntry[] {
+    const parsed = parseDiscoveredPluginMenuEntries(value)
+      .filter((entry) => entry.source === "identity")
+      .sort((left, right) => right.lastSeen - left.lastSeen || left.label.localeCompare(right.label));
+    const byKey = new Map(parsed.map((entry) => [entry.key, entry]));
+    return orderPluginMenuKeys(parsed.map((entry) => entry.key), parsePluginMenuOrder(preference))
+      .map((key) => byKey.get(key))
+      .filter((entry): entry is DiscoveredPluginMenuEntry => Boolean(entry));
   }
 
   function statusFor(entry: DiscoveredPluginMenuEntry): string {
@@ -167,6 +188,7 @@
     {:else}
       <div class="expanded-menu-settings__entries" role="list">
         {#each entries as entry (entry.key)}
+          {@const index = entries.findIndex((candidate) => candidate.key === entry.key)}
           <div class="expanded-menu-settings__entry" role="listitem" data-entry-key={entry.key}>
             <span class="expanded-menu-settings__icon">
               {#if entry.moduleId}<Puzzle class="size-4" aria-hidden="true" />
@@ -182,6 +204,10 @@
                 {#if entry.pluginId}<div><dt>{labels.pluginId}</dt><dd>{entry.pluginId}</dd></div>{/if}
                 {#if entry.declaration}<div><dt>{labels.declaration}</dt><dd>{entry.declaration}</dd></div>{/if}
               </dl>
+            </div>
+            <div class="expanded-menu-settings__order">
+              <button type="button" class="expanded-menu-settings__order-button" title={labels.moveUp ?? "Move up"} aria-label={`${labels.moveUp ?? "Move up"}: ${entry.label}`} disabled={index === 0} onclick={() => moveEntry(entry.key, "up")}><ArrowUp class="size-3.5" aria-hidden="true" /></button>
+              <button type="button" class="expanded-menu-settings__order-button" title={labels.moveDown ?? "Move down"} aria-label={`${labels.moveDown ?? "Move down"}: ${entry.label}`} disabled={index === entries.length - 1} onclick={() => moveEntry(entry.key, "down")}><ArrowDown class="size-3.5" aria-hidden="true" /></button>
             </div>
             <Switch
               checked={selectedKeys.has(entry.key)}
@@ -216,6 +242,9 @@
   .expanded-menu-settings__intro { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
   .expanded-menu-settings__entries { display: flex; flex-direction: column; }
   .expanded-menu-settings__entry { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; min-height: 68px; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .expanded-menu-settings__order { display: inline-flex; gap: 2px; }
+  .expanded-menu-settings__order-button { display: inline-grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border); color: var(--muted-foreground); background: transparent; cursor: pointer; }
+  .expanded-menu-settings__order-button:disabled { cursor: default; opacity: 0.35; }
   .expanded-menu-settings__icon { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 6px; background: var(--muted); color: var(--muted-foreground); }
   .expanded-menu-settings__status { display: inline-flex; min-height: 20px; align-items: center; padding-inline: 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
   .expanded-menu-settings__status--enabled { border-color: color-mix(in srgb, var(--primary) 34%, var(--border)); background: color-mix(in srgb, var(--primary) 9%, transparent); color: var(--primary); }

@@ -31,6 +31,7 @@ export default class ExpandedPluginMenuPlugin extends SubPluginBase {
       this.getSetting("discoveredEntries"),
       this.getSetting("pluginMenuPlacement") ?? DEFAULT_PLUGIN_MENU_PLACEMENT,
       this.getSetting("pluginMenuAnchors"),
+      this.getSetting("pluginMenuOrder"),
     );
   }
 
@@ -39,6 +40,7 @@ export default class ExpandedPluginMenuPlugin extends SubPluginBase {
     this.controller.updateDiscoveredEntries(this.getSetting("discoveredEntries"));
     this.controller.updateDiscoveredAnchors(this.getSetting("pluginMenuAnchors"));
     this.controller.updatePlacement(this.getSetting("pluginMenuPlacement") ?? DEFAULT_PLUGIN_MENU_PLACEMENT);
+    this.controller.updateMenuOrder(this.getSetting("pluginMenuOrder"));
     this.controller.refresh();
   }
 

@@ -5,6 +5,8 @@ export const en = {
   "lets-expanded-plugin-menu.allowedEntriesDescription": "One selector per line: plugin:package, module:moduleId, declaration:module/path, or an exact first-level menu label. Every other plugin entry keeps its original submenu.",
   "lets-expanded-plugin-menu.discoveredEntriesTitle": "Discovered menu entries",
   "lets-expanded-plugin-menu.discoveredEntriesDescription": "Internal cache populated from real first-level entries in the Plugins menu.",
+  "lets-expanded-plugin-menu.menuOrderTitle": "Plugin menu order",
+  "lets-expanded-plugin-menu.menuOrderDescription": "Store the order of discovered entries in the expanded Plugins panel.",
   "lets-expanded-plugin-menu.discoveredListTitle": "Discovered menu entries",
   "lets-expanded-plugin-menu.discoveredListDescription": "Entries appear automatically after the Plugins menu has been opened. These switches only control expansion.",
   "lets-expanded-plugin-menu.emptyDiscovered": "No menu entries discovered yet",
@@ -32,6 +34,8 @@ export const en = {
 };
 
 export const zhCN: typeof en = {
+  "lets-expanded-plugin-menu.menuOrderTitle": "插件菜单顺序",
+  "lets-expanded-plugin-menu.menuOrderDescription": "保存展开后的插件菜单入口顺序。",
   "lets-expanded-plugin-menu.displayName": "插件菜单完全展开",
   "lets-expanded-plugin-menu.description": "仅将白名单中的“插件”一级菜单项展开为多列面板，其他插件项继续保留原生子菜单。",
   "lets-expanded-plugin-menu.allowedEntriesTitle": "允许展开的菜单项",

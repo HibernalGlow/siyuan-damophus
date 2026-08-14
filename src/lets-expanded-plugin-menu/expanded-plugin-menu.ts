@@ -16,6 +16,7 @@ import {
   type DiscoveredPluginMenuAnchor,
   type PluginMenuPlacement,
 } from "./settings-model";
+import { orderPluginMenuKeys, parsePluginMenuOrder } from "./settings-model";
 
 export const EXPANDED_PLUGIN_MENU_STYLE_ID = "damophus-expanded-plugin-menu-style";
 export const EXPANDED_PLUGIN_MENU_ATTRIBUTE = "data-damophus-expanded-plugin-menu";
@@ -381,6 +382,7 @@ function localizedGroupTitle(submenu: HTMLElement, chinese: string, english: str
 function flattenCommands(
   submenu: HTMLElement,
   allowedEntries: ExpandedPluginMenuAllowedEntries,
+  menuOrder: readonly string[],
 ): Pick<EnhancedMenu, "panel" | "movedCommands"> {
   const targetDocument = submenu.ownerDocument;
   const panel = targetDocument.createElement("div");
@@ -392,8 +394,16 @@ function flattenCommands(
   let otherEntriesGroup: HTMLElement | undefined;
   const expandedGroups: HTMLElement[] = [];
 
-  for (const child of Array.from(submenuItems(submenu).children)) {
-    if (!(child instanceof HTMLElement) || !child.matches(ITEM_SELECTOR)) continue;
+  const directItems = Array.from(submenuItems(submenu).children)
+    .filter((child): child is HTMLElement => child instanceof HTMLElement && child.matches(ITEM_SELECTOR));
+  const orderedItems = orderPluginMenuKeys(
+    directItems.map((child) => discoverPluginMenuEntry(child, normalizedLabel(child)).key),
+    menuOrder,
+  );
+  const itemByKey = new Map(directItems.map((child) => [discoverPluginMenuEntry(child, normalizedLabel(child)).key, child]));
+  for (const key of orderedItems) {
+    const child = itemByKey.get(key);
+    if (!child) continue;
     const label = normalizedLabel(child);
     if (!label) continue;
     if (isAllowedEntry(child, allowedEntries)) {
@@ -574,6 +584,7 @@ export class ExpandedPluginMenuController {
   private running = false;
   private allowedEntries = parseExpandedPluginMenuAllowedEntries("");
   private discoveredEntries: DiscoveredPluginMenuEntry[] = [];
+  private menuOrder: string[] = [];
   private discoveredAnchors: DiscoveredPluginMenuAnchor[] = [];
   private placement: PluginMenuPlacement = { mode: "native" };
   private readonly enhancedMenus = new Map<HTMLElement, EnhancedMenu>();
@@ -590,12 +601,14 @@ export class ExpandedPluginMenuController {
     discoveredEntries: unknown = [],
     placement: unknown = { mode: "native" },
     discoveredAnchors: unknown = [],
+    menuOrder: unknown = [],
   ): void {
     this.running = true;
     this.allowedEntries = parseExpandedPluginMenuAllowedEntries(allowedEntries);
     this.discoveredEntries = parseDiscoveredPluginMenuEntries(discoveredEntries);
     this.placement = parsePluginMenuPlacement(placement);
     this.discoveredAnchors = parseDiscoveredPluginMenuAnchors(discoveredAnchors);
+    this.menuOrder = parsePluginMenuOrder(menuOrder);
     this.mountStyle();
     this.enhanceMenus(this.targetDocument);
     if (this.observer) return;
@@ -636,6 +649,15 @@ export class ExpandedPluginMenuController {
     for (const placed of [...this.placedMenus.values()]) this.restorePlacement(placed);
     this.placedMenus.clear();
     this.placement = placement;
+    this.enhanceMenus(this.targetDocument);
+  }
+
+  updateMenuOrder(value: unknown): void {
+    const next = parsePluginMenuOrder(value);
+    if (JSON.stringify(next) === JSON.stringify(this.menuOrder)) return;
+    for (const enhanced of this.enhancedMenus.values()) this.restoreMenu(enhanced);
+    this.enhancedMenus.clear();
+    this.menuOrder = next;
     this.enhanceMenus(this.targetDocument);
   }
 
@@ -697,7 +719,7 @@ export class ExpandedPluginMenuController {
       if (this.enhancedMenus.has(rootItem)) continue;
       this.discoverEntries(submenu);
       if (!hasAllowedEntries(this.allowedEntries)) continue;
-      const flattened = flattenCommands(submenu, this.allowedEntries);
+      const flattened = flattenCommands(submenu, this.allowedEntries, this.menuOrder);
       if (flattened.movedCommands.length === 0) {
         flattened.panel.remove();
         continue;

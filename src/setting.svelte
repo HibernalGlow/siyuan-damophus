@@ -266,6 +266,9 @@
       placementBefore: t("lets-expanded-plugin-menu.placementBefore", "Before a menu item"),
       placementAfter: t("lets-expanded-plugin-menu.placementAfter", "After a menu item"),
       placementAnchor: t("lets-expanded-plugin-menu.placementAnchor", "Menu item"),
+      menuOrder: t("lets-expanded-plugin-menu.menuOrder", "Menu order"),
+      moveUp: t("settings.moveUp", "Move up"),
+      moveDown: t("settings.moveDown", "Move down"),
     };
   }
 
@@ -807,6 +810,7 @@
           discoveredEntries={getFocusedSettingValue("discoveredEntries", "[]")}
           allowedEntries={getFocusedSettingValue("allowedEntries", "")}
           pluginMenuPlacement={getFocusedSettingValue("pluginMenuPlacement", "{\"mode\":\"native\"}")}
+          pluginMenuOrder={getFocusedSettingValue("pluginMenuOrder", "[]")}
           pluginMenuAnchors={getFocusedSettingValue("pluginMenuAnchors", "[]")}
           moduleStates={expandedMenuModuleStates}
           labels={expandedPluginMenuSettingsLabels()}

@@ -28,6 +28,13 @@ export const pluginMetadata: PluginMetadata = {
     },
     {
       type: "textarea",
+      title: "lets-expanded-plugin-menu.menuOrderTitle",
+      description: "lets-expanded-plugin-menu.menuOrderDescription",
+      key: "pluginMenuOrder",
+      value: "[]",
+    },
+    {
+      type: "textarea",
       title: "lets-expanded-plugin-menu.placementTitle",
       description: "lets-expanded-plugin-menu.placementDescription",
       key: "pluginMenuPlacement",

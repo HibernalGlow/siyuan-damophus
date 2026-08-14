@@ -8,6 +8,10 @@ import {
   selectedDiscoveredEntryKeys,
   serializeExpandedMenuSettings,
   serializePluginMenuPlacement,
+  movePluginMenuKey,
+  orderPluginMenuKeys,
+  parsePluginMenuOrder,
+  serializePluginMenuOrder,
 } from "./settings-model";
 
 const entries: DiscoveredPluginMenuEntry[] = [
@@ -62,5 +66,14 @@ describe("expanded plugin menu settings model", () => {
       new Set(["module:calloutTools", "plugin:other-plugin|混搭"]),
       "plugin:future-plugin",
     )).toBe("module:calloutTools\nplugin:other-plugin|混搭\nplugin:future-plugin");
+  });
+
+  it("round-trips and applies a stable discovered-entry order", () => {
+    const order = ["plugin:other-plugin|娣锋惌", "module:calloutTools"];
+    expect(parsePluginMenuOrder(serializePluginMenuOrder(order))).toEqual(order);
+    expect(orderPluginMenuKeys(["module:calloutTools", "plugin:other-plugin|娣锋惌", "module:new"], order))
+      .toEqual(["plugin:other-plugin|娣锋惌", "module:calloutTools", "module:new"]);
+    expect(movePluginMenuKey(order, "module:calloutTools", "up"))
+      .toEqual(["module:calloutTools", "plugin:other-plugin|娣锋惌"]);
   });
 });
