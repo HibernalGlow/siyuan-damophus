@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyExerciseFocus,
   EXERCISE_CONTAINER_ATTRIBUTE,
+  EXERCISE_EDITING_ATTRIBUTE,
   EXERCISE_FOCUS_STYLE_ID,
   EXERCISE_MASK_GROUP_ATTRIBUTE,
   EXERCISE_MASK_ROLE_ATTRIBUTE,
@@ -111,6 +112,26 @@ describe("exercise focus", () => {
     await vi.waitFor(() => expect(answer.hasAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe(false));
     expect(list.hasAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe(false);
     expect(getComputedStyle(list).display).toBe("none");
+  });
+
+  it("keeps a clicked answer open while SiYuan mutates its content", async () => {
+    renderEditor();
+    const controller = new ExerciseFocusController(document);
+    controllers.add(controller);
+    controller.start({ maskHeight: 72 });
+    const answer = document.querySelector<HTMLElement>('[data-node-id="answer"]')!;
+
+    answer.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    answer.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    expect(answer.getAttribute(EXERCISE_EDITING_ATTRIBUTE)).toBe("true");
+
+    answer.append(document.createTextNode(" edited"));
+    await vi.waitFor(() => expect(answer.getAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe("true"));
+    expect(answer.getAttribute(EXERCISE_EDITING_ATTRIBUTE)).toBe("true");
+
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await vi.waitFor(() => expect(answer.hasAttribute(EXERCISE_REVEALED_ATTRIBUTE)).toBe(false));
+    expect(answer.hasAttribute(EXERCISE_EDITING_ATTRIBUTE)).toBe(false);
   });
 
   it("updates a lazily loaded exercise and removes all state when stopped", async () => {

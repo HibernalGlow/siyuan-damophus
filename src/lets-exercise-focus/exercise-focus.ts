@@ -6,6 +6,7 @@ export const EXERCISE_VISIBILITY_ATTRIBUTE = "data-damophus-exercise-visibility"
 export const EXERCISE_MASK_GROUP_ATTRIBUTE = "data-damophus-exercise-mask-group";
 export const EXERCISE_MASK_ROLE_ATTRIBUTE = "data-damophus-exercise-mask-role";
 export const EXERCISE_REVEALED_ATTRIBUTE = "data-damophus-exercise-revealed";
+export const EXERCISE_EDITING_ATTRIBUTE = "data-damophus-exercise-editing";
 
 const EDITOR_SELECTOR = ".protyle-wysiwyg";
 const BLOCK_SELECTOR = "[data-node-id]";
@@ -62,6 +63,7 @@ function clearContainer(container: HTMLElement): void {
       block.removeAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE);
       block.removeAttribute(EXERCISE_MASK_ROLE_ATTRIBUTE);
       block.removeAttribute(EXERCISE_REVEALED_ATTRIBUTE);
+      block.removeAttribute(EXERCISE_EDITING_ATTRIBUTE);
       block.removeAttribute("data-damophus-exercise-hovered");
     });
 }
@@ -70,6 +72,15 @@ export function applyExerciseFocus(root: ParentNode, input: Partial<ExerciseFocu
   const settings = normalizeSettings(input);
   const visibleBlockTypes = new Set(settings.visibleBlockTypes);
   root.querySelectorAll<HTMLElement>(QUOTE_SELECTOR).forEach((container) => {
+    const previousMaskStates = new Map<string, { revealed: boolean; editing: boolean }>();
+    container.querySelectorAll<HTMLElement>(`[${EXERCISE_MASK_GROUP_ATTRIBUTE}]`).forEach((block) => {
+      const group = block.getAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE);
+      if (!group) return;
+      const previous = previousMaskStates.get(group) ?? { revealed: false, editing: false };
+      previous.revealed ||= block.getAttribute(EXERCISE_REVEALED_ATTRIBUTE) === "true";
+      previous.editing ||= block.getAttribute(EXERCISE_EDITING_ATTRIBUTE) === "true";
+      previousMaskStates.set(group, previous);
+    });
     clearContainer(container);
     const blocks = directContentBlocks(container);
     const heading = blocks.find((block) => isMatchingHeading(block, settings));
@@ -88,6 +99,9 @@ export function applyExerciseFocus(root: ParentNode, input: Partial<ExerciseFocu
       if (!previousHidden) maskGroup += 1;
       block.setAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE, String(maskGroup));
       block.setAttribute(EXERCISE_MASK_ROLE_ATTRIBUTE, previousHidden ? "member" : "lead");
+      const previous = previousMaskStates.get(String(maskGroup));
+      if (previous?.revealed) block.setAttribute(EXERCISE_REVEALED_ATTRIBUTE, "true");
+      if (previous?.editing) block.setAttribute(EXERCISE_EDITING_ATTRIBUTE, "true");
       previousHidden = true;
     });
   });
@@ -193,6 +207,7 @@ export class ExerciseFocusController {
     if (this.hoverListenersInstalled) {
       this.targetDocument.removeEventListener("mouseover", this.handleMouseOver, true);
       this.targetDocument.removeEventListener("mouseout", this.handleMouseOut, true);
+      this.targetDocument.removeEventListener("pointerdown", this.handlePointerDown, true);
       this.hoverListenersInstalled = false;
     }
     this.targetDocument.querySelectorAll<HTMLElement>(`[${EXERCISE_CONTAINER_ATTRIBUTE}]`)
@@ -202,6 +217,7 @@ export class ExerciseFocusController {
   private installHoverListeners(): void {
     this.targetDocument.addEventListener("mouseover", this.handleMouseOver, true);
     this.targetDocument.addEventListener("mouseout", this.handleMouseOut, true);
+    this.targetDocument.addEventListener("pointerdown", this.handlePointerDown, true);
     this.hoverListenersInstalled = true;
   }
 
@@ -221,7 +237,24 @@ export class ExerciseFocusController {
       ? event.relatedTarget.closest<HTMLElement>(`[${EXERCISE_MASK_GROUP_ATTRIBUTE}]`)
       : undefined;
     if (relatedBlock && this.sameMaskGroup(target, relatedBlock)) return;
+    if (target.getAttribute(EXERCISE_EDITING_ATTRIBUTE) === "true" || this.isGroupFocused(target)) return;
     this.setGroupRevealed(target, false);
+  };
+
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    const target = event.target instanceof Element
+      ? event.target.closest<HTMLElement>(`[${EXERCISE_MASK_GROUP_ATTRIBUTE}]`)
+      : undefined;
+    if (target) {
+      this.setGroupRevealed(target, true);
+      this.setGroupEditing(target, true);
+      return;
+    }
+    this.targetDocument.querySelectorAll<HTMLElement>(`[${EXERCISE_EDITING_ATTRIBUTE}="true"]`)
+      .forEach((block) => {
+        this.setGroupEditing(block, false);
+        this.setGroupRevealed(block, false);
+      });
   };
 
   private sameMaskGroup(left: HTMLElement, right: HTMLElement): boolean {
@@ -239,6 +272,26 @@ export class ExerciseFocusController {
         if (revealed) block.setAttribute(EXERCISE_REVEALED_ATTRIBUTE, "true");
         else block.removeAttribute(EXERCISE_REVEALED_ATTRIBUTE);
       });
+  }
+
+  private setGroupEditing(target: HTMLElement, editing: boolean): void {
+    const container = target.closest<HTMLElement>(`[${EXERCISE_CONTAINER_ATTRIBUTE}]`);
+    const group = target.getAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE);
+    if (!container || !group) return;
+    container.querySelectorAll<HTMLElement>(`[${EXERCISE_MASK_GROUP_ATTRIBUTE}]`)
+      .forEach((block) => {
+        if (block.getAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE) !== group) return;
+        if (editing) block.setAttribute(EXERCISE_EDITING_ATTRIBUTE, "true");
+        else block.removeAttribute(EXERCISE_EDITING_ATTRIBUTE);
+      });
+  }
+
+  private isGroupFocused(target: HTMLElement): boolean {
+    const active = this.targetDocument.activeElement;
+    const activeBlock = active instanceof Element
+      ? active.closest<HTMLElement>(`[${EXERCISE_MASK_GROUP_ATTRIBUTE}]`)
+      : undefined;
+    return Boolean(activeBlock && this.sameMaskGroup(target, activeBlock));
   }
 
   private schedule(roots: readonly HTMLElement[]): void {
