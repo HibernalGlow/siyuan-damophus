@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
-  import { ArrowDown, ArrowUp, ChevronDown, Plug, Puzzle } from "lucide-svelte";
+  import { dragHandle, dragHandleZone, type DndEvent } from "svelte-dnd-action";
+  import { ChevronDown, GripVertical, Plug, Puzzle } from "lucide-svelte";
   import * as Select from "@/components/ui/select";
   import { Switch } from "@/components/ui/switch";
   import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +10,6 @@
     extractAdvancedExpandedMenuRules,
     selectedDiscoveredEntryKeys,
     serializeExpandedMenuSettings,
-    movePluginMenuKey,
     orderPluginMenuKeys,
     parsePluginMenuOrder,
     serializePluginMenuOrder,
@@ -58,6 +58,7 @@
   };
 
   const dispatch = createEventDispatcher();
+  type DraggableMenuEntry = DiscoveredPluginMenuEntry & { id: string };
   let syncedState = "";
   let selectedKeys = new Set<string>();
   let advancedRules = "";
@@ -88,11 +89,6 @@
     persist(next, advancedRules);
   }
 
-  function moveEntry(entryKey: string, direction: "up" | "down") {
-    const next = movePluginMenuKey(entries.map((entry) => entry.key), entryKey, direction);
-    dispatch("changed", { group, key: "pluginMenuOrder", value: serializePluginMenuOrder(next) });
-  }
-
   function orderEntries(value: unknown, preference: unknown): DiscoveredPluginMenuEntry[] {
     const parsed = parseDiscoveredPluginMenuEntries(value)
       .filter((entry) => entry.source === "identity")
@@ -101,6 +97,26 @@
     return orderPluginMenuKeys(parsed.map((entry) => entry.key), parsePluginMenuOrder(preference))
       .map((key) => byKey.get(key))
       .filter((entry): entry is DiscoveredPluginMenuEntry => Boolean(entry));
+  }
+
+  let renderedEntries: DraggableMenuEntry[] = [];
+  let sourceEntries: DiscoveredPluginMenuEntry[] = [];
+  $: if (entries !== sourceEntries) {
+    sourceEntries = entries;
+    renderedEntries = entries.map((entry) => ({ ...entry, id: entry.key }));
+  }
+
+  function considerEntries(event: CustomEvent<DndEvent<DraggableMenuEntry>>) {
+    renderedEntries = event.detail.items;
+  }
+
+  function finalizeEntries(event: CustomEvent<DndEvent<DraggableMenuEntry>>) {
+    renderedEntries = event.detail.items;
+    dispatch("changed", {
+      group,
+      key: "pluginMenuOrder",
+      value: serializePluginMenuOrder(renderedEntries.map((entry) => entry.key)),
+    });
   }
 
   function statusFor(entry: DiscoveredPluginMenuEntry): string {
@@ -186,9 +202,14 @@
         </div>
       </div>
     {:else}
-      <div class="expanded-menu-settings__entries" role="list">
-        {#each entries as entry (entry.key)}
-          {@const index = entries.findIndex((candidate) => candidate.key === entry.key)}
+      <div
+        class="expanded-menu-settings__entries"
+        role="list"
+        use:dragHandleZone={{ items: renderedEntries, type: "damophus-expanded-plugin-menu-entries", flipDurationMs: 140, delayTouchStart: true }}
+        onconsider={considerEntries}
+        onfinalize={finalizeEntries}
+      >
+        {#each renderedEntries as entry (entry.key)}
           <div class="expanded-menu-settings__entry" role="listitem" data-entry-key={entry.key}>
             <span class="expanded-menu-settings__icon">
               {#if entry.moduleId}<Puzzle class="size-4" aria-hidden="true" />
@@ -206,8 +227,9 @@
               </dl>
             </div>
             <div class="expanded-menu-settings__order">
-              <button type="button" class="expanded-menu-settings__order-button" title={labels.moveUp ?? "Move up"} aria-label={`${labels.moveUp ?? "Move up"}: ${entry.label}`} disabled={index === 0} onclick={() => moveEntry(entry.key, "up")}><ArrowUp class="size-3.5" aria-hidden="true" /></button>
-              <button type="button" class="expanded-menu-settings__order-button" title={labels.moveDown ?? "Move down"} aria-label={`${labels.moveDown ?? "Move down"}: ${entry.label}`} disabled={index === entries.length - 1} onclick={() => moveEntry(entry.key, "down")}><ArrowDown class="size-3.5" aria-hidden="true" /></button>
+              <span use:dragHandle class="expanded-menu-settings__drag-handle" title={labels.menuOrder ?? "Drag to reorder"} aria-label={`${labels.menuOrder ?? "Drag to reorder"}: ${entry.label}`}>
+                <GripVertical class="size-4" aria-hidden="true" />
+              </span>
             </div>
             <Switch
               checked={selectedKeys.has(entry.key)}
@@ -242,9 +264,10 @@
   .expanded-menu-settings__intro { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
   .expanded-menu-settings__entries { display: flex; flex-direction: column; }
   .expanded-menu-settings__entry { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; min-height: 68px; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
-  .expanded-menu-settings__order { display: inline-flex; gap: 2px; }
-  .expanded-menu-settings__order-button { display: inline-grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border); color: var(--muted-foreground); background: transparent; cursor: pointer; }
-  .expanded-menu-settings__order-button:disabled { cursor: default; opacity: 0.35; }
+  .expanded-menu-settings__order { display: inline-flex; }
+  .expanded-menu-settings__drag-handle { display: inline-flex; width: 24px; height: 24px; cursor: grab; touch-action: none; align-items: center; justify-content: center; color: var(--muted-foreground); opacity: 0.6; }
+  .expanded-menu-settings__drag-handle:hover { opacity: 1; }
+  .expanded-menu-settings__drag-handle:active { cursor: grabbing; }
   .expanded-menu-settings__icon { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 6px; background: var(--muted); color: var(--muted-foreground); }
   .expanded-menu-settings__status { display: inline-flex; min-height: 20px; align-items: center; padding-inline: 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
   .expanded-menu-settings__status--enabled { border-color: color-mix(in srgb, var(--primary) 34%, var(--border)); background: color-mix(in srgb, var(--primary) 9%, transparent); color: var(--primary); }

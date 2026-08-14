@@ -1,11 +1,12 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from "svelte";
-  import { ArrowDown, ArrowUp, Menu, MousePointerClick, PanelRight, PanelsTopLeft, SlidersHorizontal, Smartphone, SquareTerminal } from "lucide-svelte";
+  import { dragHandle, dragHandleZone, type DndEvent } from "svelte-dnd-action";
+  import { GripVertical, Menu, MousePointerClick, PanelRight, PanelsTopLeft, SlidersHorizontal, Smartphone, SquareTerminal } from "lucide-svelte";
   import { Switch } from "@/components/ui/switch";
   import PluginIcon from "@/components/plugin-icon.svelte";
   import type { ConfigurableEntrySurface } from "@/libs/plugin-entry-settings";
   import type { ManagedEntryModule } from "@/libs/module-settings";
-  import { moveMenuEntry, orderPluginNames } from "@/libs/menu-order";
+  import { orderPluginNames } from "@/libs/menu-order";
 
   interface EntryManagementLabels {
     desktopDock: string;
@@ -18,10 +19,9 @@
     showModuleDetailSwitches: string;
     disabled: string;
     unavailable: string;
-    moveUp?: string;
-    moveDown?: string;
     menuOrder?: string;
   }
+  type DraggableEntryModule = ManagedEntryModule & { id: string };
 
   export let modules: ManagedEntryModule[] = [];
   export let labels: EntryManagementLabels;
@@ -67,12 +67,22 @@
   $: orderedModules = orderPluginNames(modules.map((module) => module.pluginName), menuOrder)
     .map((name) => modules.find((module) => module.pluginName === name))
     .filter((module): module is ManagedEntryModule => Boolean(module));
+  let renderedModules: DraggableEntryModule[] = [];
+  let sourceModules: ManagedEntryModule[] = [];
+  $: if (orderedModules !== sourceModules) {
+    sourceModules = orderedModules;
+    renderedModules = orderedModules.map((module) => ({ ...module, id: module.pluginName }));
+  }
 
-  function moveModule(module: ManagedEntryModule, direction: "up" | "down") {
-    if (!module.surfaces.menu) return;
-    const menuModules = orderedModules.filter((candidate) => candidate.surfaces.menu).map((candidate) => candidate.pluginName);
-    const next = moveMenuEntry(menuModules, module.pluginName, direction);
-    dispatch("menuOrderChanged", next);
+  function considerModules(event: CustomEvent<DndEvent<DraggableEntryModule>>) {
+    renderedModules = event.detail.items;
+  }
+
+  function finalizeModules(event: CustomEvent<DndEvent<DraggableEntryModule>>) {
+    renderedModules = event.detail.items;
+    dispatch("menuOrderChanged", renderedModules
+      .filter((module) => module.surfaces.menu)
+      .map((module) => module.pluginName));
   }
 </script>
 
@@ -88,26 +98,25 @@
       />
     </label>
   </div>
-  {#each orderedModules as module (module.pluginName)}
+  <div
+    class="entry-management__modules"
+    use:dragHandleZone={{ items: renderedModules, type: "damophus-entry-management-modules", flipDurationMs: 140, delayTouchStart: true }}
+    onconsider={considerModules}
+    onfinalize={finalizeModules}
+  >
+  {#each renderedModules as module (module.pluginName)}
     <article class="entry-module" data-entry-module={module.pluginName}>
       <header class="entry-module__header">
+        {#if module.surfaces.menu}
+          <span use:dragHandle class="entry-module__drag-handle" title={labels.menuOrder ?? "Drag to reorder"} aria-label={`${labels.menuOrder ?? "Drag to reorder"}: ${translate(module.title)}`}>
+            <GripVertical class="size-4" aria-hidden="true" />
+          </span>
+        {/if}
         <PluginIcon name={module.icon} className="size-5 shrink-0 text-primary" />
         <div class="min-w-0">
           <div class="truncate text-sm font-medium">{translate(module.title)}</div>
           {#if !module.enabled}<div class="text-xs text-muted-foreground">{labels.disabled}</div>{/if}
         </div>
-        {#if module.surfaces.menu}
-          {@const menuIndex = orderedModules.filter((candidate) => candidate.surfaces.menu).findIndex((candidate) => candidate.pluginName === module.pluginName)}
-          {@const menuCount = orderedModules.filter((candidate) => candidate.surfaces.menu).length}
-          <div class="entry-module__order" aria-label={labels.menuOrder ?? "Menu order"}>
-            <button type="button" class="entry-order-button" title={labels.moveUp ?? "Move up"} aria-label={`${labels.moveUp ?? "Move up"}: ${translate(module.title)}`} disabled={menuIndex === 0} onclick={() => moveModule(module, "up")}>
-              <ArrowUp class="size-3.5" aria-hidden="true" />
-            </button>
-            <button type="button" class="entry-order-button" title={labels.moveDown ?? "Move down"} aria-label={`${labels.moveDown ?? "Move down"}: ${translate(module.title)}`} disabled={menuIndex === menuCount - 1} onclick={() => moveModule(module, "down")}>
-              <ArrowDown class="size-3.5" aria-hidden="true" />
-            </button>
-          </div>
-        {/if}
       </header>
 
       <div class="entry-module__body">
@@ -158,6 +167,7 @@
       </div>
     </article>
   {/each}
+  </div>
 </section>
 
 <style>
@@ -200,10 +210,10 @@
     padding: 14px 12px;
     background: color-mix(in srgb, var(--muted) 22%, transparent);
   }
-
-  .entry-module__order { display: inline-flex; gap: 2px; margin-left: auto; }
-  .entry-order-button { display: inline-grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border); color: var(--muted-foreground); background: transparent; cursor: pointer; }
-  .entry-order-button:disabled { cursor: default; opacity: 0.35; }
+  .entry-management__modules { min-width: 0; }
+  .entry-module__drag-handle { display: inline-flex; width: 20px; flex: 0 0 20px; cursor: grab; touch-action: none; align-items: center; justify-content: center; color: var(--muted-foreground); opacity: 0.55; }
+  .entry-module__drag-handle:hover { opacity: 1; }
+  .entry-module__drag-handle:active { cursor: grabbing; }
 
   .entry-module__body {
     min-width: 0;
