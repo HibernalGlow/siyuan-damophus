@@ -229,6 +229,20 @@
   .entry-module__drag-handle:hover { opacity: 1; }
   .entry-module__drag-handle:active { cursor: grabbing; }
 
+  :global(.entry-module.svelte-dnd-drop-target) { outline: none; }
+  :global(.entry-module.drop-before)::before,
+  :global(.entry-module.drop-after)::after {
+    left: 10px;
+    right: 10px;
+    height: 4px;
+    background: var(--primary);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px var(--background), 0 0 7px color-mix(in srgb, var(--primary) 48%, transparent);
+    z-index: 20;
+  }
+  :global(.entry-module.drop-before)::before { top: 0; }
+  :global(.entry-module.drop-after)::after { bottom: 0; }
+
   .entry-module__body {
     min-width: 0;
     padding: 8px 12px;

@@ -281,6 +281,19 @@
   .expanded-menu-settings__drag-handle { display: inline-flex; width: 24px; height: 24px; cursor: grab; touch-action: none; align-items: center; justify-content: center; color: var(--muted-foreground); opacity: 0.6; }
   .expanded-menu-settings__drag-handle:hover { opacity: 1; }
   .expanded-menu-settings__drag-handle:active { cursor: grabbing; }
+  :global(.expanded-menu-settings__entry.svelte-dnd-drop-target) { outline: none; }
+  :global(.expanded-menu-settings__entry.drop-before)::before,
+  :global(.expanded-menu-settings__entry.drop-after)::after {
+    left: 10px;
+    right: 10px;
+    height: 4px;
+    background: var(--primary);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px var(--background), 0 0 7px color-mix(in srgb, var(--primary) 48%, transparent);
+    z-index: 20;
+  }
+  :global(.expanded-menu-settings__entry.drop-before)::before { top: 0; }
+  :global(.expanded-menu-settings__entry.drop-after)::after { bottom: 0; }
   .expanded-menu-settings__icon { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 6px; background: var(--muted); color: var(--muted-foreground); }
   .expanded-menu-settings__status { display: inline-flex; min-height: 20px; align-items: center; padding-inline: 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
   .expanded-menu-settings__status--enabled { border-color: color-mix(in srgb, var(--primary) 34%, var(--border)); background: color-mix(in srgb, var(--primary) 9%, transparent); color: var(--primary); }

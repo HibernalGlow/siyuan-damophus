@@ -121,6 +121,11 @@ describe("expanded plugin menu settings", () => {
     const destinationRect = destination.getBoundingClientRect();
     source.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, buttons: 1, clientX: sourceRect.left + 4, clientY: sourceRect.top + 4 }));
     document.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, buttons: 1, clientX: destinationRect.left + 12, clientY: destinationRect.bottom - 2 }));
+    const indicator = getComputedStyle(destination, "::after");
+    expect(destination.classList.contains("drop-after")).toBe(true);
+    expect(parseFloat(indicator.height)).toBeGreaterThanOrEqual(4);
+    expect(parseFloat(indicator.width)).toBeGreaterThanOrEqual(destinationRect.width - 24);
+    expect(indicator.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
     document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientX: destinationRect.left + 12, clientY: destinationRect.bottom - 2 }));
     await tick();
 
