@@ -178,12 +178,15 @@ describe("mobile slash menu shortcut", () => {
 
   it("contains the native desktop list and its rightmost item within the menu width", () => {
     const editor = renderEditor();
+    const nativeStyle = document.createElement("style");
+    nativeStyle.textContent = ".protyle-hint > .b3-list { min-width: 960px; }";
+    document.head.append(nativeStyle);
     const shortcut = new MobileSlashMenuShortcut(document, editor.runtime, { enableDirectSlash: false });
     shortcut.start();
 
     editor.hintElement.classList.remove("fn__none");
     editor.hintElement.dataset.damophusMobileSlashMenu = "true";
-    editor.hintElement.innerHTML = `<div class="b3-list" style="min-width: 960px">
+    editor.hintElement.innerHTML = `<div class="b3-list">
       ${Array.from({ length: 20 }, (_, index) => `
         <button class="b3-list-item damophus-slash-item--full">
           <span class="b3-list-item__first">
@@ -204,6 +207,7 @@ describe("mobile slash menu shortcut", () => {
     expect(rightmostItem).toBeLessThanOrEqual(menuRect.right - 4);
 
     shortcut.stop();
+    nativeStyle.remove();
   });
 
   it("discovers and persists native commands on startup without editor input", () => {
