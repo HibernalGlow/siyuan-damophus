@@ -14,6 +14,7 @@ import damophusMonoIcon from "../damophus-icon-mono.svg?raw";
 import type { ProtyleToolbarItem } from "@/types/plugin";
 import { buildPluginDeclarationMenu } from "@/libs/plugin-declarations";
 import { withMenuIdentity } from "@/libs/menu-identity";
+import { MENU_ORDER_KEY, orderPluginNames, parseMenuOrder } from "@/libs/menu-order";
 
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
@@ -107,16 +108,23 @@ export default class DamophusPlugin extends Plugin {
   private addMenu(rect?: DOMRect): void {
     const menu = new Menu("siyuan-damophus-topbar");
     let itemCount = 0;
-    for (const plugin of this.pluginRegistry.getAllPlugins()) {
-      if (!plugin.enabled || !plugin.addMenuItem) continue;
-      try {
-        withMenuIdentity(menu, { plugin: "siyuan-damophus", module: plugin.name }, () => plugin.addMenuItem?.(menu));
-        itemCount += 1;
-      } catch (error) {
-        log.error(`Failed to add menu item for plugin ${plugin.name}:`, error);
+    const menuOrder = parseMenuOrder(settings.get(MENU_ORDER_KEY));
+    const plugins = this.pluginRegistry.getAllPlugins();
+    const orderedNames = orderPluginNames(plugins.map((plugin) => plugin.name ?? ""), menuOrder);
+    const pluginsByName = new Map(plugins.map((plugin) => [plugin.name, plugin]));
+    const metadataByName = new Map(this.pluginRegistry.getPluginConfigs().map((metadata) => [metadata.name, metadata]));
+    for (const name of orderedNames) {
+      const plugin = pluginsByName.get(name);
+      if (plugin?.enabled && plugin.addMenuItem) {
+        try {
+          withMenuIdentity(menu, { plugin: "siyuan-damophus", module: plugin.name }, () => plugin.addMenuItem?.(menu));
+          itemCount += 1;
+        } catch (error) {
+          log.error(`Failed to add menu item for plugin ${plugin.name}:`, error);
+        }
       }
-    }
-    for (const metadata of this.pluginRegistry.getPluginConfigs()) {
+      const metadata = metadataByName.get(name);
+      if (!metadata) continue;
       if (!this.pluginRegistry.isPluginEnabled(metadata.name)) continue;
       const declarationItems = buildPluginDeclarationMenu(metadata, {
         readSetting: (key, fallback) => settings.getBySpace(metadata.name, key) ?? fallback,

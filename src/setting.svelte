@@ -12,6 +12,7 @@
   import { buildModuleSettings, MODULE_ENABLED_SETTING_KEY } from "@/libs/module-settings";
   import { resolveEntrySetting } from "@/libs/plugin-entry-settings";
   import { resolvePluginIconName, settingGroupIcons, type PluginIconName } from "@/libs/plugin-icons";
+  import { MENU_ORDER_KEY, parseMenuOrder } from "@/libs/menu-order";
   import { buildSettingCategoryGroups } from "@/libs/setting-categories";
   import {
     applyNavOrder,
@@ -136,6 +137,7 @@
   let settingRoot: HTMLDivElement;
   let compactLayout = isMobile;
   let navState: SettingsNavState = parseSettingsNavState(settings.get(SETTINGS_NAV_STATE_KEY));
+  let menuOrder = parseMenuOrder(settings.get(MENU_ORDER_KEY));
   let view: "overview" | "detail" = "overview";
 
   $: groups = [
@@ -276,6 +278,9 @@
       command: t("settings.entry.command", "Command palette"),
       tab: t("settings.entry.tab", "New tab"),
       quickSwitches: t("settings.entry.quickSwitches", "Quick switches"),
+      menuOrder: t("settings.entry.menuOrder", "Menu order"),
+      moveUp: t("settings.moveUp", "Move up"),
+      moveDown: t("settings.moveDown", "Move down"),
       showModuleDetailSwitches: t("settings.showModuleDetailSwitches", "Show enable switch inside modules"),
       disabled: t("settings.entry.moduleDisabled", "Module disabled"),
       unavailable: t("settings.entry.unavailable", "Not provided by this module"),
@@ -470,6 +475,7 @@
       await settings.resetData();
       settingItems = initData();
       navState = parseSettingsNavState(settings.get(SETTINGS_NAV_STATE_KEY));
+      menuOrder = parseMenuOrder(settings.get(MENU_ORDER_KEY));
       customThemes = parseStoredThemes(settings.get("customThemes"));
       const resetThemeId = settings.get("uiThemeId");
       selectedThemeId = savedThemeId = typeof resetThemeId === "string"
@@ -573,6 +579,12 @@
   function setModuleDetailSwitches(enabled: boolean) {
     navState = { ...navState, moduleDetailSwitches: enabled };
     persistNavState();
+  }
+
+  function setMenuOrder(order: string[]) {
+    menuOrder = order;
+    settings.set(MENU_ORDER_KEY, order);
+    void settings.save();
   }
 
   function setFocusedModuleEnabled(enabled: boolean) {
@@ -733,11 +745,13 @@
       {#if showEntryManagement}
         <EntryManagementSettings
           modules={settingItems[ENTRY_GROUP] ?? []}
+          {menuOrder}
           labels={entryManagementLabels()}
           translate={translateKey}
           mobile={compactLayout}
           showModuleDetailSwitches={navState.moduleDetailSwitches ?? true}
           on:changed={onChanged}
+          on:menuOrderChanged={(event) => setMenuOrder(event.detail)}
           on:moduleDetailSwitchesChanged={(event) => setModuleDetailSwitches(event.detail)}
         />
       {:else if showBlockAttributeSettings}

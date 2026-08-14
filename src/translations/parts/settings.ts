@@ -83,6 +83,9 @@ export const en = {
   "settings.entry.tab": "New tab",
   "settings.entry.tabDescription": "Allow this module to open its workspace in a separate tab.",
   "settings.entry.quickSwitches": "Quick switches",
+  "settings.entry.menuOrder": "Menu order",
+  "settings.moveUp": "Move up",
+  "settings.moveDown": "Move down",
   "settings.showModuleDetailSwitches": "Show enable switch inside modules",
   "settings.blockType.search": "Search block types",
   "settings.blockType.selected": "Selected",
@@ -117,6 +120,9 @@ export const en = {
 };
 
 export const zhCN: typeof en = {
+  "settings.entry.menuOrder": "菜单顺序",
+  "settings.moveUp": "上移",
+  "settings.moveDown": "下移",
   "settings.开关": "开关",
   "settings.入口": "入口管理",
   "settings.设置": "设置",

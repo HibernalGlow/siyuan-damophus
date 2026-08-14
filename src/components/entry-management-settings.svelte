@@ -1,10 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from "svelte";
-  import { Menu, MousePointerClick, PanelRight, PanelsTopLeft, SlidersHorizontal, Smartphone, SquareTerminal } from "lucide-svelte";
+  import { ArrowDown, ArrowUp, Menu, MousePointerClick, PanelRight, PanelsTopLeft, SlidersHorizontal, Smartphone, SquareTerminal } from "lucide-svelte";
   import { Switch } from "@/components/ui/switch";
   import PluginIcon from "@/components/plugin-icon.svelte";
   import type { ConfigurableEntrySurface } from "@/libs/plugin-entry-settings";
   import type { ManagedEntryModule } from "@/libs/module-settings";
+  import { moveMenuEntry, orderPluginNames } from "@/libs/menu-order";
 
   interface EntryManagementLabels {
     desktopDock: string;
@@ -17,12 +18,16 @@
     showModuleDetailSwitches: string;
     disabled: string;
     unavailable: string;
+    moveUp?: string;
+    moveDown?: string;
+    menuOrder?: string;
   }
 
   export let modules: ManagedEntryModule[] = [];
   export let labels: EntryManagementLabels;
   export let mobile = false;
   export let showModuleDetailSwitches = true;
+  export let menuOrder: string[] | undefined = undefined;
   export let translate: (key: string) => string = (key) => key;
 
   const dispatch = createEventDispatcher();
@@ -59,6 +64,16 @@
   });
 
   $: if (root) compact = mobile || root.clientWidth < 720;
+  $: orderedModules = orderPluginNames(modules.map((module) => module.pluginName), menuOrder)
+    .map((name) => modules.find((module) => module.pluginName === name))
+    .filter((module): module is ManagedEntryModule => Boolean(module));
+
+  function moveModule(module: ManagedEntryModule, direction: "up" | "down") {
+    if (!module.surfaces.menu) return;
+    const menuModules = orderedModules.filter((candidate) => candidate.surfaces.menu).map((candidate) => candidate.pluginName);
+    const next = moveMenuEntry(menuModules, module.pluginName, direction);
+    dispatch("menuOrderChanged", next);
+  }
 </script>
 
 <section bind:this={root} class="entry-management" class:compact data-testid="entry-management-settings">
@@ -73,7 +88,7 @@
       />
     </label>
   </div>
-  {#each modules as module (module.pluginName)}
+  {#each orderedModules as module (module.pluginName)}
     <article class="entry-module" data-entry-module={module.pluginName}>
       <header class="entry-module__header">
         <PluginIcon name={module.icon} className="size-5 shrink-0 text-primary" />
@@ -81,6 +96,18 @@
           <div class="truncate text-sm font-medium">{translate(module.title)}</div>
           {#if !module.enabled}<div class="text-xs text-muted-foreground">{labels.disabled}</div>{/if}
         </div>
+        {#if module.surfaces.menu}
+          {@const menuIndex = orderedModules.filter((candidate) => candidate.surfaces.menu).findIndex((candidate) => candidate.pluginName === module.pluginName)}
+          {@const menuCount = orderedModules.filter((candidate) => candidate.surfaces.menu).length}
+          <div class="entry-module__order" aria-label={labels.menuOrder ?? "Menu order"}>
+            <button type="button" class="entry-order-button" title={labels.moveUp ?? "Move up"} aria-label={`${labels.moveUp ?? "Move up"}: ${translate(module.title)}`} disabled={menuIndex === 0} onclick={() => moveModule(module, "up")}>
+              <ArrowUp class="size-3.5" aria-hidden="true" />
+            </button>
+            <button type="button" class="entry-order-button" title={labels.moveDown ?? "Move down"} aria-label={`${labels.moveDown ?? "Move down"}: ${translate(module.title)}`} disabled={menuIndex === menuCount - 1} onclick={() => moveModule(module, "down")}>
+              <ArrowDown class="size-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        {/if}
       </header>
 
       <div class="entry-module__body">
@@ -173,6 +200,10 @@
     padding: 14px 12px;
     background: color-mix(in srgb, var(--muted) 22%, transparent);
   }
+
+  .entry-module__order { display: inline-flex; gap: 2px; margin-left: auto; }
+  .entry-order-button { display: inline-grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border); color: var(--muted-foreground); background: transparent; cursor: pointer; }
+  .entry-order-button:disabled { cursor: default; opacity: 0.35; }
 
   .entry-module__body {
     min-width: 0;
