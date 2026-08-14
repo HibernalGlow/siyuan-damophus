@@ -15,6 +15,7 @@ import type { ProtyleToolbarItem } from "@/types/plugin";
 import { buildPluginDeclarationMenu } from "@/libs/plugin-declarations";
 import { withMenuIdentity } from "@/libs/menu-identity";
 import { MENU_ORDER_KEY, orderPluginNames, parseMenuOrder } from "@/libs/menu-order";
+import { syncPluginToolbarKeymap } from "@/libs/plugin-toolbar-keymap";
 
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
@@ -102,6 +103,7 @@ export default class DamophusPlugin extends Plugin {
         log.error(`Failed to add editor toolbar item for plugin ${subPlugin.name}:`, error);
       }
     }
+    syncPluginToolbarKeymap(window.siyuan.config.keymap, this.name, next);
     return next;
   }
 
