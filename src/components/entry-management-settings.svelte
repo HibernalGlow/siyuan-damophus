@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from "svelte";
-  import { dragHandle, dragHandleZone, type DndEvent } from "svelte-dnd-action";
+  import { draggable, droppable, type DragDropState } from "@thisux/sveltednd";
   import { GripVertical, Menu, MousePointerClick, PanelRight, PanelsTopLeft, SlidersHorizontal, Smartphone, SquareTerminal } from "lucide-svelte";
   import { Switch } from "@/components/ui/switch";
   import PluginIcon from "@/components/plugin-icon.svelte";
@@ -74,15 +74,25 @@
     renderedModules = orderedModules.map((module) => ({ ...module, id: module.pluginName }));
   }
 
-  function considerModules(event: CustomEvent<DndEvent<DraggableEntryModule>>) {
-    renderedModules = event.detail.items;
+  function handleModuleDrop(state: DragDropState<DraggableEntryModule>) {
+    const targetId = state.targetContainer;
+    if (!targetId || !state.dropPosition) return;
+    const menuModules = renderedModules.filter((module) => module.surfaces.menu);
+    const nextMenuModules = reorderByDrop(menuModules, state.draggedItem.id, targetId, state.dropPosition);
+    let index = 0;
+    renderedModules = renderedModules.map((module) => module.surfaces.menu ? nextMenuModules[index++] : module);
+    dispatch("menuOrderChanged", nextMenuModules.map((module) => module.pluginName));
   }
 
-  function finalizeModules(event: CustomEvent<DndEvent<DraggableEntryModule>>) {
-    renderedModules = event.detail.items;
-    dispatch("menuOrderChanged", renderedModules
-      .filter((module) => module.surfaces.menu)
-      .map((module) => module.pluginName));
+  function reorderByDrop<T extends { id: string }>(items: T[], draggedId: string, targetId: string, position: "before" | "after"): T[] {
+    if (draggedId === targetId) return items;
+    const dragged = items.find((item) => item.id === draggedId);
+    if (!dragged) return items;
+    const remaining = items.filter((item) => item.id !== draggedId);
+    const targetIndex = remaining.findIndex((item) => item.id === targetId);
+    if (targetIndex < 0) return items;
+    const insertionIndex = targetIndex + (position === "after" ? 1 : 0);
+    return [...remaining.slice(0, insertionIndex), dragged, ...remaining.slice(insertionIndex)];
   }
 </script>
 
@@ -98,17 +108,21 @@
       />
     </label>
   </div>
-  <div
-    class="entry-management__modules"
-    use:dragHandleZone={{ items: renderedModules, type: "damophus-entry-management-modules", flipDurationMs: 140, delayTouchStart: true }}
-    onconsider={considerModules}
-    onfinalize={finalizeModules}
-  >
+  <div class="entry-management__modules">
   {#each renderedModules as module (module.pluginName)}
-    <article class="entry-module" data-entry-module={module.pluginName}>
+    <article
+      class="entry-module"
+      data-entry-module={module.pluginName}
+      use:droppable={{ container: module.pluginName, disabled: !module.surfaces.menu, direction: "vertical", callbacks: { onDrop: handleModuleDrop } }}
+    >
       <header class="entry-module__header">
         {#if module.surfaces.menu}
-          <span use:dragHandle class="entry-module__drag-handle" title={labels.menuOrder ?? "Drag to reorder"} aria-label={`${labels.menuOrder ?? "Drag to reorder"}: ${translate(module.title)}`}>
+          <span
+            class="entry-module__drag-handle"
+            title={labels.menuOrder ?? "Drag to reorder"}
+            aria-label={`${labels.menuOrder ?? "Drag to reorder"}: ${translate(module.title)}`}
+            use:draggable={{ container: module.pluginName, dragData: module, keyboard: true }}
+          >
             <GripVertical class="size-4" aria-hidden="true" />
           </span>
         {/if}

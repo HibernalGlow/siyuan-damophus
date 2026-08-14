@@ -13,6 +13,7 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       "consola",
+      "@thisux/sveltednd",
       "lucide-svelte/icons/chevron-down",
       "lucide-svelte/icons/copy",
       "lucide-svelte/icons/scroll-text",

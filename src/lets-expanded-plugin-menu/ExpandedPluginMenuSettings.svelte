@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
-  import { dragHandle, dragHandleZone, type DndEvent } from "svelte-dnd-action";
+  import { draggable, droppable, type DragDropState } from "@thisux/sveltednd";
   import { ChevronDown, GripVertical, Plug, Puzzle } from "lucide-svelte";
   import * as Select from "@/components/ui/select";
   import { Switch } from "@/components/ui/switch";
@@ -106,17 +106,26 @@
     renderedEntries = entries.map((entry) => ({ ...entry, id: entry.key }));
   }
 
-  function considerEntries(event: CustomEvent<DndEvent<DraggableMenuEntry>>) {
-    renderedEntries = event.detail.items;
-  }
-
-  function finalizeEntries(event: CustomEvent<DndEvent<DraggableMenuEntry>>) {
-    renderedEntries = event.detail.items;
+  function handleEntryDrop(state: DragDropState<DraggableMenuEntry>) {
+    const targetId = state.targetContainer;
+    if (!targetId || !state.dropPosition) return;
+    renderedEntries = reorderByDrop(renderedEntries, state.draggedItem.id, targetId, state.dropPosition);
     dispatch("changed", {
       group,
       key: "pluginMenuOrder",
       value: serializePluginMenuOrder(renderedEntries.map((entry) => entry.key)),
     });
+  }
+
+  function reorderByDrop<T extends { id: string }>(items: T[], draggedId: string, targetId: string, position: "before" | "after"): T[] {
+    if (draggedId === targetId) return items;
+    const dragged = items.find((item) => item.id === draggedId);
+    if (!dragged) return items;
+    const remaining = items.filter((item) => item.id !== draggedId);
+    const targetIndex = remaining.findIndex((item) => item.id === targetId);
+    if (targetIndex < 0) return items;
+    const insertionIndex = targetIndex + (position === "after" ? 1 : 0);
+    return [...remaining.slice(0, insertionIndex), dragged, ...remaining.slice(insertionIndex)];
   }
 
   function statusFor(entry: DiscoveredPluginMenuEntry): string {
@@ -202,15 +211,14 @@
         </div>
       </div>
     {:else}
-      <div
-        class="expanded-menu-settings__entries"
-        role="list"
-        use:dragHandleZone={{ items: renderedEntries, type: "damophus-expanded-plugin-menu-entries", flipDurationMs: 140, delayTouchStart: true }}
-        onconsider={considerEntries}
-        onfinalize={finalizeEntries}
-      >
+      <div class="expanded-menu-settings__entries" role="list">
         {#each renderedEntries as entry (entry.key)}
-          <div class="expanded-menu-settings__entry" role="listitem" data-entry-key={entry.key}>
+          <div
+            class="expanded-menu-settings__entry"
+            role="listitem"
+            data-entry-key={entry.key}
+            use:droppable={{ container: entry.id, direction: "vertical", callbacks: { onDrop: handleEntryDrop } }}
+          >
             <span class="expanded-menu-settings__icon">
               {#if entry.moduleId}<Puzzle class="size-4" aria-hidden="true" />
               {:else}<Plug class="size-4" aria-hidden="true" />{/if}
@@ -227,7 +235,12 @@
               </dl>
             </div>
             <div class="expanded-menu-settings__order">
-              <span use:dragHandle class="expanded-menu-settings__drag-handle" title={labels.menuOrder ?? "Drag to reorder"} aria-label={`${labels.menuOrder ?? "Drag to reorder"}: ${entry.label}`}>
+              <span
+                class="expanded-menu-settings__drag-handle"
+                title={labels.menuOrder ?? "Drag to reorder"}
+                aria-label={`${labels.menuOrder ?? "Drag to reorder"}: ${entry.label}`}
+                use:draggable={{ container: entry.id, dragData: entry, keyboard: true }}
+              >
                 <GripVertical class="size-4" aria-hidden="true" />
               </span>
             </div>

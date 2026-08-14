@@ -109,4 +109,26 @@ describe("expanded plugin menu settings", () => {
     await tick();
     expect(target.scrollWidth).toBeLessThanOrEqual(target.clientWidth);
   });
+
+  it("persists entry order after a pointer drag", async () => {
+    await page.viewport(900, 760);
+    const { target, changed } = render();
+    await tick();
+    const source = target.querySelector<HTMLElement>('[data-entry-key="module:calloutTools"] .expanded-menu-settings__drag-handle');
+    const destination = target.querySelector<HTMLElement>('[data-entry-key^="plugin:other-plugin"]');
+    if (!source || !destination) throw new Error("Missing draggable discovered entries");
+    const sourceRect = source.getBoundingClientRect();
+    const destinationRect = destination.getBoundingClientRect();
+    source.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, buttons: 1, clientX: sourceRect.left + 4, clientY: sourceRect.top + 4 }));
+    document.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, buttons: 1, clientX: destinationRect.left + 12, clientY: destinationRect.bottom - 2 }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientX: destinationRect.left + 12, clientY: destinationRect.bottom - 2 }));
+    await tick();
+
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({ detail: expect.objectContaining({
+      key: "pluginMenuOrder",
+      value: expect.stringContaining("plugin:other-plugin"),
+    }) }));
+    const orderEvent = changed.mock.calls.map((call) => call[0]?.detail).find((detail) => detail?.key === "pluginMenuOrder");
+    expect(JSON.parse(orderEvent.value)[0]).toContain("plugin:other-plugin");
+  });
 });

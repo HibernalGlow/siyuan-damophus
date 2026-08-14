@@ -182,4 +182,31 @@ describe("entry management settings", () => {
     await tick();
     expect(changed).toHaveBeenCalledWith(expect.objectContaining({ detail: true }));
   });
+
+  it("reorders menu modules by dragging the grip", async () => {
+    await page.viewport(1000, 720);
+    const changed = vi.fn();
+    const { target } = render(false);
+    const component = mounted.pop();
+    if (component) await unmount(component);
+    target.innerHTML = "";
+    mounted.push(mount(EntryManagementSettings, {
+      target,
+      props: { modules, labels, mobile: false },
+      events: { menuOrderChanged: changed },
+    }));
+    await tick();
+
+    const source = target.querySelector<HTMLElement>('[data-entry-module="skillManager"] .entry-module__drag-handle');
+    const destination = target.querySelector<HTMLElement>('[data-entry-module="agentSurface"]');
+    if (!source || !destination) throw new Error("Missing draggable menu rows");
+    const sourceRect = source.getBoundingClientRect();
+    const destinationRect = destination.getBoundingClientRect();
+    source.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, buttons: 1, clientX: sourceRect.left + 4, clientY: sourceRect.top + 4 }));
+    document.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 1, buttons: 1, clientX: destinationRect.left + 12, clientY: destinationRect.bottom - 2 }));
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1, clientX: destinationRect.left + 12, clientY: destinationRect.bottom - 2 }));
+    await tick();
+
+    expect(changed).toHaveBeenCalledWith(expect.objectContaining({ detail: ["agentSurface", "skillManager"] }));
+  });
 });

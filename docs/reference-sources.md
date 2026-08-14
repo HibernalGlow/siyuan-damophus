@@ -15,6 +15,10 @@ Reference snapshot date: 2026-08-04.
 | `carbon-softlab/CQuiz` | `e439a4069fc0c2d343266dedb238ffaf66eec0fb` | 跨文件题库和组卷交互参考；只读研究 |
 | `dscherdi/decks` | `9cdd7fd09cbbf232eaabbbe23996cc8524f9ccdd` | 组卷 profile、结果和复习配置参考；只读研究 |
 
+### Additional UI Sources
+
+- `thisuxhq/sveltednd` at `b66d8dd27629656ab43a088b63321150a496b754` (`0.7.0`): Svelte 5 pointer, keyboard, and handle-based drag-and-drop actions; MIT.
+
 ## Dynamic API Index
 
 - `https://siyuan-note.apifox.cn/llms.txt` 是思源 API 文档的动态索引，用于按主题快速定位当前公开端点和说明。
