@@ -61,6 +61,31 @@ export interface ListNumberingTransaction {
   result: ListNumberingResult;
 }
 
+export interface ListItemDetachSelection {
+  item: HTMLElement;
+}
+
+export interface ListItemDetachPlan {
+  itemId: string;
+  listId: string;
+  parentId: string;
+  rootId?: string;
+  previousId?: string;
+  nextId?: string;
+  beforeListHtml?: string;
+  afterListHtml?: string;
+  bodyBlocks: HTMLElement[];
+  originalListHtml: string;
+  beforeListId?: string;
+  afterListId?: string;
+}
+
+export interface ListItemDetachTransaction {
+  doOperations: ListMergeOperation[];
+  undoOperations: ListMergeOperation[];
+  result: { itemId: string; blockCount: number };
+}
+
 const LIST_BLOCK_TYPE = "NodeList";
 const MERGEABLE_LIST_SUBTYPES = new Set<ListSubtype>(["o", "u"]);
 
@@ -164,11 +189,15 @@ function directListItems(list: HTMLElement): HTMLElement[] {
   return items;
 }
 
-function sourceShell(list: HTMLElement): string {
-  const shell = list.cloneNode(true) as HTMLElement;
-  for (const item of directListItems(shell)) item.remove();
-  shell.classList.remove("protyle-wysiwyg--select");
-  return shell.outerHTML;
+function directBlockChildren(item: HTMLElement): HTMLElement[] {
+  return Array.from(item.children).filter((child): child is HTMLElement => (
+    child instanceof HTMLElement
+    && Boolean(child.dataset.nodeId)
+    && Boolean(child.dataset.type)
+    && child.dataset.type !== "NodeList"
+    && !child.classList.contains("protyle-attr")
+    && !child.classList.contains("protyle-action")
+  ));
 }
 
 function siblingBlockId(element: HTMLElement, direction: "previous" | "next"): string | undefined {
@@ -178,6 +207,146 @@ function siblingBlockId(element: HTMLElement, direction: "previous" | "next"): s
     sibling = direction === "previous" ? sibling.previousElementSibling : sibling.nextElementSibling;
   }
   return undefined;
+}
+
+export function resolveListItemDetachSelection(
+  blockElements: readonly HTMLElement[],
+): ListItemDetachSelection | undefined {
+  if (blockElements.length !== 1) return undefined;
+  const [item] = blockElements;
+  if (item.dataset.type !== "NodeListItem" || !item.dataset.nodeId) return undefined;
+  const list = item.parentElement;
+  if (!list || list.dataset.type !== "NodeList" || !list.dataset.nodeId) return undefined;
+  if (!item.closest(".protyle-wysiwyg")) return undefined;
+  if (item.querySelector(':scope > [data-type="NodeList"]')) return undefined;
+  if (directBlockChildren(item).length === 0) return undefined;
+  return { item };
+}
+
+function listShell(list: HTMLElement, items: readonly HTMLElement[], id: string): string {
+  const clone = list.cloneNode(false) as HTMLElement;
+  clone.dataset.nodeId = id;
+  clone.classList.remove("protyle-wysiwyg--select");
+  clone.innerHTML = `${items.map((item) => {
+    const itemClone = item.cloneNode(true) as HTMLElement;
+    itemClone.classList.remove("protyle-wysiwyg--select");
+    return itemClone.outerHTML;
+  }).join("")}<div class="protyle-attr" contenteditable="false">\u200b</div>`;
+  return clone.outerHTML;
+}
+
+export function createListItemDetachPlan(
+  selection: ListItemDetachSelection,
+  rootId?: string,
+  newNodeId: () => string = () => window.Lute.NewNodeID(),
+): ListItemDetachPlan | undefined {
+  const item = selection.item;
+  const list = item.parentElement;
+  const parent = list?.parentElement;
+  if (!list || !parent || list.dataset.type !== "NodeList" || !list.dataset.nodeId) return undefined;
+  const bodyBlocks = directBlockChildren(item);
+  if (bodyBlocks.length === 0 || item.querySelector(':scope > [data-type="NodeList"]')) return undefined;
+  const items = directListItems(list);
+  const index = items.indexOf(item);
+  if (index < 0) return undefined;
+  const beforeItems = items.slice(0, index);
+  const afterItems = items.slice(index + 1);
+  const beforeListId = beforeItems.length > 0 ? list.dataset.nodeId : undefined;
+  const afterListId = afterItems.length > 0 ? newNodeId() : undefined;
+  const parentId = parent.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId ?? rootId;
+  if (!parentId) return undefined;
+  return {
+    itemId: item.dataset.nodeId!,
+    listId: list.dataset.nodeId,
+    parentId,
+    rootId,
+    previousId: siblingBlockId(list, "previous"),
+    nextId: siblingBlockId(list, "next"),
+    beforeListHtml: beforeListId ? listShell(list, beforeItems, beforeListId) : undefined,
+    afterListHtml: afterListId ? listShell(list, afterItems, afterListId) : undefined,
+    bodyBlocks,
+    originalListHtml: list.outerHTML,
+    beforeListId,
+    afterListId,
+  };
+}
+
+export function buildListItemDetachTransaction(plan: ListItemDetachPlan): ListItemDetachTransaction {
+  const doOperations: ListMergeOperation[] = [];
+  // Move each body block after the current list first. This keeps the move
+  // target valid even when the selected item is the first item in the list.
+  let previousId = plan.beforeListId ?? plan.listId;
+  for (const block of plan.bodyBlocks) {
+    const id = block.dataset.nodeId!;
+    doOperations.push({
+      action: "move",
+      id,
+      previousID: previousId,
+    });
+    previousId = id;
+  }
+  if (plan.beforeListHtml && plan.beforeListId) {
+    doOperations.push({ action: "update", id: plan.listId, data: plan.beforeListHtml });
+  } else {
+    doOperations.push({ action: "delete", id: plan.listId });
+  }
+  if (plan.afterListHtml && plan.afterListId) {
+    doOperations.push({ action: "insert", id: plan.afterListId, data: plan.afterListHtml, previousID: previousId, nextID: previousId ? undefined : plan.nextId, parentID: plan.parentId });
+  }
+  const undoOperations: ListMergeOperation[] = [];
+  if (plan.afterListId) undoOperations.push({ action: "delete", id: plan.afterListId });
+  undoOperations.push(...plan.bodyBlocks.map((block) => ({ action: "delete" as const, id: block.dataset.nodeId! })));
+  if (plan.beforeListId) {
+    undoOperations.push({ action: "update", id: plan.listId, data: plan.originalListHtml });
+  } else {
+    undoOperations.push({ action: "insert", id: plan.listId, data: plan.originalListHtml, previousID: plan.previousId, nextID: plan.previousId ? undefined : plan.nextId, parentID: plan.parentId });
+  }
+  return { doOperations, undoOperations, result: { itemId: plan.itemId, blockCount: plan.bodyBlocks.length } };
+}
+
+export function applyListItemDetachDom(plan: ListItemDetachPlan): void {
+  const item = document.querySelector<HTMLElement>(`[data-node-id="${plan.itemId}"]`);
+  const list = item?.parentElement;
+  const parent = list?.parentElement;
+  if (!item || !list || !parent) throw new Error(`List item ${plan.itemId} is no longer available`);
+  const anchor = list.nextElementSibling;
+  const before = plan.beforeListHtml ? document.createElement("template") : undefined;
+  if (before) before.innerHTML = plan.beforeListHtml!;
+  const after = plan.afterListHtml ? document.createElement("template") : undefined;
+  if (after) after.innerHTML = plan.afterListHtml!;
+  const blocks = [...plan.bodyBlocks];
+  list.remove();
+  const insert = (element: Element): void => {
+    parent.insertBefore(element, anchor && anchor.parentElement === parent ? anchor : null);
+  };
+  if (before?.content.firstElementChild) insert(before.content.firstElementChild);
+  for (const block of blocks) insert(block);
+  if (after?.content.firstElementChild) insert(after.content.firstElementChild);
+}
+
+export function restoreListItemDetachDom(plan: ListItemDetachPlan): void {
+  const current = document.querySelector<HTMLElement>(
+    `[data-node-id="${plan.afterListId ?? plan.listId}"]`,
+  );
+  const parent = current?.parentElement;
+  if (!current || !parent) return;
+  const anchor = current.nextElementSibling;
+  if (plan.afterListId) parent.querySelector<HTMLElement>(`[data-node-id="${plan.afterListId}"]`)?.remove();
+  if (plan.beforeListId) parent.querySelector<HTMLElement>(`[data-node-id="${plan.beforeListId}"]`)?.remove();
+  for (const block of plan.bodyBlocks) {
+    parent.querySelector<HTMLElement>(`[data-node-id="${block.dataset.nodeId}"]`)?.remove();
+  }
+  const template = document.createElement("template");
+  template.innerHTML = plan.originalListHtml;
+  const restored = template.content.firstElementChild;
+  if (restored) parent.insertBefore(restored, anchor && anchor.parentElement === parent ? anchor : null);
+}
+
+function sourceShell(list: HTMLElement): string {
+  const shell = list.cloneNode(true) as HTMLElement;
+  for (const item of directListItems(shell)) item.remove();
+  shell.classList.remove("protyle-wysiwyg--select");
+  return shell.outerHTML;
 }
 
 function insertSourceOperation(list: HTMLElement, rootId?: string): ListMergeOperation {

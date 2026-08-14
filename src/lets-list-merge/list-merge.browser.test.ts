@@ -10,6 +10,10 @@ import {
   hasMixedListTypes,
   resolveListNumberingSelection,
   resolveListMergeSelection,
+  applyListItemDetachDom,
+  buildListItemDetachTransaction,
+  createListItemDetachPlan,
+  resolveListItemDetachSelection,
   type ListMergeOperation,
 } from "./list-merge";
 
@@ -154,6 +158,53 @@ describe("list numbering", () => {
     expect(transaction.undoOperations.map((operation) => operation.data))
       .toEqual(expect.arrayContaining([expect.stringContaining('data-marker="7."'), expect.stringContaining('data-marker="8."')]));
     expect(createListNumberingPlan(selection!, 0)).toBeUndefined();
+    editor.remove();
+  });
+});
+
+describe("list item detach", () => {
+  it("splits a list around a selected item and keeps its paragraph in place", () => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    const target = list("target", "u", [
+      item("first", "u", "*", "First"),
+      item("middle", "u", "*", "Middle"),
+      item("last", "u", "*", "Last"),
+    ]);
+    const trailing = document.createElement("div");
+    trailing.dataset.nodeId = "trailing";
+    trailing.dataset.type = "NodeParagraph";
+    editor.append(target, trailing);
+    document.body.append(editor);
+
+    const selection = resolveListItemDetachSelection([target.querySelector<HTMLElement>('[data-node-id="middle"]')!]);
+    expect(selection).toBeDefined();
+    const plan = createListItemDetachPlan(selection!, "root", () => "after-list")!;
+    const transaction = buildListItemDetachTransaction(plan);
+    applyListItemDetachDom(plan);
+
+    expect(Array.from(editor.children).map((child) => child.dataset.nodeId)).toEqual([
+      "target", "middle-p", "after-list", "trailing",
+    ]);
+    expect(editor.querySelector('[data-node-id="middle"]')).toBeNull();
+    expect(transaction.doOperations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: "move", id: "middle-p", previousID: "target" }),
+      expect.objectContaining({ action: "update", id: "target" }),
+      { action: "insert", id: "after-list", data: expect.any(String), previousID: "middle-p", parentID: "root" },
+    ]));
+    expect(transaction.undoOperations.at(-1)).toMatchObject({ action: "update", id: "target" });
+    editor.remove();
+  });
+
+  it("rejects items with nested lists", () => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    const target = list("target", "u", [item("item", "u", "*", "Parent")]);
+    const nested = list("nested", "u", [item("child", "u", "*", "Child")]);
+    target.querySelector<HTMLElement>('[data-node-id="item"]')!.append(nested);
+    editor.append(target);
+    document.body.append(editor);
+    expect(resolveListItemDetachSelection([target.querySelector<HTMLElement>('[data-node-id="item"]')!])).toBeUndefined();
     editor.remove();
   });
 });

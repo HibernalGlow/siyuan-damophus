@@ -13,6 +13,11 @@ import {
   createListNumberingPlan,
   currentListNumberingStart,
   resolveListNumberingSelection,
+  applyListItemDetachDom,
+  buildListItemDetachTransaction,
+  createListItemDetachPlan,
+  resolveListItemDetachSelection,
+  restoreListItemDetachDom,
   type ListMergePlan,
   type ListMergeSelection,
   type ListNumberingSelection,
@@ -46,6 +51,29 @@ export default class ListMergePlugin extends SubPluginBase {
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
     if (!this.isEntryEnabled("contextMenu")) return;
+    const detachSelection = resolveListItemDetachSelection(event.detail.blockElements);
+    if (detachSelection) {
+      event.detail.menu.addItem({
+        icon: "iconParagraph",
+        label: this.t("lets-list-merge.detachListItem"),
+        click: () => {
+          const plan = createListItemDetachPlan(detachSelection, event.detail.protyle.block.rootID);
+          if (!plan) return;
+          try {
+            const transaction = buildListItemDetachTransaction(plan);
+            applyListItemDetachDom(plan);
+            event.detail.protyle.getInstance().transaction(
+              transaction.doOperations as IOperation[],
+              transaction.undoOperations as IOperation[],
+            );
+          } catch (error) {
+            restoreListItemDetachDom(plan);
+            log.error("list-item-detach.failed", error);
+            showMessage(this.t("lets-list-merge.detachFailure"), 7000, "error");
+          }
+        },
+      });
+    }
     const numberingSelection = resolveListNumberingSelection(event.detail.blockElements);
     if (numberingSelection) {
       event.detail.menu.addItem(this.numberingMenuItem(numberingSelection, event.detail.protyle));

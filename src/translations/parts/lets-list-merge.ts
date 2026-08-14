@@ -27,9 +27,13 @@ export const en = {
   "lets-list-merge.success": "Merged {count} list items",
   "lets-list-merge.mixedSuccess": "Created {items} top-level items with {lists} nested lists",
   "lets-list-merge.failure": "List merge failed. Existing content was not deleted.",
+  "lets-list-merge.detachListItem": "Move list item out as paragraph",
+  "lets-list-merge.detachFailure": "Could not move the list item out. Existing content was not deleted.",
 };
 
 export const zhCN: typeof en = {
+  "lets-list-merge.detachListItem": "\u79fb\u51fa\u5217\u8868\u9879\u4e3a\u6bb5\u843d",
+  "lets-list-merge.detachFailure": "\u5217\u8868\u9879\u79fb\u51fa\u5931\u8d25\uff0c\u672a\u5220\u9664\u539f\u6709\u5185\u5bb9",
   "lets-list-merge.displayName": "列表合并",
   "lets-list-merge.description": "合并选中的有序或无序列表，并可指定有序列表的起始编号",
   "lets-list-merge.merge": "合并选中的列表",
