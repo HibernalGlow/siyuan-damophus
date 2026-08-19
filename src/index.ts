@@ -1,4 +1,4 @@
-import { Dialog, fetchSyncPost, Menu, Plugin, showMessage } from "siyuan";
+import { Dialog, fetchSyncPost, Menu, openTab, Plugin, showMessage } from "siyuan";
 import { registerPlugin } from "@frostime/siyuan-plugin-kits";
 import { mount, unmount } from "svelte";
 import "@/styles/damophus.css";
@@ -19,12 +19,15 @@ import { syncPluginToolbarKeymap } from "@/libs/plugin-toolbar-keymap";
 
 const log = getLogger("index");
 const damophusToolbarIcon = prepareToolbarIcon(damophusMonoIcon);
+const SETTINGS_TAB_TYPE = "damophus-settings";
 
 export default class DamophusPlugin extends Plugin {
   private get pluginRegistry(): PluginRegistry {
     return PluginRegistry.getInstance();
   }
   private topBarElement?: HTMLElement;
+  private settingsTabRegistered = false;
+  private readonly mountedSettingTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
 
   private init(): void {
     const plugin = registerPlugin(this);
@@ -38,6 +41,7 @@ export default class DamophusPlugin extends Plugin {
     // can restore persisted tabs during startup.
     this.pluginRegistry.scanPlugins();
     this.pluginRegistry.registerModels();
+    this.registerSettingsTab();
     await settings.initData();
     const debugLogging = settings.get("debugLogging") === true;
     enableLogging(debugLogging);
@@ -105,6 +109,27 @@ export default class DamophusPlugin extends Plugin {
     }
     syncPluginToolbarKeymap(window.siyuan.config.keymap, this.name, next);
     return next;
+  }
+
+  private registerSettingsTab(): void {
+    if (this.settingsTabRegistered) return;
+    this.settingsTabRegistered = true;
+    const owner = this;
+    this.addTab({
+      type: SETTINGS_TAB_TYPE,
+      init() {
+        const element = this.element as HTMLElement;
+        element.id = "damophus-setting-panel";
+        element.classList.add("damophus-settings-tab", "damophus-theme-root");
+        owner.mountedSettingTabs.set(element, mount(SettingPanel, { target: element }));
+      },
+      destroy() {
+        const element = this.element as HTMLElement;
+        const panel = owner.mountedSettingTabs.get(element);
+        if (panel) void unmount(panel);
+        owner.mountedSettingTabs.delete(element);
+      },
+    });
   }
 
   private addMenu(rect?: DOMRect): void {
@@ -208,9 +233,23 @@ export default class DamophusPlugin extends Plugin {
     }
     this.topBarElement?.remove();
     this.topBarElement = undefined;
+    for (const panel of this.mountedSettingTabs.values()) void unmount(panel);
+    this.mountedSettingTabs.clear();
   }
 
   openSetting(): void {
+    if (!isMobile) {
+      void openTab({
+        app: this.app,
+        custom: {
+          icon: "iconSettings",
+          title: "Damophus",
+          id: `${this.name}${SETTINGS_TAB_TYPE}`,
+          data: {},
+        },
+      });
+      return;
+    }
     let panel: ReturnType<typeof mount> | undefined;
     const mobileSetting = isMobile;
     const dialog = new Dialog({
