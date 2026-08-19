@@ -539,6 +539,11 @@ export async function exportResources(paths: string[], name: string): Promise<IR
 
 // **************************************** Convert ****************************************
 
+/** Downloads remote assets in a document and rewrites their references to local assets. */
+export async function convertNetworkAssetsToLocalStrict(id: string): Promise<void> {
+    await requestStrict<void>('/api/format/netAssets2LocalAssets', {id});
+}
+
 export type PandocArgs = string;
 export async function pandoc(args: PandocArgs[]) {
     let data = {
