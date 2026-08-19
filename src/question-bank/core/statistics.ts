@@ -272,6 +272,7 @@ export function buildStatistics(
 
   const distributions = DIMENSIONS.map((dimension) => {
     const metricMap = new Map<string, StatisticsMetric>();
+    const attemptedQuestionIdsByKey = new Map<string, Set<string>>();
     questions.forEach((question) => {
       const key = questionDimension(question, dimension);
       const metric = metricMap.get(key) ?? createMetric(key);
@@ -285,11 +286,17 @@ export function buildStatistics(
       const metric = metricMap.get(key) ?? createMetric(key);
       applyAttempt(metric, attempt);
       metricMap.set(key, metric);
+      const attemptedQuestionIds = attemptedQuestionIdsByKey.get(key) ?? new Set<string>();
+      attemptedQuestionIds.add(question.questionId);
+      attemptedQuestionIdsByKey.set(key, attemptedQuestionIds);
     });
     return {
       dimension,
       items: [...metricMap.values()]
-        .map((metric) => finalizeMetric(metric))
+        .map((metric) => finalizeMetric({
+          ...metric,
+          attemptedQuestions: attemptedQuestionIdsByKey.get(metric.key)?.size ?? 0,
+        }))
         .sort((left, right) => right.attempts - left.attempts || left.label.localeCompare(right.label))
         .slice(0, 20),
     };

@@ -56,7 +56,13 @@ describe("statistics", () => {
     expect(result.distributions.find((item) => item.dimension === "subject")?.items[0]).toMatchObject({
       label: "民法",
       totalQuestions: 2,
+      attemptedQuestions: 2,
       attempts: 3,
+    });
+    expect(result.distributions.find((item) => item.dimension === "subject")?.items[1]).toMatchObject({
+      label: "刑法",
+      totalQuestions: 1,
+      attemptedQuestions: 0,
     });
   });
 

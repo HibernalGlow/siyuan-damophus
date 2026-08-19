@@ -55,5 +55,27 @@ describe("Statistics", () => {
     expect(document.body.textContent).toContain("Weak questions");
     expect(document.body.textContent).toContain("民法");
     expect(document.body.textContent).toContain("Beijing time");
+    expect(document.body.textContent).toContain("Subject progress");
+    expect(document.querySelector('[data-subject="民法"]')?.textContent).toContain("100%");
+    expect(document.querySelector('[data-subject="刑法"]')?.textContent).toContain("0%");
+    expect(document.querySelector('[data-subject="民法"] [role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("100");
+  });
+
+  it("keeps subject progress cards inside a narrow viewport", async () => {
+    await page.viewport(360, 640);
+    const target = document.createElement("div");
+    target.style.height = "100vh";
+    document.body.appendChild(target);
+    mounted = mount(Statistics, {
+      target,
+      props: {
+        snapshot: buildStatistics(questions, attempts, "all", Date.parse("2026-08-06T02:00:00.000Z")),
+      },
+    });
+    const dashboard = document.querySelector('[data-testid="subject-dashboard"]') as HTMLElement;
+    const subjects = [...document.querySelectorAll<HTMLElement>("[data-subject]")];
+    expect(subjects).toHaveLength(2);
+    expect(subjects.every((subject) => subject.getBoundingClientRect().right <= dashboard.getBoundingClientRect().right + 1)).toBe(true);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(360);
   });
 });

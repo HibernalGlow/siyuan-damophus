@@ -33,6 +33,7 @@
   ];
 
   $: distributionByDimension = new Map(snapshot?.distributions.map((item) => [item.dimension, item]) ?? []);
+  $: subjectMetrics = distributionByDimension.get("subject")?.items ?? [];
   $: maxTrendAttempts = Math.max(1, ...(snapshot?.trend.map((point) => point.attempts) ?? [1]));
   $: maxWeakness = Math.max(1, ...(snapshot?.weakQuestions.map((question) => question.weaknessScore) ?? [1]));
 
@@ -57,6 +58,11 @@
 
   function distributionTitle(dimension: StatisticsDimension): string {
     return dimensions.find((item) => item.value === dimension)?.label ?? dimension;
+  }
+
+  function completion(metric: { attemptedQuestions: number; totalQuestions: number }): number {
+    if (metric.totalQuestions === 0) return 0;
+    return Math.round((metric.attemptedQuestions / metric.totalQuestions) * 1000) / 10;
   }
 </script>
 
@@ -123,6 +129,38 @@
         <span class="text-xs opacity-70">{label("statisticsTotal", "Total")} {duration(snapshot.overview.totalDurationMs)}</span>
       </div>
     </div>
+
+    <section class="statistics-panel mt-4 border p-3" aria-labelledby="statistics-subject-progress-heading" data-testid="subject-dashboard">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h3 id="statistics-subject-progress-heading" class="font-semibold">{label("statisticsSubjectProgress", "Subject progress")}</h3>
+          <p class="mt-1 text-xs opacity-70">{label("statisticsSubjectProgressHint", "Completion is based on attempted questions in each indexed subject")}</p>
+        </div>
+        <Badge variant="outline">{subjectMetrics.length} {label("statisticsSubjects", "subjects")}</Badge>
+      </div>
+      {#if subjectMetrics.length === 0}
+        <p class="mt-4 text-sm opacity-70">{label("statisticsNoSubjects", "No indexed subjects")}</p>
+      {:else}
+        <div class="statistics-subject-grid mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {#each subjectMetrics as subject (subject.key)}
+            {@const completionRate = completion(subject)}
+            <article class="statistics-subject border p-3" data-subject={subject.key}>
+              <div class="flex items-start justify-between gap-3">
+                <strong class="min-w-0 break-words text-sm">{subject.label}</strong>
+                <span class="shrink-0 text-lg font-semibold">{completionRate}%</span>
+              </div>
+              <div class="mt-3 h-2 overflow-hidden rounded-sm bg-muted" role="progressbar" aria-label={`${subject.label} ${label("statisticsCompletion", "completion")}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionRate}>
+                <div class="h-full bg-primary" style={`width: ${completionRate}%`}></div>
+              </div>
+              <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs opacity-70">
+                <span>{subject.attemptedQuestions} / {subject.totalQuestions} {label("statisticsQuestions", "questions")}</span>
+                <span>{label("statisticsAccuracy", "Accuracy")} {subject.accuracy}%</span>
+              </div>
+            </article>
+          {/each}
+        </div>
+      {/if}
+    </section>
 
     <div class="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
       <section class="statistics-panel border p-3" aria-labelledby="statistics-trend-heading">
