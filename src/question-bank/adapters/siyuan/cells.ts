@@ -8,6 +8,7 @@ export interface AttributeViewCellInput {
   mSelect?: Array<{ content: string; color: string }>;
   mAsset?: Array<{ content: string; name: string; type: "file" | "image" }>;
   relation?: { blockIDs: string[] };
+  checkbox?: { checked: boolean };
 }
 
 export function textCell(content: string | undefined): AttributeViewCellInput {
