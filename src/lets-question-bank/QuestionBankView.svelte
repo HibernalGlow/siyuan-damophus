@@ -1,12 +1,13 @@
 <script lang="ts">
   import "./question-bank.css";
-  import { BarChart3, BookOpenCheck, X } from "lucide-svelte";
+  import { BarChart3, BookOpenCheck, Database, X } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
   import * as Tabs from "@/components/ui/tabs";
   import PracticeHeader from "./PracticeHeader.svelte";
   import QuestionBankSetup from "./QuestionBankSetup.svelte";
   import Statistics from "./Statistics.svelte";
+  import QuestionBankMapping from "./QuestionBankMapping.svelte";
   import QuestionBankWorkspace from "./QuestionBankWorkspace.svelte";
   import QuestionBankPractice from "./QuestionBankPractice.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
@@ -61,7 +62,14 @@
   export let complete: boolean;
   export let examMode: boolean;
   export let composerOpen: boolean;
-  export let view: "practice" | "statistics";
+  export let view: "practice" | "statistics" | "mapping";
+  export let questionIndexProjectionBlockId = "";
+  export let mappingStatus: any = "idle";
+  export let mappingMessage = "";
+  export let selectCurrentMappingTarget: any;
+  export let checkMappingTarget: any;
+  export let syncMappingTarget: any;
+  export let setMappingTarget: any;
   export let selectView: any;
   export let questionCatalog: any[];
   export let sourceDocuments: any[];
@@ -271,7 +279,7 @@
           <strong>{label("questionBankWorkspace", "题库工作台")}</strong>
           <span>{sourceIdentity?.content ?? label("currentDocument", "当前文档")}</span>
         </div>
-        <Tabs.Root bind:value={view} class="question-bank-home-tabs" onValueChange={(value) => selectView(value as "practice" | "statistics")}>
+        <Tabs.Root bind:value={view} class="question-bank-home-tabs" onValueChange={(value) => selectView(value as "practice" | "statistics" | "mapping")}>
           <Tabs.List class="question-bank-home-nav">
             <Tabs.Trigger value="practice">
               <BookOpenCheck size={16} aria-hidden="true" />
@@ -280,6 +288,10 @@
             <Tabs.Trigger value="statistics">
               <BarChart3 size={16} aria-hidden="true" />
               <span class="question-bank-home-nav-label">{label("learningReport", "学习报告")}</span>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="mapping">
+              <Database size={16} aria-hidden="true" />
+              <span class="question-bank-home-nav-label">{label("dataMapping", "数据映射")}</span>
             </Tabs.Trigger>
           </Tabs.List>
         </Tabs.Root>
@@ -291,7 +303,18 @@
       </header>
     {/if}
 
-    {#if view === "statistics" && !currentQuestion && !practiceRuntime && !complete}
+    {#if view === "mapping" && !currentQuestion && !practiceRuntime && !complete}
+      <QuestionBankMapping
+        {label}
+        targetBlockId={questionIndexProjectionBlockId}
+        status={mappingStatus}
+        message={mappingMessage}
+        selectCurrentTarget={selectCurrentMappingTarget}
+        checkTarget={checkMappingTarget}
+        syncTarget={syncMappingTarget}
+        onTargetInput={setMappingTarget}
+      />
+    {:else if view === "statistics" && !currentQuestion && !practiceRuntime && !complete}
       <Statistics
         snapshot={statisticsSnapshot}
         loading={statisticsLoading}

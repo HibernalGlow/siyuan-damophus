@@ -64,8 +64,8 @@ export interface RecentScope {
 
 export interface QuestionBankUiController {
   readonly usesTinyBase?: boolean;
-  getSetting(key: string): unknown;
-  setSetting(key: string, value: unknown): void;
+  getSetting?(key: string): unknown;
+  setSetting?(key: string, value: unknown): void;
   getBinding(): QuestionBankBinding | undefined;
   previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview>;
   confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding>;

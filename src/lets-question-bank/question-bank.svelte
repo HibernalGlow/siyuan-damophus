@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import type { BlockBreadcrumbItem } from "@/api";
+  import { sql, type BlockBreadcrumbItem } from "@/api";
   import { normalizeBreadcrumbTextDisplay, type BreadcrumbTextDisplay, type BreadcrumbOverflowPriority } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import { getLogger } from "@/libs/logger";
   import {
@@ -206,7 +206,63 @@
   let dataPanelUserControlled = false;
   let scanDetailsOpen = false;
   let scanMessageGroups: Array<{ key: string; messages: ScanMessage[] }> = [];
-  let view: "practice" | "statistics" = "practice";
+  let view: "practice" | "statistics" | "mapping" = "practice";
+  let mappingStatus: "idle" | "checking" | "ready" | "syncing" | "success" | "error" = "idle";
+  let mappingMessage = "";
+  let questionIndexProjectionBlockId = String(controller.getSetting?.("questionIndexProjectionBlockId") ?? "");
+
+  function setMappingTarget(value: string): void {
+    questionIndexProjectionBlockId = value.trim();
+    controller.setSetting?.("questionIndexProjectionBlockId", value.trim());
+  }
+
+  function selectCurrentMappingTarget(): void {
+    const selected = document.querySelector<HTMLElement>('.protyle-wysiwyg--select[data-node-id][data-type="NodeAttributeView"], .protyle-wysiwyg [data-node-id].protyle-wysiwyg--select[data-type="NodeAttributeView"]');
+    if (!selected) { mappingStatus = "error"; mappingMessage = "未找到选中的属性视图块"; return; }
+    setMappingTarget(selected.dataset.nodeId ?? "");
+    mappingStatus = "idle";
+    mappingMessage = "已选择目标，点击检查连接";
+  }
+
+  async function checkMappingTarget(): Promise<void> {
+    const id = questionIndexProjectionBlockId;
+    if (!id) return;
+    mappingStatus = "checking";
+    try {
+      const rows = await sql(`SELECT id, type, content FROM blocks WHERE id = '${id.replace(/'/gu, "''")}' LIMIT 1`);
+      const row = rows[0] as { type?: string; content?: string } | undefined;
+      if (!row || row.type !== "NodeAttributeView") throw new Error("目标不是属性视图块");
+      mappingStatus = "ready";
+      mappingMessage = `连接正常：${row.content || id}`;
+    } catch (error) {
+      mappingStatus = "error";
+      mappingMessage = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  async function syncMappingTarget(): Promise<void> {
+    mappingStatus = "syncing";
+    try {
+      await checkMappingTarget();
+      if (mappingStatus !== "ready") return;
+      if (!documentId || !controller.previewSync || !controller.confirmSync) {
+        throw new Error("当前题库没有可执行的索引同步上下文");
+      }
+      const preview = await controller.previewSync(documentId);
+      if (preview.blockers.length > 0) throw new Error(`同步存在 ${preview.blockers.length} 个阻断项`);
+      if (!window.confirm(`确认同步 ${preview.actions.length} 项 Question Index 变更？`)) {
+        mappingStatus = "ready";
+        mappingMessage = "已取消同步";
+        return;
+      }
+      await controller.confirmSync(documentId, preview.token);
+      mappingStatus = "success";
+      mappingMessage = `同步完成：${preview.actions.length} 项变更`;
+    } catch (error) {
+      mappingStatus = "error";
+      mappingMessage = error instanceof Error ? error.message : String(error);
+    }
+  }
   let statisticsSnapshot: StatisticsSnapshot | undefined;
   let statisticsLoading = false;
   let statisticsRange: StatisticsRange = 30;
@@ -618,7 +674,7 @@
     });
   }
 
-  function selectView(next: "practice" | "statistics"): void {
+  function selectView(next: "practice" | "statistics" | "mapping"): void {
     view = next;
     if (next === "statistics") loadStatistics();
   }
@@ -1201,4 +1257,5 @@
   {correctCurrentAnswer}
   {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {correctRating} {sessionAttempts}
   {completionCorrect} {completionDurationMs} {touchedDrafts} {resetPractice}
+  {questionIndexProjectionBlockId} {mappingStatus} {mappingMessage} {selectCurrentMappingTarget} {checkMappingTarget} {syncMappingTarget} {setMappingTarget}
 />

@@ -35,6 +35,7 @@ describe("topic relation model", () => {
       objectiveIncorrect: 0,
     });
     expect(questionProgressFromAggregate({
+      questionId: "q1",
       attempts: 3,
       timedAttempts: 0,
       totalDurationMs: 0,

@@ -55,14 +55,6 @@ const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
-      type: "textinput",
-      title: "lets-question-bank.questionIndexProjectionBlockId",
-      description: "lets-question-bank.questionIndexProjectionBlockIdDescription",
-      key: "questionIndexProjectionBlockId",
-      value: "",
-      placeholder: "20260819123456-abcdefg",
-    },
-    {
       type: "checkbox",
       title: "lets-question-bank.autoScanDocument",
       description: "lets-question-bank.autoScanDocumentDescription",
