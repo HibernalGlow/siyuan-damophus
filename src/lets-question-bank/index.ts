@@ -136,17 +136,31 @@ export default class QuestionBankPlugin extends SubPluginBase {
   override onload(): void {
     setQuestionProgressLoader(async (blockIds) => {
       const requested = new Set(blockIds);
-      const [catalog, aggregates] = await Promise.all([
-        this.getTinyBaseCatalogRuntime().loadCatalog(),
+      const [catalog, aggregates, attributeRows] = await Promise.all([
+        this.getTinyBaseCatalogRuntime().loadCatalog().catch(() => []),
         this.getTinyBaseRuntime().loadAggregates(),
+        blockIds.length === 0 ? Promise.resolve([]) : siyuanKernelClient.request<Array<{
+          block_id: string;
+          attribute_value: string;
+        }>>("/api/query/sql", {
+          stmt: `SELECT block_id, value AS attribute_value FROM attributes WHERE name = 'custom-qb-id' AND block_id IN (${blockIds
+            .filter((id) => /^\\d{14}-[a-z0-9]{7}$/u.test(id))
+            .map((id) => `'${id}'`).join(", ")})`,
+        }),
       ]);
       const threshold = Number(this.getSetting("reviewThreshold")) || 2;
-      return new Map(catalog
-        .filter((question) => requested.has(question.blockId))
-        .map((question) => [question.blockId, questionProgressFromAggregate(
-          aggregates.get(question.questionId),
-          threshold,
-        )]));
+      const questionIdByBlockId = new Map<string, string>([
+        ...catalog
+          .filter((question) => requested.has(question.blockId))
+          .map((question) => [question.blockId, question.questionId] as const),
+        ...attributeRows
+          .filter((row) => requested.has(row.block_id) && row.attribute_value)
+          .map((row) => [row.block_id, row.attribute_value] as const),
+      ]);
+      return new Map([...questionIdByBlockId.entries()].flatMap(([blockId, questionId]) => {
+        const aggregate = aggregates.get(questionId);
+        return aggregate ? [[blockId, questionProgressFromAggregate(aggregate, threshold)] as const] : [];
+      }));
     });
     this.storeSyncCoordinator ??= new StoreSyncCoordinator(
       {run: () => this.getTinyBaseRuntime().mergeAfterSync()},
