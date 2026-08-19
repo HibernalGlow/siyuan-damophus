@@ -4,11 +4,14 @@ import {
   convertDocumentTreeNetworkAssets,
   hasRemoteResource,
   isRemoteResourceUrl,
+  previewDocumentTreeNetworkAssets,
+  remoteResourceUrls,
   resolveDocumentTree,
 } from "./network-assets-local";
 
 vi.mock("@/api", () => ({
   convertNetworkAssetsToLocalStrict: vi.fn(),
+  getBlockKramdownStrict: vi.fn(),
   sqlStrict: vi.fn(),
 }));
 
@@ -18,6 +21,17 @@ describe("network assets to local", () => {
     expect(isRemoteResourceUrl("//cdn.example.com/a.mp3")).toBe(true);
     expect(isRemoteResourceUrl("assets/a.png")).toBe(false);
     expect(isRemoteResourceUrl("mailto:test@example.com")).toBe(false);
+  });
+
+  it("extracts remote references from Markdown and rendered HTML", () => {
+    expect(remoteResourceUrls([
+      "![image](https://example.com/image.png)",
+      '<video src="//cdn.example.com/movie.mp4"></video>',
+      "[local](assets/file.pdf)",
+    ].join("\n"))).toEqual([
+      "https://example.com/image.png",
+      "//cdn.example.com/movie.mp4",
+    ]);
   });
 
   it("shows a block action only for rendered remote resource elements", () => {
@@ -49,5 +63,19 @@ describe("network assets to local", () => {
     expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenNthCalledWith(1, "root");
     expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenNthCalledWith(2, "child");
     expect(progress).toHaveBeenLastCalledWith(2, 2);
+  });
+
+  it("builds a per-document preview before conversion", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }, { id: "child", box: "box", hpath: "/Root/Child" }]);
+    vi.mocked(api.getBlockKramdownStrict)
+      .mockResolvedValueOnce({ id: "root", kramdown: "![one](https://example.com/one.png)" })
+      .mockResolvedValueOnce({ id: "child", kramdown: '<audio src="https://example.com/two.mp3">' });
+
+    await expect(previewDocumentTreeNetworkAssets("root")).resolves.toEqual([
+      expect.objectContaining({ id: "root", urls: ["https://example.com/one.png"] }),
+      expect.objectContaining({ id: "child", urls: ["https://example.com/two.mp3"] }),
+    ]);
   });
 });

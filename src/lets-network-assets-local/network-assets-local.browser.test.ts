@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { setPlugin } from "@/utils";
 import NetworkAssetsLocalPlugin from "./index";
 import pluginMetadata from "./plugin";
+import { networkAssetsLocalTabType } from "./tab-contract";
 
 interface EventBusMock {
   on: ReturnType<typeof vi.fn>;
@@ -24,8 +25,8 @@ function createEventBus(): EventBusMock {
   };
 }
 
-function createModule(eventBus: EventBusMock): NetworkAssetsLocalPlugin {
-  setPlugin({ eventBus });
+function createModule(eventBus: EventBusMock, addTab = vi.fn()): NetworkAssetsLocalPlugin {
+  setPlugin({ eventBus, addTab });
   const module = new NetworkAssetsLocalPlugin();
   module.getSetting = () => true;
   module.t = (key) => key;
@@ -41,6 +42,15 @@ describe("network assets to local module", () => {
   it("is disabled by default and uses the contextual entry setting", () => {
     expect(pluginMetadata).toMatchObject({ name: "networkAssetsLocal", enabled: false });
     expect(pluginMetadata.settings?.some((setting) => setting.key === "entryContextMenu")).toBe(true);
+  });
+
+  it("registers a dedicated Tab model for the conversion preview", () => {
+    const eventBus = createEventBus();
+    const addTab = vi.fn();
+    const module = createModule(eventBus, addTab);
+    module.registerModels();
+
+    expect(addTab).toHaveBeenCalledWith(expect.objectContaining({ type: networkAssetsLocalTabType }));
   });
 
   it("adds the block action only when a selected block contains a remote resource", () => {

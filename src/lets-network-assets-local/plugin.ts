@@ -8,7 +8,7 @@ const pluginMetadata: PluginMetadata = {
   version: "1.0.0",
   enabled: false,
   icon: "network",
-  settings: createEntrySettings({ contextMenu: true }),
+  settings: createEntrySettings({ contextMenu: true, tab: true }, { central: true }),
 };
 
 export default pluginMetadata;

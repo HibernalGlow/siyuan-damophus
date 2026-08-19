@@ -1,4 +1,8 @@
-import { convertNetworkAssetsToLocalStrict, sqlStrict } from "@/api";
+import {
+  convertNetworkAssetsToLocalStrict,
+  getBlockKramdownStrict,
+  sqlStrict,
+} from "@/api";
 
 export interface DocumentRow {
   id: string;
@@ -8,6 +12,10 @@ export interface DocumentRow {
 
 export interface NetworkAssetConversionResult {
   documents: number;
+}
+
+export interface NetworkAssetPreviewDocument extends DocumentRow {
+  urls: string[];
 }
 
 function sqlQuote(value: string): string {
@@ -23,6 +31,17 @@ export function hasRemoteResource(blocks: readonly HTMLElement[]): boolean {
   return blocks.some((block) => Array.from(block.querySelectorAll<HTMLElement>(
     "img[src], audio[src], video[src], source[src], a[data-type=file][href]",
   )).some((element) => isRemoteResourceUrl(element.getAttribute("src") ?? element.getAttribute("href"))));
+}
+
+export function remoteResourceUrls(markdown: string): string[] {
+  const urls = new Set<string>();
+  const add = (value: string | undefined) => {
+    const url = value?.trim();
+    if (url && isRemoteResourceUrl(url)) urls.add(url);
+  };
+  for (const match of markdown.matchAll(/!?(?:\[[^\]]*\])\(([^\s)]+)(?:\s+[^)]*)?\)/gu)) add(match[1]);
+  for (const match of markdown.matchAll(/(?:src|href)=["']([^"']+)["']/giu)) add(match[1]);
+  return [...urls];
 }
 
 export async function resolveDocumentTree(documentId: string, includeChildren: boolean): Promise<DocumentRow[]> {
@@ -51,4 +70,12 @@ export async function convertDocumentTreeNetworkAssets(
   }
   onProgress?.(documents.length, documents.length);
   return { documents: documents.length };
+}
+
+export async function previewDocumentTreeNetworkAssets(documentId: string): Promise<NetworkAssetPreviewDocument[]> {
+  const documents = await resolveDocumentTree(documentId, true);
+  return Promise.all(documents.map(async (document) => ({
+    ...document,
+    urls: remoteResourceUrls((await getBlockKramdownStrict(document.id)).kramdown ?? ""),
+  })));
 }
