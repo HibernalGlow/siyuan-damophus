@@ -206,6 +206,25 @@ describe("expanded plugin menu", () => {
     ], 900, 700)).toMatchObject({ layout: "side", otherColumns: 2 });
   });
 
+  it("leaves the native Plugins submenu untouched on mobile", () => {
+    const menu = renderBlockMenu();
+    const pluginItem = itemByLabel(menu, "插件");
+    const submenu = pluginItem.querySelector<HTMLElement>(":scope > .b3-menu__submenu")!;
+    const nativeItems = submenu.querySelector(":scope > .b3-menu__items");
+    const controller = new ExpandedPluginMenuController(document, undefined, undefined, true);
+    controller.start(undefined, undefined, { mode: "top" });
+
+    pointAt(pluginItem);
+    expect(menu.hasAttribute(EXPANDED_PLUGIN_MENU_ROOT_ATTRIBUTE)).toBe(false);
+    expect(pluginItem.hasAttribute(EXPANDED_PLUGIN_MENU_ATTRIBUTE)).toBe(false);
+    expect(pluginItem.hasAttribute(EXPANDED_PLUGIN_MENU_VISIBLE_ATTRIBUTE)).toBe(false);
+    expect(submenu.querySelector(`.${EXPANDED_PLUGIN_MENU_PANEL_CLASS}`)).toBeNull();
+    expect(submenu.querySelector(":scope > .b3-menu__items")).toBe(nativeItems);
+    expect(document.getElementById(EXPANDED_PLUGIN_MENU_STYLE_ID)).toBeNull();
+
+    controller.destroy();
+  });
+
   it("opens the plugin branch in the smallest complete panel", async () => {
     await page.viewport(1440, 900);
     const menu = renderBlockMenu();

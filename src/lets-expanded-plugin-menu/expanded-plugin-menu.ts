@@ -17,6 +17,7 @@ import {
   type PluginMenuPlacement,
 } from "./settings-model";
 import { orderPluginMenuKeys, parsePluginMenuOrder } from "./settings-model";
+import { isMobile } from "@/utils";
 
 export const EXPANDED_PLUGIN_MENU_STYLE_ID = "damophus-expanded-plugin-menu-style";
 export const EXPANDED_PLUGIN_MENU_ATTRIBUTE = "data-damophus-expanded-plugin-menu";
@@ -594,6 +595,7 @@ export class ExpandedPluginMenuController {
     private readonly targetDocument: Document = document,
     private readonly onEntriesDiscovered?: (entries: readonly DiscoveredPluginMenuEntry[]) => void,
     private readonly onAnchorsDiscovered?: (anchors: readonly DiscoveredPluginMenuAnchor[]) => void,
+    private readonly mobile = isMobile,
   ) {}
 
   start(
@@ -604,6 +606,10 @@ export class ExpandedPluginMenuController {
     menuOrder: unknown = [],
   ): void {
     this.running = true;
+    // Mobile menus must keep SiYuan's native click-to-open interaction. The
+    // expanded panel is a desktop hover enhancement and should not reshape or
+    // intercept the native submenu on touch devices.
+    if (this.mobile) return;
     this.allowedEntries = parseExpandedPluginMenuAllowedEntries(allowedEntries);
     this.discoveredEntries = parseDiscoveredPluginMenuEntries(discoveredEntries);
     this.placement = parsePluginMenuPlacement(placement);
