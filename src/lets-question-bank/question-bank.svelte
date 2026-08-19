@@ -18,6 +18,11 @@
     ObjectiveAnswer,
   } from "@/question-bank/core/types";
   import { buildStatistics, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
+  import {
+    normalizeSubjectQuestionTotals,
+    type SubjectQuestionTotals,
+  } from "@/question-bank/core/subject-dashboard";
+  import type { TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
     createPracticeOptionOrder,
@@ -88,6 +93,7 @@
   export let initialDocumentId: string | undefined = undefined;
   export let getCurrentDocumentId: (() => string | undefined) | undefined = undefined;
   export let translations: Record<string, string> = {};
+  export let loadTopicDictionary: (() => Promise<TopicDictionaryDocument>) | undefined = undefined;
   export let reviewThreshold = 2;
   export let random: () => number = Math.random;
   export let uuid: () => string = () => crypto.randomUUID();
@@ -264,6 +270,10 @@
     }
   }
   let statisticsSnapshot: StatisticsSnapshot | undefined;
+  let statisticsTopicDictionary: TopicDictionaryDocument | undefined;
+  let subjectQuestionTotals: SubjectQuestionTotals = normalizeSubjectQuestionTotals(
+    controller.getSetting?.("statisticsSubjectQuestionTotals"),
+  );
   let statisticsLoading = false;
   let statisticsRange: StatisticsRange = 30;
   let statisticsSort: StatisticsSort = "weakness";
@@ -657,10 +667,15 @@
     void run(async () => {
       statisticsLoading = true;
       try {
-        const [statisticsQuestions, attempts] = await Promise.all([
+        const [statisticsQuestions, attempts, dictionary] = await Promise.all([
           controller.loadStatisticsQuestions!(),
           controller.loadAttemptEvents!(),
+          loadTopicDictionary?.().catch((dictionaryError) => {
+            log.warn("statistics.topic-dictionary-unavailable", dictionaryError);
+            return undefined;
+          }),
         ]);
+        statisticsTopicDictionary = dictionary;
         statisticsSnapshot = buildStatistics(
           statisticsQuestions,
           attempts,
@@ -687,6 +702,15 @@
   function changeStatisticsSort(value: StatisticsSort): void {
     statisticsSort = value;
     loadStatistics();
+  }
+
+  function changeSubjectQuestionTotal(subjectId: string, rawValue: string): void {
+    const next = {...subjectQuestionTotals};
+    const total = Number(rawValue);
+    if (rawValue.trim() && Number.isFinite(total) && total > 0) next[subjectId] = Math.floor(total);
+    else delete next[subjectId];
+    subjectQuestionTotals = normalizeSubjectQuestionTotals(next);
+    controller.setSetting?.("statisticsSubjectQuestionTotals", subjectQuestionTotals);
   }
 
   function confirmSync(): void {
@@ -1242,7 +1266,7 @@
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
   {questionSetBlueprints} {run} {loadQuestionSetData} {previewSourceSync} {confirmSourceSync} {assembleBlueprint} {saveBlueprint}
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}
-  {changeStatisticsRange} {changeStatisticsSort} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
+  {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
   {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
   {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
   {completionPercent} {attemptedQuestions} {untouchedQuestions} {reviewQuestions} {pendingSync} {syncComplete} {autoSyncIndex}

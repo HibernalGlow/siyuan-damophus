@@ -54,6 +54,7 @@ import {
   sourceEmbedBlockAttributes,
 } from "./source-embed-presentation";
 import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyuan-file-io";
+import { TopicDictionaryStore } from "@/question-bank/adapters/siyuan/topic-dictionary";
 import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
 import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
@@ -497,6 +498,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
       tinybaseRuntime: this.getTinyBaseRuntime(),
       tinybaseCatalogRuntime: this.getTinyBaseCatalogRuntime(),
     });
+    const topicDictionaryStore = new TopicDictionaryStore(
+      new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
+      siyuanKernelClient,
+    );
     const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
     const sourceQueryCache = new Map<string, Promise<string>>();
     const loadRowsByIds = async (blockIds: readonly string[]): Promise<SourceEmbedBlockRow[]> => {
@@ -545,6 +550,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         initialDocumentId: documentId,
         getCurrentDocumentId: () => this.currentDocumentId(),
         translations: plugin.i18n,
+        loadTopicDictionary: () => topicDictionaryStore.load(),
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
         questionRenderMode: this.getSetting("questionRenderMode") ?? "native",

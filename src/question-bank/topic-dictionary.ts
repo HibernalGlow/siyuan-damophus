@@ -106,6 +106,24 @@ export function resolveTopicDictionaryLabel(
   return displayName || fallback || normalized;
 }
 
+/** Resolves a classification code through the same topic entries that supplied it. */
+export function resolveTopicDictionaryClassificationLabel(
+  dictionary: TopicDictionaryDocument,
+  field: "subjects" | "categories" | "collections" | "sources",
+  value: string,
+  fallback: string,
+): string {
+  const normalized = value.trim().toLowerCase();
+  const exact = dictionary.entries[normalized]?.displayName.trim();
+  if (exact) return exact;
+  const labels = Object.values(dictionary.entries)
+    .filter((entry) => entry[field].some((candidate) => candidate.trim().toLowerCase() === normalized))
+    .map((entry) => entry.displayName.trim() || entry.suggestedName.trim())
+    .filter(Boolean)
+    .sort((left, right) => left.length - right.length || left.localeCompare(right));
+  return labels[0] || fallback || normalized;
+}
+
 export function mergeTopicDictionaryScan(
   current: TopicDictionaryDocument,
   candidates: readonly TopicDictionaryCandidate[],

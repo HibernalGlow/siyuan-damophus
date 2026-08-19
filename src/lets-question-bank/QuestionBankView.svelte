@@ -88,6 +88,9 @@
   export let statisticsSort: any;
   export let changeStatisticsRange: any;
   export let changeStatisticsSort: any;
+  export let statisticsTopicDictionary: any;
+  export let subjectQuestionTotals: any;
+  export let changeSubjectQuestionTotal: any;
   export let controller: any;
   export let examQuestions: any[];
   export let preview: any;
@@ -322,6 +325,10 @@
         sort={statisticsSort}
         onRangeChange={changeStatisticsRange}
         onSortChange={changeStatisticsSort}
+        topicDictionary={statisticsTopicDictionary}
+        {subjectQuestionTotals}
+        onSubjectQuestionTotalChange={changeSubjectQuestionTotal}
+        {translations}
         {label}
       />
     {:else if queue.length === 0 && !complete}

@@ -400,6 +400,16 @@ export const en = {
   "lets-question-bank.statisticsWrongCount": "Wrong count",
   "lets-question-bank.statisticsAccuracySort": "Accuracy",
   "lets-question-bank.statisticsRecentSort": "Most recent",
+  "lets-question-bank.statisticsSubjectProgress": "Subject progress",
+  "lets-question-bank.statisticsSubjectProgressHint": "Progress uses the planned total when set, so questions can be added gradually",
+  "lets-question-bank.statisticsSubjects": "subjects",
+  "lets-question-bank.statisticsNoSubjects": "No indexed subjects",
+  "lets-question-bank.statisticsCompletion": "completion",
+  "lets-question-bank.statisticsQuestions": "questions",
+  "lets-question-bank.statisticsAttempted": "Attempted",
+  "lets-question-bank.statisticsIndexedQuestions": "Indexed",
+  "lets-question-bank.statisticsPlannedTotal": "Planned total",
+  "lets-question-bank.statisticsCollectionGold": "Gold questions",
 };
 
 export const zhCN: typeof en = {
@@ -804,4 +814,14 @@ export const zhCN: typeof en = {
   "lets-question-bank.statisticsWrongCount": "错误次数",
   "lets-question-bank.statisticsAccuracySort": "正确率",
   "lets-question-bank.statisticsRecentSort": "最近作答",
+  "lets-question-bank.statisticsSubjectProgress": "科目进度",
+  "lets-question-bank.statisticsSubjectProgressHint": "设置计划总题数后按计划计算，支持逐步录入题目",
+  "lets-question-bank.statisticsSubjects": "个科目",
+  "lets-question-bank.statisticsNoSubjects": "暂无已索引科目",
+  "lets-question-bank.statisticsCompletion": "完成率",
+  "lets-question-bank.statisticsQuestions": "题",
+  "lets-question-bank.statisticsAttempted": "已作答",
+  "lets-question-bank.statisticsIndexedQuestions": "已录入",
+  "lets-question-bank.statisticsPlannedTotal": "计划总题数",
+  "lets-question-bank.statisticsCollectionGold": "真金题",
 };

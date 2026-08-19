@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   emptyTopicDictionary,
   mergeTopicDictionaryScan,
+  resolveTopicDictionaryClassificationLabel,
   resolveTopicDictionaryLabel,
   updateTopicDictionaryLabels,
 } from "./topic-dictionary";
@@ -43,5 +44,13 @@ describe("topic dictionary", () => {
 
     expect(resolveTopicDictionaryLabel(dictionary, "criminal-causation", "criminal-causation"))
       .toBe("刑法上的因果关系");
+  });
+
+  it("resolves a category code through its topic entry", () => {
+    const dictionary = mergeTopicDictionaryScan(emptyTopicDictionary(), [
+      {topicId: "civil-procedure-mediation", suggestedName: "民事调解", categories: ["mediation"]},
+    ]);
+    expect(resolveTopicDictionaryClassificationLabel(dictionary, "categories", "mediation", "mediation"))
+      .toBe("民事调解");
   });
 });

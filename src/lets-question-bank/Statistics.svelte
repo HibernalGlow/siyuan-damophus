@@ -2,7 +2,14 @@
   import { BarChart3, CalendarRange, Clock3, Filter, History, Target, TrendingUp } from "lucide-svelte";
   import * as Select from "@/components/ui/select";
   import { Badge } from "@/components/ui/badge";
+  import { Input } from "@/components/ui/input";
   import StatisticsHeatmap from "./StatisticsHeatmap.svelte";
+  import { resolveTopicDictionaryClassificationLabel, type TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
+  import {
+    subjectCompletionPercent,
+    subjectPlannedTotal,
+    type SubjectQuestionTotals,
+  } from "@/question-bank/core/subject-dashboard";
   import type {
     StatisticsDimension,
     StatisticsRange,
@@ -16,7 +23,30 @@
   export let sort: StatisticsSort = "weakness";
   export let onRangeChange: ((value: StatisticsRange) => void) | undefined = undefined;
   export let onSortChange: ((value: StatisticsSort) => void) | undefined = undefined;
+  export let topicDictionary: TopicDictionaryDocument | undefined = undefined;
+  export let subjectQuestionTotals: SubjectQuestionTotals = {};
+  export let onSubjectQuestionTotalChange: ((subjectId: string, value: string) => void) | undefined = undefined;
+  export let translations: Record<string, string> = {};
   export let label: (key: string, fallback: string) => string = (_key, fallback) => fallback;
+
+  const subjectTranslationKeys: Readonly<Record<string, string>> = {
+    civil: "lets-topic-dictionary.subjectCivil",
+    criminal: "lets-topic-dictionary.subjectCriminal",
+    "civil-procedure": "lets-topic-dictionary.subjectCivilProcedure",
+    "criminal-procedure": "lets-topic-dictionary.subjectCriminalProcedure",
+    administrative: "lets-topic-dictionary.subjectAdministrative",
+    "commercial-economic": "lets-topic-dictionary.subjectCommercialEconomic",
+    "theory-law": "lets-topic-dictionary.subjectTheoryLaw",
+    "international-law": "lets-topic-dictionary.subjectInternationalLaw",
+  };
+  const questionTypeLabelKeys: Readonly<Record<string, string>> = {
+    single: "questionTypeSingle",
+    multiple: "questionTypeMultiple",
+    indefinite: "questionTypeIndefinite",
+    "true-false": "questionTypeTrueFalse",
+    subjective: "questionTypeSubjective",
+    group: "questionTypeGroup",
+  };
 
   const ranges: Array<{ value: string; label: string }> = [
     { value: "7", label: label("statistics7Days", "7 days") },
@@ -60,9 +90,23 @@
     return dimensions.find((item) => item.value === dimension)?.label ?? dimension;
   }
 
-  function completion(metric: { attemptedQuestions: number; totalQuestions: number }): number {
-    if (metric.totalQuestions === 0) return 0;
-    return Math.round((metric.attemptedQuestions / metric.totalQuestions) * 1000) / 10;
+  function localizedMetricLabel(dimension: StatisticsDimension, key: string, fallback: string): string {
+    if (key === "Unclassified") return label("statisticsUnclassified", "Unclassified");
+    if (dimension === "subject") {
+      const translationKey = subjectTranslationKeys[key];
+      return translationKey ? translations[translationKey] ?? fallback : fallback;
+    }
+    if (dimension === "question_type") {
+      const labelKey = questionTypeLabelKeys[key];
+      return labelKey ? label(labelKey, fallback) : fallback;
+    }
+    if (dimension === "category" && topicDictionary) {
+      return resolveTopicDictionaryClassificationLabel(topicDictionary, "categories", key, fallback);
+    }
+    if (dimension === "collection" && key === "gold") {
+      return label("statisticsCollectionGold", fallback);
+    }
+    return fallback;
   }
 </script>
 
@@ -143,18 +187,36 @@
       {:else}
         <div class="statistics-subject-grid mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {#each subjectMetrics as subject (subject.key)}
-            {@const completionRate = completion(subject)}
+            {@const plannedTotal = subjectPlannedTotal(subject, subjectQuestionTotals[subject.key])}
+            {@const completionRate = subjectCompletionPercent(subject.attemptedQuestions, plannedTotal)}
+            {@const subjectName = localizedMetricLabel("subject", subject.key, subject.label)}
             <article class="statistics-subject border p-3" data-subject={subject.key}>
               <div class="flex items-start justify-between gap-3">
-                <strong class="min-w-0 break-words text-sm">{subject.label}</strong>
+                <strong class="min-w-0 break-words text-sm">{subjectName}</strong>
                 <span class="shrink-0 text-lg font-semibold">{completionRate}%</span>
               </div>
-              <div class="mt-3 h-2 overflow-hidden rounded-sm bg-muted" role="progressbar" aria-label={`${subject.label} ${label("statisticsCompletion", "completion")}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionRate}>
+              <div class="mt-3 h-2 overflow-hidden rounded-sm bg-muted" role="progressbar" aria-label={`${subjectName} ${label("statisticsCompletion", "completion")}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionRate}>
                 <div class="h-full bg-primary" style={`width: ${completionRate}%`}></div>
               </div>
               <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs opacity-70">
-                <span>{subject.attemptedQuestions} / {subject.totalQuestions} {label("statisticsQuestions", "questions")}</span>
+                <span>{label("statisticsAttempted", "Attempted")} {subject.attemptedQuestions} / {plannedTotal}</span>
                 <span>{label("statisticsAccuracy", "Accuracy")} {subject.accuracy}%</span>
+              </div>
+              <div class="mt-3 flex items-center justify-between gap-3 border-t pt-3 text-xs">
+                <span class="opacity-70">{label("statisticsIndexedQuestions", "Indexed")} {subject.totalQuestions}</span>
+                <label class="flex items-center gap-2">
+                  <span class="whitespace-nowrap opacity-70">{label("statisticsPlannedTotal", "Planned total")}</span>
+                  <Input
+                    class="h-7 w-20"
+                    type="number"
+                    min={subject.totalQuestions}
+                    step="1"
+                    value={subjectQuestionTotals[subject.key] ?? ""}
+                    placeholder={String(subject.totalQuestions)}
+                    aria-label={`${subjectName} ${label("statisticsPlannedTotal", "Planned total")}`}
+                    oninput={(event) => onSubjectQuestionTotalChange?.(subject.key, event.currentTarget.value)}
+                  />
+                </label>
               </div>
             </article>
           {/each}
@@ -225,7 +287,7 @@
             <div class="mt-2 space-y-2">
               {#each distribution?.items.slice(0, 6) ?? [] as item (item.key)}
                 <div class="grid grid-cols-[minmax(0,1fr)_3rem] gap-2 text-xs">
-                  <span class="truncate" title={item.label}>{item.label}</span>
+                  <span class="truncate" title={localizedMetricLabel(dimension.value, item.key, item.label)}>{localizedMetricLabel(dimension.value, item.key, item.label)}</span>
                   <span class="text-right">{item.accuracy}%</span>
                   <div class="col-span-2 h-1 overflow-hidden bg-muted"><div class="h-full bg-secondary-foreground/60" style={`width: ${Math.max(item.attempts > 0 ? item.accuracy : 0, 2)}%`}></div></div>
                 </div>
