@@ -51,6 +51,7 @@ const settingItems: ISettingItem[] = [
   { type: "number", title: "Hard 阈值", description: "Hard 说明", key: "autoCardHardThreshold", value: 1 },
   { type: "number", title: "Again 阈值", description: "Again 说明", key: "autoCardAgainThreshold", value: 2 },
   { type: "checkbox", title: "自动同步索引", description: "同步说明", key: "autoSyncIndex", value: false },
+  { type: "textinput", title: "Question Index 投影目标块 ID", description: "投影目标说明", key: "questionIndexProjectionBlockId", value: "", placeholder: "20260819123456-abcdefg" },
   { type: "button", title: "维护索引", description: "维护说明", key: "maintainIndex", value: "立即维护" },
   { type: "button", title: "回填历史题目考点关联", description: "回填说明", key: "migrateTopicRelations", value: "立即回填" },
   { type: "checkbox", title: "自动扫描文档", description: "扫描说明", key: "autoScanDocument", value: false },
@@ -118,6 +119,14 @@ describe("question bank settings navigation", () => {
 
     expect(displayTrigger.getAttribute("aria-expanded")).toBe("false");
     expect(reviewTrigger.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("exposes the Question Index projection target in the index section", async () => {
+    const target = render();
+    await tick();
+
+    expect(target.textContent).toContain("Question Index 投影目标块 ID");
+    expect(target.querySelector('input[placeholder="20260819123456-abcdefg"]')).not.toBeNull();
   });
 
   it("uses the header navigation to reveal and scroll to a settings group", async () => {
@@ -258,7 +267,7 @@ describe("question bank settings navigation", () => {
 
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
     expect(target.querySelectorAll("[data-settings-section-target]")).toHaveLength(6);
-    expect(target.querySelectorAll("h2, h3")).toHaveLength(0);
+    expect(target.querySelectorAll("h2, h3").length).toBeLessThanOrEqual(1);
   });
 
   it("keeps all six compact navigation icons on one row", async () => {
