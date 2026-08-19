@@ -24,12 +24,13 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
   private readonly handleDocumentTitleMenu = (event: CustomEvent<IEventBusMap["click-editortitleicon"]>): void => {
     if (!this.isEntryEnabled("contextMenu")) return;
     const documentId = event.detail.data.id;
-    if (!documentId) return;
-    event.detail.menu.addItem({
-      icon: "iconDownloadAssets",
-      label: this.t("lets-network-assets-local.documentMenuLabel"),
-      click: () => void this.convertDocumentTree(documentId),
-    });
+    this.addDocumentTreeMenuItem(event.detail.menu, documentId);
+  };
+
+  private readonly handleDocumentTreeMenu = (event: CustomEvent<IEventBusMap["open-menu-doctree"]>): void => {
+    if (!this.isEntryEnabled("contextMenu") || event.detail.type !== "doc") return;
+    const documentId = event.detail.elements[0]?.dataset.nodeId;
+    this.addDocumentTreeMenuItem(event.detail.menu, documentId);
   };
 
   override onload(): void {
@@ -37,6 +38,7 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
     this.listening = true;
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
+    plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
   }
 
   override onunload(): void {
@@ -44,6 +46,7 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
     this.listening = false;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
+    plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
   }
 
   private async convertBlock(blockId: string): Promise<void> {
@@ -52,6 +55,15 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
     } catch {
       showMessage(this.t("lets-network-assets-local.failed"), 5000, "error");
     }
+  }
+
+  private addDocumentTreeMenuItem(menu: IEventBusMap["open-menu-doctree"]["menu"], documentId?: string): void {
+    if (!documentId) return;
+    menu.addItem({
+      icon: "iconDownloadAssets",
+      label: this.t("lets-network-assets-local.documentMenuLabel"),
+      click: () => void this.convertDocumentTree(documentId),
+    });
   }
 
   private async convertDocumentTree(documentId: string): Promise<void> {

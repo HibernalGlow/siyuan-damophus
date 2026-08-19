@@ -78,4 +78,36 @@ describe("network assets to local module", () => {
     }));
     module.onunload();
   });
+
+  it("adds the same recursive action to a single document's file-tree menu", () => {
+    const eventBus = createEventBus();
+    const module = createModule(eventBus);
+    const addItem = vi.fn();
+    const documentElement = document.createElement("div");
+    documentElement.dataset.nodeId = "document";
+    module.onload();
+    eventBus.emit("open-menu-doctree", { menu: { addItem }, elements: [documentElement], type: "doc" });
+
+    expect(addItem).toHaveBeenCalledWith(expect.objectContaining({
+      label: "lets-network-assets-local.documentMenuLabel",
+      icon: "iconDownloadAssets",
+    }));
+    module.onunload();
+  });
+
+  it("does not add a recursive document action to notebook or multi-document menus", () => {
+    const eventBus = createEventBus();
+    const module = createModule(eventBus);
+    const addItem = vi.fn();
+    const first = document.createElement("div");
+    first.dataset.nodeId = "first";
+    const second = document.createElement("div");
+    second.dataset.nodeId = "second";
+    module.onload();
+    eventBus.emit("open-menu-doctree", { menu: { addItem }, elements: [first], type: "notebook" });
+    eventBus.emit("open-menu-doctree", { menu: { addItem }, elements: [first, second], type: "docs" });
+
+    expect(addItem).not.toHaveBeenCalled();
+    module.onunload();
+  });
 });
