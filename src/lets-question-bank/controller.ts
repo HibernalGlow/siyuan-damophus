@@ -64,6 +64,8 @@ export interface RecentScope {
 
 export interface QuestionBankUiController {
   readonly usesTinyBase?: boolean;
+  getSetting(key: string): unknown;
+  setSetting(key: string, value: unknown): void;
   getBinding(): QuestionBankBinding | undefined;
   previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview>;
   confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding>;
@@ -175,6 +177,9 @@ export class QuestionBankController implements QuestionBankUiController {
   getBinding(): QuestionBankBinding | undefined {
     return resolveSourceRenderingBinding(this.options.getSetting, this.options.setSetting);
   }
+
+  getSetting(key: string): unknown { return this.options.getSetting(key); }
+  setSetting(key: string, value: unknown): void { this.options.setSetting(key, value); }
 
   async previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview> {
     void documentId;
@@ -456,6 +461,12 @@ export class QuestionBankController implements QuestionBankUiController {
     });
     const result = {status: await this.requireTinyBase().appendAttempt(event)};
     if (result.status !== "created") throw new Error(`Attempt '${event.attempt_id}' already exists`);
+    // Refresh read-only projections immediately after a local attempt; sync-end only covers remote merges.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("damophus-tinybase-read-view-updated", {
+        detail: { localAttemptId: event.attempt_id, questionId: event.question_id },
+      }));
+    }
     const warnings: string[] = [];
     if (dueCard) {
       try {

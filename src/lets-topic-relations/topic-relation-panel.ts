@@ -66,6 +66,11 @@ function createRelationList(
       progress.textContent = `${entry.progress.attempted ? "已作答" : "未作答"}${entry.progress.needsReview ? " · 需复习" : ""} · ${entry.progress.attempts} 次${accuracy}`;
       progress.title = `正确 ${entry.progress.objectiveCorrect} · 错误 ${entry.progress.objectiveIncorrect}`;
       item.append(progress);
+    } else if (entry.kind === "question") {
+      const unavailable = document.createElement("span");
+      unavailable.className = "damophus-topic-relations__question-progress";
+      unavailable.textContent = "统计不可用";
+      item.append(unavailable);
     }
     if (entry.hpath) {
       const path = document.createElement("span");

@@ -221,6 +221,11 @@ function createExpandedGroup(
       const accuracy = entry.progress.accuracy === undefined ? "" : ` · ${entry.progress.accuracy}%`;
       progress.textContent = `(${entry.progress.attempted ? "已作答" : "未作答"}${entry.progress.needsReview ? " · 需复习" : ""} · ${entry.progress.attempts} 次${accuracy})`;
       links.append(progress);
+    } else if (entry.kind === "question") {
+      const unavailable = document.createElement("span");
+      unavailable.className = "damophus-topic-relations__question-progress";
+      unavailable.textContent = "(统计不可用)";
+      links.append(unavailable);
     }
   });
   group.append(links);
