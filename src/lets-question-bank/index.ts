@@ -59,6 +59,7 @@ import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 import { bindMenuIdentity } from "@/libs/menu-identity";
+import { questionProgressFromAggregate, setQuestionProgressLoader } from "@/lets-topic-relations/topic-relations";
 
 type PracticeCommand = "previous" | "next" | "pause";
 const log = getLogger("lets-question-bank");
@@ -133,6 +134,20 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   override onload(): void {
+    setQuestionProgressLoader(async (blockIds) => {
+      const requested = new Set(blockIds);
+      const [catalog, aggregates] = await Promise.all([
+        this.getTinyBaseCatalogRuntime().loadCatalog(),
+        this.getTinyBaseRuntime().loadAggregates(),
+      ]);
+      const threshold = Number(this.getSetting("reviewThreshold")) || 2;
+      return new Map(catalog
+        .filter((question) => requested.has(question.blockId))
+        .map((question) => [question.blockId, questionProgressFromAggregate(
+          aggregates.get(question.questionId),
+          threshold,
+        )]));
+    });
     this.storeSyncCoordinator ??= new StoreSyncCoordinator(
       {run: () => this.getTinyBaseRuntime().mergeAfterSync()},
       {
@@ -229,6 +244,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   override async onunload(): Promise<void> {
+    setQuestionProgressLoader(undefined);
     this.openEntry?.setEnabled(false);
     this.unregisterPracticeCommands();
     this.stopSourceAnswerMask?.();

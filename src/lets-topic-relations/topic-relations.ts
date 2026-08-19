@@ -2,6 +2,7 @@ import {
   resolveTopicDictionaryLabel,
   type TopicDictionaryDocument,
 } from "@/question-bank/topic-dictionary";
+import type { AttemptAggregate } from "@/question-bank/core/types";
 
 export const QUESTION_TOPICS_ATTRIBUTE = "custom-qb-question-topic-ids";
 export const NOTE_TOPIC_ATTRIBUTE = "custom-qb-note-topic-id";
@@ -17,6 +18,52 @@ const TOPIC_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/u;
 
 export type TopicRelationKind = "note" | "question";
 export type TopicRelationDisplayMode = "compact" | "summary" | "expanded";
+
+export interface QuestionProgress {
+  attempted: boolean;
+  needsReview: boolean;
+  attempts: number;
+  objectiveCorrect: number;
+  objectiveIncorrect: number;
+  accuracy?: number;
+  latestRating?: string;
+  lastAnsweredAt?: string;
+}
+
+export type QuestionProgressLoader = (
+  blockIds: readonly string[],
+) => Promise<ReadonlyMap<string, QuestionProgress>>;
+
+let questionProgressLoader: QuestionProgressLoader | undefined;
+
+export function setQuestionProgressLoader(loader: QuestionProgressLoader | undefined): void {
+  questionProgressLoader = loader;
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("damophus-question-progress-loader-updated"));
+}
+
+export function getQuestionProgressLoader(): QuestionProgressLoader | undefined {
+  return questionProgressLoader;
+}
+
+export function questionProgressFromAggregate(
+  aggregate: AttemptAggregate | undefined,
+  reviewThreshold = 2,
+): QuestionProgress {
+  const attempts = aggregate?.attempts ?? 0;
+  const objectiveCorrect = aggregate?.objectiveCorrect ?? 0;
+  const objectiveIncorrect = aggregate?.objectiveIncorrect ?? 0;
+  const objectiveAttempts = aggregate?.objectiveAttempts ?? objectiveCorrect + objectiveIncorrect;
+  return {
+    attempted: attempts > 0,
+    needsReview: (aggregate?.consecutiveReviewCount ?? 0) >= reviewThreshold,
+    attempts,
+    objectiveCorrect,
+    objectiveIncorrect,
+    accuracy: objectiveAttempts > 0 ? Math.round((objectiveCorrect / objectiveAttempts) * 100) : undefined,
+    latestRating: aggregate?.latestRating,
+    lastAnsweredAt: aggregate?.lastAnsweredAt,
+  };
+}
 
 export interface TopicRelationSqlRow {
   relation_kind: TopicRelationKind;
@@ -47,6 +94,7 @@ export interface TopicRelationEntry {
   content: string;
   markdown: string;
   hpath: string;
+  progress?: QuestionProgress;
 }
 
 export interface TopicRelationGroup {

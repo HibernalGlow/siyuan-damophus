@@ -59,6 +59,14 @@ function createRelationList(
     const item = document.createElement("li");
     item.className = "damophus-topic-relations__list-item";
     item.append(createNativeBlockRef(entry, nativeHover));
+    if (entry.kind === "question" && entry.progress) {
+      const progress = document.createElement("span");
+      progress.className = "damophus-topic-relations__question-progress";
+      const accuracy = entry.progress.accuracy === undefined ? "" : ` · ${entry.progress.accuracy}%`;
+      progress.textContent = `${entry.progress.attempted ? "已作答" : "未作答"}${entry.progress.needsReview ? " · 需复习" : ""} · ${entry.progress.attempts} 次${accuracy}`;
+      progress.title = `正确 ${entry.progress.objectiveCorrect} · 错误 ${entry.progress.objectiveIncorrect}`;
+      item.append(progress);
+    }
     if (entry.hpath) {
       const path = document.createElement("span");
       path.className = "damophus-topic-relations__path";

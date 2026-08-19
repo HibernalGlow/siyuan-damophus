@@ -276,6 +276,12 @@ export function buildTopicRelationStyles(customStyle: unknown): string {
   overflow-wrap: anywhere;
 }
 
+.damophus-topic-relations__question-progress {
+  color: var(--b3-theme-on-surface-light, #5f6368);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 @media (max-width: 640px) {
   .damophus-topic-relations {
     width: 100%;

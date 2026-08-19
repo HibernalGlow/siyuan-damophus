@@ -215,6 +215,13 @@ function createExpandedGroup(
   entries.forEach((entry) => {
     appendSeparator(links);
     links.append(createNativeBlockRef(entry, nativeHover));
+    if (entry.kind === "question" && entry.progress) {
+      const progress = document.createElement("span");
+      progress.className = "damophus-topic-relations__question-progress";
+      const accuracy = entry.progress.accuracy === undefined ? "" : ` · ${entry.progress.accuracy}%`;
+      progress.textContent = `(${entry.progress.attempted ? "已作答" : "未作答"}${entry.progress.needsReview ? " · 需复习" : ""} · ${entry.progress.attempts} 次${accuracy})`;
+      links.append(progress);
+    }
   });
   group.append(links);
   return group;

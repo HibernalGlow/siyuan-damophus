@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTopicRelationIndex,
+  questionProgressFromAggregate,
   buildTopicRelationAttributeSql,
   buildTopicRelationSql,
   clampMobilePanelHeight,
@@ -25,6 +26,37 @@ function row(overrides: Partial<TopicRelationSqlRow>): TopicRelationSqlRow {
 }
 
 describe("topic relation model", () => {
+  it("derives attempted, review, count, and accuracy fields", () => {
+    expect(questionProgressFromAggregate(undefined)).toMatchObject({
+      attempted: false,
+      needsReview: false,
+      attempts: 0,
+      objectiveCorrect: 0,
+      objectiveIncorrect: 0,
+    });
+    expect(questionProgressFromAggregate({
+      attempts: 3,
+      timedAttempts: 0,
+      totalDurationMs: 0,
+      objectiveAttempts: 2,
+      objectiveCorrect: 1,
+      objectiveIncorrect: 1,
+      consecutiveReviewCount: 2,
+      consecutiveAgainCount: 2,
+      consecutiveHardCount: 0,
+      latestRating: "again",
+      lastAnsweredAt: "2026-08-19T00:00:00.000Z",
+      previousDurationMs: undefined,
+      lastDurationMs: undefined,
+      lastAttemptId: "a1",
+    }, 2)).toMatchObject({
+      attempted: true,
+      needsReview: true,
+      attempts: 3,
+      accuracy: 50,
+      latestRating: "again",
+    });
+  });
   it("normalizes exact stable topic IDs without accepting arbitrary attribute text", () => {
     expect(parseTopicIds(" Civil-Topic-A, civil-topic-b, civil-topic-a, bad_value, ")).toEqual([
       "civil-topic-a",

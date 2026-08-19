@@ -68,6 +68,16 @@ const group: TopicRelationGroup = {
       content: "176.",
       markdown: "##### 176.",
       hpath: "/Civil/Questions",
+      progress: {
+        attempted: true,
+        needsReview: true,
+        attempts: 3,
+        objectiveCorrect: 1,
+        objectiveIncorrect: 2,
+        accuracy: 33,
+        latestRating: "again",
+        lastAnsweredAt: "2026-08-19T00:00:00.000Z",
+      },
     },
   ],
 };
@@ -121,6 +131,9 @@ describe("topic relation editor projection", () => {
     expect(noteMarker.textContent).toContain("Topic note");
     expect(noteMarker.textContent).toContain("Other topic notes");
     expect(noteMarker.textContent).toContain("Related questions");
+    expect(noteMarker.textContent).toContain("已作答");
+    expect(noteMarker.textContent).toContain("需复习");
+    expect(noteMarker.textContent).toContain("33%");
     expect(noteMarker.querySelector('[data-topic-scope="all"]')).toBeNull();
     expect(noteMarker.querySelector('[data-topic-scope="document"]')).toBeNull();
     expect(noteMarker.querySelector('[data-topic-scope="external"]')?.textContent)

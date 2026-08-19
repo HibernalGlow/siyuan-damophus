@@ -1,149 +1,29 @@
-# Damophus Question Bank
+# Question Progress Terms
 
-Damophus 将思源文档中的可移植 Markdown 题目组织为可筛选、可作答、可复习的题库，同时保留题目内容对其他渲染端的可复用性。
+These terms extend the Damophus glossary for per-question progress shown from topic blocks and projected into SiYuan.
 
 ## Language
 
-**题库源**:
-包含题目正文和静态元数据的 Markdown 文档。题库源是题面、答案、解析和稳定身份的事实来源。
-_避免_: 数据库原文、插件缓存
+**Question progress**:
+The read-only, event-derived status and history of one question: attempted state, attempt counts, objective results, accuracy, latest rating, latest answer time, and review state.
+_Avoid_: completion record, hand-maintained score
 
-**本地 kramdown 镜像**:
-与一个思源文档双向绑定的本地 Markdown 文件，保留文档内容、思源块身份和完整 IAL，供外部编辑与可逆同步使用。
-_避免_: 普通 Markdown 导出、备份副本
+**Attempted**:
+A question has at least one immutable answer event.
+_Avoid_: completed, mastered
 
-**思源块身份**:
-一个块在当前思源工作空间中的宿主身份，用于维持块引用、属性视图绑定和其他宿主关系；它不同于跨宿主可移植的稳定题目 ID。
-_避免_: 稳定题目 ID、显示题号
+**Needs review**:
+A question whose consecutive `again`/`hard` count reaches the configured review threshold.
+_Avoid_: unfinished, incorrect
 
-**属性视图绑定**:
-内容块与一个或多个思源属性视图之间的宿主关系。同步必须保留该关系，不得把它当作可由本地文件任意覆盖的普通题目字段。
-_避免_: 题目属性、数据库显示列
+**Virtual topic progress panel**:
+The non-persistent panel rendered beside a loaded topic-anchor block. It lists related questions and their current question progress without changing source blocks.
+_Avoid_: embedded table, query block
 
-**属性视图数据库**:
-由思源属性视图块及其行、列和关系组成的可视化数据结构。Damophus 迁移所说的“移除数据库依赖”专指退出其业务事实和运行时读取；用户选择的资源展示投影可以继续使用它。
-_避免_: 思源内核数据库、SQLite、SQL 查询
+**Question Index projection**:
+An optional, one-way SiYuan attribute-view projection with one row per indexed question and Damophus-managed question-progress columns. TinyBase remains the source of truth.
+_Avoid_: progress database, attempt database
 
-**资源 AV 投影**:
-从 TinyBase 单向生成到用户选定属性视图的可删除展示索引，用于个人筛选、浏览和挑选资源。Question Index Projection 与 Topic Index Projection 可以分别绑定、选择列和覆盖更新；它不是事实来源，不能被题库业务读取，也不保存不可重建的历史。
-_避免_: Question Index、Topic Index、Attempt Log、双向同步
-
-**思源内核数据库**:
-思源用于索引文档、块和属性的宿主查询能力。Damophus 可以使用它发现题目和考点锚点，但不得把查询结果当作插件业务事实的唯一持久副本。
-_避免_: 属性视图数据库、Damophus 数据仓库
-
-**Damophus 数据仓库**:
-保存题库目录、考点目录、作答和考试等插件业务数据的可同步仓库。它不保存题目正文，也不取代思源的文档索引。
-_避免_: 属性视图数据库、题库源、插件设置
-
-**考点锚点**:
-带有 `custom-qb-note-topic-id` 的思源块，声明该块为一个稳定考点身份提供学习材料。多个锚点可以共享同一个考点 ID，Damophus 不为它们维护第二份可编辑考点名称。
-_避免_: Topic Index 行、考点数据库行
-
-**题库索引扫描**:
-用户打开题库后主动执行的发现与解析过程。它使用思源查询能力找到候选题目，再以题库契约验证哪些题目进入 Damophus 数据仓库。
-_避免_: 后台全工作空间监控、属性视图同步
-
-**块级同步冲突**:
-同一思源块在最近一次共同版本之后同时于思源和本地 kramdown 镜像发生不兼容修改的状态。冲突必须由用户逐块选择，不使用自动覆盖。
-_避免_: 文件时间较新、最后写入者胜出
-
-**Agent 请求**:
-外部工具提交给 Damophus、带稳定请求 ID 且可追踪状态的一次操作意图。重复提交同一请求 ID 不得重复执行。
-_避免_: 命令行进程、剪贴板内容
-
-**粘贴任务**:
-由一次 Agent 请求触发、在思源前端中复用 Protyle 粘贴语义执行的文档写入过程。
-_避免_: Markdown 导入、系统剪贴板自动化
-
-**写入回执**:
-粘贴任务结束后形成的不可变结果，记录请求 ID、快照引用、已完成目标和失败信息。
-_避免_: 进度事件、操作日志
-
-**题目**:
-一次可独立作答和评级的学习单元。题目由一个带稳定题目 ID 的标题块开始。
-_避免_: 数据库行、闪卡
-
-**题组**:
-共享材料但包含多个可独立作答子题的复合题目。题组本身不产生作答结果。
-_避免_: 大题、父题
-
-**专题**:
-标题树中用于组织题目的语义范围，可以继续包含小专题和考点。
-_避免_: 卡包、数据库分组
-
-**范围根节点**:
-一次练习所选择的文档或标题块。其全部后代题目构成候选题目集合。
-_避免_: 当前页面、文件夹
-
-**稳定题目 ID**:
-题目跨移动、改名、数据库重建和未来网站迁移时保持不变的业务身份。
-_避免_: 块 ID、数据库行 ID、显示题号
-
-**原始选项 ID**:
-选项在题库源中的稳定标签。选项打乱或临时重标后，答案和作答仍引用原始选项 ID。
-_避免_: 显示序号、随机标签
-
-**答案区**:
-题目提交后才能展示的答案、解析和评分要点区域。答案区从显式 solution 标记开始。
-_避免_: 解析标题、答案段落
-
-**作答事件**:
-一次已经确认提交的不可变作答事实。误触撤回不会产生作答事件。
-_避免_: 作答文档、统计行
-
-**派生统计**:
-由作答事件计算出的作答次数、错题数量、正确率、连续待复习次数和耗时等结果。它可以缓存，但不得覆盖或取代产生它的事件。
-_避免_: 作答事件、迁移事实
-
-**迁移切换**:
-一次性把旧属性视图中的可迁移事实导入 Damophus 数据仓库并完成对账的边界。切换后只向新仓库写入，不把新作答回写旧属性视图，也不提供回滚到旧属性视图的路径。
-_避免_: 长期双写、最后写入者回滚
-
-**同步后合并**:
-思源发出 `sync-end` 后，Damophus 才读取其他设备仓库分片并合并本地视图。同步失败时不合并，题库界面继续使用上一次已验证的本地状态。
-_避免_: 启动阻塞合并、同步中的半成品读取
-
-**练习会话**:
-从一个源块及其范围、筛选和顺序配置生成的一次题目队列。同一源块最多有一个未完成练习会话。
-_避免_: 作答事件、题库文档
-
-**会话快照**:
-用于续做未完成练习的可移植、可变状态，以稳定题目 ID 和原始选项 ID 记录队列进度、每题草稿和已累计的实际作答时间。它不复制题库正文，不依赖思源块或网站页面，也不参与正确率、错题或 Riff 调度。
-_避免_: 作答记录、自动提交
-
-**会话来源**:
-宿主中用于找回范围根节点和题库源的定位信息。思源可使用块 ID，网站可使用自己的可持久定位，但两者都不得取代稳定题目 ID。
-_避免_: 稳定题目 ID、当前页面
-
-**暂停练习**:
-保存会话快照并离开当前练习。暂停期间不计入会话或单题作答时间。
-_避免_: 结束练习、提交作答
-
-**结束练习**:
-放弃未提交草稿并删除会话快照，但永久保留本次练习已经产生的作答事件。
-_避免_: 删除作答历史、暂停练习
-
-**会话写入权**:
-同一时刻修改一个练习会话并提交其作答的唯一权限。其他打开实例可以提示或只读展示，但不得用旧快照覆盖新进度。
-_避免_: 页签焦点、最后写入者胜出
-
-**只读回看**:
-按作答事件展示已提交题目当时的选项顺序、选择、结果、评级和用时。只读回看不修改旧事件，也不生成新事件。
-_避免_: 重新作答、纠正事件
-
-**客观结果**:
-客观题答案与标准答案比较后得到的正确、错误结果。它不代表用户是否真正掌握。
-_避免_: 掌握度、评级
-
-**掌握评级**:
-用户对本次理解程度给出的 Again、Hard、Good 或 Easy 评价。主观题和偶然答对的客观题都以该评级表达学习状态。
-_避免_: 正确率、自动评分
-
-**连续待复习次数**:
-题目连续收到 Again 或 Hard 等待复习评级的次数；达到阈值后可自动加入快速闪卡。
-_避免_: 总错误次数、累计作答次数
-
-**快速闪卡**:
-由思源 Riff 调度、由 Damophus 题目界面呈现的复习对象，不使用历史兼容的卡包分类。
-_避免_: 卡包、独立题目副本
+**Topic snapshot**:
+An explicit, low-frequency, Damophus-managed table or block materialized below a topic block. It is a refreshable derived view and never becomes question-bank storage.
+_Avoid_: live source, synchronized copy

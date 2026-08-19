@@ -25,6 +25,7 @@ import {
   type TopicRelationGroup,
   type TopicRelationSqlRow,
   type TopicRelationSurfaceCandidate,
+  getQuestionProgressLoader,
 } from "./topic-relations";
 import {
   removeTopicRelationMarkers,
@@ -39,6 +40,7 @@ import {
   TOPIC_DICTIONARY_UPDATED_EVENT,
   TopicDictionaryStore,
 } from "@/question-bank/adapters/siyuan/topic-dictionary";
+import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "@/lets-question-bank/sync-coordinator";
 
 const log = getLogger("lets-topic-relations");
 const STYLE_ID = "damophus-topic-relations-style";
@@ -114,6 +116,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
   private readonly handleEditorLoaded = (): void => this.scheduleRefresh();
   private readonly handleSyncEnd = (): void => this.invalidateAndRefresh();
   private readonly handleDictionaryUpdated = (): void => this.invalidateAndRefresh();
+  private readonly handleProgressUpdated = (): void => this.invalidateAndRefresh(80);
   private readonly handleWsMain = (event: CustomEvent<IEventBusMap["ws-main"]>): void => {
     if (transactionTouchesTrackedBlock(event.detail, this.trackedBlockIds)) this.invalidateAndRefresh(180);
   };
@@ -177,6 +180,8 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     plugin.eventBus.on("sync-end", this.handleSyncEnd);
     plugin.eventBus.on("ws-main", this.handleWsMain);
     window.addEventListener(TOPIC_DICTIONARY_UPDATED_EVENT, this.handleDictionaryUpdated);
+    window.addEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, this.handleProgressUpdated);
+    window.addEventListener("damophus-question-progress-loader-updated", this.handleProgressUpdated);
   }
 
   private unlisten(): void {
@@ -187,6 +192,8 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     plugin.eventBus.off("sync-end", this.handleSyncEnd);
     plugin.eventBus.off("ws-main", this.handleWsMain);
     window.removeEventListener(TOPIC_DICTIONARY_UPDATED_EVENT, this.handleDictionaryUpdated);
+    window.removeEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, this.handleProgressUpdated);
+    window.removeEventListener("damophus-question-progress-loader-updated", this.handleProgressUpdated);
     this.listening = false;
   }
 
@@ -336,12 +343,15 @@ export default class TopicRelationsPlugin extends SubPluginBase {
         return undefined;
       }),
     ])
-      .then(([rows, dictionary]) => buildTopicRelationIndex(
-        normalizedIds,
-        rows,
-        parsePriorityRules(prioritySource),
-        dictionary,
-      ))
+      .then(async ([rows, dictionary]) => {
+        const groups = buildTopicRelationIndex(normalizedIds, rows, parsePriorityRules(prioritySource), dictionary);
+        const loader = getQuestionProgressLoader();
+        if (!loader) return groups;
+        const entries = Array.from(groups.values()).flatMap((group) => group.questions);
+        const progress = await loader(entries.map((entry) => entry.blockId));
+        for (const entry of entries) entry.progress = progress.get(entry.blockId);
+        return groups;
+      })
       .catch((error) => {
         this.invalidateCache();
         throw error;
