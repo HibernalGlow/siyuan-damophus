@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/api";
 import {
   convertDocumentTreeNetworkAssets,
@@ -12,13 +12,19 @@ import {
 vi.mock("@/api", () => ({
   convertNetworkAssetsToLocalStrict: vi.fn(),
   getBlockKramdownStrict: vi.fn(),
+  updateBlockStrict: vi.fn(),
   sqlStrict: vi.fn(),
 }));
 
 describe("network assets to local", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("recognizes only network resource URL schemes", () => {
     expect(isRemoteResourceUrl("https://example.com/a.png")).toBe(true);
     expect(isRemoteResourceUrl("//cdn.example.com/a.mp3")).toBe(true);
+    expect(isRemoteResourceUrl("file:///D:/notes/image.png")).toBe(true);
     expect(isRemoteResourceUrl("assets/a.png")).toBe(false);
     expect(isRemoteResourceUrl("mailto:test@example.com")).toBe(false);
   });
@@ -27,9 +33,11 @@ describe("network assets to local", () => {
     expect(remoteResourceUrls([
       "![image](https://example.com/image.png)",
       '<video src="//cdn.example.com/movie.mp4"></video>',
+      "![local file](file:///D:/notes/image.png)",
       "[local](assets/file.pdf)",
     ].join("\n"))).toEqual([
       "https://example.com/image.png",
+      "file:///D:/notes/image.png",
       "//cdn.example.com/movie.mp4",
     ]);
   });
@@ -42,6 +50,7 @@ describe("network assets to local", () => {
     }) as unknown as HTMLElement;
     expect(hasRemoteResource([block([{ src: "https://example.com/a.png" }])])).toBe(true);
     expect(hasRemoteResource([block([{ href: "https://example.com/page" }])])).toBe(true);
+    expect(hasRemoteResource([block([{ src: "file:///D:/notes/image.png" }])])).toBe(true);
     expect(hasRemoteResource([block([{ src: "assets/a.png" }])])).toBe(false);
   });
 
@@ -58,6 +67,9 @@ describe("network assets to local", () => {
     vi.mocked(api.sqlStrict)
       .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
       .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }, { id: "child", box: "box", hpath: "/Root/Child" }]);
+    vi.mocked(api.getBlockKramdownStrict)
+      .mockResolvedValueOnce({ id: "root", kramdown: "" })
+      .mockResolvedValueOnce({ id: "child", kramdown: "" });
     const progress = vi.fn();
     await expect(convertDocumentTreeNetworkAssets("root", progress)).resolves.toEqual({ documents: 2 });
     expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenNthCalledWith(1, "root");
@@ -68,14 +80,68 @@ describe("network assets to local", () => {
   it("builds a per-document preview before conversion", async () => {
     vi.mocked(api.sqlStrict)
       .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
-      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }, { id: "child", box: "box", hpath: "/Root/Child" }]);
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }, { id: "child", box: "box", hpath: "/Root/Child" }])
+      .mockResolvedValueOnce([{ id: "root-block", type: "NodeParagraph" }])
+      .mockResolvedValueOnce([{ id: "child-block", type: "NodeParagraph" }]);
     vi.mocked(api.getBlockKramdownStrict)
-      .mockResolvedValueOnce({ id: "root", kramdown: "![one](https://example.com/one.png)" })
-      .mockResolvedValueOnce({ id: "child", kramdown: '<audio src="https://example.com/two.mp3">' });
+      .mockResolvedValueOnce({ id: "root-block", kramdown: "![one](https://example.com/one.png)" })
+      .mockResolvedValueOnce({ id: "child-block", kramdown: '<audio src="https://example.com/two.mp3">' });
 
     await expect(previewDocumentTreeNetworkAssets("root")).resolves.toEqual([
       expect.objectContaining({ id: "root", urls: ["https://example.com/one.png"] }),
       expect.objectContaining({ id: "child", urls: ["https://example.com/two.mp3"] }),
     ]);
+  });
+
+  it("filters preview scanning to configured convertible block types", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "paragraph", type: "p" }, { id: "html", type: "html" }]);
+    vi.mocked(api.getBlockKramdownStrict).mockResolvedValueOnce({ id: "paragraph", kramdown: "![ok](https://example.com/ok.png)" });
+
+    await expect(previewDocumentTreeNetworkAssets("root", new Set(["NodeParagraph"]))).resolves.toEqual([
+      expect.objectContaining({ id: "root", urls: ["https://example.com/ok.png"] }),
+    ]);
+    expect(api.getBlockKramdownStrict).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes local file resources in the preview for the official document converter", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "image", type: "p" }]);
+    vi.mocked(api.getBlockKramdownStrict).mockResolvedValueOnce({
+      id: "image",
+      kramdown: "![](file:///D:/notes/image.png)",
+    });
+
+    await expect(previewDocumentTreeNetworkAssets("root")).resolves.toEqual([
+      expect.objectContaining({ id: "root", urls: ["file:///D:/notes/image.png"] }),
+    ]);
+  });
+
+  it("preserves skipped and regex-matched URLs during conversion", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }]);
+    vi.mocked(api.getBlockKramdownStrict)
+      .mockResolvedValueOnce({
+        id: "root",
+        kramdown: "![keep](https://inkloomer.github.io/inkloom/a.png) ![filtered](https://tracking.example/a.png) ![convert](https://example.com/a.png)",
+      })
+      .mockResolvedValueOnce({
+        id: "root",
+        kramdown: "![keep](damophus-skip-network-resource-0-root/a.png) ![filtered](damophus-skip-network-resource-1-root/a.png) ![convert](local/a.png)",
+      });
+
+    await convertDocumentTreeNetworkAssets("root", undefined, {
+      skippedUrls: new Set(["https://inkloomer.github.io/inkloom/a.png"]),
+      excludedPattern: "tracking\\.example",
+    });
+
+    expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenCalledWith("root");
+    expect(api.updateBlockStrict).toHaveBeenCalledWith("markdown", expect.stringContaining("https://inkloomer.github.io/inkloom/a.png"), "root");
   });
 });

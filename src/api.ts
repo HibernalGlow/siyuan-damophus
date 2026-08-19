@@ -544,6 +544,10 @@ export async function convertNetworkAssetsToLocalStrict(id: string): Promise<voi
     await requestStrict<void>('/api/format/netAssets2LocalAssets', {id});
 }
 
+export async function removeDocByIdStrict(id: string): Promise<void> {
+    await requestStrict<void>('/api/filetree/removeDocByID', {id});
+}
+
 export type PandocArgs = string;
 export async function pandoc(args: PandocArgs[]) {
     let data = {

@@ -20,6 +20,7 @@ export class ProtyleMethod {
 
 export function showMessage(): void {}
 export async function openTab(): Promise<void> {}
+export function expandDocTree(): void {}
 export function globalCommand(): void {}
 
 export function getFrontend(): string {
