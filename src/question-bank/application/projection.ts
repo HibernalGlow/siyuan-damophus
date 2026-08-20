@@ -58,16 +58,12 @@ export async function projectQuestionIndex(
   for (const question of questions) {
     let itemId = rowByQuestion.get(question.questionId);
     if (!itemId) {
+      itemId = id();
       await client.request("/api/av/addAttributeViewBlocks", {
         avID: target.avId, blockID: target.blockId, viewID: "", groupID: "", previousID: "",
-        srcs: [{ id: question.blockId, isDetached: false, content: question.questionTitle ?? question.questionId }],
+        srcs: [{ itemID: itemId, id: itemId, isDetached: true, content: question.questionTitle ?? question.questionId }],
         ignoreDefaultFill: true,
       });
-      const ids = await client.request<Record<string, string>>("/api/av/getAttributeViewItemIDsByBoundIDs", {
-        avID: target.avId, blockIDs: [question.blockId],
-      });
-      itemId = ids[question.blockId];
-      if (!itemId) throw new Error(`无法创建题目行：${question.questionId}`);
       added += 1;
     } else updated += 1;
     const aggregate = aggregates.get(question.questionId);
