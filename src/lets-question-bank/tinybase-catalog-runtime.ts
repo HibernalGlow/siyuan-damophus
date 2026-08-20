@@ -23,6 +23,7 @@ import {
   type QuestionCatalogRecord,
   type SourceDocumentRecord,
 } from "../question-bank/storage/schemas";
+import { inferTopicSubjectId } from "../question-bank/topic-subjects";
 import type { TinyBaseRuntime } from "./tinybase-runtime";
 
 interface DocumentRow {
@@ -53,14 +54,30 @@ function recordMetadata(question: Question): Pick<
   "year" | "subject" | "category" | "collection" | "source" | "parent_id"
 > {
   const metadata = sourceMetadataWithIdFallback(question.id, question.metadata);
+  const primaryTopicId = question.metadata.topicIds?.[0] ?? question.metadata.topicId;
+  const inferredSubject = question.metadata.subject || (primaryTopicId ? inferTopicSubjectId(primaryTopicId) : undefined);
+  const rawCategory = question.metadata.category;
+  const resolvedCategory = (rawCategory && rawCategory !== "gold") ? rawCategory : (rawCategory || primaryTopicId);
   return {
     year: metadata.year,
-    subject: question.metadata.subject,
-    category: question.metadata.category,
+    subject: inferredSubject,
+    category: resolvedCategory,
     collection: metadata.collection,
     source: metadata.source,
     parent_id: question.metadata.parentId,
   };
+}
+
+function catalogMetadataChanged(current: QuestionCatalogRecord, question: Question): boolean {
+  const next = recordMetadata(question);
+  return current.question_type !== question.type
+    || current.title !== question.title
+    || current.year !== next.year
+    || current.subject !== next.subject
+    || current.category !== next.category
+    || current.collection !== next.collection
+    || current.source !== next.source
+    || current.parent_id !== next.parent_id;
 }
 
 function sourceMetadataWithIdFallback(
@@ -144,7 +161,7 @@ export class TinyBaseSiyuanCatalogRuntime {
       const current = byId.get(question.id);
       const signature = questionContentSignature(question);
       if (!current) actions.push({kind: "add", question, blockId});
-      else if (current.block_id !== blockId || current.content_signature !== signature) {
+      else if (current.block_id !== blockId || current.content_signature !== signature || catalogMetadataChanged(current, question)) {
         actions.push({kind: "update", question, blockId});
       }
     }
@@ -331,6 +348,8 @@ export class TinyBaseSiyuanCatalogRuntime {
   private async refreshChangedDocuments(): Promise<void> {
     await this.runtime.ensureReady();
     const repository = this.repositories().read;
+    const metadataRevision = "3";
+    const needsMetadataRefresh = this.runtime.warehouse.getLocalContribution().core.getValue("catalog_metadata_revision") !== metadataRevision;
     const known = await repository.listDocuments();
     let candidates: Array<{root_id?: string}>;
     try {
@@ -344,16 +363,29 @@ export class TinyBaseSiyuanCatalogRuntime {
       ...known.map((document) => document.documentId),
       ...candidates.flatMap((row) => row.root_id ? [row.root_id] : []),
     ]);
+    if (documentIds.size === 0) return;
+
+    let rowsById = new Map<string, DocumentRow>();
+    try {
+      const idList = [...documentIds].map((id) => `'${escapeSql(id)}'`).join(", ");
+      const documentRows = await this.client.request<DocumentRow[]>("/api/query/sql", {
+        stmt: `SELECT id, box, content, path, hpath, updated FROM blocks WHERE id IN (${idList})`,
+      });
+      rowsById = new Map((documentRows ?? []).map((row) => [row.id, row]));
+    } catch {
+      // Fall back to per-document query if batch query fails
+    }
+
     let changed = false;
     for (const documentId of documentIds) {
-      const source = await this.documentRow(documentId);
+      const source = rowsById.get(documentId) ?? await this.documentRow(documentId);
       if (!source?.box) {
         await this.repositories().local.markDocumentUnavailable(documentId);
         changed = true;
         continue;
       }
       const previous = known.find((document) => document.documentId === documentId);
-      if (previous?.source_updated_at && previous.source_updated_at === source.updated) continue;
+      if (!needsMetadataRefresh && previous?.source_updated_at && previous.source_updated_at === source.updated) continue;
       try {
         const scan = await scanSiyuanDocument(this.client, documentId);
         if (scan.report.conflicts.length > 0 || scan.sourceIssues.length > 0) continue;
@@ -362,6 +394,10 @@ export class TinyBaseSiyuanCatalogRuntime {
       } catch {
         // Keep the previous validated catalog for this document.
       }
+    }
+    if (needsMetadataRefresh) {
+      this.runtime.warehouse.getLocalContribution().core.setValue("catalog_metadata_revision", metadataRevision);
+      changed = true;
     }
     if (changed) await this.runtime.persistCore();
   }
@@ -414,17 +450,26 @@ export class TinyBaseSiyuanCatalogRuntime {
   }
 
   async loadStatisticsQuestions(): Promise<StatisticsQuestion[]> {
-    return (await this.loadCatalog()).map((question) => ({
-      questionId: question.questionId,
-      title: question.questionTitle,
-      questionType: question.questionType,
-      subject: question.subject,
-      category: question.category,
-      year: question.year,
-      collection: question.collection,
-      topicId: question.topicId,
-      source: question.source,
-    }));
+    const core = this.runtime.warehouse.getReadView().core;
+    const rows = core.getTable("questions");
+    const result: StatisticsQuestion[] = [];
+    for (const [questionId, raw] of Object.entries(rows)) {
+      if (!raw || raw.available === 0 || raw.available === false) continue;
+      const question = raw as unknown as QuestionCatalogRecord;
+      const metadata = sourceMetadataWithIdFallback(questionId, question);
+      result.push({
+        questionId,
+        title: question.title,
+        questionType: question.question_type,
+        subject: question.subject,
+        category: question.category,
+        year: metadata.year,
+        collection: metadata.collection,
+        topicId: undefined,
+        source: metadata.source,
+      });
+    }
+    return result;
   }
 
   async hydrate(questionIds?: readonly string[]): Promise<HydratedQuestionSource> {

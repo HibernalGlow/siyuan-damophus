@@ -64,6 +64,10 @@
   export let composerOpen: boolean;
   export let view: "practice" | "statistics" | "mapping";
   export let questionIndexProjectionBlockId = "";
+  export let pruneStaleMappingRows = false;
+  export let onPruneStaleMappingRowsChange: any = undefined;
+  export let includeUnansweredMappingRows = true;
+  export let onIncludeUnansweredMappingRowsChange: any = undefined;
   export let mappingStatus: any = "idle";
   export let mappingMessage = "";
   export let selectCurrentMappingTarget: any;
@@ -91,6 +95,9 @@
   export let statisticsTopicDictionary: any;
   export let subjectQuestionTotals: any;
   export let changeSubjectQuestionTotal: any;
+  export let subjectTotalsSaveStatus: any;
+  export let statisticsLayout: any;
+  export let changeStatisticsLayout: any;
   export let controller: any;
   export let examQuestions: any[];
   export let preview: any;
@@ -310,6 +317,10 @@
       <QuestionBankMapping
         {label}
         targetBlockId={questionIndexProjectionBlockId}
+        includeUnanswered={includeUnansweredMappingRows}
+        onIncludeUnansweredChange={onIncludeUnansweredMappingRowsChange}
+        pruneStale={pruneStaleMappingRows}
+        onPruneStaleChange={onPruneStaleMappingRowsChange}
         status={mappingStatus}
         message={mappingMessage}
         selectCurrentTarget={selectCurrentMappingTarget}
@@ -328,6 +339,9 @@
         topicDictionary={statisticsTopicDictionary}
         {subjectQuestionTotals}
         onSubjectQuestionTotalChange={changeSubjectQuestionTotal}
+        {subjectTotalsSaveStatus}
+        {statisticsLayout}
+        onLayoutChange={changeStatisticsLayout}
         {translations}
         {label}
       />
