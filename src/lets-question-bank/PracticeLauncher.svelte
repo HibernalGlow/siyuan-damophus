@@ -103,15 +103,17 @@
           onValueChange={(value) => topicId = value === entireDocumentScope ? "" : value}
         >
           <Select.Trigger class="w-full">
-            {topicId ? topicLabel(topics.find((topic) => topic.id === topicId) ?? topics[0]) : label("entireDocument", "整个文档")}
+            <span>{topicId ? topicLabel(topics.find((topic) => topic.id === topicId) ?? topics[0]) : label("entireDocument", "整个文档")}</span>
           </Select.Trigger>
-          <Select.Content>
-            <Select.Group>
-              <Select.Item value={entireDocumentScope} label={label("entireDocument", "整个文档")} />
-              {#each topics as topic (topic.id)}
-                <Select.Item value={topic.id} label={topicLabel(topic)} />
-              {/each}
-            </Select.Group>
+          <Select.Content portalProps={{ disabled: true }}>
+            <Select.Item value={entireDocumentScope} label={label("entireDocument", "整个文档")}>
+              {label("entireDocument", "整个文档")}
+            </Select.Item>
+            {#each topics as topic (topic.id)}
+              <Select.Item value={topic.id} label={topicLabel(topic)}>
+                {topicLabel(topic)}
+              </Select.Item>
+            {/each}
           </Select.Content>
         </Select.Root>
       </div>
