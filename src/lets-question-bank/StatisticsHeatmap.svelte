@@ -84,14 +84,19 @@
 </script>
 
 <section
-  class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 border p-3"
+  class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 p-4"
   aria-labelledby="statistics-heatmap-heading"
   data-testid="statistics-heatmap"
   data-resizable-card="heatmap"
   style={localHeight ? `height: ${localHeight}px;` : undefined}
 >
   <div class="flex shrink-0 items-center justify-between gap-2">
-    <div class="flex items-center gap-2"><CalendarDays size={16} aria-hidden="true" /><h3 id="statistics-heatmap-heading" class="font-semibold">{label("statisticsHeatmap", "Activity heatmap")}</h3></div>
+    <div class="flex items-center gap-2">
+      <div class="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <CalendarDays size={14} />
+      </div>
+      <h3 id="statistics-heatmap-heading" class="font-semibold text-sm">{label("statisticsHeatmap", "Activity heatmap")}</h3>
+    </div>
     <span class="text-xs opacity-70">{days.length} {label("statisticsDays", "days")}</span>
   </div>
   <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
@@ -128,6 +133,12 @@
 </section>
 
 <style>
+  .statistics-panel {
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--b3-border-color, var(--border)) 70%, transparent);
+    background: color-mix(in srgb, var(--b3-theme-surface, var(--card)) 45%, var(--b3-theme-background, var(--background)));
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
   .statistics-resizable-panel {
     box-sizing: border-box;
     min-height: 120px;
@@ -140,8 +151,8 @@
   }
   .statistics-card-resizer {
     position: absolute;
-    right: 6px;
-    bottom: 4px;
+    right: 8px;
+    bottom: 5px;
     display: inline-flex;
     width: 28px;
     height: 20px;
@@ -151,8 +162,9 @@
     background: transparent;
     color: var(--muted-foreground);
     cursor: ns-resize;
-    opacity: .6;
+    opacity: .5;
     touch-action: none;
+    transition: opacity 0.15s ease, color 0.15s ease;
   }
   .statistics-card-resizer:hover,
   .statistics-card-resizer:focus-visible {

@@ -1,5 +1,29 @@
 <script lang="ts">
-  import { BarChart3, CalendarRange, Clock3, Filter, GripHorizontal, History, Target, TrendingUp } from "lucide-svelte";
+  import {
+    AlertTriangle,
+    BarChart3,
+    BookOpen,
+    Briefcase,
+    Calendar,
+    CalendarRange,
+    CheckSquare,
+    Clock3,
+    Filter,
+    Flame,
+    FolderTree,
+    Globe2,
+    GraduationCap,
+    GripHorizontal,
+    HeartHandshake,
+    HelpCircle,
+    History,
+    Landmark,
+    ScrollText,
+    ShieldAlert,
+    ShieldCheck,
+    Target,
+    TrendingUp,
+  } from "lucide-svelte";
   import * as Select from "@/components/ui/select";
   import { Badge } from "@/components/ui/badge";
   import { Input } from "@/components/ui/input";
@@ -40,6 +64,30 @@
   export let onLayoutChange: ((layout: StatisticsLayout) => void) | undefined = undefined;
   export let translations: Record<string, string> = {};
   export let label: (key: string, fallback: string) => string = (_key, fallback) => fallback;
+
+  function getSubjectIcon(subjectKey: string) {
+    switch (subjectKey) {
+      case "civil": return HeartHandshake;
+      case "criminal": return ShieldAlert;
+      case "civil-procedure": return ScrollText;
+      case "criminal-procedure": return ShieldCheck;
+      case "administrative": return Landmark;
+      case "commercial-economic": return Briefcase;
+      case "theory-law": return BookOpen;
+      case "international-law": return Globe2;
+      default: return HelpCircle;
+    }
+  }
+
+  function getDimensionIcon(dim: StatisticsDimension) {
+    switch (dim) {
+      case "subject": return BookOpen;
+      case "category": return FolderTree;
+      case "year": return Calendar;
+      case "question_type": return CheckSquare;
+      default: return BarChart3;
+    }
+  }
 
   const subjectTranslationKeys: Readonly<Record<string, string>> = {
     civil: "lets-topic-dictionary.subjectCivil",
@@ -271,39 +319,67 @@
     <div class="flex min-h-48 items-center justify-center text-sm opacity-70">{label("statisticsEmpty", "No attempt data yet")}</div>
   {:else}
     <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="statistics-metric border p-3">
-        <span class="flex items-center gap-2 text-xs opacity-70"><Target size={15} />{label("statisticsCoverage", "Question coverage")}</span>
-        <strong class="mt-2 block text-2xl">{snapshot.overview.attemptedQuestions} / {snapshot.overview.totalQuestions}</strong>
-        <span class="text-xs opacity-70">{label("statisticsAttemptedAll", "Attempted / all questions")}</span>
+      <div class="statistics-metric p-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium opacity-75">{label("statisticsCoverage", "Question coverage")}</span>
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Target size={15} />
+          </div>
+        </div>
+        <strong class="mt-2 block text-2xl font-bold tracking-tight">{snapshot.overview.attemptedQuestions} <span class="text-sm font-normal opacity-60">/ {snapshot.overview.totalQuestions}</span></strong>
+        <span class="text-xs opacity-65">{label("statisticsAttemptedAll", "Attempted / all questions")}</span>
       </div>
-      <div class="statistics-metric border p-3">
-        <span class="flex items-center gap-2 text-xs opacity-70"><TrendingUp size={15} />{label("statisticsAccuracy", "Objective accuracy")}</span>
-        <strong class="mt-2 block text-2xl">{snapshot.overview.accuracy}%</strong>
-        <span class="text-xs opacity-70">{snapshot.overview.correct} {label("correct", "correct")} · {snapshot.overview.wrong} {label("incorrect", "wrong")}</span>
+
+      <div class="statistics-metric p-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium opacity-75">{label("statisticsAccuracy", "Objective accuracy")}</span>
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <TrendingUp size={15} />
+          </div>
+        </div>
+        <strong class="mt-2 block text-2xl font-bold tracking-tight">{snapshot.overview.accuracy}%</strong>
+        <span class="text-xs opacity-65">{snapshot.overview.correct} {label("correct", "correct")} · {snapshot.overview.wrong} {label("incorrect", "wrong")}</span>
       </div>
-      <div class="statistics-metric border p-3">
-        <span class="flex items-center gap-2 text-xs opacity-70"><History size={15} />{label("statisticsAttempts", "Attempts")}</span>
-        <strong class="mt-2 block text-2xl">{snapshot.overview.attempts}</strong>
-        <span class="text-xs opacity-70">{label("statisticsObjectiveAttempts", "Objective attempts")} {snapshot.overview.objectiveAttempts}</span>
+
+      <div class="statistics-metric p-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium opacity-75">{label("statisticsAttempts", "Attempts")}</span>
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Flame size={15} />
+          </div>
+        </div>
+        <strong class="mt-2 block text-2xl font-bold tracking-tight">{snapshot.overview.attempts}</strong>
+        <span class="text-xs opacity-65">{label("statisticsObjectiveAttempts", "Objective attempts")} {snapshot.overview.objectiveAttempts}</span>
       </div>
-      <div class="statistics-metric border p-3">
-        <span class="flex items-center gap-2 text-xs opacity-70"><Clock3 size={15} />{label("statisticsAverageTime", "Average time")}</span>
-        <strong class="mt-2 block text-2xl">{duration(snapshot.overview.averageDurationMs)}</strong>
-        <span class="text-xs opacity-70">{label("statisticsTotal", "Total")} {duration(snapshot.overview.totalDurationMs)}</span>
+
+      <div class="statistics-metric p-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium opacity-75">{label("statisticsAverageTime", "Average time")}</span>
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Clock3 size={15} />
+          </div>
+        </div>
+        <strong class="mt-2 block text-2xl font-bold tracking-tight">{duration(snapshot.overview.averageDurationMs)}</strong>
+        <span class="text-xs opacity-65">{label("statisticsTotal", "Total")} {duration(snapshot.overview.totalDurationMs)}</span>
       </div>
     </div>
 
     <section
-      class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 border p-3"
+      class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 p-4"
       aria-labelledby="statistics-subject-progress-heading"
       data-testid="subject-dashboard"
       data-resizable-card="subject-progress"
       style={localHeights["subject-progress"] ? `height: ${localHeights["subject-progress"]}px;` : undefined}
     >
       <div class="flex shrink-0 items-center justify-between gap-2">
-        <div>
-          <h3 id="statistics-subject-progress-heading" class="font-semibold">{label("statisticsSubjectProgress", "Subject progress")}</h3>
-          <p class="mt-1 text-xs opacity-70">{label("statisticsSubjectProgressHint", "Completion is based on attempted questions in each indexed subject")}</p>
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <GraduationCap size={16} />
+          </div>
+          <div>
+            <h3 id="statistics-subject-progress-heading" class="font-semibold text-sm">{label("statisticsSubjectProgress", "Subject progress")}</h3>
+            <p class="text-xs opacity-65">{label("statisticsSubjectProgressHint", "设置计划总题数后按计划计算，支持逐步录入题目")}</p>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           {#if subjectTotalsSaveStatus === "saving"}
@@ -313,7 +389,7 @@
           {:else if subjectTotalsSaveStatus === "error"}
             <span class="text-xs text-destructive font-normal">保存失败</span>
           {/if}
-          <Badge variant="outline">{subjectMetrics.length} {label("statisticsSubjects", "subjects")}</Badge>
+          <Badge variant="outline" class="rounded-full text-xs font-normal">{subjectMetrics.length} {label("statisticsSubjects", "subjects")}</Badge>
         </div>
       </div>
       <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
@@ -325,30 +401,37 @@
               {@const plannedTotal = subjectPlannedTotal(subject, subjectQuestionTotals[subject.key])}
               {@const completionRate = subjectCompletionPercent(subject.attemptedQuestions, plannedTotal)}
               {@const subjectName = localizedMetricLabel("subject", subject.key, subject.label)}
-              <article class="statistics-subject border p-3" data-subject={subject.key}>
-                <div class="flex items-start justify-between gap-3">
-                  <strong class="min-w-0 break-words text-sm">{subjectName}</strong>
-                  <span class="shrink-0 text-lg font-semibold">{completionRate}%</span>
+              <article class="statistics-subject p-3.5 flex flex-col justify-between" data-subject={subject.key}>
+                <div>
+                  <div class="flex items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <svelte:component this={getSubjectIcon(subject.key)} size={15} />
+                      </div>
+                      <strong class="min-w-0 truncate text-sm font-semibold">{subjectName}</strong>
+                    </div>
+                    <span class="shrink-0 text-base font-bold tabular-nums text-foreground">{completionRate}%</span>
+                  </div>
+                  <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted/80" role="progressbar" aria-label={`${subjectName} ${label("statisticsCompletion", "completion")}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionRate}>
+                    <div class="h-full rounded-full bg-primary transition-all duration-300" style={`width: ${completionRate}%`}></div>
+                  </div>
+                  <div class="mt-2 flex items-center justify-between gap-x-2 text-xs opacity-75">
+                    <span>{label("statisticsAttempted", "已作答")} <span class="font-medium text-foreground">{subject.attemptedQuestions}</span> / {plannedTotal}</span>
+                    <span>{label("statisticsAccuracy", "正确率")} <span class="font-medium text-foreground">{subject.accuracy}%</span></span>
+                  </div>
                 </div>
-                <div class="mt-3 h-2 overflow-hidden rounded-sm bg-muted" role="progressbar" aria-label={`${subjectName} ${label("statisticsCompletion", "completion")}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionRate}>
-                  <div class="h-full bg-primary" style={`width: ${completionRate}%`}></div>
-                </div>
-                <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs opacity-70">
-                  <span>{label("statisticsAttempted", "Attempted")} {subject.attemptedQuestions} / {plannedTotal}</span>
-                  <span>{label("statisticsAccuracy", "Accuracy")} {subject.accuracy}%</span>
-                </div>
-                <div class="mt-3 flex items-center justify-between gap-3 border-t pt-3 text-xs">
-                  <span class="opacity-70">{label("statisticsIndexedQuestions", "Indexed")} {subject.totalQuestions}</span>
-                  <label class="flex items-center gap-2">
-                    <span class="whitespace-nowrap opacity-70">{label("statisticsPlannedTotal", "Planned total")}</span>
+                <div class="mt-3 flex items-center justify-between gap-2 border-t border-border/40 pt-2.5 text-xs">
+                  <span class="opacity-70">{label("statisticsIndexedQuestions", "已录入")} <span class="font-medium text-foreground">{subject.totalQuestions}</span></span>
+                  <label class="flex items-center gap-1.5">
+                    <span class="whitespace-nowrap opacity-70">{label("statisticsPlannedTotal", "计划总题数")}</span>
                     <Input
-                      class="h-7 w-20"
+                      class="h-6 w-16 text-center text-xs rounded-md font-medium border-border/70 bg-background/50 focus:bg-background px-1"
                       type="number"
                       min={subject.totalQuestions}
                       step="1"
                       value={subjectQuestionTotals[subject.key] ?? ""}
                       placeholder={String(subject.totalQuestions)}
-                      aria-label={`${subjectName} ${label("statisticsPlannedTotal", "Planned total")}`}
+                      aria-label={`${subjectName} ${label("statisticsPlannedTotal", "计划总题数")}`}
                       oninput={(event) => onSubjectQuestionTotalChange?.(subject.key, event.currentTarget.value)}
                       onchange={(event) => onSubjectQuestionTotalChange?.(subject.key, event.currentTarget.value)}
                     />
@@ -371,28 +454,33 @@
 
     <div class="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr] items-start">
       <section
-        class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden border p-3"
+        class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden p-4"
         aria-labelledby="statistics-trend-heading"
         data-testid="trend-dashboard"
         data-resizable-card="trend"
         style={localHeights["trend"] ? `height: ${localHeights["trend"]}px;` : undefined}
       >
         <div class="flex shrink-0 items-center justify-between gap-2">
-          <h3 id="statistics-trend-heading" class="font-semibold">{label("statisticsTrend", "Trend")}</h3>
-          <Badge variant="outline">{snapshot.trend.length} {label("statisticsDays", "days")}</Badge>
+          <div class="flex items-center gap-2">
+            <div class="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <TrendingUp size={14} />
+            </div>
+            <h3 id="statistics-trend-heading" class="font-semibold text-sm">{label("statisticsTrend", "Trend")}</h3>
+          </div>
+          <Badge variant="outline" class="rounded-full text-xs font-normal">{snapshot.trend.length} {label("statisticsDays", "days")}</Badge>
         </div>
-        <div class="statistics-card-content mt-4 min-h-0 flex-1 overflow-y-auto">
+        <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
           {#if snapshot.trend.length === 0}
             <p class="text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
           {:else}
             <div class="space-y-2">
               {#each snapshot.trend as point (point.date)}
-                <div class="grid grid-cols-[5.5rem_1fr_4rem] items-center gap-2 text-xs">
-                  <span>{point.date.slice(5)}</span>
-                  <div class="h-2 overflow-hidden rounded-sm bg-muted" aria-label={`${point.date} ${point.attempts} 次`}>
-                    <div class="h-full rounded-sm bg-primary transition-all" style={`width: ${(point.attempts / maxTrendAttempts) * 100}%`}></div>
+                <div class="grid grid-cols-[4.5rem_1fr_3.5rem] items-center gap-2.5 text-xs">
+                  <span class="font-medium opacity-75 tabular-nums">{point.date.slice(5)}</span>
+                  <div class="h-2 overflow-hidden rounded-full bg-muted/80" aria-label={`${point.date} ${point.attempts} 次`}>
+                    <div class="h-full rounded-full bg-primary transition-all duration-300" style={`width: ${(point.attempts / maxTrendAttempts) * 100}%`}></div>
                   </div>
-                  <span class="text-right font-medium">{point.accuracy}%</span>
+                  <span class="text-right font-medium tabular-nums">{point.accuracy}%</span>
                 </div>
               {/each}
             </div>
@@ -409,15 +497,20 @@
       </section>
 
       <section
-        class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden border p-3"
+        class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden p-4"
         aria-labelledby="statistics-weak-heading"
         data-testid="weak-dashboard"
         data-resizable-card="weak"
         style={localHeights["weak"] ? `height: ${localHeights["weak"]}px;` : undefined}
       >
         <div class="flex shrink-0 items-center justify-between gap-2">
-          <h3 id="statistics-weak-heading" class="font-semibold">{label("statisticsWeak", "Weak questions")}</h3>
-          <Badge variant="outline">{snapshot.weakQuestions.length}</Badge>
+          <div class="flex items-center gap-2">
+            <div class="flex h-6 w-6 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+              <AlertTriangle size={14} />
+            </div>
+            <h3 id="statistics-weak-heading" class="font-semibold text-sm">{label("statisticsWeak", "Weak questions")}</h3>
+          </div>
+          <Badge variant="outline" class="rounded-full text-xs font-normal">{snapshot.weakQuestions.length}</Badge>
         </div>
         <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
           {#if snapshot.weakQuestions.length === 0}
@@ -428,11 +521,11 @@
                 {@const subjectKey = question.subject || ""}
                 {@const subjectName = subjectKey ? localizedMetricLabel("subject", subjectKey, subjectKey) : ""}
                 {@const categoryName = question.category ? localizedMetricLabel("category", question.category, question.category) : ""}
-                <div class="border-b pb-2.5 last:border-0">
+                <div class="border-b border-border/40 pb-2.5 last:border-0">
                   <div class="flex items-start justify-between gap-2 text-sm">
                     <div class="flex min-w-0 items-center gap-1.5 flex-wrap">
                       {#if subjectName}
-                        <Badge variant="outline" class="font-normal text-[11px] py-0 px-1.5">
+                        <Badge variant="outline" class="font-normal text-[11px] py-0 px-1.5 rounded-md">
                           {subjectName}
                         </Badge>
                       {/if}
@@ -445,9 +538,9 @@
                         {question.label}
                       </strong>
                     </div>
-                    <span class="shrink-0 text-xs font-semibold">{question.accuracy}%</span>
+                    <span class="shrink-0 text-xs font-semibold tabular-nums">{question.accuracy}%</span>
                   </div>
-                  <div class="mt-1 flex items-center gap-2 text-[11px] opacity-75 flex-wrap">
+                  <div class="mt-1.5 flex items-center gap-2 text-[11px] opacity-75 flex-wrap">
                     <span>{question.wrong} 错 / {question.attempts} 次</span>
                     <span>·</span>
                     <span>均耗时 {duration(question.averageDurationMs)}</span>
@@ -461,11 +554,11 @@
                       <span>·</span>
                       <span>{question.lastAnsweredAt.slice(5, 16).replace("T", " ")}</span>
                     {/if}
-                    <span class="ml-auto font-mono text-[10px]">指数 {question.weaknessScore.toFixed(1)}</span>
+                    <span class="ml-auto font-mono text-[10px] opacity-60">指数 {question.weaknessScore.toFixed(1)}</span>
                   </div>
-                  <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
+                  <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted/80">
                     <div
-                      class="h-full bg-destructive transition-all"
+                      class="h-full rounded-full bg-destructive transition-all duration-300"
                       style={`width: ${(question.weaknessScore / maxWeakness) * 100}%;`}
                     ></div>
                   </div>
@@ -499,26 +592,31 @@
         {@const expanded = expandedDimensions.has(dimension.value)}
         {@const visibleItems = expanded ? items : items.slice(0, 6)}
         <section
-          class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden border p-3"
+          class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden p-4"
           data-distribution-card={dimension.value}
           data-resizable-card={dimension.value}
           style={localHeights[dimension.value] ? `height: ${localHeights[dimension.value]}px;` : undefined}
         >
           <div class="flex shrink-0 items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold">{distributionTitle(dimension.value)}</h3>
-            <Badge variant="outline" class="font-normal text-xs">{items.length} 项</Badge>
+            <div class="flex items-center gap-2">
+              <div class="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <svelte:component this={getDimensionIcon(dimension.value)} size={14} />
+              </div>
+              <h3 class="text-sm font-semibold">{distributionTitle(dimension.value)}</h3>
+            </div>
+            <Badge variant="outline" class="rounded-full text-xs font-normal">{items.length} 项</Badge>
           </div>
           <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
             {#if items.length === 0}
               <p class="text-xs opacity-70">{label("statisticsNoData", "No data")}</p>
             {:else}
-              <div class="space-y-2">
+              <div class="space-y-2.5">
                 {#each visibleItems as item (item.key)}
                   <div class="statistics-distribution-row text-xs">
-                    <span class="truncate" title={localizedMetricLabel(dimension.value, item.key, item.label)}>{localizedMetricLabel(dimension.value, item.key, item.label)}</span>
-                    <span class="text-right font-medium tabular-nums">{item.accuracy}%</span>
-                    <div class="statistics-distribution-bar bg-muted">
-                      <div class="h-full rounded-sm bg-primary" style={`width: ${Math.max(item.attempts > 0 ? item.accuracy : 0, 2)}%`}></div>
+                    <span class="truncate font-medium opacity-85" title={localizedMetricLabel(dimension.value, item.key, item.label)}>{localizedMetricLabel(dimension.value, item.key, item.label)}</span>
+                    <span class="text-right font-semibold tabular-nums">{item.accuracy}%</span>
+                    <div class="statistics-distribution-bar bg-muted/80">
+                      <div class="h-full rounded-full bg-primary transition-all duration-300" style={`width: ${Math.max(item.attempts > 0 ? item.accuracy : 0, 2)}%`}></div>
                     </div>
                   </div>
                 {/each}
@@ -547,19 +645,54 @@
     </div>
 
     <section
-      class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 border p-3"
+      class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 p-4"
       aria-labelledby="statistics-history-heading"
       data-testid="recent-attempts-dashboard"
       data-resizable-card="recent-attempts"
       style={localHeights["recent-attempts"] ? `height: ${localHeights["recent-attempts"]}px;` : undefined}
     >
-      <div class="flex shrink-0 items-center gap-2"><History size={16} aria-hidden="true" /><h3 id="statistics-history-heading" class="font-semibold">{label("statisticsRecent", "Recent attempts")}</h3></div>
+      <div class="flex shrink-0 items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <div class="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <History size={14} />
+          </div>
+          <h3 id="statistics-history-heading" class="font-semibold text-sm">{label("statisticsRecent", "Recent attempts")}</h3>
+        </div>
+      </div>
       <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
         <table class="w-full min-w-[34rem] text-left text-xs">
-          <thead class="border-b text-[0.7rem] opacity-70"><tr><th class="py-2">时间</th><th>题目</th><th>结果</th><th>评级</th><th class="text-right">耗时</th></tr></thead>
+          <thead class="border-b border-border/40 text-[0.7rem] opacity-70">
+            <tr>
+              <th class="py-2 font-medium">时间</th>
+              <th class="font-medium">题目</th>
+              <th class="font-medium">结果</th>
+              <th class="font-medium">评级</th>
+              <th class="text-right font-medium">耗时</th>
+            </tr>
+          </thead>
           <tbody>
             {#each snapshot.recentAttempts.slice(0, 20) as attempt (attempt.attemptId)}
-              <tr class="border-b last:border-0"><td class="py-2">{attempt.answeredAt.slice(0, 16).replace("T", " ")}</td><td>{attempt.questionId}</td><td>{attempt.objectiveCorrect === null ? "主观" : attempt.objectiveCorrect ? "正确" : "错误"}</td><td>{attempt.masteryRating}</td><td class="text-right">{duration(attempt.durationMs ?? 0)}</td></tr>
+              <tr class="border-b border-border/30 last:border-0 hover:bg-muted/30 transition-colors">
+                <td class="py-2.5 tabular-nums opacity-75">{attempt.answeredAt.slice(0, 16).replace("T", " ")}</td>
+                <td class="font-medium">{attempt.questionId}</td>
+                <td>
+                  {#if attempt.objectiveCorrect === null}
+                    <span class="opacity-75">主观</span>
+                  {:else if attempt.objectiveCorrect}
+                    <span class="text-emerald-600 dark:text-emerald-400 font-medium">正确</span>
+                  {:else}
+                    <span class="text-destructive font-medium">错误</span>
+                  {/if}
+                </td>
+                <td>
+                  {#if attempt.masteryRating}
+                    <Badge variant="outline" class="font-normal text-[10px] py-0 px-1 rounded-sm">
+                      {ratingLabel(attempt.masteryRating)}
+                    </Badge>
+                  {/if}
+                </td>
+                <td class="text-right tabular-nums opacity-75">{duration(attempt.durationMs ?? 0)}</td>
+              </tr>
             {/each}
           </tbody>
         </table>
@@ -577,6 +710,24 @@
 </section>
 
 <style>
+  .statistics-panel {
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--b3-border-color, var(--border)) 70%, transparent);
+    background: color-mix(in srgb, var(--b3-theme-surface, var(--card)) 45%, var(--b3-theme-background, var(--background)));
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+  .statistics-metric,
+  .statistics-subject {
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--b3-border-color, var(--border)) 60%, transparent);
+    background: color-mix(in srgb, var(--b3-theme-surface, var(--card)) 70%, var(--b3-theme-background, var(--background)));
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .statistics-metric:hover,
+  .statistics-subject:hover {
+    border-color: color-mix(in srgb, var(--b3-theme-primary, var(--primary)) 45%, var(--b3-border-color, var(--border)));
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
   .statistics-distribution-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 3.5rem;
@@ -585,9 +736,9 @@
   }
   .statistics-distribution-bar {
     grid-column: 1 / -1;
-    height: 4px;
+    height: 5px;
     overflow: hidden;
-    border-radius: 2px;
+    border-radius: 3px;
   }
   .statistics-expand-btn {
     margin-top: 8px;
@@ -616,8 +767,8 @@
   }
   .statistics-card-resizer {
     position: absolute;
-    right: 6px;
-    bottom: 4px;
+    right: 8px;
+    bottom: 5px;
     display: inline-flex;
     width: 28px;
     height: 20px;
@@ -627,8 +778,9 @@
     background: transparent;
     color: var(--muted-foreground);
     cursor: ns-resize;
-    opacity: .6;
+    opacity: .5;
     touch-action: none;
+    transition: opacity 0.15s ease, color 0.15s ease;
   }
   .statistics-card-resizer:hover, .statistics-card-resizer:focus-visible {
     opacity: 1;
