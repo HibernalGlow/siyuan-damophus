@@ -137,6 +137,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
   override onload(): void {
     setQuestionProgressLoader(async (blockIds) => {
       const requested = new Set(blockIds);
+      // Topic relations can be opened before SiYuan emits sync-end. Refresh the
+      // read view here so historical events from other device shards are visible.
+      await this.getTinyBaseRuntime().mergeAfterSync().catch(() => undefined);
       const [catalog, aggregates, attributeRows] = await Promise.all([
         this.getTinyBaseCatalogRuntime().loadCatalog().catch(() => []),
         this.getTinyBaseRuntime().loadAggregates(),
@@ -145,7 +148,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
           attribute_value: string;
         }>>("/api/query/sql", {
           stmt: `SELECT block_id, value AS attribute_value FROM attributes WHERE name = 'custom-qb-id' AND block_id IN (${blockIds
-            .filter((id) => /^\\d{14}-[a-z0-9]{7}$/u.test(id))
+            .filter((id) => /^\d{14}-[a-z0-9]{7}$/u.test(id))
             .map((id) => `'${id}'`).join(", ")})`,
         }),
       ]);

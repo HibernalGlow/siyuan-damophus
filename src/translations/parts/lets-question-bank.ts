@@ -109,6 +109,8 @@ export const en = {
   "lets-question-bank.dataMapping": "Data mapping",
   "lets-question-bank.dataMappingDescription": "Project question statistics to an existing SiYuan attribute view.",
   "lets-question-bank.questionIndexTarget": "Question Index target",
+  "lets-question-bank.pruneStaleProjectionRows": "Delete stale rows (prune entries not present in current question bank)",
+  "lets-question-bank.includeUnansweredProjectionRows": "Include unanswered questions (only sync questions with attempt records when disabled)",
   "lets-question-bank.useSelectedDatabase": "Use selected database block",
   "lets-question-bank.checkMapping": "Check connection",
   "lets-question-bank.syncNow": "Sync now",
@@ -410,6 +412,8 @@ export const en = {
   "lets-question-bank.statisticsIndexedQuestions": "Indexed",
   "lets-question-bank.statisticsPlannedTotal": "Planned total",
   "lets-question-bank.statisticsCollectionGold": "Gold questions",
+  "lets-question-bank.statisticsResizeCard": "Adjust card height",
+  "lets-question-bank.statisticsResizeCardHint": "Drag to adjust card height",
 };
 
 export const zhCN: typeof en = {
@@ -523,6 +527,8 @@ export const zhCN: typeof en = {
   "lets-question-bank.dataMapping": "数据映射",
   "lets-question-bank.dataMappingDescription": "将题目统计投射到已有的思源属性视图。",
   "lets-question-bank.questionIndexTarget": "Question Index 目标",
+  "lets-question-bank.pruneStaleProjectionRows": "同步时删除失效数据行（清理目标数据库中不存在于题库的条目）",
+  "lets-question-bank.includeUnansweredProjectionRows": "同步未作答题目（关闭时仅同步有作答记录的题目）",
   "lets-question-bank.useSelectedDatabase": "使用当前选中的数据库块",
   "lets-question-bank.checkMapping": "检查连接",
   "lets-question-bank.syncNow": "手动同步",
@@ -824,4 +830,6 @@ export const zhCN: typeof en = {
   "lets-question-bank.statisticsIndexedQuestions": "已录入",
   "lets-question-bank.statisticsPlannedTotal": "计划总题数",
   "lets-question-bank.statisticsCollectionGold": "真金题",
+  "lets-question-bank.statisticsResizeCard": "调整卡片高度",
+  "lets-question-bank.statisticsResizeCardHint": "拖动调整卡片高度",
 };

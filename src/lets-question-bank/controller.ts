@@ -66,6 +66,7 @@ export interface QuestionBankUiController {
   readonly usesTinyBase?: boolean;
   getSetting?(key: string): unknown;
   setSetting?(key: string, value: unknown): void;
+  saveSetting?(key: string, value: unknown): Promise<void>;
   getBinding(): QuestionBankBinding | undefined;
   previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview>;
   confirmInitialization(preview: QuestionBankInitializationPreview): Promise<QuestionBankBinding>;
@@ -141,7 +142,7 @@ export interface AttemptSubmissionResult {
 
 export interface QuestionBankControllerOptions {
   getSetting(key: string): unknown;
-  setSetting(key: string, value: unknown): void;
+  setSetting(key: string, value: unknown): void | Promise<void>;
   client?: SiyuanKernelClient;
   nodeId?: () => string;
   uuid?: () => string;
@@ -180,6 +181,9 @@ export class QuestionBankController implements QuestionBankUiController {
 
   getSetting(key: string): unknown { return this.options.getSetting(key); }
   setSetting(key: string, value: unknown): void { this.options.setSetting(key, value); }
+  async saveSetting(key: string, value: unknown): Promise<void> {
+    await this.options.setSetting(key, value);
+  }
 
   async previewInitialization(documentId: string): Promise<QuestionBankInitializationPreview> {
     void documentId;

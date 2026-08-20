@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizeStatisticsLayout,
   normalizeSubjectQuestionTotals,
   subjectCompletionPercent,
   subjectPlannedTotal,
 } from "./subject-dashboard";
 
 describe("subject dashboard", () => {
+  it("normalizes saved distribution card heights to the supported range", () => {
+    expect(normalizeStatisticsLayout({
+      order: ["year", "subject"],
+      heights: {subject: 300.4, category: 20, year: 900, invalid: "large", "": 240},
+    })).toEqual({heights: {subject: 300, category: 120, year: 720}});
+    expect(normalizeStatisticsLayout(undefined)).toEqual({heights: {}});
+  });
+
   it("keeps only positive integer totals", () => {
     expect(normalizeSubjectQuestionTotals({
       "civil-procedure": 100.9,

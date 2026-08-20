@@ -72,7 +72,7 @@ export interface SubPlugin {
   // Injected helpers
   t?(key: TranslationKey): string;
   getSetting?(key: string): any;
-  setSetting?(key: string, value: any): void;
+  setSetting?(key: string, value: any): void | Promise<void>;
   isEntryEnabled?(surface: PluginEntrySurface, fallback?: boolean): boolean;
 
   // Event handlers

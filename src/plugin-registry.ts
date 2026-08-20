@@ -140,9 +140,9 @@ export class PluginRegistry {
       // Dynamically inject helper methods for sub-plugins
       pluginInstance.t = (key: string) => this.mainPlugin?.i18n?.[key] ?? key;
       pluginInstance.getSetting = (key: string) => settings.getBySpace(metadata.name, key);
-      pluginInstance.setSetting = (key: string, value: any) => {
+      pluginInstance.setSetting = async (key: string, value: any) => {
         settings.setBySpace(metadata.name, key, value);
-        settings.save();
+        await settings.save();
       };
 
       // Register plugin

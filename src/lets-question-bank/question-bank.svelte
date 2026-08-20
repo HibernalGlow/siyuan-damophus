@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { sql, type BlockBreadcrumbItem } from "@/api";
+  import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
   import { normalizeBreadcrumbTextDisplay, type BreadcrumbTextDisplay, type BreadcrumbOverflowPriority } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import { getLogger } from "@/libs/logger";
   import {
@@ -9,6 +10,7 @@
   } from "@/question-bank/core/shuffle";
   import type {
     AttemptAggregate,
+    AttemptEvent,
     Question,
     QuestionGroup,
     QuestionType,
@@ -17,9 +19,12 @@
     ShuffledQuestion,
     ObjectiveAnswer,
   } from "@/question-bank/core/types";
-  import { buildStatistics, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
+  import { buildStatistics, type StatisticsQuestion, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
+  import { projectQuestionIndex } from "@/question-bank/application/projection";
   import {
     normalizeSubjectQuestionTotals,
+    normalizeStatisticsLayout,
+    type StatisticsLayout,
     type SubjectQuestionTotals,
   } from "@/question-bank/core/subject-dashboard";
   import type { TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
@@ -216,6 +221,19 @@
   let mappingStatus: "idle" | "checking" | "ready" | "syncing" | "success" | "error" = "idle";
   let mappingMessage = "";
   let questionIndexProjectionBlockId = String(controller.getSetting?.("questionIndexProjectionBlockId") ?? "");
+  let pruneStaleMappingRows = Boolean(controller.getSetting?.("projectionPruneStaleRows") ?? false);
+  let includeUnansweredMappingRows = Boolean(controller.getSetting?.("projectionIncludeUnanswered") ?? true);
+  let mappingTarget: { avId: string; blockId: string } | undefined;
+
+  function setPruneStaleMappingRows(value: boolean): void {
+    pruneStaleMappingRows = value;
+    controller.setSetting?.("projectionPruneStaleRows", value);
+  }
+
+  function setIncludeUnansweredMappingRows(value: boolean): void {
+    includeUnansweredMappingRows = value;
+    controller.setSetting?.("projectionIncludeUnanswered", value);
+  }
 
   function setMappingTarget(value: string): void {
     questionIndexProjectionBlockId = value.trim();
@@ -230,40 +248,91 @@
     mappingMessage = "已选择目标，点击检查连接";
   }
 
-  async function checkMappingTarget(): Promise<void> {
+  async function checkMappingTarget(): Promise<boolean> {
     const id = questionIndexProjectionBlockId;
-    if (!id) return;
+    if (!id) return false;
     mappingStatus = "checking";
     try {
-      const rows = await sql(`SELECT id, type, content FROM blocks WHERE id = '${id.replace(/'/gu, "''")}' LIMIT 1`);
-      const row = rows[0] as { type?: string; content?: string } | undefined;
-      if (!row || row.type !== "NodeAttributeView") throw new Error("目标不是属性视图块");
+      const escapedId = id.replace(/'/gu, "''");
+      const rows = await sql(`SELECT id, type, content FROM blocks WHERE id = '${escapedId}' LIMIT 1`);
+      const row = rows[0] as { id?: string; type?: string; content?: string } | undefined;
+      const attrs = row
+        ? await siyuanKernelClient.request<Record<string, string>>("/api/attr/getBlockAttrs", { id })
+          .catch(() => ({}))
+        : {};
+      const candidates = [
+        id,
+        attrs["custom-sy-av-id"],
+        attrs["custom-sy-av-view"],
+        row?.content?.match(/(?:custom-sy-av-id|custom-sy-av-view)=["']([^"']+)["']/u)?.[1],
+      ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
+      let resolved: { id?: string; name?: string } | undefined;
+      let resolvedId = "";
+      for (const candidate of candidates) {
+        try {
+          const response = await siyuanKernelClient.request<{ av?: { id?: string; name?: string } }>("/api/av/getAttributeView", { id: candidate });
+          if (response?.av?.id) {
+            resolved = response.av;
+            resolvedId = candidate;
+            break;
+          }
+        } catch {
+          // Try the next interpretation: database ID, then containing block ID metadata.
+        }
+      }
+      if (!resolved?.id) throw new Error("未找到属性视图数据库；请输入数据库 ID 或数据库块 ID");
+      const escapedAvId = resolved.id.replace(/'/gu, "''");
+      const targetBlock = row?.id ?? (await sql(`SELECT id FROM blocks WHERE ial LIKE '%${escapedAvId}%' OR markdown LIKE '%${escapedAvId}%' LIMIT 1`))[0]?.id;
+      if (!targetBlock) throw new Error("已找到数据库，但找不到对应的数据库块；请改填数据库块 ID");
+      mappingTarget = { avId: resolved.id, blockId: String(targetBlock) };
       mappingStatus = "ready";
-      mappingMessage = `连接正常：${row.content || id}`;
+      mappingMessage = `连接正常：${resolved.name || resolved.id}${row ? ` · 块 ${row.id}` : ` · ID ${resolvedId}`}`;
+      return true;
     } catch (error) {
       mappingStatus = "error";
       mappingMessage = error instanceof Error ? error.message : String(error);
+      return false;
     }
   }
 
   async function syncMappingTarget(): Promise<void> {
+    if (!questionIndexProjectionBlockId) {
+      mappingStatus = "error";
+      mappingMessage = "请先指定 Question Index 目标";
+      return;
+    }
+
+    let prompt = includeUnansweredMappingRows
+      ? "确认将题库统计同步投射到选中的 Question Index 数据库？"
+      : "确认将题库中【已作答】题目的统计同步投射到选中的 Question Index 数据库？";
+    if (pruneStaleMappingRows) {
+      prompt += "\n（已勾选“删除失效数据行”：目标数据库中不存在或未作答的旧条目将被清理）";
+    }
+
+    if (!window.confirm(prompt)) {
+      return;
+    }
+
     mappingStatus = "syncing";
+    mappingMessage = "正在检查目标数据库连接...";
     try {
-      await checkMappingTarget();
-      if (mappingStatus !== "ready") return;
-      if (!documentId || !controller.previewSync || !controller.confirmSync) {
-        throw new Error("当前题库没有可执行的索引同步上下文");
-      }
-      const preview = await controller.previewSync(documentId);
-      if (preview.blockers.length > 0) throw new Error(`同步存在 ${preview.blockers.length} 个阻断项`);
-      if (!window.confirm(`确认同步 ${preview.actions.length} 项 Question Index 变更？`)) {
-        mappingStatus = "ready";
-        mappingMessage = "已取消同步";
-        return;
-      }
-      await controller.confirmSync(documentId, preview.token);
+      if (!await checkMappingTarget()) return;
+      if (!mappingTarget || !controller.loadQuestionCatalog) throw new Error("当前题库没有可执行的索引同步上下文");
+      mappingMessage = "正在读取题库与作答统计...";
+      const [catalog, aggregates] = await Promise.all([
+        controller.loadQuestionCatalog(),
+        controller.loadAggregates(),
+      ]);
+      const targetCount = includeUnansweredMappingRows
+        ? catalog.length
+        : catalog.filter((q) => (aggregates.get(q.questionId)?.attempts ?? 0) > 0).length;
+      mappingMessage = `正在向数据库投射数据（共 ${targetCount} 道题）...`;
+      const result = await projectQuestionIndex(siyuanKernelClient, mappingTarget, catalog, aggregates, reviewThreshold, {
+        pruneStale: pruneStaleMappingRows,
+        includeUnanswered: includeUnansweredMappingRows,
+      });
       mappingStatus = "success";
-      mappingMessage = `同步完成：${preview.actions.length} 项变更`;
+      mappingMessage = `同步完成：新增 ${result.added}，更新 ${result.updated}${result.deleted ? `，删除失效 ${result.deleted}` : ""}，补充列 ${result.columns}`;
     } catch (error) {
       mappingStatus = "error";
       mappingMessage = error instanceof Error ? error.message : String(error);
@@ -274,6 +343,8 @@
   let subjectQuestionTotals: SubjectQuestionTotals = normalizeSubjectQuestionTotals(
     controller.getSetting?.("statisticsSubjectQuestionTotals"),
   );
+  let subjectTotalsSaveStatus: "idle" | "saving" | "saved" | "error" = "idle";
+  let statisticsLayout: StatisticsLayout = normalizeStatisticsLayout(controller.getSetting?.("statisticsLayout"));
   let statisticsLoading = false;
   let statisticsRange: StatisticsRange = 30;
   let statisticsSort: StatisticsSort = "weakness";
@@ -659,9 +730,22 @@
     });
   }
 
-  function loadStatistics(): void {
+  let cachedStatisticsQuestions: StatisticsQuestion[] | undefined;
+  let cachedAttemptEvents: AttemptEvent[] | undefined;
+
+  function loadStatistics(forceRefresh = false): void {
     if (!controller.loadStatisticsQuestions || !controller.loadAttemptEvents) {
       statisticsSnapshot = undefined;
+      return;
+    }
+    if (!forceRefresh && cachedStatisticsQuestions && cachedAttemptEvents) {
+      statisticsSnapshot = buildStatistics(
+        cachedStatisticsQuestions,
+        cachedAttemptEvents,
+        statisticsRange,
+        now(),
+        statisticsSort,
+      );
       return;
     }
     void run(async () => {
@@ -675,6 +759,8 @@
             return undefined;
           }),
         ]);
+        cachedStatisticsQuestions = statisticsQuestions;
+        cachedAttemptEvents = attempts;
         statisticsTopicDictionary = dictionary;
         statisticsSnapshot = buildStatistics(
           statisticsQuestions,
@@ -691,26 +777,39 @@
 
   function selectView(next: "practice" | "statistics" | "mapping"): void {
     view = next;
-    if (next === "statistics") loadStatistics();
+    if (next === "statistics") loadStatistics(true);
   }
 
   function changeStatisticsRange(value: StatisticsRange): void {
     statisticsRange = value;
-    loadStatistics();
+    loadStatistics(false);
   }
 
   function changeStatisticsSort(value: StatisticsSort): void {
     statisticsSort = value;
-    loadStatistics();
+    loadStatistics(false);
   }
 
-  function changeSubjectQuestionTotal(subjectId: string, rawValue: string): void {
+  async function changeSubjectQuestionTotal(subjectId: string, rawValue: string): Promise<void> {
     const next = {...subjectQuestionTotals};
     const total = Number(rawValue);
     if (rawValue.trim() && Number.isFinite(total) && total > 0) next[subjectId] = Math.floor(total);
     else delete next[subjectId];
     subjectQuestionTotals = normalizeSubjectQuestionTotals(next);
-    controller.setSetting?.("statisticsSubjectQuestionTotals", subjectQuestionTotals);
+    subjectTotalsSaveStatus = "saving";
+    try {
+      if (controller.saveSetting) await controller.saveSetting("statisticsSubjectQuestionTotals", subjectQuestionTotals);
+      else await controller.setSetting?.("statisticsSubjectQuestionTotals", subjectQuestionTotals);
+      subjectTotalsSaveStatus = "saved";
+    } catch (saveError) {
+      subjectTotalsSaveStatus = "error";
+      error = saveError instanceof Error ? saveError.message : String(saveError);
+    }
+  }
+
+  function changeStatisticsLayout(next: StatisticsLayout): void {
+    statisticsLayout = normalizeStatisticsLayout(next);
+    controller.setSetting?.("statisticsLayout", statisticsLayout);
   }
 
   function confirmSync(): void {
@@ -1266,7 +1365,7 @@
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
   {questionSetBlueprints} {run} {loadQuestionSetData} {previewSourceSync} {confirmSourceSync} {assembleBlueprint} {saveBlueprint}
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}
-  {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
+  {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {subjectTotalsSaveStatus} {statisticsLayout} {changeStatisticsLayout} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
   {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
   {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
   {completionPercent} {attemptedQuestions} {untouchedQuestions} {reviewQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
@@ -1281,5 +1380,5 @@
   {correctCurrentAnswer}
   {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {correctRating} {sessionAttempts}
   {completionCorrect} {completionDurationMs} {touchedDrafts} {resetPractice}
-  {questionIndexProjectionBlockId} {mappingStatus} {mappingMessage} {selectCurrentMappingTarget} {checkMappingTarget} {syncMappingTarget} {setMappingTarget}
+  {questionIndexProjectionBlockId} {includeUnansweredMappingRows} onIncludeUnansweredMappingRowsChange={setIncludeUnansweredMappingRows} {pruneStaleMappingRows} onPruneStaleMappingRowsChange={setPruneStaleMappingRows} {mappingStatus} {mappingMessage} {selectCurrentMappingTarget} {checkMappingTarget} {syncMappingTarget} {setMappingTarget}
 />
