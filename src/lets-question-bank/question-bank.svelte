@@ -542,8 +542,8 @@
       )).length
     : 0;
   $: reviewing = Boolean(practiceState?.matches("reviewing"));
-  $: timerEffectivelyPaused = Boolean(practiceState?.context.timerPaused);
   $: answerTimerPaused = Boolean(revealed && pauseOnAnswerReveal && practiceState?.matches("active"));
+  $: timerEffectivelyPaused = Boolean(practiceState?.context.timerPaused) || answerTimerPaused;
   let autoPausedByBlur = false;
 
   function isTargetInsideQuestionBank(target: EventTarget | null): boolean {
