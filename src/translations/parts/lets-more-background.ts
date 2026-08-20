@@ -73,10 +73,10 @@ export const en = {
   "lets-more-background.uploadFromClipboard": "Paste from clipboard",
   "lets-more-background.loadFromAssets": "Random from assets",
   "lets-more-background.noImageInClipboard": "No image found in clipboard",
-  "lets-more-background.loadUrlFailed": "Failed to load image from source",
-  "lets-more-background.emptyAssets": "The specified assets directory is empty or does not exist",
-  "lets-more-background.writeImgToAssetsFailed": "Failed to save image to assets directory",
-  "lets-more-background.readAssetsError": "Error reading assets directory",
+  "lets-more-background.loadUrlFailed": "Failed to load image",
+  "lets-more-background.emptyAssets": "Assets folder is empty or not found",
+  "lets-more-background.useLastTemplate": "Use Last Config",
+  "lets-more-background.chooseTemplate": "Choose Template",
   "lets-more-background.openSetting": "Open settings",
 };
 
@@ -157,7 +157,7 @@ export const zhCN: typeof en = {
   "lets-more-background.noImageInClipboard": "剪贴板中无图片",
   "lets-more-background.loadUrlFailed": "加载图片失败",
   "lets-more-background.emptyAssets": "资源目录是空的或不存在",
-  "lets-more-background.writeImgToAssetsFailed": "写入资源目录文件失败",
-  "lets-more-background.readAssetsError": "资源目录读取失败，请检查路径配置",
+  "lets-more-background.useLastTemplate": "使用上次配置",
+  "lets-more-background.chooseTemplate": "选择模板",
   "lets-more-background.openSetting": "打开设置",
 };

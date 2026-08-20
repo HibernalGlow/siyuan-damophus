@@ -208,6 +208,53 @@ export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] =
   }
 
   const params = new URLSearchParams();
+
+  // 如果模板有显式 rules 列表，以 rules 为绝对基准
+  if (template.rules && template.rules.length > 0) {
+    let site = template.site || "safebooru.org";
+    let poolId: string | undefined;
+    let explicitTags = "";
+
+    for (const r of template.rules) {
+      if (r.field === "site" && r.value) {
+        site = r.value;
+      } else if (r.field === "aspectRatio" && r.value && r.value !== "any") {
+        params.set("ratio", r.value);
+      } else if (r.field === "rating" && r.value && r.value !== "all") {
+        params.set("rating", r.value);
+      } else if (r.field === "tags" && r.value) {
+        explicitTags = r.value;
+      } else if (r.field === "minScore" && Number(r.value) > 0) {
+        params.set("min_score", String(r.value));
+      } else if (r.field === "tagPool" && r.value) {
+        poolId = r.value;
+      }
+    }
+
+    params.set("site", site);
+    if (explicitTags) {
+      params.set("tags", explicitTags);
+    }
+
+    let candidateItems: string[] = [];
+    if (poolId) {
+      const matchedPool = tagPools.find((p) => p.id === poolId);
+      if (matchedPool && matchedPool.items?.length > 0) {
+        candidateItems = matchedPool.items
+          .map((it) => (typeof it === "string" ? it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_") : it.tag || ""))
+          .filter(Boolean);
+      }
+    }
+    if (candidateItems.length === 0 && template.pool && template.pool.length > 0) {
+      candidateItems = template.pool.map((it) => (typeof it === "string" ? it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_") : (it as any).tag || "")).filter(Boolean);
+    }
+    if (candidateItems.length > 0) {
+      params.set("pool", candidateItems.join(","));
+    }
+
+    return `booru:${site}?${params.toString()}`;
+  }
+
   const site = template.site || "safebooru.org";
   params.set("site", site);
 

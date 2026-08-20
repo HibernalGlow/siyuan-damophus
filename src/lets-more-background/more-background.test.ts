@@ -5,7 +5,6 @@ import {
   sanitizeAssetsPath,
   templateToUrl,
   urlToTemplate,
-  DEFAULT_COVER_SOURCES,
 } from "./sources";
 
 describe("more-background sources utilities", () => {

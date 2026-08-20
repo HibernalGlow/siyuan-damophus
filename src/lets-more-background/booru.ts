@@ -104,6 +104,116 @@ export function extractImageUrlFromPost(post: Post): string | null {
   return url ? url.trim() : null;
 }
 
+export function extractPostDetailUrl(siteDomain: string, postId: string | number): string {
+  const domain = (resolveSite(siteDomain) || siteDomain).toLowerCase();
+  const idStr = String(postId);
+
+  if (domain.includes("danbooru.donmai.us")) {
+    return `https://danbooru.donmai.us/posts/${idStr}`;
+  }
+  if (domain.includes("safebooru.donmai.us")) {
+    return `https://safebooru.donmai.us/posts/${idStr}`;
+  }
+  if (domain.includes("safebooru.org")) {
+    return `https://safebooru.org/index.php?page=post&s=view&id=${idStr}`;
+  }
+  if (domain.includes("yande.re")) {
+    return `https://yande.re/post/show/${idStr}`;
+  }
+  if (domain.includes("konachan")) {
+    return `https://konachan.com/post/show/${idStr}`;
+  }
+  if (domain.includes("gelbooru")) {
+    return `https://gelbooru.com/index.php?page=post&s=view&id=${idStr}`;
+  }
+  if (domain.includes("e621")) {
+    return `https://e621.net/posts/${idStr}`;
+  }
+  if (domain.includes("tbib")) {
+    return `https://tbib.org/index.php?page=post&s=view&id=${idStr}`;
+  }
+  return `https://${domain}/posts/${idStr}`;
+}
+
+export interface BooruResolvedInfo {
+  imageUrl: string;
+  previewBlobUrl?: string;
+  postUrl?: string;
+  postId?: string | number;
+  site?: string;
+  tags?: string[];
+  width?: number;
+  height?: number;
+  score?: number;
+}
+
+export async function fetchImageForPreview(imageUrl: string): Promise<string> {
+  if (!imageUrl) return "";
+  if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
+
+  // 1. 优先尝试直接 fetch 转 Blob URL (彻底剥离 Referer)
+  try {
+    const res = await fetch(imageUrl, {
+      referrerPolicy: "no-referrer",
+      headers: { Accept: "image/*,*/*" },
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    }
+  } catch (directErr) {
+    log.debug("Direct fetch image for preview failed:", directErr);
+  }
+
+  // 2. 使用思源内核 forwardProxy 代理获取图片
+  // forwardProxy 返回的 body 在 bodyEncoding=text 时是字符串形式的二进制数据
+  // 需要将其转为 Uint8Array → Blob → Object URL
+  try {
+    const proxyRes = await fetch("/api/network/forwardProxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: imageUrl,
+        method: "GET",
+        timeout: 30000,
+        contentType: "application/octet-stream",
+        headers: [
+          "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept: image/*,*/*",
+        ],
+      }),
+    });
+    const proxyData = await proxyRes.json();
+    if (proxyData.code === 0 && proxyData.data?.status === 200 && proxyData.data?.body) {
+      const body: string = proxyData.data.body;
+      const contentType: string = proxyData.data.contentType || "image/jpeg";
+      const encoding: string = proxyData.data.bodyEncoding || "text";
+
+      let blob: Blob;
+      if (encoding === "base64") {
+        // base64 编码：直接解码
+        const binaryStr = atob(body);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        blob = new Blob([bytes], { type: contentType });
+      } else {
+        // text 编码：逐字符提取 charCode 构建 Uint8Array
+        const bytes = new Uint8Array(body.length);
+        for (let i = 0; i < body.length; i++) bytes[i] = body.charCodeAt(i) & 0xff;
+        blob = new Blob([bytes], { type: contentType });
+      }
+
+      if (blob.size > 0) {
+        return URL.createObjectURL(blob);
+      }
+    }
+  } catch (proxyErr) {
+    log.debug("SiYuan forwardProxy image fetch failed:", proxyErr);
+  }
+
+  return imageUrl;
+}
+
 export function matchesCondition(
   post: Post | any,
   aspectRatio: AspectRatioFilter = "any",
@@ -173,15 +283,135 @@ export function findSiteCredential(siteDomain: string, credentials?: SiteCredent
   });
 }
 
+interface DanbooruFetchResult {
+  success: boolean;
+  posts: any[];
+  error?: string;
+}
+
+async function fetchDanbooruPosts(
+  domain: string,
+  tags: string[],
+  login?: string,
+  apiKey?: string,
+  limit = 25,
+): Promise<DanbooruFetchResult> {
+  const host = domain.includes("safebooru.donmai.us") ? "safebooru.donmai.us" : "danbooru.donmai.us";
+  const params = new URLSearchParams();
+  params.set("tags", tags.join(" "));
+  params.set("limit", String(limit));
+  if (login) params.set("login", login.trim());
+  if (apiKey) params.set("api_key", apiKey.trim());
+
+  const url = `https://${host}/posts.json?${params.toString()}`;
+  const userAgent = `DamophusMoreBackground/1.0 (by ${login?.trim() || "siyuan-user"})`;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "User-Agent": userAgent,
+  };
+
+  if (login && apiKey) {
+    try {
+      const cleanLogin = login.trim();
+      const cleanKey = apiKey.trim();
+      const basic = typeof btoa !== "undefined"
+        ? btoa(`${cleanLogin}:${cleanKey}`)
+        : Buffer.from(`${cleanLogin}:${cleanKey}`).toString("base64");
+      headers.Authorization = `Basic ${basic}`;
+    } catch {}
+  }
+
+  let lastError = "";
+
+  // 1. 尝试直接 fetch
+  try {
+    const res = await fetch(url, { headers });
+    const text = await res.text();
+    if (res.ok) {
+      try {
+        const data = JSON.parse(text);
+        if (Array.isArray(data)) return { success: true, posts: data };
+      } catch {}
+    } else {
+      if (res.status === 401) {
+        return {
+          success: false,
+          posts: [],
+          error: "认证失败 (401 Unauthorized)：用户名与 API Key 不匹配。请注意填写的是您的 Danbooru 用户名 (Username) 而不是纯数字 User ID！",
+        };
+      }
+      lastError = `HTTP ${res.status}: ${res.statusText}`;
+    }
+  } catch (directErr: any) {
+    lastError = directErr?.message || String(directErr);
+  }
+
+  // 2. 尝试思源内核代理 forwardProxy (绕过 CORS / Cloudflare 质询)
+  try {
+    const headerList = Object.entries(headers).map(([k, v]) => `${k}: ${v}`);
+    const proxyRes = await fetch("/api/network/forwardProxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        method: "GET",
+        timeout: 10000,
+        contentType: "application/json",
+        headers: headerList,
+      }),
+    });
+    const proxyData = await proxyRes.json();
+    if (proxyData.code === 0 && proxyData.data?.body) {
+      const rawBody = proxyData.data.body;
+      if (proxyData.data.status === 401 || rawBody.includes("Invalid API key") || rawBody.includes("AuthenticationFailure")) {
+        return {
+          success: false,
+          posts: [],
+          error: "认证失败 (401)：Danbooru 提示 API Key 无效。请注意登录名必须是 Danbooru 用户名 (Username)，不要填纯数字 ID！",
+        };
+      }
+      const parsed = JSON.parse(rawBody);
+      if (Array.isArray(parsed)) return { success: true, posts: parsed };
+    }
+  } catch (proxyErr: any) {
+    lastError = proxyErr?.message || String(proxyErr);
+  }
+
+  return { success: false, posts: [], error: lastError || "未能获取到图片数据" };
+}
+
 export async function testBooruSiteCredential(
   site: string,
   login?: string,
   apiKey?: string,
-): Promise<{ success: boolean; message: string; sampleUrl?: string }> {
+): Promise<{ success: boolean; message: string; sampleUrl?: string; samplePostUrl?: string }> {
   try {
     let resolvedDomain = resolveSite(site) || site;
-    if (site.includes("safebooru.donmai.us")) {
-      resolvedDomain = "danbooru.donmai.us";
+    const isDanbooruFamily = site.includes("donmai.us") || resolvedDomain === "danbooru.donmai.us";
+
+    if (isDanbooruFamily) {
+      const res = await fetchDanbooruPosts(site, ["rating:g", "scenery"], login, apiKey, 3);
+      if (res.success && res.posts.length > 0) {
+        const first = res.posts[0];
+        const sample = first.file_url || first.large_file_url || first.preview_file_url;
+        const postUrl = first.id ? extractPostDetailUrl(site, first.id) : undefined;
+        return {
+          success: true,
+          message: `成功连接至 ${site}！已成功鉴权并获取图片`,
+          sampleUrl: sample || undefined,
+          samplePostUrl: postUrl,
+        };
+      }
+      if (res.error) {
+        return {
+          success: false,
+          message: res.error,
+        };
+      }
+      return {
+        success: true,
+        message: `成功连接至 ${site}，但当前标签未返回结果。`,
+      };
     }
 
     let credentialsQuery: string | undefined;
@@ -202,11 +432,14 @@ export async function testBooruSiteCredential(
     });
 
     if (results && results.length > 0) {
-      const sample = extractImageUrlFromPost(results[0]);
+      const first = results[0];
+      const sample = extractImageUrlFromPost(first);
+      const postUrl = first.id ? extractPostDetailUrl(resolvedDomain, first.id) : undefined;
       return {
         success: true,
         message: `成功连接至 ${site} (${resolvedDomain})！`,
         sampleUrl: sample || undefined,
+        samplePostUrl: postUrl,
       };
     }
     return {
@@ -221,10 +454,10 @@ export async function testBooruSiteCredential(
   }
 }
 
-export async function resolveBooruImageUrl(
+export async function resolveBooruImageInfo(
   urlOrUri: string,
   siteCredentials?: SiteCredential[],
-): Promise<string | null> {
+): Promise<BooruResolvedInfo | null> {
   try {
     if (urlOrUri.startsWith("booru:")) {
       const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, pool } =
@@ -234,29 +467,74 @@ export async function resolveBooruImageUrl(
       const effectiveLogin = login || matchedCred?.login;
       const effectiveApiKey = apiKey || matchedCred?.apiKey;
 
-      // 区分 safebooru.org 与 safebooru.donmai.us
-      let resolvedDomain = resolveSite(site) || site;
-      let isDanbooruSafeMirror = false;
-      if (site.toLowerCase().includes("safebooru.donmai.us")) {
-        resolvedDomain = "danbooru.donmai.us";
-        isDanbooruSafeMirror = true;
+      const isDanbooruFamily = site.includes("donmai.us") || site === "danbooru" || site === "db";
+
+      const tagList: string[] = [];
+      if (tags) {
+        tagList.push(...tags.split(/\s+/).filter(Boolean));
       }
 
-      if (resolvedDomain) {
-        const tagList: string[] = [];
-        if (tags) {
-          tagList.push(...tags.split(/\s+/).filter(Boolean));
-        }
+      // Random pick 1 tag/artist from candidate pool if present
+      if (pool && pool.length > 0) {
+        const pickedCandidate = pool[Math.floor(Math.random() * pool.length)];
+        tagList.push(pickedCandidate);
+      }
 
-        // Random pick 1 tag/artist from candidate pool if present
-        if (pool && pool.length > 0) {
-          const pickedCandidate = pool[Math.floor(Math.random() * pool.length)];
-          tagList.push(pickedCandidate);
-        }
-
-        if (isDanbooruSafeMirror) {
+      if (isDanbooruFamily) {
+        if (site.toLowerCase().includes("safebooru.donmai.us") || rating === "safe") {
           tagList.push("rating:general");
         } else if (rating && rating !== "all") {
+          tagList.push(`rating:${rating}`);
+        }
+
+        const res = await fetchDanbooruPosts(
+          site,
+          tagList,
+          effectiveLogin,
+          effectiveApiKey,
+          30,
+        );
+
+        if (res.success && res.posts && res.posts.length > 0) {
+          let candidates = res.posts.slice();
+          if (aspectRatio && aspectRatio !== "any") {
+            const filtered = candidates.filter((p) => {
+              const width = p.image_width || p.width || 0;
+              const height = p.image_height || p.height || 0;
+              const ratio = width > 0 && height > 0 ? width / height : 1;
+              if (aspectRatio === "landscape" && ratio < 1.0) return false;
+              if (aspectRatio === "wide" && ratio < 1.33) return false;
+              if (aspectRatio === "portrait" && ratio >= 1.0) return false;
+              if (minScore !== undefined && typeof p.score === "number" && p.score < minScore) return false;
+              return true;
+            });
+            if (filtered.length > 0) {
+              candidates = filtered;
+            }
+          }
+
+          const picked = candidates[Math.floor(Math.random() * candidates.length)];
+          const imgUrl = picked?.file_url || picked?.large_file_url || picked?.preview_file_url;
+          if (imgUrl) {
+            const postUrl = picked.id ? extractPostDetailUrl(site, picked.id) : undefined;
+            return {
+              imageUrl: imgUrl,
+              postUrl,
+              postId: picked.id,
+              site,
+              tags: typeof picked.tag_string === "string" ? picked.tag_string.split(" ") : undefined,
+              width: picked.image_width || picked.width,
+              height: picked.image_height || picked.height,
+              score: picked.score,
+            };
+          }
+        }
+      }
+
+      // 非 Danbooru 站点走 @himeka/booru
+      let resolvedDomain = resolveSite(site) || site;
+      if (resolvedDomain) {
+        if (rating && rating !== "all") {
           const siteInfo = sites[resolvedDomain];
           if (siteInfo && !siteInfo.nsfw) {
             // Safe by default
@@ -294,31 +572,40 @@ export async function resolveBooruImageUrl(
 
           const picked = candidates[Math.floor(Math.random() * candidates.length)];
           const imgUrl = extractImageUrlFromPost(picked);
-          if (imgUrl) return imgUrl;
+          if (imgUrl) {
+            const postUrl = picked.id ? extractPostDetailUrl(resolvedDomain, picked.id) : undefined;
+            return {
+              imageUrl: imgUrl,
+              postUrl,
+              postId: picked.id,
+              site: resolvedDomain,
+              tags: picked.tags,
+              width: picked.width,
+              height: picked.height,
+              score: picked.score,
+            };
+          }
         }
       }
     }
 
-    // Fallback for raw API URLs
-    const targetUrl = urlOrUri.startsWith("booru:")
-      ? `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=25`
-      : urlOrUri;
-
-    const parsedUrl = new URL(targetUrl);
-    const baseSiteUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
-
-    const res = await fetch(targetUrl);
-    if (!res.ok) {
-      log.warn(`Booru API responded with status ${res.status}`);
-      return null;
+    // Direct image URL fallback
+    if (urlOrUri && (urlOrUri.startsWith("http://") || urlOrUri.startsWith("https://") || urlOrUri.startsWith("data:"))) {
+      return { imageUrl: urlOrUri };
     }
-
-    const data = await res.json();
-    return extractBooruImageUrl(data, baseSiteUrl);
-  } catch (e) {
-    log.error("Failed to resolve Booru image URL:", e);
+    return null;
+  } catch (e: any) {
+    log.error("Failed to resolve booru image info:", e);
     return null;
   }
+}
+
+export async function resolveBooruImageUrl(
+  urlOrUri: string,
+  siteCredentials?: SiteCredential[],
+): Promise<string | null> {
+  const info = await resolveBooruImageInfo(urlOrUri, siteCredentials);
+  return info?.imageUrl || null;
 }
 
 export function extractBooruImageUrl(

@@ -1,5 +1,5 @@
-import { Menu, showMessage, openSetting } from "siyuan";
-import { plugin } from "@/utils";
+import { Menu, showMessage } from "siyuan";
+import { isMobile, plugin } from "@/utils";
 import { getLogger } from "@/libs/logger";
 import {
   type CoverSourceItem,
@@ -9,7 +9,7 @@ import {
   sanitizeAssetsPath,
   type SiteCredential,
 } from "./sources";
-import { isBooruSource, resolveBooruImageUrl } from "./booru";
+import { isBooruSource, resolveBooruImageInfo } from "./booru";
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
@@ -87,6 +87,22 @@ function triggerRandomIfNoImg(currentPage: HTMLElement): void {
     ?.classList.remove("fn__none");
 }
 
+const LAST_USED_SOURCE_KEY = "damophus_more_background_last_used_source";
+
+function getLastUsedSource(): CoverSourceItem | null {
+  try {
+    const raw = localStorage.getItem(LAST_USED_SOURCE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function setLastUsedSource(item: CoverSourceItem): void {
+  try {
+    localStorage.setItem(LAST_USED_SOURCE_KEY, JSON.stringify(item));
+  } catch {}
+}
+
 export class MoreBackgroundController implements MoreBackgroundHandle {
   private options: MoreBackgroundOptions;
   private readonly rootCleanups = new Map<HTMLElement, () => void>();
@@ -155,6 +171,9 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
   private initTitleCoverControls(root: HTMLElement): () => void {
     const injectButtons = () => {
+      const sources = this.options.sources?.length ? this.options.sources : DEFAULT_COVER_SOURCES;
+      const lastUsed = getLastUsedSource() || sources[0];
+
       // 1. 未添加题头图时：在 .protyle-background__action / .protyle-background__tags 注入按钮
       const actionContainers = root.querySelectorAll<HTMLElement>(
         ".protyle-background__action, .protyle-background__tags",
@@ -171,74 +190,88 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           container.lastElementChild as HTMLElement;
 
         if (isButtonType) {
-          const btn = document.createElement("button");
-          btn.className = "b3-button b3-button--cancel";
-          btn.setAttribute("data-damophus-more-background-title-btn", "true");
-          btn.setAttribute("data-type", "more-background-random");
-          btn.innerHTML = `<svg><use xlink:href="#iconImage"></use></svg>${this.options.t("lets-more-background.moreBackgroundBtn")}`;
+          // 按钮 1: ⚡ 使用上次配置 (一键出图，无需二次点击)
+          const lastBtn = document.createElement("button");
+          lastBtn.className = "b3-button b3-button--cancel";
+          lastBtn.setAttribute("data-damophus-more-background-title-btn", "true");
+          lastBtn.setAttribute("data-type", "more-background-last");
+          const lastLabel = lastUsed?.label ? `${lastUsed.label}` : this.options.t("lets-more-background.useLastTemplate");
+          lastBtn.title = `使用上次配置: ${lastLabel}`;
+          lastBtn.innerHTML = `<svg><use xlink:href="#iconRefresh"></use></svg>⚡ ${lastLabel}`;
+
+          // 按钮 2: 🎨 选择模板 (弹出菜单)
+          const menuBtn = document.createElement("button");
+          menuBtn.className = "b3-button b3-button--cancel";
+          menuBtn.setAttribute("data-damophus-more-background-title-btn", "true");
+          menuBtn.setAttribute("data-type", "more-background-menu");
+          menuBtn.innerHTML = `<svg><use xlink:href="#iconImage"></use></svg>${this.options.t("lets-more-background.chooseTemplate")}`;
 
           if (randomBtn) {
-            randomBtn.after(btn);
+            randomBtn.after(menuBtn);
+            randomBtn.after(lastBtn);
           } else {
-            container.appendChild(btn);
+            container.appendChild(lastBtn);
+            container.appendChild(menuBtn);
           }
 
-          btn.addEventListener("click", (e: MouseEvent) => {
+          lastBtn.addEventListener("click", (e: MouseEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            const rect = btn.getBoundingClientRect();
+            if (lastUsed) {
+              const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+              void this.applyRandomSource(lastUsed, root, bg);
+            }
+          });
+
+          menuBtn.addEventListener("click", (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = menuBtn.getBoundingClientRect();
             const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
             this.showBackgroundMenu(rect, root, bg);
           });
         } else {
-          const span = document.createElement("span");
-          span.className = "protyle-background__tag protyle-background__tag--text";
-          span.setAttribute("data-damophus-more-background-title-btn", "true");
-          span.setAttribute("data-type", "more-background-random");
-          span.style.cursor = "pointer";
-          span.innerHTML = `<svg class="svg"><use xlink:href="#iconImage"></use></svg><span>${this.options.t("lets-more-background.moreBackgroundBtn")}</span>`;
+          // 标签风格
+          const spanLast = document.createElement("span");
+          spanLast.className = "protyle-background__tag protyle-background__tag--text";
+          spanLast.setAttribute("data-damophus-more-background-title-btn", "true");
+          spanLast.setAttribute("data-type", "more-background-last");
+          spanLast.style.cursor = "pointer";
+          const lastLabel = lastUsed?.label ? `${lastUsed.label}` : this.options.t("lets-more-background.useLastTemplate");
+          spanLast.innerHTML = `<svg class="svg"><use xlink:href="#iconRefresh"></use></svg><span>⚡ ${lastLabel}</span>`;
+
+          const spanMenu = document.createElement("span");
+          spanMenu.className = "protyle-background__tag protyle-background__tag--text";
+          spanMenu.setAttribute("data-damophus-more-background-title-btn", "true");
+          spanMenu.setAttribute("data-type", "more-background-menu");
+          spanMenu.style.cursor = "pointer";
+          spanMenu.innerHTML = `<svg class="svg"><use xlink:href="#iconImage"></use></svg><span>${this.options.t("lets-more-background.chooseTemplate")}</span>`;
 
           if (randomBtn) {
-            randomBtn.after(span);
+            randomBtn.after(spanMenu);
+            randomBtn.after(spanLast);
           } else {
-            container.appendChild(span);
+            container.appendChild(spanLast);
+            container.appendChild(spanMenu);
           }
 
-          span.addEventListener("click", (e: MouseEvent) => {
+          spanLast.addEventListener("click", (e: MouseEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            const rect = span.getBoundingClientRect();
+            if (lastUsed) {
+              const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+              void this.applyRandomSource(lastUsed, root, bg);
+            }
+          });
+
+          spanMenu.addEventListener("click", (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = spanMenu.getBoundingClientRect();
             const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
             this.showBackgroundMenu(rect, root, bg);
           });
         }
-      });
-
-      // 1.2 兜底查找独立的 button[data-type="random"] 或 span[data-type="random"]
-      const standaloneRandomBtns = root.querySelectorAll<HTMLElement>(
-        'button[data-type="random"], button[data-type="background"], span[data-type="background"]',
-      );
-      standaloneRandomBtns.forEach((anchor) => {
-        const parent = anchor.parentElement;
-        if (!parent || parent.querySelector("[data-damophus-more-background-title-btn]")) return;
-
-        const isButton = anchor.tagName.toLowerCase() === "button";
-        const newEl = document.createElement(isButton ? "button" : "span");
-        newEl.className = anchor.className;
-        newEl.setAttribute("data-damophus-more-background-title-btn", "true");
-        newEl.setAttribute("data-type", "more-background-random");
-        if (!isButton) newEl.style.cursor = "pointer";
-        newEl.innerHTML = `<svg${isButton ? "" : ' class="svg"'}><use xlink:href="#iconImage"></use></svg>${isButton ? "" : "<span>"}${this.options.t("lets-more-background.moreBackgroundBtn")}${isButton ? "" : "</span>"}`;
-
-        anchor.after(newEl);
-
-        newEl.addEventListener("click", (e: MouseEvent) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const rect = newEl.getBoundingClientRect();
-          const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-          this.showBackgroundMenu(rect, root, bg);
-        });
       });
 
       // 2. 已有题头图时：注入右上角操作条中的随机图源按钮 (.protyle-icons)
@@ -341,6 +374,21 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const menu = new Menu("DamophusMoreBackground");
     const sources = this.options.sources?.length ? this.options.sources : DEFAULT_COVER_SOURCES;
 
+    const currentPostUrl =
+      background.getAttribute("data-damophus-post-url") ||
+      (background.querySelector("img")?.getAttribute("data-damophus-post-url"));
+
+    if (currentPostUrl) {
+      menu.addItem({
+        label: "🌐 打开当前题头图原帖 (Booru Post ↗)",
+        icon: "iconLink",
+        click: () => {
+          window.open(currentPostUrl, "_blank");
+        },
+      });
+      menu.addSeparator();
+    }
+
     sources.forEach((item) => {
       if (!item.label && !item.url) return;
       menu.addItem({
@@ -372,11 +420,15 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       label: this.options.t("lets-more-background.openSetting"),
       icon: "iconSettings",
       click: () => {
-        void openSetting(plugin);
+        plugin.openSetting();
       },
     });
 
-    menu.open({ x: rect.left, y: rect.bottom, isLeft: false });
+    if (isMobile) {
+      menu.fullscreen();
+    } else {
+      menu.open({ x: rect.left, y: rect.bottom, isLeft: false });
+    }
   }
 
   private async applyRandomSource(
@@ -384,6 +436,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     root: HTMLElement,
     background: HTMLElement,
   ): Promise<void> {
+    setLastUsedSource(item);
     const url = formatCoverUrl(item.url, this.options.width, this.options.height);
     if (!url) return;
 
@@ -443,24 +496,41 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       let finalImageUrl = url;
       if (isBooruSource(url)) {
         const credentials = this.options.siteCredentials;
-        const resolved = await resolveBooruImageUrl(url, credentials);
-        if (!resolved) {
+        const info = await resolveBooruImageInfo(url, credentials);
+        if (!info || !info.imageUrl) {
           showMessage(this.options.t("lets-more-background.loadUrlFailed"));
           return;
         }
-        finalImageUrl = resolved;
+        finalImageUrl = info.imageUrl;
+        if (info.postUrl) {
+          background.setAttribute("data-damophus-post-url", info.postUrl);
+          const img = background.querySelector("img");
+          if (img) img.setAttribute("data-damophus-post-url", info.postUrl);
+        }
       }
 
       if (this.options.writeToAssets) {
-        const res = await fetch(finalImageUrl);
-        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-        const blob = await res.blob();
-        await this.saveBlobAndSetBackground(blob, background);
+        let blob: Blob | null = null;
+        try {
+          const res = await fetch(finalImageUrl, { referrerPolicy: "no-referrer" });
+          if (res.ok) {
+            blob = await res.blob();
+          }
+        } catch (fetchErr) {
+          log.warn("Direct fetch image failed, falling back to direct URL:", fetchErr);
+        }
+
+        if (blob && blob.size > 0) {
+          await this.saveBlobAndSetBackground(blob, background);
+        } else {
+          // 降级为直接写入远程 URL
+          await this.setBlockBackgroundImage(background, finalImageUrl);
+        }
       } else {
         // Direct remote or data URL
         await this.setBlockBackgroundImage(background, finalImageUrl);
       }
-    } catch (e) {
+    } catch (e: any) {
       log.error("Failed to fetch image from URL:", url, e);
       showMessage(this.options.t("lets-more-background.loadUrlFailed"));
     } finally {
