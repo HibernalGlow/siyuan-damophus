@@ -200,6 +200,13 @@ const pluginMetadata: PluginMetadata = {
       key: "pauseOnAnswerReveal",
       value: true,
     },
+    {
+      type: "checkbox",
+      title: "lets-question-bank.pauseOnBlur",
+      description: "lets-question-bank.pauseOnBlurDescription",
+      key: "pauseOnBlur",
+      value: false,
+    },
   ],
   declarations: [{
     id: "sourceContent",

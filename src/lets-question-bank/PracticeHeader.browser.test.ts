@@ -77,6 +77,7 @@ describe("practice header answer correction", () => {
     target.className = "question-bank";
     target.style.width = "600px";
     document.body.append(target);
+    const togglePauseOnBlur = vi.fn();
     mounted = mount(PracticeHeader, {
       target,
       props: {
@@ -100,6 +101,8 @@ describe("practice header answer correction", () => {
         toggleStemStyles,
         indefinitePracticeMode: false,
         toggleIndefinitePracticeMode,
+        pauseOnBlur: false,
+        togglePauseOnBlur,
         previousQuestion: vi.fn(),
         nextQuestion: vi.fn(),
         togglePracticeTimer: vi.fn(),
@@ -128,6 +131,10 @@ describe("practice header answer correction", () => {
     expect(stemStyles?.getAttribute("role")).toBe("menuitemcheckbox");
     expect(stemStyles?.getAttribute("aria-checked")).toBe("false");
     expect(stemStyles?.textContent).toContain("Show question stem styles");
+    const pauseOnBlurItem = menu?.querySelector<HTMLButtonElement>("[data-toggle-pause-on-blur]");
+    expect(pauseOnBlurItem?.getAttribute("role")).toBe("menuitemcheckbox");
+    expect(pauseOnBlurItem?.getAttribute("aria-checked")).toBe("false");
+    expect(pauseOnBlurItem?.textContent).toContain("Pause timer on blur");
     expect(menu?.textContent).toContain("Open source in SiYuan");
     expect(menu?.textContent).toContain("Unlock source editing");
     expect(menu?.textContent).toContain("Correct answer");
@@ -150,6 +157,13 @@ describe("practice header answer correction", () => {
     target.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]")?.click();
     await tick();
     expect(toggleIndefinitePracticeMode).toHaveBeenCalledOnce();
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+
+    overflow.click();
+    await tick();
+    target.querySelector<HTMLButtonElement>("[data-toggle-pause-on-blur]")?.click();
+    await tick();
+    expect(togglePauseOnBlur).toHaveBeenCalledOnce();
     expect(target.querySelector('[role="menu"]')).toBeNull();
   });
 

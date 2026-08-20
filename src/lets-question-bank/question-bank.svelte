@@ -120,6 +120,8 @@
   export let showPracticeBreadcrumb = true;
   export let timingEnabled = true;
   export let pauseOnAnswerReveal = true;
+  export let pauseOnBlur = false;
+  export let onPauseOnBlurChange: ((value: boolean) => void) | undefined = undefined;
   export let now: () => number = Date.now;
   export let mobileBreadcrumb = false;
   export let breadcrumbPriority: BreadcrumbOverflowPriority = "tail";
@@ -540,9 +542,73 @@
       )).length
     : 0;
   $: reviewing = Boolean(practiceState?.matches("reviewing"));
-  $: timerPaused = Boolean(practiceState?.context.timerPaused);
+  $: timerEffectivelyPaused = Boolean(practiceState?.context.timerPaused);
   $: answerTimerPaused = Boolean(revealed && pauseOnAnswerReveal && practiceState?.matches("active"));
-  $: timerEffectivelyPaused = timerPaused || answerTimerPaused;
+  let autoPausedByBlur = false;
+
+  function isTargetInsideQuestionBank(target: EventTarget | null): boolean {
+    if (!target || !(target instanceof Node)) return false;
+    if (rootElement && rootElement.contains(target)) return true;
+    if (target instanceof Element) {
+      if (target.closest(".damophus-question-bank-host, .b3-menu, .b3-dialog, .protyle-util, .correction-dialog, [data-testid='question-bank']")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function handleFocusOrPointer(target: EventTarget | null): void {
+    if (!pauseOnBlur || !practiceRuntime || submitting || reviewing) return;
+    const current = practiceRuntime.actor.getSnapshot();
+    if (!current.matches("active")) return;
+
+    const inside = isTargetInsideQuestionBank(target);
+    if (inside) {
+      if (autoPausedByBlur && current.context.timerPaused) {
+        practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
+        startTimer();
+      }
+      autoPausedByBlur = false;
+    } else {
+      if (!current.context.timerPaused && !answerTimerPaused) {
+        practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
+        clearTimer();
+        autoPausedByBlur = true;
+      }
+    }
+  }
+
+  function handleWindowBlur(): void {
+    if (!pauseOnBlur || !practiceRuntime || submitting || reviewing) return;
+    const current = practiceRuntime.actor.getSnapshot();
+    if (!current.matches("active")) return;
+    if (!current.context.timerPaused && !answerTimerPaused) {
+      practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
+      clearTimer();
+      autoPausedByBlur = true;
+    }
+  }
+
+  function handleWindowFocus(): void {
+    if (!pauseOnBlur || !practiceRuntime || submitting || reviewing) return;
+    const current = practiceRuntime.actor.getSnapshot();
+    if (!current.matches("active")) return;
+    if (autoPausedByBlur && isTargetInsideQuestionBank(document.activeElement)) {
+      if (current.context.timerPaused) {
+        practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
+        startTimer();
+      }
+      autoPausedByBlur = false;
+    }
+  }
+
+  function handleVisibilityChange(): void {
+    if (document.hidden) {
+      handleWindowBlur();
+    } else {
+      handleWindowFocus();
+    }
+  }
 
   onMount(() => {
     const host = rootElement.closest<HTMLElement>(".damophus-question-bank-host");
@@ -553,6 +619,15 @@
       else if (detail === "pause") void pausePractice();
     };
     host?.addEventListener("damophus-practice-command", command);
+    const handleDocumentPointerDown = (event: PointerEvent) => handleFocusOrPointer(event.target);
+    const handleDocumentFocusIn = (event: FocusEvent) => {
+      if (isTargetInsideQuestionBank(event.target)) handleFocusOrPointer(event.target);
+    };
+    document.addEventListener("pointerdown", handleDocumentPointerDown, true);
+    document.addEventListener("focusin", handleDocumentFocusIn, true);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     const refreshSyncedState = () => {
       void run(async () => {
         aggregates = await controller.loadAggregates();
@@ -574,6 +649,11 @@
     scheduleAutoScan(250);
     return () => {
       host?.removeEventListener("damophus-practice-command", command);
+      document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+      document.removeEventListener("focusin", handleDocumentFocusIn, true);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, refreshSyncedState);
     };
   });
@@ -1217,6 +1297,7 @@
     if (!practiceRuntime || submitting || reviewing) return;
     const current = practiceRuntime.actor.getSnapshot();
     if (!current.matches("active")) return;
+    autoPausedByBlur = false;
     if (!current.context.timerPaused) {
       practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
       clearTimer();
@@ -1242,6 +1323,7 @@
 
   async function leavePracticeRuntime(runtime = practiceRuntime): Promise<void> {
     clearTimer();
+    autoPausedByBlur = false;
     unsubscribePracticeState?.();
     unsubscribePracticeState = undefined;
     unsubscribeSaveStatus?.();
@@ -1403,6 +1485,18 @@
     indefinitePracticeMode = !indefinitePracticeMode;
     onIndefinitePracticeModeChange?.(indefinitePracticeMode);
   }
+
+  function togglePauseOnBlur(): void {
+    pauseOnBlur = !pauseOnBlur;
+    onPauseOnBlurChange?.(pauseOnBlur);
+    if (!pauseOnBlur && autoPausedByBlur) {
+      if (practiceRuntime && practiceState?.matches("active") && practiceState?.context.timerPaused) {
+        practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
+        startTimer();
+      }
+      autoPausedByBlur = false;
+    }
+  }
 </script>
 
 <QuestionBankView
@@ -1415,6 +1509,7 @@
   {timingEnabled} {sessionElapsedMs} {questionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
   {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles} {toggleIndefinitePracticeMode}
+  {pauseOnBlur} {togglePauseOnBlur}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
   {validDocument} {useCurrentDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}

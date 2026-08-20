@@ -64,6 +64,7 @@ const settingItems: ISettingItem[] = [
   { type: "select", title: "标题嵌入方式", description: "标题嵌入说明", key: "embedHeadingMode", value: "0", options: { "0": "全部", "1": "仅标题", "2": "仅下方块" } },
   { type: "checkbox", title: "记录作答用时", description: "计时说明", key: "timingEnabled", value: true },
   { type: "checkbox", title: "看答案时暂停", description: "暂停说明", key: "pauseOnAnswerReveal", value: true },
+  { type: "checkbox", title: "离开焦点时自动暂停", description: "失焦暂停说明", key: "pauseOnBlur", value: false },
   { type: "select", title: "用时对比位置", description: "位置说明", key: "durationComparisonPosition", value: "rating", options: { rating: "评分上方" } },
   { type: "checkbox", title: "隐藏原文答案", description: "遮罩说明", key: "maskSourceAnswers", value: false },
   { type: "select", title: "遮罩样式", description: "遮罩样式说明", key: "answerMaskStyle", value: "blur", options: { blur: "模糊" } },

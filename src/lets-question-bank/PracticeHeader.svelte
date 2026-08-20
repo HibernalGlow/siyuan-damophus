@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, ListChecks, LocateFixed, LockKeyhole, Pause, Pencil, Play, Star, Type, UnlockKeyhole, X } from "lucide-svelte";
+  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, ListChecks, LocateFixed, LockKeyhole, Pause, Pencil, Play, Star, Timer, Type, UnlockKeyhole, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import { Button } from "@/components/ui/button";
   import {
@@ -55,6 +55,8 @@
   export let toggleStemStyles: () => void = () => {};
   export let indefinitePracticeMode = false;
   export let toggleIndefinitePracticeMode: () => void = () => {};
+  export let pauseOnBlur = false;
+  export let togglePauseOnBlur: () => void = () => {};
   export let onCorrectAnswer: ((answer: ObjectiveAnswer) => void) | undefined = undefined;
   export let currentBookmark: QuestionBookmark | undefined = undefined;
   export let onToggleBookmark: (() => void) | undefined = undefined;
@@ -287,6 +289,17 @@
               <Type size={16} aria-hidden="true" />
               {label("showStemStyles", "Show question stem styles")}
               {#if showStemStyles}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
+            </Button>
+            <Button
+              variant="ghost"
+              role="menuitemcheckbox"
+              aria-checked={pauseOnBlur}
+              data-toggle-pause-on-blur
+              onclick={() => runOverflowAction(togglePauseOnBlur)}
+            >
+              <Timer size={16} aria-hidden="true" />
+              {label("pauseOnBlur", "Pause timer on blur")}
+              {#if pauseOnBlur}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
             </Button>
             {#if currentQuestionBlockId && openQuestionSource}
               <Button variant="ghost" class="practice-overflow-compact-action" role="menuitem" onclick={() => runOverflowAction(() => openQuestionSource?.(currentQuestionBlockId as string))}>

@@ -176,6 +176,8 @@
   export let questionRenderMode: any;
   export let indefinitePracticeMode = false;
   export let toggleIndefinitePracticeMode: any;
+  export let pauseOnBlur = false;
+  export let togglePauseOnBlur: any;
   export let sourceEditingLocked: boolean;
   export let toggleSourceEditingLock: any;
   export let showStemStyles: boolean;
@@ -258,6 +260,8 @@
     {toggleStemStyles}
     {indefinitePracticeMode}
     {toggleIndefinitePracticeMode}
+    {pauseOnBlur}
+    {togglePauseOnBlur}
     onCorrectAnswer={correctCurrentAnswer}
     {previousQuestion}
     {nextQuestion}

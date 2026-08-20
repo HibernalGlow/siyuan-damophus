@@ -565,6 +565,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         indefinitePracticeMode: this.getSetting("indefinitePracticeMode") === true,
         timingEnabled: this.getSetting("timingEnabled") !== false,
         pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
+        pauseOnBlur: this.getSetting("pauseOnBlur") === true,
         mobileBreadcrumb: isMobile,
         breadcrumbPriority: normalizeBreadcrumbPriority(
           settings.getBySpace("mobileBreadcrumb", "overflowPriority"),
@@ -688,6 +689,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         onAutoSyncIndexChange: (value: boolean) => this.setSetting("autoSyncIndex", value),
         onAutoScanDocumentChange: (value: boolean) => this.setSetting("autoScanDocument", value),
         onIndefinitePracticeModeChange: (value: boolean) => this.setSetting("indefinitePracticeMode", value),
+        onPauseOnBlurChange: (value: boolean) => this.setSetting("pauseOnBlur", value),
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
           void this.openQuestionSource(blockId);

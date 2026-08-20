@@ -67,7 +67,7 @@
       "embedBreadcrumb",
       "embedHeadingMode",
     ],
-    timing: ["timingEnabled", "pauseOnAnswerReveal", "durationComparisonPosition"],
+    timing: ["timingEnabled", "pauseOnAnswerReveal", "pauseOnBlur", "durationComparisonPosition"],
   };
 
   const dispatch = createEventDispatcher();
