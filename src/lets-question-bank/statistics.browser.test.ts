@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
-import { mount, unmount } from "svelte";
+import { mount, tick, unmount } from "svelte";
 import "@/styles/damophus.css";
 import { buildStatistics } from "@/question-bank/core/statistics";
 import type { AttemptEvent } from "@/question-bank/core/types";
@@ -75,7 +75,7 @@ describe("Statistics", () => {
     expect(document.body.textContent).toContain("调解");
     expect(document.body.textContent).toContain("证据");
     expect(document.body.textContent).toContain("单选题");
-    expect(document.body.textContent).toContain("真金题");
+    expect(document.body.textContent).not.toContain("真金题");
     expect(document.querySelector('[data-subject="civil-procedure"]')?.textContent).toContain("民诉");
     expect(document.querySelector('[data-subject="civil-procedure"]')?.textContent).toContain("1%");
     expect(document.querySelector('[data-subject="criminal-procedure"]')?.textContent).toContain("刑诉");
@@ -104,8 +104,52 @@ describe("Statistics", () => {
     });
     const dashboard = document.querySelector('[data-testid="subject-dashboard"]') as HTMLElement;
     const subjects = [...document.querySelectorAll<HTMLElement>("[data-subject]")];
-    expect(subjects).toHaveLength(2);
+    expect(subjects.length).toBeGreaterThanOrEqual(8);
     expect(subjects.every((subject) => subject.getBoundingClientRect().right <= dashboard.getBoundingClientRect().right + 1)).toBe(true);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(360);
+  });
+
+  it("resizes dashboard cards vertically and scrolls overflowing content", async () => {
+    const onLayoutChange = vi.fn();
+    const target = document.createElement("div");
+    target.style.height = "100vh";
+    document.body.appendChild(target);
+    mounted = mount(Statistics, {
+      target,
+      props: {
+        snapshot: buildStatistics(questions, attempts, "all", Date.parse("2026-08-06T02:00:00.000Z")),
+        translations,
+        label,
+        topicDictionary,
+        statisticsLayout: {heights: {subject: 240, trend: 200}},
+        onLayoutChange,
+      },
+    });
+    await tick();
+
+    const resizableCards = [...target.querySelectorAll<HTMLElement>("[data-resizable-card]")];
+    const resizers = [...target.querySelectorAll<HTMLButtonElement>(".statistics-card-resizer")];
+    expect(resizableCards.length).toBe(9);
+    expect(resizers.length).toBe(9);
+    expect(target.querySelector("[data-statistics-distribution-dnd]")).toBeNull();
+    expect(target.querySelector('[aria-label^="拖动调整顺序"]')).toBeNull();
+
+    const subjectCard = target.querySelector<HTMLElement>('[data-distribution-card="subject"]')!;
+    expect(subjectCard).not.toBeNull();
+    expect(subjectCard.getBoundingClientRect().height).toBeCloseTo(240, 0);
+    expect(getComputedStyle(subjectCard.querySelector<HTMLElement>(".statistics-card-content")!).overflowY).toBe("auto");
+
+    const subjectResizer = subjectCard.querySelector<HTMLButtonElement>(".statistics-card-resizer")!;
+    subjectResizer.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true, pointerId: 1, clientY: 100}));
+    window.dispatchEvent(new PointerEvent("pointermove", {bubbles: true, pointerId: 1, clientY: 160}));
+    expect(subjectCard.getBoundingClientRect().height).toBeCloseTo(300, 0);
+    window.dispatchEvent(new PointerEvent("pointerup", {bubbles: true, pointerId: 1, clientY: 160}));
+    expect(onLayoutChange).toHaveBeenLastCalledWith({heights: {subject: 300, trend: 200}});
+
+    const trendCard = target.querySelector<HTMLElement>('[data-resizable-card="trend"]')!;
+    expect(trendCard.getBoundingClientRect().height).toBeCloseTo(200, 0);
+    const trendResizer = trendCard.querySelector<HTMLButtonElement>(".statistics-card-resizer")!;
+    trendResizer.dispatchEvent(new KeyboardEvent("keydown", {bubbles: true, key: "ArrowDown"}));
+    expect(onLayoutChange).toHaveBeenLastCalledWith({heights: {subject: 300, trend: 224}});
   });
 });

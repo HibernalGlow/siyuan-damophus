@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { BarChart3, CalendarRange, Clock3, Filter, History, Target, TrendingUp } from "lucide-svelte";
+  import { BarChart3, CalendarRange, Clock3, Filter, GripHorizontal, History, Target, TrendingUp } from "lucide-svelte";
   import * as Select from "@/components/ui/select";
   import { Badge } from "@/components/ui/badge";
   import { Input } from "@/components/ui/input";
@@ -10,12 +10,21 @@
     subjectPlannedTotal,
     type SubjectQuestionTotals,
   } from "@/question-bank/core/subject-dashboard";
+  import {
+    defaultStatisticsLayout,
+    statisticsCardDefaultHeight,
+    statisticsCardMaxHeight,
+    statisticsCardMinHeight,
+    type StatisticsLayout,
+  } from "@/question-bank/core/subject-dashboard";
   import type {
     StatisticsDimension,
     StatisticsRange,
     StatisticsSnapshot,
     StatisticsSort,
   } from "@/question-bank/core/statistics";
+
+  import { topicSubjectIds } from "@/question-bank/topic-subjects";
 
   export let snapshot: StatisticsSnapshot | undefined;
   export let loading = false;
@@ -26,6 +35,9 @@
   export let topicDictionary: TopicDictionaryDocument | undefined = undefined;
   export let subjectQuestionTotals: SubjectQuestionTotals = {};
   export let onSubjectQuestionTotalChange: ((subjectId: string, value: string) => void) | undefined = undefined;
+  export let subjectTotalsSaveStatus: "idle" | "saving" | "saved" | "error" = "idle";
+  export let statisticsLayout: StatisticsLayout = defaultStatisticsLayout;
+  export let onLayoutChange: ((layout: StatisticsLayout) => void) | undefined = undefined;
   export let translations: Record<string, string> = {};
   export let label: (key: string, fallback: string) => string = (_key, fallback) => fallback;
 
@@ -38,6 +50,16 @@
     "commercial-economic": "lets-topic-dictionary.subjectCommercialEconomic",
     "theory-law": "lets-topic-dictionary.subjectTheoryLaw",
     "international-law": "lets-topic-dictionary.subjectInternationalLaw",
+  };
+  const defaultSubjectNames: Readonly<Record<string, string>> = {
+    civil: "民法",
+    criminal: "刑法",
+    "civil-procedure": "民诉",
+    "criminal-procedure": "刑诉",
+    administrative: "行政法",
+    "commercial-economic": "商经知",
+    "theory-law": "理论法",
+    "international-law": "三国法",
   };
   const questionTypeLabelKeys: Readonly<Record<string, string>> = {
     single: "questionTypeSingle",
@@ -59,13 +81,47 @@
     { value: "category", label: label("statisticsCategory", "Category") },
     { value: "year", label: label("statisticsYear", "Year") },
     { value: "question_type", label: label("statisticsType", "Question type") },
-    { value: "collection", label: label("statisticsCollection", "Collection") },
   ];
 
   $: distributionByDimension = new Map(snapshot?.distributions.map((item) => [item.dimension, item]) ?? []);
-  $: subjectMetrics = distributionByDimension.get("subject")?.items ?? [];
+  $: subjectMetrics = (() => {
+    const fromDist = new Map((distributionByDimension.get("subject")?.items ?? []).map((m) => [m.key, m]));
+    const keys = new Set<string>([
+      ...topicSubjectIds,
+      ...Object.keys(subjectQuestionTotals),
+      ...fromDist.keys(),
+    ]);
+    return [...keys].map((key) => {
+      const existing = fromDist.get(key);
+      if (existing) return existing;
+      return {
+        key,
+        label: key,
+        totalQuestions: 0,
+        attemptedQuestions: 0,
+        attempts: 0,
+        objectiveAttempts: 0,
+        correct: 0,
+        wrong: 0,
+        accuracy: 0,
+        averageDurationMs: 0,
+        totalDurationMs: 0,
+      };
+    });
+  })();
   $: maxTrendAttempts = Math.max(1, ...(snapshot?.trend.map((point) => point.attempts) ?? [1]));
   $: maxWeakness = Math.max(1, ...(snapshot?.weakQuestions.map((question) => question.weaknessScore) ?? [1]));
+  $: localHeights = { ...defaultStatisticsLayout.heights, ...statisticsLayout?.heights };
+
+  let expandedDimensions = new Set<string>();
+  function toggleDimensionExpand(dimension: string): void {
+    if (expandedDimensions.has(dimension)) {
+      expandedDimensions.delete(dimension);
+    } else {
+      expandedDimensions.add(dimension);
+    }
+    expandedDimensions = expandedDimensions;
+  }
 
   function duration(milliseconds: number): string {
     if (!milliseconds) return "0 秒";
@@ -90,11 +146,23 @@
     return dimensions.find((item) => item.value === dimension)?.label ?? dimension;
   }
 
+  function ratingLabel(rating: string | undefined): string {
+    if (!rating) return "";
+    switch (rating) {
+      case "again": return label("again", "重来");
+      case "hard": return label("hard", "困难");
+      case "good": return label("good", "良好");
+      case "easy": return label("easy", "简单");
+      default: return rating;
+    }
+  }
+
   function localizedMetricLabel(dimension: StatisticsDimension, key: string, fallback: string): string {
     if (key === "Unclassified") return label("statisticsUnclassified", "Unclassified");
     if (dimension === "subject") {
       const translationKey = subjectTranslationKeys[key];
-      return translationKey ? translations[translationKey] ?? fallback : fallback;
+      const defaultName = defaultSubjectNames[key] ?? fallback;
+      return translationKey ? translations[translationKey] ?? defaultName : defaultName;
     }
     if (dimension === "question_type") {
       const labelKey = questionTypeLabelKeys[key];
@@ -107,6 +175,57 @@
       return label("statisticsCollectionGold", fallback);
     }
     return fallback;
+  }
+
+  function updateLayout(next: Partial<StatisticsLayout>): void {
+    const nextHeights = next.heights ?? localHeights;
+    localHeights = nextHeights;
+    onLayoutChange?.({
+      heights: nextHeights,
+    });
+  }
+
+  function resizeCard(id: string, event: PointerEvent): void {
+    const handle = event.currentTarget as HTMLElement;
+    const card = handle.closest<HTMLElement>("[data-resizable-card]");
+    if (!card) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startY = event.clientY;
+    const startHeight = card.getBoundingClientRect().height;
+    handle.setPointerCapture?.(event.pointerId);
+
+    const onMove = (move: PointerEvent) => {
+      const height = Math.min(statisticsCardMaxHeight, Math.max(statisticsCardMinHeight, startHeight + move.clientY - startY));
+      const rounded = Math.round(height);
+      card.style.height = `${rounded}px`;
+      localHeights = { ...localHeights, [id]: rounded };
+    };
+    const onEnd = (end: PointerEvent) => {
+      const height = Math.min(statisticsCardMaxHeight, Math.max(statisticsCardMinHeight, Math.round(startHeight + end.clientY - startY)));
+      card.style.height = `${height}px`;
+      handle.releasePointerCapture?.(event.pointerId);
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onEnd, true);
+      window.removeEventListener("pointercancel", onEnd, true);
+      updateLayout({ heights: { ...localHeights, [id]: height } });
+    };
+
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onEnd, true);
+    window.addEventListener("pointercancel", onEnd, true);
+  }
+
+  function resizeCardByKeyboard(id: string, event: KeyboardEvent): void {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const handle = event.currentTarget as HTMLElement;
+    const card = handle.closest<HTMLElement>("[data-resizable-card]");
+    const current = localHeights[id] ?? card?.getBoundingClientRect().height ?? statisticsCardDefaultHeight;
+    const height = Math.min(statisticsCardMaxHeight, Math.max(statisticsCardMinHeight, current + (event.key === "ArrowDown" ? 24 : -24)));
+    if (card) card.style.height = `${height}px`;
+    localHeights = { ...localHeights, [id]: height };
+    updateLayout({ heights: { ...localHeights, [id]: height } });
   }
 </script>
 
@@ -174,133 +293,268 @@
       </div>
     </div>
 
-    <section class="statistics-panel mt-4 border p-3" aria-labelledby="statistics-subject-progress-heading" data-testid="subject-dashboard">
-      <div class="flex items-center justify-between gap-2">
+    <section
+      class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 border p-3"
+      aria-labelledby="statistics-subject-progress-heading"
+      data-testid="subject-dashboard"
+      data-resizable-card="subject-progress"
+      style={localHeights["subject-progress"] ? `height: ${localHeights["subject-progress"]}px;` : undefined}
+    >
+      <div class="flex shrink-0 items-center justify-between gap-2">
         <div>
           <h3 id="statistics-subject-progress-heading" class="font-semibold">{label("statisticsSubjectProgress", "Subject progress")}</h3>
           <p class="mt-1 text-xs opacity-70">{label("statisticsSubjectProgressHint", "Completion is based on attempted questions in each indexed subject")}</p>
         </div>
-        <Badge variant="outline">{subjectMetrics.length} {label("statisticsSubjects", "subjects")}</Badge>
-      </div>
-      {#if subjectMetrics.length === 0}
-        <p class="mt-4 text-sm opacity-70">{label("statisticsNoSubjects", "No indexed subjects")}</p>
-      {:else}
-        <div class="statistics-subject-grid mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {#each subjectMetrics as subject (subject.key)}
-            {@const plannedTotal = subjectPlannedTotal(subject, subjectQuestionTotals[subject.key])}
-            {@const completionRate = subjectCompletionPercent(subject.attemptedQuestions, plannedTotal)}
-            {@const subjectName = localizedMetricLabel("subject", subject.key, subject.label)}
-            <article class="statistics-subject border p-3" data-subject={subject.key}>
-              <div class="flex items-start justify-between gap-3">
-                <strong class="min-w-0 break-words text-sm">{subjectName}</strong>
-                <span class="shrink-0 text-lg font-semibold">{completionRate}%</span>
-              </div>
-              <div class="mt-3 h-2 overflow-hidden rounded-sm bg-muted" role="progressbar" aria-label={`${subjectName} ${label("statisticsCompletion", "completion")}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionRate}>
-                <div class="h-full bg-primary" style={`width: ${completionRate}%`}></div>
-              </div>
-              <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs opacity-70">
-                <span>{label("statisticsAttempted", "Attempted")} {subject.attemptedQuestions} / {plannedTotal}</span>
-                <span>{label("statisticsAccuracy", "Accuracy")} {subject.accuracy}%</span>
-              </div>
-              <div class="mt-3 flex items-center justify-between gap-3 border-t pt-3 text-xs">
-                <span class="opacity-70">{label("statisticsIndexedQuestions", "Indexed")} {subject.totalQuestions}</span>
-                <label class="flex items-center gap-2">
-                  <span class="whitespace-nowrap opacity-70">{label("statisticsPlannedTotal", "Planned total")}</span>
-                  <Input
-                    class="h-7 w-20"
-                    type="number"
-                    min={subject.totalQuestions}
-                    step="1"
-                    value={subjectQuestionTotals[subject.key] ?? ""}
-                    placeholder={String(subject.totalQuestions)}
-                    aria-label={`${subjectName} ${label("statisticsPlannedTotal", "Planned total")}`}
-                    oninput={(event) => onSubjectQuestionTotalChange?.(subject.key, event.currentTarget.value)}
-                  />
-                </label>
-              </div>
-            </article>
-          {/each}
+        <div class="flex items-center gap-2">
+          {#if subjectTotalsSaveStatus === "saving"}
+            <span class="text-xs text-muted-foreground animate-pulse">保存中...</span>
+          {:else if subjectTotalsSaveStatus === "saved"}
+            <span class="text-xs text-emerald-600 dark:text-emerald-400 font-normal">已保存</span>
+          {:else if subjectTotalsSaveStatus === "error"}
+            <span class="text-xs text-destructive font-normal">保存失败</span>
+          {/if}
+          <Badge variant="outline">{subjectMetrics.length} {label("statisticsSubjects", "subjects")}</Badge>
         </div>
-      {/if}
+      </div>
+      <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
+        {#if subjectMetrics.length === 0}
+          <p class="text-sm opacity-70">{label("statisticsNoSubjects", "No indexed subjects")}</p>
+        {:else}
+          <div class="statistics-subject-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {#each subjectMetrics as subject (subject.key)}
+              {@const plannedTotal = subjectPlannedTotal(subject, subjectQuestionTotals[subject.key])}
+              {@const completionRate = subjectCompletionPercent(subject.attemptedQuestions, plannedTotal)}
+              {@const subjectName = localizedMetricLabel("subject", subject.key, subject.label)}
+              <article class="statistics-subject border p-3" data-subject={subject.key}>
+                <div class="flex items-start justify-between gap-3">
+                  <strong class="min-w-0 break-words text-sm">{subjectName}</strong>
+                  <span class="shrink-0 text-lg font-semibold">{completionRate}%</span>
+                </div>
+                <div class="mt-3 h-2 overflow-hidden rounded-sm bg-muted" role="progressbar" aria-label={`${subjectName} ${label("statisticsCompletion", "completion")}`} aria-valuemin="0" aria-valuemax="100" aria-valuenow={completionRate}>
+                  <div class="h-full bg-primary" style={`width: ${completionRate}%`}></div>
+                </div>
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs opacity-70">
+                  <span>{label("statisticsAttempted", "Attempted")} {subject.attemptedQuestions} / {plannedTotal}</span>
+                  <span>{label("statisticsAccuracy", "Accuracy")} {subject.accuracy}%</span>
+                </div>
+                <div class="mt-3 flex items-center justify-between gap-3 border-t pt-3 text-xs">
+                  <span class="opacity-70">{label("statisticsIndexedQuestions", "Indexed")} {subject.totalQuestions}</span>
+                  <label class="flex items-center gap-2">
+                    <span class="whitespace-nowrap opacity-70">{label("statisticsPlannedTotal", "Planned total")}</span>
+                    <Input
+                      class="h-7 w-20"
+                      type="number"
+                      min={subject.totalQuestions}
+                      step="1"
+                      value={subjectQuestionTotals[subject.key] ?? ""}
+                      placeholder={String(subject.totalQuestions)}
+                      aria-label={`${subjectName} ${label("statisticsPlannedTotal", "Planned total")}`}
+                      oninput={(event) => onSubjectQuestionTotalChange?.(subject.key, event.currentTarget.value)}
+                      onchange={(event) => onSubjectQuestionTotalChange?.(subject.key, event.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+              </article>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <button
+        type="button"
+        class="statistics-card-resizer"
+        aria-label={`${label("statisticsResizeCard", "Adjust card height")}: ${label("statisticsSubjectProgress", "Subject progress")}`}
+        title={label("statisticsResizeCardHint", "Drag to adjust card height")}
+        onpointerdown={(event) => resizeCard("subject-progress", event)}
+        onkeydown={(event) => resizeCardByKeyboard("subject-progress", event)}
+      ><GripHorizontal size={15} aria-hidden="true" /></button>
     </section>
 
-    <div class="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-      <section class="statistics-panel border p-3" aria-labelledby="statistics-trend-heading">
-        <div class="flex items-center justify-between gap-2">
+    <div class="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr] items-start">
+      <section
+        class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden border p-3"
+        aria-labelledby="statistics-trend-heading"
+        data-testid="trend-dashboard"
+        data-resizable-card="trend"
+        style={localHeights["trend"] ? `height: ${localHeights["trend"]}px;` : undefined}
+      >
+        <div class="flex shrink-0 items-center justify-between gap-2">
           <h3 id="statistics-trend-heading" class="font-semibold">{label("statisticsTrend", "Trend")}</h3>
           <Badge variant="outline">{snapshot.trend.length} {label("statisticsDays", "days")}</Badge>
         </div>
-        {#if snapshot.trend.length === 0}
-          <p class="mt-4 text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
-        {:else}
-          <div class="mt-4 space-y-2">
-            {#each snapshot.trend as point (point.date)}
-              <div class="grid grid-cols-[5.5rem_1fr_4rem] items-center gap-2 text-xs">
-                <span>{point.date.slice(5)}</span>
-                <div class="h-2 overflow-hidden bg-muted" aria-label={`${point.date} ${point.attempts} 次`}>
-                  <div class="h-full bg-primary" style={`width: ${(point.attempts / maxTrendAttempts) * 100}%`}></div>
-                </div>
-                <span class="text-right">{point.accuracy}%</span>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </section>
-
-      <section class="statistics-panel border p-3" aria-labelledby="statistics-weak-heading">
-        <div class="flex items-center justify-between gap-2">
-          <h3 id="statistics-weak-heading" class="font-semibold">{label("statisticsWeak", "Weak questions")}</h3>
-          <Badge variant="outline">{snapshot.weakQuestions.length}</Badge>
-        </div>
-        {#if snapshot.weakQuestions.length === 0}
-          <p class="mt-4 text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
-        {:else}
-          <div class="mt-3 space-y-2">
-            {#each snapshot.weakQuestions.slice(0, 8) as question (question.questionId)}
-              <div class="border-b pb-2 last:border-0">
-                <div class="flex items-start justify-between gap-2 text-sm">
-                  <strong class="min-w-0 truncate" title={question.questionId}>{question.label}</strong>
-                  <span class="shrink-0">{question.accuracy}%</span>
-                </div>
-                <div class="mt-1 flex items-center gap-2 text-xs opacity-70">
-                  <span>{question.wrong} 错 / {question.attempts} 次</span>
-                  <span>{duration(question.averageDurationMs)}</span>
-                  <span class="ml-auto">{question.weaknessScore.toFixed(1)}</span>
-                </div>
-                <div class="mt-1 h-1 overflow-hidden bg-muted"><div class="h-full bg-destructive" style={`width: ${(question.weaknessScore / maxWeakness) * 100}%`}></div></div>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </section>
-    </div>
-
-    <StatisticsHeatmap days={snapshot.heatmap} {label} />
-
-    <section class="statistics-panel mt-4 border p-3" aria-labelledby="statistics-distribution-heading">
-      <div class="flex items-center gap-2"><BarChart3 size={16} aria-hidden="true" /><h3 id="statistics-distribution-heading" class="font-semibold">{label("statisticsDistribution", "Distribution")}</h3></div>
-      <div class="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {#each dimensions as dimension (dimension.value)}
-          {@const distribution = distributionByDimension.get(dimension.value)}
-          <div>
-            <h4 class="text-sm font-medium">{distributionTitle(dimension.value)}</h4>
-            <div class="mt-2 space-y-2">
-              {#each distribution?.items.slice(0, 6) ?? [] as item (item.key)}
-                <div class="grid grid-cols-[minmax(0,1fr)_3rem] gap-2 text-xs">
-                  <span class="truncate" title={localizedMetricLabel(dimension.value, item.key, item.label)}>{localizedMetricLabel(dimension.value, item.key, item.label)}</span>
-                  <span class="text-right">{item.accuracy}%</span>
-                  <div class="col-span-2 h-1 overflow-hidden bg-muted"><div class="h-full bg-secondary-foreground/60" style={`width: ${Math.max(item.attempts > 0 ? item.accuracy : 0, 2)}%`}></div></div>
+        <div class="statistics-card-content mt-4 min-h-0 flex-1 overflow-y-auto">
+          {#if snapshot.trend.length === 0}
+            <p class="text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
+          {:else}
+            <div class="space-y-2">
+              {#each snapshot.trend as point (point.date)}
+                <div class="grid grid-cols-[5.5rem_1fr_4rem] items-center gap-2 text-xs">
+                  <span>{point.date.slice(5)}</span>
+                  <div class="h-2 overflow-hidden rounded-sm bg-muted" aria-label={`${point.date} ${point.attempts} 次`}>
+                    <div class="h-full rounded-sm bg-primary transition-all" style={`width: ${(point.attempts / maxTrendAttempts) * 100}%`}></div>
+                  </div>
+                  <span class="text-right font-medium">{point.accuracy}%</span>
                 </div>
               {/each}
             </div>
-          </div>
-        {/each}
-      </div>
-    </section>
+          {/if}
+        </div>
+        <button
+          type="button"
+          class="statistics-card-resizer"
+          aria-label={`${label("statisticsResizeCard", "Adjust card height")}: ${label("statisticsTrend", "Trend")}`}
+          title={label("statisticsResizeCardHint", "Drag to adjust card height")}
+          onpointerdown={(event) => resizeCard("trend", event)}
+          onkeydown={(event) => resizeCardByKeyboard("trend", event)}
+        ><GripHorizontal size={15} aria-hidden="true" /></button>
+      </section>
 
-    <section class="statistics-panel mt-4 border p-3" aria-labelledby="statistics-history-heading">
-      <div class="flex items-center gap-2"><History size={16} aria-hidden="true" /><h3 id="statistics-history-heading" class="font-semibold">{label("statisticsRecent", "Recent attempts")}</h3></div>
-      <div class="mt-3 overflow-x-auto">
+      <section
+        class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden border p-3"
+        aria-labelledby="statistics-weak-heading"
+        data-testid="weak-dashboard"
+        data-resizable-card="weak"
+        style={localHeights["weak"] ? `height: ${localHeights["weak"]}px;` : undefined}
+      >
+        <div class="flex shrink-0 items-center justify-between gap-2">
+          <h3 id="statistics-weak-heading" class="font-semibold">{label("statisticsWeak", "Weak questions")}</h3>
+          <Badge variant="outline">{snapshot.weakQuestions.length}</Badge>
+        </div>
+        <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
+          {#if snapshot.weakQuestions.length === 0}
+            <p class="text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
+          {:else}
+            <div class="space-y-3">
+              {#each snapshot.weakQuestions.slice(0, 8) as question (question.questionId)}
+                {@const subjectKey = question.subject || ""}
+                {@const subjectName = subjectKey ? localizedMetricLabel("subject", subjectKey, subjectKey) : ""}
+                {@const categoryName = question.category ? localizedMetricLabel("category", question.category, question.category) : ""}
+                <div class="border-b pb-2.5 last:border-0">
+                  <div class="flex items-start justify-between gap-2 text-sm">
+                    <div class="flex min-w-0 items-center gap-1.5 flex-wrap">
+                      {#if subjectName}
+                        <Badge variant="outline" class="font-normal text-[11px] py-0 px-1.5">
+                          {subjectName}
+                        </Badge>
+                      {/if}
+                      {#if categoryName && categoryName !== subjectName}
+                        <span class="text-xs opacity-75 font-normal">
+                          {categoryName}
+                        </span>
+                      {/if}
+                      <strong class="min-w-0 truncate text-xs font-semibold" title={question.questionId}>
+                        {question.label}
+                      </strong>
+                    </div>
+                    <span class="shrink-0 text-xs font-semibold">{question.accuracy}%</span>
+                  </div>
+                  <div class="mt-1 flex items-center gap-2 text-[11px] opacity-75 flex-wrap">
+                    <span>{question.wrong} 错 / {question.attempts} 次</span>
+                    <span>·</span>
+                    <span>均耗时 {duration(question.averageDurationMs)}</span>
+                    {#if question.latestRating}
+                      <span>·</span>
+                      <span class="font-medium">
+                        最近: {ratingLabel(question.latestRating)}
+                      </span>
+                    {/if}
+                    {#if question.lastAnsweredAt}
+                      <span>·</span>
+                      <span>{question.lastAnsweredAt.slice(5, 16).replace("T", " ")}</span>
+                    {/if}
+                    <span class="ml-auto font-mono text-[10px]">指数 {question.weaknessScore.toFixed(1)}</span>
+                  </div>
+                  <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      class="h-full bg-destructive transition-all"
+                      style={`width: ${(question.weaknessScore / maxWeakness) * 100}%;`}
+                    ></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        <button
+          type="button"
+          class="statistics-card-resizer"
+          aria-label={`${label("statisticsResizeCard", "Adjust card height")}: ${label("statisticsWeak", "Weak questions")}`}
+          title={label("statisticsResizeCardHint", "Drag to adjust card height")}
+          onpointerdown={(event) => resizeCard("weak", event)}
+          onkeydown={(event) => resizeCardByKeyboard("weak", event)}
+        ><GripHorizontal size={15} aria-hidden="true" /></button>
+      </section>
+    </div>
+
+    <StatisticsHeatmap
+      days={snapshot.heatmap}
+      height={localHeights["heatmap"]}
+      onResize={(h) => updateLayout({ heights: { ...localHeights, heatmap: h } })}
+      {label}
+    />
+
+    <div class="mt-4 grid gap-4 items-start" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));" data-testid="distribution-cards">
+      {#each dimensions as dimension (dimension.value)}
+        {@const distribution = distributionByDimension.get(dimension.value)}
+        {@const items = distribution?.items ?? []}
+        {@const expanded = expandedDimensions.has(dimension.value)}
+        {@const visibleItems = expanded ? items : items.slice(0, 6)}
+        <section
+          class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden border p-3"
+          data-distribution-card={dimension.value}
+          data-resizable-card={dimension.value}
+          style={localHeights[dimension.value] ? `height: ${localHeights[dimension.value]}px;` : undefined}
+        >
+          <div class="flex shrink-0 items-center justify-between gap-2">
+            <h3 class="text-sm font-semibold">{distributionTitle(dimension.value)}</h3>
+            <Badge variant="outline" class="font-normal text-xs">{items.length} 项</Badge>
+          </div>
+          <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
+            {#if items.length === 0}
+              <p class="text-xs opacity-70">{label("statisticsNoData", "No data")}</p>
+            {:else}
+              <div class="space-y-2">
+                {#each visibleItems as item (item.key)}
+                  <div class="statistics-distribution-row text-xs">
+                    <span class="truncate" title={localizedMetricLabel(dimension.value, item.key, item.label)}>{localizedMetricLabel(dimension.value, item.key, item.label)}</span>
+                    <span class="text-right font-medium tabular-nums">{item.accuracy}%</span>
+                    <div class="statistics-distribution-bar bg-muted">
+                      <div class="h-full rounded-sm bg-primary" style={`width: ${Math.max(item.attempts > 0 ? item.accuracy : 0, 2)}%`}></div>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+              {#if items.length > 6}
+                <button
+                  type="button"
+                  class="statistics-expand-btn"
+                  onclick={() => toggleDimensionExpand(dimension.value)}
+                >
+                  {expanded ? label("statisticsCollapse", "收起") : `${label("statisticsExpand", "展开全部")} (${items.length})`}
+                </button>
+              {/if}
+            {/if}
+          </div>
+          <button
+            type="button"
+            class="statistics-card-resizer"
+            aria-label={`${label("statisticsResizeCard", "Adjust card height")}: ${distributionTitle(dimension.value)}`}
+            title={label("statisticsResizeCardHint", "Drag to adjust card height")}
+            onpointerdown={(event) => resizeCard(dimension.value, event)}
+            onkeydown={(event) => resizeCardByKeyboard(dimension.value, event)}
+          ><GripHorizontal size={15} aria-hidden="true" /></button>
+        </section>
+      {/each}
+    </div>
+
+    <section
+      class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 border p-3"
+      aria-labelledby="statistics-history-heading"
+      data-testid="recent-attempts-dashboard"
+      data-resizable-card="recent-attempts"
+      style={localHeights["recent-attempts"] ? `height: ${localHeights["recent-attempts"]}px;` : undefined}
+    >
+      <div class="flex shrink-0 items-center gap-2"><History size={16} aria-hidden="true" /><h3 id="statistics-history-heading" class="font-semibold">{label("statisticsRecent", "Recent attempts")}</h3></div>
+      <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
         <table class="w-full min-w-[34rem] text-left text-xs">
           <thead class="border-b text-[0.7rem] opacity-70"><tr><th class="py-2">时间</th><th>题目</th><th>结果</th><th>评级</th><th class="text-right">耗时</th></tr></thead>
           <tbody>
@@ -310,6 +564,78 @@
           </tbody>
         </table>
       </div>
+      <button
+        type="button"
+        class="statistics-card-resizer"
+        aria-label={`${label("statisticsResizeCard", "Adjust card height")}: ${label("statisticsRecent", "Recent attempts")}`}
+        title={label("statisticsResizeCardHint", "Drag to adjust card height")}
+        onpointerdown={(event) => resizeCard("recent-attempts", event)}
+        onkeydown={(event) => resizeCardByKeyboard("recent-attempts", event)}
+      ><GripHorizontal size={15} aria-hidden="true" /></button>
     </section>
   {/if}
 </section>
+
+<style>
+  .statistics-distribution-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 3.5rem;
+    gap: 4px 8px;
+    align-items: center;
+  }
+  .statistics-distribution-bar {
+    grid-column: 1 / -1;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 2px;
+  }
+  .statistics-expand-btn {
+    margin-top: 8px;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--primary, var(--b3-theme-primary));
+    font-size: 11px;
+    cursor: pointer;
+    text-align: left;
+    opacity: 0.85;
+  }
+  .statistics-expand-btn:hover {
+    opacity: 1;
+    text-decoration: underline;
+  }
+  .statistics-resizable-panel {
+    box-sizing: border-box;
+    min-height: 120px;
+    padding-bottom: 28px;
+  }
+  .statistics-card-content {
+    box-sizing: border-box;
+    min-height: 0;
+    scrollbar-width: thin;
+  }
+  .statistics-card-resizer {
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
+    display: inline-flex;
+    width: 28px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: ns-resize;
+    opacity: .6;
+    touch-action: none;
+  }
+  .statistics-card-resizer:hover, .statistics-card-resizer:focus-visible {
+    opacity: 1;
+    color: var(--primary);
+  }
+  .statistics-card-resizer:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+</style>

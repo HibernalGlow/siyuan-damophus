@@ -1,8 +1,11 @@
 <script lang="ts">
-  import { CalendarDays } from "lucide-svelte";
+  import { CalendarDays, GripHorizontal } from "lucide-svelte";
   import type { StatisticsHeatmapDay } from "@/question-bank/core/statistics";
+  import { statisticsCardDefaultHeight, statisticsCardMaxHeight, statisticsCardMinHeight } from "@/question-bank/core/subject-dashboard";
 
   export let days: StatisticsHeatmapDay[] = [];
+  export let height: number | undefined = undefined;
+  export let onResize: ((height: number) => void) | undefined = undefined;
   export let label: (key: string, fallback: string) => string = (_key, fallback) => fallback;
 
   const weekDays = 7;
@@ -32,30 +35,132 @@
     if (day.attempts === 0) return `${day.date} · ${label("statisticsNoAttempts", "No attempts")}`;
     return `${day.date} · ${day.attempts} ${label("statisticsAttemptsShort", "attempts")} · ${day.accuracy}% ${label("statisticsAccuracy", "accuracy")}`;
   }
+
+  $: localHeight = height;
+
+  function resize(event: PointerEvent): void {
+    const handle = event.currentTarget as HTMLElement;
+    const card = handle.closest<HTMLElement>("[data-resizable-card]");
+    if (!card) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startY = event.clientY;
+    const startHeight = card.getBoundingClientRect().height;
+    handle.setPointerCapture?.(event.pointerId);
+
+    const onMove = (move: PointerEvent) => {
+      const h = Math.min(statisticsCardMaxHeight, Math.max(statisticsCardMinHeight, startHeight + move.clientY - startY));
+      const rounded = Math.round(h);
+      card.style.height = `${rounded}px`;
+      localHeight = rounded;
+    };
+    const onEnd = (end: PointerEvent) => {
+      const h = Math.min(statisticsCardMaxHeight, Math.max(statisticsCardMinHeight, Math.round(startHeight + end.clientY - startY)));
+      card.style.height = `${h}px`;
+      handle.releasePointerCapture?.(event.pointerId);
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onEnd, true);
+      window.removeEventListener("pointercancel", onEnd, true);
+      localHeight = h;
+      onResize?.(h);
+    };
+
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onEnd, true);
+    window.addEventListener("pointercancel", onEnd, true);
+  }
+
+  function resizeByKeyboard(event: KeyboardEvent): void {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const handle = event.currentTarget as HTMLElement;
+    const card = handle.closest<HTMLElement>("[data-resizable-card]");
+    const current = localHeight ?? card?.getBoundingClientRect().height ?? statisticsCardDefaultHeight;
+    const next = Math.min(statisticsCardMaxHeight, Math.max(statisticsCardMinHeight, current + (event.key === "ArrowDown" ? 24 : -24)));
+    if (card) card.style.height = `${next}px`;
+    localHeight = next;
+    onResize?.(next);
+  }
 </script>
 
-<section class="statistics-panel mt-4 border p-3" aria-labelledby="statistics-heatmap-heading" data-testid="statistics-heatmap">
-  <div class="flex items-center justify-between gap-2">
+<section
+  class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 border p-3"
+  aria-labelledby="statistics-heatmap-heading"
+  data-testid="statistics-heatmap"
+  data-resizable-card="heatmap"
+  style={localHeight ? `height: ${localHeight}px;` : undefined}
+>
+  <div class="flex shrink-0 items-center justify-between gap-2">
     <div class="flex items-center gap-2"><CalendarDays size={16} aria-hidden="true" /><h3 id="statistics-heatmap-heading" class="font-semibold">{label("statisticsHeatmap", "Activity heatmap")}</h3></div>
     <span class="text-xs opacity-70">{days.length} {label("statisticsDays", "days")}</span>
   </div>
-  {#if days.length === 0}
-    <p class="mt-4 text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
-  {:else}
-    <div class="statistics-heatmap-scroll mt-3" role="img" aria-label={label("statisticsHeatmap", "Activity heatmap")}>
-      <div class="statistics-heatmap-months" style={`grid-template-columns: repeat(${weeks}, minmax(12px, 1fr))`}>
-        {#each monthLabels as month}<span>{month}</span>{/each}
+  <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
+    {#if days.length === 0}
+      <p class="text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
+    {:else}
+      <div class="statistics-heatmap-scroll" role="img" aria-label={label("statisticsHeatmap", "Activity heatmap")}>
+        <div class="statistics-heatmap-months" style={`grid-template-columns: repeat(${weeks}, minmax(12px, 1fr))`}>
+          {#each monthLabels as month}<span>{month}</span>{/each}
+        </div>
+        <div class="statistics-heatmap-grid" style={`grid-template-columns: repeat(${weeks}, minmax(12px, 1fr))`}>
+          {#each columns as column}
+            <div class="statistics-heatmap-column">
+              {#each column as day}
+                <span class={`statistics-heatmap-cell level-${level(day)}`} title={tip(day)} aria-label={tip(day)}></span>
+              {/each}
+            </div>
+          {/each}
+        </div>
+        <div class="statistics-heatmap-legend text-xs opacity-70"><span>{label("statisticsLess", "Less")}</span>{#each [0, 1, 2, 3, 4] as value}<span class={`statistics-heatmap-cell level-${value}`}></span>{/each}<span>{label("statisticsMore", "More")}</span></div>
       </div>
-      <div class="statistics-heatmap-grid" style={`grid-template-columns: repeat(${weeks}, minmax(12px, 1fr))`}>
-        {#each columns as column}
-          <div class="statistics-heatmap-column">
-            {#each column as day}
-              <span class={`statistics-heatmap-cell level-${level(day)}`} title={tip(day)} aria-label={tip(day)}></span>
-            {/each}
-          </div>
-        {/each}
-      </div>
-      <div class="statistics-heatmap-legend text-xs opacity-70"><span>{label("statisticsLess", "Less")}</span>{#each [0, 1, 2, 3, 4] as value}<span class={`statistics-heatmap-cell level-${value}`}></span>{/each}<span>{label("statisticsMore", "More")}</span></div>
-    </div>
+    {/if}
+  </div>
+  {#if onResize}
+    <button
+      type="button"
+      class="statistics-card-resizer"
+      aria-label={`${label("statisticsResizeCard", "Adjust card height")}: ${label("statisticsHeatmap", "Activity heatmap")}`}
+      title={label("statisticsResizeCardHint", "Drag to adjust card height")}
+      onpointerdown={resize}
+      onkeydown={resizeByKeyboard}
+    ><GripHorizontal size={15} aria-hidden="true" /></button>
   {/if}
 </section>
+
+<style>
+  .statistics-resizable-panel {
+    box-sizing: border-box;
+    min-height: 120px;
+    padding-bottom: 28px;
+  }
+  .statistics-card-content {
+    box-sizing: border-box;
+    min-height: 0;
+    scrollbar-width: thin;
+  }
+  .statistics-card-resizer {
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
+    display: inline-flex;
+    width: 28px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: ns-resize;
+    opacity: .6;
+    touch-action: none;
+  }
+  .statistics-card-resizer:hover,
+  .statistics-card-resizer:focus-visible {
+    opacity: 1;
+    color: var(--primary);
+  }
+  .statistics-card-resizer:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+</style>

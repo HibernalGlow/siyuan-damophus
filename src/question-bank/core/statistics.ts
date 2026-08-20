@@ -37,6 +37,7 @@ export interface StatisticsTrendPoint {
   wrong: number;
   accuracy: number;
   averageDurationMs: number;
+  subjects: Array<{ subject: string; attempts: number }>;
 }
 
 export interface StatisticsDistribution {
@@ -96,23 +97,27 @@ const DIMENSIONS: readonly StatisticsDimension[] = [
   "collection",
 ];
 
-function dateParts(value: string | number): Record<string, string> {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(new Date(value));
-  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-}
+const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 export function beijingDate(value: string | number): string {
-  const parts = dateParts(value);
-  return `${parts.year}-${parts.month}-${parts.day}`;
+  const time = typeof value === "number" ? value : Date.parse(value);
+  if (!Number.isFinite(time)) return "";
+  const d = new Date(time + BEIJING_OFFSET_MS);
+  return d.toISOString().slice(0, 10);
+}
+
+function rangeStart(now: number, range: StatisticsRange): number | undefined {
+  if (range === "all") return undefined;
+  const today = beijingDate(now);
+  if (!today) return undefined;
+  const [year, month, day] = today.split("-").map(Number);
+  const beijingMidnightUtc = Date.UTC(year, month - 1, day) - BEIJING_OFFSET_MS;
+  return beijingMidnightUtc - (range - 1) * 24 * 60 * 60 * 1000;
+}
+
+function inRange(attempt: AttemptEvent, start: number | undefined, now: number): boolean {
+  const timestamp = Date.parse(attempt.answered_at);
+  return Number.isFinite(timestamp) && timestamp <= now && (start === undefined || timestamp >= start);
 }
 
 function metricLabel(key: string): string {
@@ -161,22 +166,6 @@ function applyAttempt(metric: StatisticsMetric, attempt: AttemptEvent): void {
     else metric.wrong += 1;
   }
   metric.totalDurationMs += attempt.duration_ms ?? 0;
-}
-
-function rangeStart(now: number, range: StatisticsRange): number | undefined {
-  if (range === "all") return undefined;
-  const parts = dateParts(now);
-  const beijingMidnightUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-  ) - 8 * 60 * 60 * 1000;
-  return beijingMidnightUtc - (range - 1) * 24 * 60 * 60 * 1000;
-}
-
-function inRange(attempt: AttemptEvent, start: number | undefined, now: number): boolean {
-  const timestamp = Date.parse(attempt.answered_at);
-  return Number.isFinite(timestamp) && timestamp <= now && (start === undefined || timestamp >= start);
 }
 
 /** Builds a contiguous Beijing-calendar series so the UI can render empty days too. */
@@ -249,17 +238,19 @@ export function buildStatistics(
   const attemptedById = new Set(scopedAttempts.map((attempt) => attempt.question_id));
   overview.attemptedQuestions = [...attemptedById].filter((id) => questionById.has(id)).length;
 
-  const trendMap = new Map<string, StatisticsMetric>();
+  const trendMap = new Map<string, { metric: StatisticsMetric; subjects: Map<string, number> }>();
   scopedAttempts.forEach((attempt) => {
     const key = beijingDate(attempt.answered_at);
-    const metric = trendMap.get(key) ?? createMetric(key, key);
-    applyAttempt(metric, attempt);
-    trendMap.set(key, metric);
+    const item = trendMap.get(key) ?? {metric: createMetric(key, key), subjects: new Map<string, number>()};
+    applyAttempt(item.metric, attempt);
+    const subject = questionById.get(attempt.question_id)?.subject || "Unclassified";
+    item.subjects.set(subject, (item.subjects.get(subject) ?? 0) + 1);
+    trendMap.set(key, item);
   });
   const trend = [...trendMap.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, metric]) => {
-      const finalized = finalizeMetric(metric);
+    .map(([date, item]) => {
+      const finalized = finalizeMetric(item.metric);
       return {
         date,
         attempts: finalized.attempts,
@@ -267,6 +258,8 @@ export function buildStatistics(
         wrong: finalized.wrong,
         accuracy: finalized.accuracy,
         averageDurationMs: finalized.averageDurationMs,
+        subjects: [...item.subjects].map(([subject, attempts]) => ({subject, attempts}))
+          .sort((left, right) => left.subject.localeCompare(right.subject)),
       };
     });
 
