@@ -76,6 +76,7 @@
   export let order: PracticeOrder = "sequential";
   export let optionOrder: PracticeOptionOrder = "random";
   export let filter: PracticeFilter = "all";
+  export let bookmarkedQuestions = 0;
   export let startPractice: () => void;
   export let openQuestionSetComposer: () => void;
   export let composerOpen = false;
@@ -198,6 +199,7 @@
       {attemptedQuestions}
       {untouchedQuestions}
       {reviewQuestions}
+      {bookmarkedQuestions}
       {syncComplete}
       {busy}
       {recoverableSession}

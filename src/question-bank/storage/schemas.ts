@@ -132,6 +132,15 @@ export const QuestionSetBlueprintRecordSchema = z.object({
   }
 });
 
+export const QuestionBookmarkRecordSchema = z.object({
+  question_id: z.string().min(1),
+  created_at: z.string(),
+  updated_at: z.string(),
+  tags: z.string().optional(),
+  note: z.string().optional(),
+  is_archived: z.boolean().optional(),
+});
+
 export type StoreEnvelope = z.infer<typeof StoreEnvelopeSchema>;
 export type SourceDocumentRecord = z.infer<typeof SourceDocumentRecordSchema>;
 export type QuestionCatalogRecord = z.infer<typeof QuestionCatalogRecordSchema>;
@@ -140,3 +149,4 @@ export type TopicAnchorRecord = z.infer<typeof TopicAnchorRecordSchema>;
 export type QuestionAggregateRecord = z.infer<typeof QuestionAggregateRecordSchema>;
 export type PracticeSessionVersionRecord = z.infer<typeof PracticeSessionVersionRecordSchema>;
 export type ExamSessionVersionRecord = z.infer<typeof ExamSessionVersionRecordSchema>;
+export type QuestionBookmarkRecord = z.infer<typeof QuestionBookmarkRecordSchema>;

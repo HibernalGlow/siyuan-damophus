@@ -145,6 +145,7 @@ export interface AttemptAggregate {
   previousDurationMs?: number;
 }
 
+
 export interface ShuffledOption {
   originalId: string;
   displayLabel: string;
@@ -155,4 +156,13 @@ export interface ShuffledQuestion {
   questionId: string;
   optionOrder: string[];
   options: ShuffledOption[];
+}
+
+export interface QuestionBookmark {
+  questionId: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+  note: string;
+  isArchived?: boolean;
 }

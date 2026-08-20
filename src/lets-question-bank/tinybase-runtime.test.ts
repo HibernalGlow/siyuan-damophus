@@ -155,4 +155,32 @@ describe("TinyBase runtime", () => {
     await expect(deviceA.loadPracticeSession("doc-1")).resolves.toBeUndefined();
     await expect(deviceA.listPracticeSessions()).resolves.toEqual([]);
   });
+
+  it("persists and synchronizes question bookmarks with tags and personal notes", async () => {
+    const files = new MemoryFiles();
+    const runtime = new TinyBaseRuntime(new TinyBaseWarehouse(files, "device-a"));
+
+    await runtime.saveBookmark({
+      questionId: "question-101",
+      createdAt: "2026-08-20T12:00:00.000Z",
+      updatedAt: "2026-08-20T12:00:00.000Z",
+      tags: ["classic", "hard"],
+      note: "重点考察行政行为效力判断",
+    });
+
+    const bookmarks = await runtime.loadBookmarks();
+    expect(bookmarks.has("question-101")).toBe(true);
+    expect(bookmarks.get("question-101")).toMatchObject({
+      questionId: "question-101",
+      tags: ["classic", "hard"],
+      note: "重点考察行政行为效力判断",
+    });
+
+    const bookmarkedIds = await runtime.listBookmarkedQuestionIds();
+    expect(bookmarkedIds.has("question-101")).toBe(true);
+
+    await runtime.removeBookmark("question-101");
+    const afterDelete = await runtime.loadBookmarks();
+    expect(afterDelete.has("question-101")).toBe(false);
+  });
 });

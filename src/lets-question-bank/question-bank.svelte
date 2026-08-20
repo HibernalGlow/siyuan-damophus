@@ -18,6 +18,7 @@
     ShuffledOption,
     ShuffledQuestion,
     ObjectiveAnswer,
+    QuestionBookmark,
   } from "@/question-bank/core/types";
   import { buildStatistics, type StatisticsQuestion, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
   import { projectQuestionIndex } from "@/question-bank/application/projection";
@@ -156,6 +157,7 @@
   let topicRelationReady = false;
   let sourceIdentity: SourceBlockIdentity | undefined;
   let aggregates: ReadonlyMap<string, AttemptAggregate> = new Map();
+  let bookmarks: ReadonlyMap<string, QuestionBookmark> = new Map();
   let dueCards: ReadonlyMap<string, RiffCard> = new Map();
   let topicId = "";
   let order: PracticeOrder = initialPracticePreferences.order;
@@ -447,6 +449,56 @@
       controller.savePracticePreferences(nextPracticePreferences);
     }
   }
+  $: currentBookmark = currentQuestion ? bookmarks.get(currentQuestion.id) : undefined;
+  $: bookmarkedQuestions = questions.filter((q) => bookmarks.has(q.id) && !bookmarks.get(q.id)?.isArchived).length;
+
+  async function toggleBookmark(): Promise<void> {
+    if (!currentQuestion) return;
+    const qid = currentQuestion.id;
+    if (currentBookmark) {
+      await controller.removeBookmark(qid);
+      const next = new Map(bookmarks);
+      next.delete(qid);
+      bookmarks = next;
+    } else {
+      const b: QuestionBookmark = {
+        questionId: qid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: [],
+        note: "",
+      };
+      await controller.saveBookmark(b);
+      const next = new Map(bookmarks);
+      next.set(qid, b);
+      bookmarks = next;
+    }
+  }
+
+  async function saveBookmarkDetails(tags: string[], note: string): Promise<void> {
+    if (!currentQuestion) return;
+    const qid = currentQuestion.id;
+    const b: QuestionBookmark = {
+      questionId: qid,
+      createdAt: currentBookmark?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      tags,
+      note,
+    };
+    await controller.saveBookmark(b);
+    const next = new Map(bookmarks);
+    next.set(qid, b);
+    bookmarks = next;
+  }
+
+  async function removeCurrentBookmark(): Promise<void> {
+    if (!currentQuestion) return;
+    const qid = currentQuestion.id;
+    await controller.removeBookmark(qid);
+    const next = new Map(bookmarks);
+    next.delete(qid);
+    bookmarks = next;
+  }
 
   $: if (currentQuestionBlockId && currentQuestionBlockId !== breadcrumbBlockId) {
     breadcrumbBlockId = currentQuestionBlockId;
@@ -708,12 +760,14 @@
         preview = await applyIndexSync(nextPreview);
       }
       if (preview.bindingRepairs.length === 0) {
-        [aggregates, dueCards] = await Promise.all([
+        [aggregates, bookmarks, dueCards] = await Promise.all([
           controller.loadAggregates(),
+          controller.loadBookmarks(),
           controller.loadDueCards(preview.scan.blockIdsByQuestionId),
         ]);
       } else {
         aggregates = new Map();
+        bookmarks = new Map();
         dueCards = new Map();
       }
       const saved = controller.getRecentScope();
@@ -1000,6 +1054,7 @@
       order,
       aggregates,
       dueQuestionIds: new Set(dueCards.keys()),
+      bookmarkedQuestionIds: new Set([...bookmarks.keys()].filter((id) => !bookmarks.get(id)?.isArchived)),
       reviewThreshold,
       random,
     });
@@ -1380,5 +1435,6 @@
   {correctCurrentAnswer}
   {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {correctRating} {sessionAttempts}
   {completionCorrect} {completionDurationMs} {touchedDrafts} {resetPractice}
+  {currentBookmark} onToggleBookmark={toggleBookmark} onSaveBookmarkDetails={saveBookmarkDetails} onRemoveBookmark={removeCurrentBookmark} {bookmarkedQuestions}
   {questionIndexProjectionBlockId} {includeUnansweredMappingRows} onIncludeUnansweredMappingRowsChange={setIncludeUnansweredMappingRows} {pruneStaleMappingRows} onPruneStaleMappingRowsChange={setPruneStaleMappingRows} {mappingStatus} {mappingMessage} {selectCurrentMappingTarget} {checkMappingTarget} {syncMappingTarget} {setMappingTarget}
 />

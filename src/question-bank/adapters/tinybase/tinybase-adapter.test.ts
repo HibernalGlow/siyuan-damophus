@@ -16,6 +16,7 @@ import {
 import {
   TinyBaseAggregateRepository,
   TinyBaseAttemptEventRepository,
+  TinyBaseBookmarkRepository,
   TinyBaseCoreCatalogRepository,
   TinyBasePracticeSessionRepository,
 } from "./repositories";
@@ -286,5 +287,50 @@ describe("TinyBase warehouse", () => {
     const next = await warehouse.mergeAfterSync();
     expect(next.core.hasRow(TABLE.questions, "question-b")).toBe(true);
     expect(warehouse.getDiagnostics().length).toBeGreaterThan(0);
+  });
+
+  it("saves, retrieves, and removes bookmarks with tags and notes", async () => {
+    const store = createDamophusStore("test");
+    const repo = new TinyBaseBookmarkRepository(store);
+
+    await repo.save({
+      questionId: "q-101",
+      createdAt: "2026-08-20T10:00:00.000Z",
+      updatedAt: "2026-08-20T10:00:00.000Z",
+      tags: ["trap", "classic"],
+      note: "陷阱题：注意选项C",
+    });
+
+    await repo.save({
+      questionId: "q-102",
+      createdAt: "2026-08-20T11:00:00.000Z",
+      updatedAt: "2026-08-20T11:00:00.000Z",
+      tags: ["hard"],
+      note: "大题综合",
+      isArchived: true,
+    });
+
+    const b1 = await repo.get("q-101");
+    expect(b1).toBeDefined();
+    expect(b1?.tags).toEqual(["trap", "classic"]);
+    expect(b1?.note).toBe("陷阱题：注意选项C");
+
+    const all = await repo.list();
+    expect(all).toHaveLength(2);
+
+    const trapIds = await repo.getBookmarkedQuestionIds("trap");
+    expect(trapIds.has("q-101")).toBe(true);
+    expect(trapIds.has("q-102")).toBe(false);
+
+    // Archived should not be in active bookmarked ids
+    const hardIds = await repo.getBookmarkedQuestionIds("hard");
+    expect(hardIds.has("q-102")).toBe(false);
+
+    const allActiveIds = await repo.getBookmarkedQuestionIds();
+    expect(allActiveIds.has("q-101")).toBe(true);
+    expect(allActiveIds.has("q-102")).toBe(false);
+
+    await repo.remove("q-101");
+    expect(await repo.get("q-101")).toBeUndefined();
   });
 });

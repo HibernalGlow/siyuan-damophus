@@ -1,6 +1,6 @@
 import type { AttemptAggregate, Question, TopicNode } from "./types";
 
-export type PracticeFilter = "all" | "unattempted" | "wrong" | "review" | "due";
+export type PracticeFilter = "all" | "unattempted" | "wrong" | "review" | "due" | "bookmarked";
 
 export interface QuestionFilterInput {
   questions: readonly Question[];
@@ -9,6 +9,7 @@ export interface QuestionFilterInput {
   filter?: PracticeFilter;
   aggregates?: ReadonlyMap<string, AttemptAggregate>;
   dueQuestionIds?: ReadonlySet<string>;
+  bookmarkedQuestionIds?: ReadonlySet<string>;
   reviewThreshold?: number;
 }
 
@@ -45,6 +46,7 @@ export function filterQuestions(input: QuestionFilterInput): Question[] {
       return (aggregate?.consecutiveReviewCount ?? 0) >= (input.reviewThreshold ?? 2);
     }
     if (filter === "due") return input.dueQuestionIds?.has(question.id) ?? false;
+    if (filter === "bookmarked") return input.bookmarkedQuestionIds?.has(question.id) ?? false;
     return true;
   });
 }

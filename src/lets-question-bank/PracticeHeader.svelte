@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, ListChecks, LocateFixed, LockKeyhole, Pause, Pencil, Play, Type, UnlockKeyhole, X } from "lucide-svelte";
+  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, ListChecks, LocateFixed, LockKeyhole, Pause, Pencil, Play, Star, Type, UnlockKeyhole, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
   import { Button } from "@/components/ui/button";
   import {
@@ -8,10 +8,11 @@
     type Label,
   } from "./question-bank-display";
   import type { BreadcrumbOverflowPriority, BreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
-  import type { ObjectiveAnswer, Question } from "@/question-bank/core/types";
+  import type { ObjectiveAnswer, Question, QuestionBookmark } from "@/question-bank/core/types";
   import type { AttemptDurationComparison } from "./attempt-duration-comparison";
   import type { DurationComparisonPosition } from "./duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
+  import QuestionBookmarkModal from "./QuestionBookmarkModal.svelte";
 
   export let currentQuestion: Question | undefined;
   export let buildRevision: string;
@@ -55,7 +56,12 @@
   export let indefinitePracticeMode = false;
   export let toggleIndefinitePracticeMode: () => void = () => {};
   export let onCorrectAnswer: ((answer: ObjectiveAnswer) => void) | undefined = undefined;
+  export let currentBookmark: QuestionBookmark | undefined = undefined;
+  export let onToggleBookmark: (() => void) | undefined = undefined;
+  export let onSaveBookmarkDetails: ((tags: string[], note: string) => void) | undefined = undefined;
+  export let onRemoveBookmark: (() => void) | undefined = undefined;
 
+  let bookmarkModalOpen = false;
   let correctionOpen = false;
   let overflowOpen = false;
   let selectedCorrectionIds: string[] = [];
@@ -196,6 +202,26 @@
             {#if sourceEditingLocked}<LockKeyhole size={17} aria-hidden="true" />{:else}<UnlockKeyhole size={17} aria-hidden="true" />{/if}
           </Button>
         {/if}
+        {#if onToggleBookmark}
+          <Button
+            variant="ghost"
+            size="icon"
+            class="practice-secondary-action practice-bookmark-btn"
+            data-practice-bookmark
+            title={currentBookmark ? label("editBookmarkNote", "编辑收藏与批注") : label("bookmark", "收藏题目")}
+            aria-label={currentBookmark ? label("editBookmarkNote", "编辑收藏与批注") : label("bookmark", "收藏题目")}
+            aria-pressed={Boolean(currentBookmark)}
+            onclick={() => {
+              if (!currentBookmark) {
+                onToggleBookmark?.();
+              } else {
+                bookmarkModalOpen = true;
+              }
+            }}
+          >
+            <Star size={17} class={currentBookmark ? "fill-amber-400 text-amber-500" : ""} aria-hidden="true" />
+          </Button>
+        {/if}
         {#if revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}
           <Button
             variant="ghost"
@@ -225,6 +251,21 @@
         {#if overflowOpen}
           <button class="practice-overflow-backdrop" aria-label={label("closeMoreActions", "Close more actions")} onclick={() => overflowOpen = false}></button>
           <div class="practice-overflow-menu" role="menu" aria-label={label("moreActions", "More actions")}>
+            {#if onToggleBookmark}
+              <Button
+                variant="ghost"
+                class="practice-overflow-compact-action"
+                role="menuitem"
+                data-practice-bookmark-detail
+                onclick={() => runOverflowAction(() => {
+                  if (!currentBookmark) onToggleBookmark?.();
+                  bookmarkModalOpen = true;
+                })}
+              >
+                <Star size={16} class={currentBookmark ? "fill-amber-400 text-amber-500" : ""} aria-hidden="true" />
+                {currentBookmark ? label("editBookmarkNote", "编辑收藏与批注") : label("bookmarkWithNote", "收藏并添加批注")}
+              </Button>
+            {/if}
             <Button
               variant="ghost"
               role="menuitemcheckbox"
@@ -330,6 +371,17 @@
       <Button data-save-corrected-answer onclick={saveCorrection}>{label("save", "Save")}</Button>
     </div>
   </div>
+{/if}
+
+{#if onSaveBookmarkDetails && onRemoveBookmark}
+  <QuestionBookmarkModal
+    open={bookmarkModalOpen}
+    bookmark={currentBookmark}
+    {label}
+    onSave={(tags, note) => onSaveBookmarkDetails?.(tags, note)}
+    onRemove={() => onRemoveBookmark?.()}
+    onClose={() => bookmarkModalOpen = false}
+  />
 {/if}
 
 <style>

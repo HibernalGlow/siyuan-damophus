@@ -1,5 +1,5 @@
 import type { MergeableStore } from "tinybase/mergeable-store";
-import type { AttemptAggregate, AttemptEvent, AttemptRatingEvent, ExamSummaryEvent } from "../core/types";
+import type { AttemptAggregate, AttemptEvent, AttemptRatingEvent, ExamSummaryEvent, QuestionBookmark } from "../core/types";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "../core/session-schema";
 import type { ExamSessionSnapshot } from "../exam/schema";
 import type { QuestionSetBlueprint } from "../assembly/schema";
@@ -75,6 +75,14 @@ export interface CoreCatalogRepository extends QuestionCatalogRepository, TopicA
   store(): MergeableStore;
 }
 
+export interface BookmarkRepository {
+  get(questionId: string): Promise<QuestionBookmark | undefined>;
+  list(): Promise<QuestionBookmark[]>;
+  save(bookmark: QuestionBookmark): Promise<void>;
+  remove(questionId: string): Promise<void>;
+  getBookmarkedQuestionIds(tag?: string): Promise<Set<string>>;
+}
+
 export interface DamophusRepositories {
   catalog: CoreCatalogRepository;
   attempts: AttemptEventRepository;
@@ -83,6 +91,7 @@ export interface DamophusRepositories {
   examSessions: ExamSessionRepository;
   blueprints: QuestionSetBlueprintRepository;
   aggregates: AggregateRepository;
+  bookmarks: BookmarkRepository;
 }
 
 export type { AttemptAggregate };

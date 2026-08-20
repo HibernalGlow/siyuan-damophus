@@ -5,7 +5,7 @@ import {
   ExamSummaryEventSchema,
 } from "../../core/schema";
 import { aggregateAttemptEvents } from "../../core/attempts";
-import type { AttemptEvent, AttemptRatingEvent, ExamSummaryEvent } from "../../core/types";
+import type { AttemptEvent, AttemptRatingEvent, ExamSummaryEvent, QuestionBookmark } from "../../core/types";
 import {
   parsePracticeSessionSnapshot,
   PracticeSessionSnapshotSchema,
@@ -17,6 +17,7 @@ import { rebaseExamSessionSnapshot } from "../../exam/session-merge";
 import { QuestionSetBlueprintSchema, type QuestionSetBlueprint } from "../../assembly/schema";
 import {
   QuestionAggregateRecordSchema,
+  QuestionBookmarkRecordSchema,
   QuestionCatalogRecordSchema,
   QuestionTopicRecordSchema,
   SourceDocumentRecordSchema,
@@ -31,6 +32,7 @@ import type {
   AggregateRepository,
   AttemptEventRepository,
   AttemptRatingEventRepository,
+  BookmarkRepository,
   CoreCatalogRepository,
   ExamEventRepository,
   ExamSessionRepository,
@@ -543,5 +545,79 @@ export class TinyBaseAggregateRepository implements AggregateRepository {
       this.core.setRow(TABLE.questionAggregates, questionId, compactRow(row));
     }
     this.core.setValue("last_aggregate_rebuild_at", new Date().toISOString());
+  }
+}
+
+export class TinyBaseBookmarkRepository implements BookmarkRepository {
+  constructor(private readonly core: MergeableStore) {}
+
+  async get(questionId: string): Promise<QuestionBookmark | undefined> {
+    if (!this.core.hasRow(TABLE.questionBookmarks, questionId)) return undefined;
+    const row = rowObject(this.core, TABLE.questionBookmarks, questionId);
+    const parsed = QuestionBookmarkRecordSchema.parse(row);
+    let tags: string[] = [];
+    if (parsed.tags) {
+      try {
+        const json = JSON.parse(parsed.tags);
+        if (Array.isArray(json)) tags = json;
+      } catch {}
+    }
+    return {
+      questionId: parsed.question_id,
+      createdAt: parsed.created_at,
+      updatedAt: parsed.updated_at,
+      tags,
+      note: parsed.note ?? "",
+      isArchived: parsed.is_archived ?? false,
+    };
+  }
+
+  async list(): Promise<QuestionBookmark[]> {
+    return rows(this.core, TABLE.questionBookmarks).map(([questionId, row]) => {
+      const parsed = QuestionBookmarkRecordSchema.parse(row);
+      let tags: string[] = [];
+      if (parsed.tags) {
+        try {
+          const json = JSON.parse(parsed.tags);
+          if (Array.isArray(json)) tags = json;
+        } catch {}
+      }
+      return {
+        questionId: parsed.question_id || questionId,
+        createdAt: parsed.created_at,
+        updatedAt: parsed.updated_at,
+        tags,
+        note: parsed.note ?? "",
+        isArchived: parsed.is_archived ?? false,
+      };
+    });
+  }
+
+  async save(bookmark: QuestionBookmark): Promise<void> {
+    const record = QuestionBookmarkRecordSchema.parse({
+      question_id: bookmark.questionId,
+      created_at: bookmark.createdAt,
+      updated_at: bookmark.updatedAt,
+      tags: canonicalJson(bookmark.tags ?? []),
+      note: bookmark.note ?? "",
+      is_archived: bookmark.isArchived ?? false,
+    });
+    this.core.setRow(TABLE.questionBookmarks, bookmark.questionId, compactRow(record));
+  }
+
+  async remove(questionId: string): Promise<void> {
+    this.core.delRow(TABLE.questionBookmarks, questionId);
+  }
+
+  async getBookmarkedQuestionIds(tag?: string): Promise<Set<string>> {
+    const list = await this.list();
+    const result = new Set<string>();
+    for (const item of list) {
+      if (item.isArchived) continue;
+      if (!tag || item.tags.includes(tag)) {
+        result.add(item.questionId);
+      }
+    }
+    return result;
   }
 }

@@ -96,6 +96,7 @@ describe("portable question core", () => {
     expect(filterQuestions({ questions, topics, filter: "wrong", aggregates }).map((item) => item.id)).toEqual(["q1"]);
     expect(filterQuestions({ questions, topics, filter: "review", aggregates }).map((item) => item.id)).toEqual(["q1"]);
     expect(filterQuestions({ questions, topics, filter: "due", dueQuestionIds: new Set(["q2"]) }).map((item) => item.id)).toEqual(["q2"]);
+    expect(filterQuestions({ questions, topics, filter: "bookmarked", bookmarkedQuestionIds: new Set(["q1"]) }).map((item) => item.id)).toEqual(["q1"]);
   });
 
   it("creates immutable event values and rebuilds attempt aggregates", () => {
@@ -116,6 +117,7 @@ describe("portable question core", () => {
       questionId: "q1",
       sessionId: "s1",
       answeredAt: "2026-08-04T10:01:00.000Z",
+
       questionType: "multiple",
       optionOrder: ["A", "B", "C"],
       selectedOptionIds: ["A", "C"],

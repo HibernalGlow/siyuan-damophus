@@ -1,7 +1,7 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
 import { createAttemptRatingEvent } from "@/question-bank/core/rating-corrections";
 import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/core/recovery";
-import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent, MasteryRating, ObjectiveAnswer, Question } from "@/question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent, MasteryRating, ObjectiveAnswer, Question, QuestionBookmark } from "@/question-bank/core/types";
 import type { ExamSessionSnapshot } from "@/question-bank/exam";
 import type { StatisticsQuestion } from "@/question-bank/core/statistics";
 import {
@@ -133,6 +133,11 @@ export interface QuestionBankUiController {
   saveRecentScope(scope: RecentScope): void;
   getPracticePreferences(): PracticePreferences;
   savePracticePreferences(preferences: PracticePreferences): void;
+  loadBookmarks?(): Promise<ReadonlyMap<string, QuestionBookmark>>;
+  getBookmark?(questionId: string): Promise<QuestionBookmark | undefined>;
+  saveBookmark?(bookmark: QuestionBookmark): Promise<void>;
+  removeBookmark?(questionId: string): Promise<void>;
+  listBookmarkedQuestionIds?(): Promise<ReadonlySet<string>>;
 }
 
 export interface AttemptSubmissionResult {
@@ -399,6 +404,26 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async loadAggregates(): Promise<ReadonlyMap<string, AttemptAggregate>> {
     return this.requireTinyBase().loadAggregates();
+  }
+
+  async loadBookmarks(): Promise<ReadonlyMap<string, QuestionBookmark>> {
+    return this.requireTinyBase().loadBookmarks();
+  }
+
+  async getBookmark(questionId: string): Promise<QuestionBookmark | undefined> {
+    return this.requireTinyBase().getBookmark(questionId);
+  }
+
+  async saveBookmark(bookmark: QuestionBookmark): Promise<void> {
+    await this.requireTinyBase().saveBookmark(bookmark);
+  }
+
+  async removeBookmark(questionId: string): Promise<void> {
+    await this.requireTinyBase().removeBookmark(questionId);
+  }
+
+  async listBookmarkedQuestionIds(tag?: string): Promise<Set<string>> {
+    return this.requireTinyBase().listBookmarkedQuestionIds(tag);
   }
 
   async loadStatisticsQuestions(): Promise<StatisticsQuestion[]> {

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { CheckCircle2, XCircle } from "lucide-svelte";
+  import { CheckCircle2, Star, XCircle } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
-  import type { AttemptEvent, Question, QuestionGroup, QuestionType, ShuffledOption } from "@/question-bank/core/types";
+  import type { AttemptEvent, Question, QuestionBookmark, QuestionGroup, QuestionType, ShuffledOption } from "@/question-bank/core/types";
   import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
   import type { AttemptDurationComparison } from "./attempt-duration-comparison";
   import type { DurationComparisonPosition } from "./duration-comparison-position";
@@ -24,6 +24,7 @@
 
   export let label: Label;
   export let currentQuestion: Question;
+  export let currentBookmark: QuestionBookmark | undefined = undefined;
   export let currentGroup: QuestionGroup | undefined = undefined;
   export let currentQuestionBlockId: string | undefined = undefined;
   export let displayedOptions: ShuffledOption[] = [];
@@ -302,6 +303,26 @@
         <span>{label("subjectiveScore", "Self score")}</span>
         <Input class="w-24" type="number" min="0" max="100" step="1" value={subjectiveScore ?? ""} disabled={readOnlyQuestion} oninput={changeSubjectiveScore} />
       </FormLabel>
+    {/if}
+    {#if currentBookmark && (currentBookmark.tags.length > 0 || currentBookmark.note)}
+      <div class="bookmark-note-card">
+        <div class="bookmark-note-header">
+          <span class="bookmark-note-title">
+            <Star size={14} class="fill-amber-400 text-amber-500" aria-hidden="true" />
+            <strong>{label("myBookmarkNote", "我的做题批注")}</strong>
+          </span>
+          {#if currentBookmark.tags && currentBookmark.tags.length > 0}
+            <div class="bookmark-note-tags">
+              {#each currentBookmark.tags as tag}
+                <Badge variant="secondary" class="text-[11px] px-1.5 py-0.5">{label(`tag_${tag}`, tag)}</Badge>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        {#if currentBookmark.note}
+          <p class="bookmark-note-text">{currentBookmark.note}</p>
+        {/if}
+      </div>
     {/if}
     {#if currentAttempt}
       <div class="attempt-metadata">
@@ -583,5 +604,46 @@
       margin-left: 0 !important;
       margin-right: 0 !important;
     }
+  }
+
+  .bookmark-note-card {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 30%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 6%, var(--b3-theme-surface));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .bookmark-note-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .bookmark-note-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--b3-theme-on-surface);
+  }
+
+  .bookmark-note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .bookmark-note-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--b3-theme-on-background);
+    white-space: pre-wrap;
   }
 </style>

@@ -206,6 +206,11 @@
   export let completionDurationMs: number;
   export let touchedDrafts: number;
   export let resetPractice: any;
+  export let currentBookmark: any = undefined;
+  export let onToggleBookmark: any = undefined;
+  export let onSaveBookmarkDetails: any = undefined;
+  export let onRemoveBookmark: any = undefined;
+  export let bookmarkedQuestions = 0;
 </script>
 
 <main
@@ -216,6 +221,10 @@
 >
   <PracticeHeader
     currentQuestion={currentQuestion}
+    {currentBookmark}
+    {onToggleBookmark}
+    {onSaveBookmarkDetails}
+    {onRemoveBookmark}
     {buildRevision}
     {showPracticeTitle}
     {showPracticeBreadcrumb}
@@ -405,6 +414,7 @@
       bind:order
       bind:optionOrder
       bind:filter
+      {bookmarkedQuestions}
       {startPractice}
       {openQuestionSetComposer}
       bind:composerOpen
@@ -432,6 +442,7 @@
     <QuestionBankPractice
       {label}
       {currentQuestion}
+      {currentBookmark}
       {currentGroup}
       {currentQuestionBlockId}
       {displayedOptions}

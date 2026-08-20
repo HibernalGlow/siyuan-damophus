@@ -14,6 +14,7 @@ export interface CreatePracticeQueueInput {
   order?: PracticeOrder;
   aggregates?: ReadonlyMap<string, AttemptAggregate>;
   dueQuestionIds?: ReadonlySet<string>;
+  bookmarkedQuestionIds?: ReadonlySet<string>;
   reviewThreshold?: number;
   random?: () => number;
 }
@@ -23,6 +24,7 @@ export function createPracticeQueue(input: CreatePracticeQueueInput): Question[]
   if ((input.order ?? "sequential") === "sequential") return questions;
   const random = input.random ?? Math.random;
   const shuffled = [...questions];
+
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const target = Math.min(index, Math.max(0, Math.floor(random() * (index + 1))));
     [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];

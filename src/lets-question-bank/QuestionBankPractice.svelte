@@ -7,12 +7,13 @@
   import type { AttemptDurationComparison } from "./attempt-duration-comparison";
   import type { DurationComparisonPosition } from "./duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
-  import type { AttemptEvent, Question, QuestionGroup, ShuffledOption, MasteryRating } from "@/question-bank/core/types";
+  import type { AttemptEvent, Question, QuestionBookmark, QuestionGroup, ShuffledOption, MasteryRating } from "@/question-bank/core/types";
   import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
   import type { Label } from "./question-bank-display";
 
   export let label: Label;
   export let currentQuestion: Question;
+  export let currentBookmark: QuestionBookmark | undefined = undefined;
   export let currentGroup: QuestionGroup | undefined;
   export let currentQuestionBlockId: string | undefined;
   export let displayedOptions: ShuffledOption[] = [];
@@ -125,6 +126,7 @@
   <ScrollArea.Root class="practice-content min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
     <PracticeQuestionContent
       {currentQuestion}
+      {currentBookmark}
       {currentGroup}
       {currentQuestionBlockId}
       {displayedOptions}

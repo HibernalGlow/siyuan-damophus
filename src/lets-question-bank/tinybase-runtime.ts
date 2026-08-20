@@ -1,7 +1,7 @@
 import { aggregateAttemptEvents } from "../question-bank/core/attempts";
 import { applyAttemptRatingEvents } from "../question-bank/core/rating-corrections";
 import { parseAttemptArchive } from "../question-bank/core/recovery";
-import type { AttemptAggregate, AttemptEvent, AttemptRatingEvent, ExamSummaryEvent } from "../question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, AttemptRatingEvent, ExamSummaryEvent, QuestionBookmark } from "../question-bank/core/types";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "../question-bank/core";
 import type { ExamSessionSnapshot } from "../question-bank/exam";
 import type { QuestionSetBlueprint } from "../question-bank/assembly";
@@ -13,6 +13,7 @@ import {
 import {
   TinyBaseAttemptEventRepository,
   TinyBaseAttemptRatingEventRepository,
+  TinyBaseBookmarkRepository,
   TinyBaseExamEventRepository,
   TinyBaseExamSessionRepository,
   TinyBasePracticeSessionRepository,
@@ -313,5 +314,37 @@ export class TinyBaseRuntime {
     }
     for (const shardId of touchedShards) await this.persistEventShard(shardId);
     return {...prepared.preview, imported, failures};
+  }
+
+  async getBookmark(questionId: string): Promise<QuestionBookmark | undefined> {
+    await this.initialize();
+    return new TinyBaseBookmarkRepository(this.warehouse.getReadView().core).get(questionId);
+  }
+
+  async listBookmarks(): Promise<QuestionBookmark[]> {
+    await this.initialize();
+    return new TinyBaseBookmarkRepository(this.warehouse.getReadView().core).list();
+  }
+
+  async loadBookmarks(): Promise<ReadonlyMap<string, QuestionBookmark>> {
+    const list = await this.listBookmarks();
+    return new Map(list.map((item) => [item.questionId, item]));
+  }
+
+  async saveBookmark(bookmark: QuestionBookmark): Promise<void> {
+    await this.initialize();
+    await new TinyBaseBookmarkRepository(this.warehouse.getLocalContribution().core).save(bookmark);
+    await this.warehouse.persistCore();
+  }
+
+  async removeBookmark(questionId: string): Promise<void> {
+    await this.initialize();
+    await new TinyBaseBookmarkRepository(this.warehouse.getLocalContribution().core).remove(questionId);
+    await this.warehouse.persistCore();
+  }
+
+  async listBookmarkedQuestionIds(tag?: string): Promise<Set<string>> {
+    await this.initialize();
+    return new TinyBaseBookmarkRepository(this.warehouse.getReadView().core).getBookmarkedQuestionIds(tag);
   }
 }

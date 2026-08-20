@@ -13,6 +13,7 @@ export const TABLE = {
   attemptEvents: "attempt_events",
   attemptRatingEvents: "attempt_rating_events",
   examEvents: "exam_events",
+  questionBookmarks: "question_bookmarks",
 } as const;
 
 const stringCell = {type: "string" as const};
@@ -75,6 +76,10 @@ export const DAMOPHUS_TABLES_SCHEMA: TablesSchema = {
     session_id: stringCell, answered_at: stringCell, session_mode: stringCell,
     exam_status: stringCell, exam_score: numberCell, exam_max_score: numberCell,
     exam_duration_ms: numberCell, exam_payload: stringCell,
+  },
+  [TABLE.questionBookmarks]: {
+    question_id: stringCell, created_at: stringCell, updated_at: stringCell,
+    tags: stringCell, note: stringCell, is_archived: booleanCell,
   },
 };
 

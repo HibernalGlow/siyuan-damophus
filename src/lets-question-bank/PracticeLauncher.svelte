@@ -8,6 +8,7 @@
     ListOrdered,
     RotateCcw,
     Shuffle,
+    Star,
   } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@
   export let attemptedQuestions = 0;
   export let untouchedQuestions = 0;
   export let reviewQuestions = 0;
+  export let bookmarkedQuestions = 0;
   export let syncComplete = false;
   export let busy = false;
   export let recoverableSession: any;
@@ -63,6 +65,7 @@
       <div><dt>{label("attempted", "已作答")}</dt><dd>{attemptedQuestions}</dd></div>
       <div><dt>{label("untouched", "未作答")}</dt><dd>{untouchedQuestions}</dd></div>
       <div><dt>{label("review", "待复习")}</dt><dd>{reviewQuestions}</dd></div>
+      <div><dt>{label("bookmarked", "已收藏")}</dt><dd>{bookmarkedQuestions}</dd></div>
     </dl>
   </header>
 
@@ -169,6 +172,7 @@
           <ToggleGroup.Item value="wrong" title={label("wrong", "错题")} aria-label={label("wrong", "错题")}><CircleX aria-hidden="true" /><span>{label("wrong", "错题")}</span></ToggleGroup.Item>
           <ToggleGroup.Item value="review" title={label("review", "待复习")} aria-label={label("review", "待复习")}><RotateCcw aria-hidden="true" /><span>{label("review", "待复习")}</span></ToggleGroup.Item>
           <ToggleGroup.Item value="due" title={label("due", "闪卡到期")} aria-label={label("due", "闪卡到期")}><Clock3 aria-hidden="true" /><span>{label("due", "闪卡到期")}</span></ToggleGroup.Item>
+          <ToggleGroup.Item value="bookmarked" title={label("bookmarked", "已收藏")} aria-label={label("bookmarked", "已收藏")}><Star aria-hidden="true" /><span>{label("bookmarked", "已收藏")}</span></ToggleGroup.Item>
         </ToggleGroup.Root>
       </fieldset>
     </div>
