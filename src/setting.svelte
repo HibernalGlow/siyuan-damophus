@@ -34,6 +34,8 @@
   import SnippetAuditSettings from "./lets-snippet-audit/SnippetAuditSettings.svelte";
   import RemoteAccessSettings from "./lets-remote-access/RemoteAccessSettings.svelte";
   import SlashMenuSettings from "./lets-mobile-slash-menu/SlashMenuSettings.svelte";
+  import MoreBackgroundSettings from "./lets-more-background/MoreBackgroundSettings.svelte";
+  import { DEFAULT_TEMPLATES, DEFAULT_SITE_CREDENTIALS } from "./lets-more-background/sources";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
     DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
@@ -57,6 +59,7 @@
   const SNIPPET_AUDIT_PLUGIN = "snippetAudit";
   const REMOTE_ACCESS_PLUGIN = "remoteAccess";
   const MOBILE_SLASH_MENU_PLUGIN = "mobileSlashMenu";
+  const MORE_BACKGROUND_PLUGIN = "moreBackground";
 
   interface ChangeEvent {
     group: string;
@@ -196,6 +199,7 @@
   $: showSnippetAuditSettings = focusedPlugin?.name === SNIPPET_AUDIT_PLUGIN;
   $: showRemoteAccessSettings = focusedPlugin?.name === REMOTE_ACCESS_PLUGIN;
   $: showSlashMenuSettings = focusedPlugin?.name === MOBILE_SLASH_MENU_PLUGIN;
+  $: showMoreBackgroundSettings = focusedPlugin?.name === MORE_BACKGROUND_PLUGIN;
   $: showEntryManagement = focusGroup === ENTRY_GROUP;
   $: focusedSettingItems = settingItems[focusGroup] ?? [];
   $: moduleEnabledSettingItems = focusedPlugin
@@ -293,6 +297,11 @@
   function getFocusedSettingValue(key: string, fallback: string) {
     const value = settingItems[focusGroup]?.find((item) => item.key === key)?.value;
     return typeof value === "string" ? value : fallback;
+  }
+
+  function getFocusedValue<T>(key: string, fallback: T): T {
+    const value = settingItems[focusGroup]?.find((item) => item.key === key)?.value;
+    return value !== undefined && value !== null ? (value as T) : fallback;
   }
 
   function getFocusedBooleanSettingValue(key: string, fallback: boolean) {
@@ -489,6 +498,9 @@
       await settings.mergeData();
       settingItems = initData();
       showMessage(t("settings.mergeSuccess", "Configuration merged"));
+    } else if (detail.key === "testBooruConnection") {
+      const module = PluginRegistry.getInstance().getPlugin("moreBackground") as { testConnection?: () => Promise<void> } | undefined;
+      await module?.testConnection?.();
     }
   }
 
@@ -847,6 +859,19 @@
           catalog={getFocusedSettingValue("menuCatalog", "[]")}
           labels={slashMenuSettingsLabels()}
           on:refresh={() => void refreshSlashMenuCatalog()}
+          on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
+        />
+      {:else if showMoreBackgroundSettings}
+        <MoreBackgroundSettings
+          title={getGroupLabel(focusGroup)}
+          templates={getFocusedValue("templates", DEFAULT_TEMPLATES)}
+          siteCredentials={getFocusedValue("siteCredentials", DEFAULT_SITE_CREDENTIALS)}
+          width={getFocusedValue("width", 1920)}
+          height={getFocusedValue("height", 1080)}
+          assetsLocation={getFocusedValue("assetsLocation", "/assets/more-background")}
+          readFromAssets={getFocusedValue("readFromAssets", true)}
+          writeToAssets={getFocusedValue("writeToAssets", false)}
+          mobile={compactLayout}
           on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
         />
       {:else if focusGroup !== SWITCH_GROUP && moduleSpecificSettingItems.length > 0}

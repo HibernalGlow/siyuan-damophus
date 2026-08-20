@@ -7,3 +7,8 @@ allowBuilds:
   "core-js": true
   "es5-ext": true
   "esbuild": true
+  "@ibm/plex": true
+  "@iflow-ai/iflow-cli": true
+  "node-pty": true
+  "opencode-ai": true
+  "sharp": true
