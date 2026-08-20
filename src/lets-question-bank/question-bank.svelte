@@ -1080,14 +1080,14 @@
   function scheduleSourcePreload(): void {
     if (sourcePreloadTimer) clearTimeout(sourcePreloadTimer);
     sourcePreloadTimer = undefined;
-    if (questionRenderMode !== "embed" || !prepareSourceBlock) return;
+    if (questionRenderMode === "html" || !prepareSourceBlock) return;
     const currentBlockId = sourceBlockId(currentQuestion);
     if (currentBlockId) void prepareSourceBlock(currentBlockId);
     const nextBlockId = sourceBlockId(queue[questionIndex + 1]);
     if (!nextBlockId) return;
     sourcePreloadTimer = setTimeout(() => {
       void prepareSourceBlock?.(nextBlockId);
-    }, 350);
+    }, 50);
   }
 
   async function activateRuntime(activation: PracticeSessionActivation): Promise<void> {
@@ -1178,7 +1178,7 @@
     sourceLabel = assembledSourceLabel || sourceIdentity?.content,
   ): Promise<void> {
     if ((!preview && !assembledQuestions) || nextQueue.length === 0) return;
-    if (questionRenderMode === "embed" && prepareSourceBlock) {
+    if (questionRenderMode !== "html" && prepareSourceBlock) {
       const initialBlockIds = nextQueue.slice(0, 2)
         .map((question) => sourceBlockId(question))
         .filter((blockId): blockId is string => Boolean(blockId));

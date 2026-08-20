@@ -582,6 +582,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         ),
         prepareSourceBlock: async (blockId: string) => {
           await Promise.all([
+            loadSourceRows(blockId),
             loadSourceQuery(blockId, "stem"),
             loadSourceQuery(blockId, "solution"),
           ]);

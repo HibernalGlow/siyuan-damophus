@@ -564,6 +564,48 @@ describe("question bank browser flow", () => {
     await vi.waitFor(() => expect(prepareSourceBlock).toHaveBeenCalledWith(sourceIds[2]));
   });
 
+  it("preloads initial and upcoming native sources during practice", async () => {
+    const thirdQuestion: Question = {
+      ...subjectiveQuestion,
+      id: "q-third-native",
+      title: "Third native question",
+    };
+    const preview = makePreview([objectiveQuestion, subjectiveQuestion, thirdQuestion]);
+    const sourceIds = [
+      "20260804120021-abcdefg",
+      "20260804120022-abcdefg",
+      "20260804120023-abcdefg",
+    ];
+    preview.scan.blockIdsByQuestionId = new Map([
+      [objectiveQuestion.id, sourceIds[0]],
+      [subjectiveQuestion.id, sourceIds[1]],
+      [thirdQuestion.id, sourceIds[2]],
+    ]);
+    const { controller } = mockController({ preview });
+    const prepareSourceBlock = vi.fn(async () => {});
+    const mountSourceBlock = vi.fn((target: HTMLElement) => {
+      target.innerHTML = "<div data-mounted-source>stem</div>";
+      return () => target.replaceChildren();
+    });
+    render(controller, {
+      questionRenderMode: "native",
+      prepareSourceBlock,
+      mountSourceBlock,
+    });
+    await scanAndSync();
+    button("Start practice").click();
+    await vi.waitFor(() => expect(prepareSourceBlock).toHaveBeenCalledWith(sourceIds[0]));
+    expect(prepareSourceBlock).toHaveBeenCalledWith(sourceIds[1]);
+    expect(prepareSourceBlock).not.toHaveBeenCalledWith(sourceIds[2]);
+    await vi.waitFor(() => expect(mountSourceBlock).toHaveBeenCalledOnce());
+
+    option("Alpha").click();
+    await flush();
+
+    button("Next question").click();
+    await vi.waitFor(() => expect(prepareSourceBlock).toHaveBeenCalledWith(sourceIds[2]));
+  });
+
   it("restores source option order, undoes without writing, and submits once", async () => {
     const { controller, submitAttempt } = mockController({ preview: makePreview([objectiveQuestion]) });
     const values = [0, 0];
