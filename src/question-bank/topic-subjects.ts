@@ -21,17 +21,20 @@ const topicSubjectDefinitions: readonly TopicSubjectDefinition[] = [
   {id: "criminal", topicPrefixes: ["criminal-law", "criminal"]},
   {id: "civil-procedure", topicPrefixes: ["civil-procedure"]},
   {id: "criminal-procedure", topicPrefixes: ["criminal-procedure"]},
-  {id: "administrative", topicPrefixes: ["administrative-law", "administrative"]},
+  {id: "administrative", topicPrefixes: ["administrative-law", "administrative", "admin-law", "admin"]},
   {
     id: "commercial-economic",
     topicPrefixes: [
       "commercial-economic-law",
       "commercial-law",
+      "commercial",
       "economic-law",
+      "economic",
       "intellectual-property-law",
       "labor-social-security-law",
       "environmental-resource-law",
       "environmental-resources-law",
+      "company-law",
     ],
   },
   {
@@ -42,6 +45,7 @@ const topicSubjectDefinitions: readonly TopicSubjectDefinition[] = [
       "constitutional-law",
       "chinese-legal-history",
       "judicial-system-legal-ethics",
+      "theory",
     ],
   },
   {
@@ -51,6 +55,12 @@ const topicSubjectDefinitions: readonly TopicSubjectDefinition[] = [
       "international-public-law",
       "international-private-law",
       "international-economic-law",
+      "intl-public",
+      "intl-private",
+      "intl-economic",
+      "intl-law",
+      "intl-space",
+      "intl",
     ],
   },
 ];

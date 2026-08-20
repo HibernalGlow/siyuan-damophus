@@ -9,6 +9,14 @@ describe("topic subject inference", () => {
       .toBe("criminal");
     expect(inferTopicSubjectId("civil-contract-validity"))
       .toBe("civil");
+    expect(inferTopicSubjectId("intl-public-sources"))
+      .toBe("international-law");
+    expect(inferTopicSubjectId("intl-space-territory-border"))
+      .toBe("international-law");
+    expect(inferTopicSubjectId("admin-law-administrative-act"))
+      .toBe("administrative");
+    expect(inferTopicSubjectId("company-law-shares"))
+      .toBe("commercial-economic");
   });
 
   it("leaves unknown namespaces unclassified", () => {

@@ -17,6 +17,7 @@ import type {
   TopicNode,
 } from "../core/types";
 import { parseIal, type IalAttributes } from "./ial";
+import { inferTopicSubjectId } from "../topic-subjects";
 
 interface MarkdownBlock {
   node: RootContent;
@@ -477,8 +478,15 @@ function metadataForQuestion(
   const own = inheritedMetadata(attributes);
   const closestTopic = topics.at(-1);
   const closestStableTopic = [...topics].reverse().find((topic) => topic.node.explicit);
+  const primaryTopicId = topicIds[0] ?? closestStableTopic?.node.id ?? closestTopic?.node.id;
+  const inferredSubject = primaryTopicId ? inferTopicSubjectId(primaryTopicId) : undefined;
+  const rawCategory = own.category ?? inherited.category;
+  const resolvedCategory = (rawCategory && rawCategory !== "gold") ? rawCategory : (rawCategory ?? primaryTopicId);
+  const resolvedSubject = own.subject ?? inherited.subject ?? inferredSubject;
   return {
     ...mergeDefined(inherited, own),
+    category: resolvedCategory,
+    subject: resolvedSubject,
     topicId: closestStableTopic?.node.id,
     topicIds: topicIds.length > 0 ? [...topicIds] : undefined,
     scopeTopicId: closestTopic?.node.id,
