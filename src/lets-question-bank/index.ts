@@ -122,6 +122,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
       type: questionBankTabType,
       init() {
         const element = this.element as HTMLElement;
+        if (owner.getSetting("autoPinTab")) {
+          owner.pinTabInstance((this as unknown as { tab?: unknown }).tab);
+        }
         const app = owner.mountQuestionBank(element, this.data?.documentId);
         owner.mountedTabs.set(element, app);
       },
@@ -382,7 +385,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     return activeId ?? getAllEditor()[0]?.protyle?.block?.rootID;
   }
 
-  private open(blockId = this.currentDocumentId()): void {
+  private async open(blockId = this.currentDocumentId()): Promise<void> {
     if (isMobile) {
       let app: ReturnType<typeof mount> | undefined;
       let removeGestureIsolation: (() => void) | undefined;
@@ -407,7 +410,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       app = this.mountQuestionBank(target, blockId, closeDialog, closeDialog);
       return;
     }
-    void openTab({
+    const openedTab = await openTab({
       app: plugin.app,
       custom: {
         icon: "iconDatabase",
@@ -415,6 +418,28 @@ export default class QuestionBankPlugin extends SubPluginBase {
         ...questionBankTabTarget(plugin.name, blockId),
       },
     });
+    if (this.getSetting("autoPinTab")) {
+      this.pinTabInstance(openedTab);
+    }
+  }
+
+  private pinTabInstance(target: unknown): void {
+    if (!target || typeof target !== "object") return;
+    const candidate = ("pin" in target && typeof (target as { pin?: unknown }).pin === "function")
+      ? target as { pin: () => void; headElement?: Element }
+      : ("tab" in target && (target as { tab?: unknown }).tab && typeof (target as { tab: { pin?: unknown } }).tab.pin === "function")
+      ? (target as { tab: { pin: () => void; headElement?: Element } }).tab
+      : ("parent" in target && (target as { parent?: unknown }).parent && typeof (target as { parent: { pin?: unknown } }).parent.pin === "function")
+      ? (target as { parent: { pin: () => void; headElement?: Element } }).parent
+      : undefined;
+
+    if (!candidate || typeof candidate.pin !== "function") return;
+    if (candidate.headElement?.classList.contains("item--pin")) return;
+    try {
+      candidate.pin();
+    } catch (error) {
+      log.warn("question-bank.pin-tab-failed", error);
+    }
   }
 
   private activeDocumentRootId(): string | undefined {

@@ -36,4 +36,15 @@ describe("question bank plugin settings", () => {
     expect(pluginMetadata.declarations?.[0].children?.[0].children?.[0].id)
       .toBe("sourceAnswerVisibility");
   });
+
+  it("declares autoPinTab as an enabled-by-default checkbox setting", () => {
+    const setting = pluginMetadata.settings.find((item) => item.key === "autoPinTab");
+    expect(setting).toMatchObject({
+      type: "checkbox",
+      key: "autoPinTab",
+      title: "lets-question-bank.autoPinTab",
+      description: "lets-question-bank.autoPinTabDescription",
+      value: true,
+    });
+  });
 });

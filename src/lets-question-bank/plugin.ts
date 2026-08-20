@@ -49,6 +49,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.autoPinTab",
+      description: "lets-question-bank.autoPinTabDescription",
+      key: "autoPinTab",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.autoSyncIndex",
       description: "lets-question-bank.autoSyncIndexDescription",
       key: "autoSyncIndex",
