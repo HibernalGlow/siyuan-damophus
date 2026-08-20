@@ -26,6 +26,9 @@ import {
   type TopicRelationSqlRow,
   type TopicRelationSurfaceCandidate,
   getQuestionProgressLoader,
+  questionProgressFromAggregate,
+  setQuestionProgressLoader,
+  type QuestionProgressLoader,
 } from "./topic-relations";
 import {
   removeTopicRelationMarkers,
@@ -41,10 +44,20 @@ import {
   TopicDictionaryStore,
 } from "@/question-bank/adapters/siyuan/topic-dictionary";
 import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "@/lets-question-bank/sync-coordinator";
+import { TinyBaseRuntime } from "@/lets-question-bank/tinybase-runtime";
+import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
 
 const log = getLogger("lets-topic-relations");
 const STYLE_ID = "damophus-topic-relations-style";
 const QUERY_CHUNK_SIZE = 24;
+
+function currentDeviceId(): string {
+  const id = (window as Window & { siyuan?: {config?: {system?: {id?: unknown}}} }).siyuan?.config?.system?.id;
+  if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(id)) {
+    throw new Error("SiYuan device identity is unavailable");
+  }
+  return id;
+}
 
 function validDisplayMode(value: unknown): TopicRelationDisplayMode {
   return value === "summary" || value === "expanded" ? value : "compact";
@@ -113,6 +126,8 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
     siyuanKernelClient,
   );
+  private progressRuntime?: TinyBaseRuntime;
+  private progressLoader?: QuestionProgressLoader;
   private readonly handleEditorLoaded = (): void => this.scheduleRefresh();
   private readonly handleSyncEnd = (): void => this.invalidateAndRefresh();
   private readonly handleDictionaryUpdated = (): void => this.invalidateAndRefresh();
@@ -123,6 +138,30 @@ export default class TopicRelationsPlugin extends SubPluginBase {
 
   override onload(): void {
     this.onunload();
+    if (!getQuestionProgressLoader()) {
+      this.progressLoader = async (blockIds) => {
+        if (blockIds.length === 0) return new Map();
+        const validBlockIds = blockIds.filter((id) => /^\d{14}-[a-z0-9]{7}$/u.test(id));
+        if (validBlockIds.length === 0) return new Map();
+        this.progressRuntime ??= new TinyBaseRuntime(new TinyBaseWarehouse(
+          new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
+          currentDeviceId(),
+        ));
+        await this.progressRuntime.mergeAfterSync().catch(() => undefined);
+        const rows = await requestStrict<Array<{block_id: string; attribute_value: string}>>(
+          "/api/query/sql",
+          {stmt: `SELECT block_id, value AS attribute_value FROM attributes WHERE name = 'custom-qb-id' AND block_id IN (${validBlockIds
+            .map((id) => `'${id}'`).join(", ")})`},
+        );
+        const aggregates = await this.progressRuntime.loadAggregates();
+        const threshold = Number(this.getSetting("reviewThreshold")) || 2;
+        return new Map(rows.flatMap((row) => {
+          const aggregate = aggregates.get(row.attribute_value);
+          return aggregate ? [[row.block_id, questionProgressFromAggregate(aggregate, threshold)] as const] : [];
+        }));
+      };
+      setQuestionProgressLoader(this.progressLoader);
+    }
     this.installStyles();
     this.observer = new MutationObserver((records) => {
       let invalidate = false;
@@ -164,6 +203,11 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     this.styleElement?.remove();
     this.styleElement = undefined;
     this.invalidateCache();
+    this.progressRuntime = undefined;
+    if (this.progressLoader && getQuestionProgressLoader() === this.progressLoader) {
+      setQuestionProgressLoader(undefined);
+    }
+    this.progressLoader = undefined;
     this.trackedBlockIds.clear();
     this.trackedElements.clear();
     this.refreshRunning = false;
