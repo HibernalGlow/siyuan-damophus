@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/api";
 import {
+  compileExcludedPatterns,
   convertDocumentTreeNetworkAssets,
   hasRemoteResource,
   isRemoteResourceUrl,
+  parseExcludedRules,
   previewDocumentTreeNetworkAssets,
   remoteResourceUrls,
   resolveDocumentTree,
@@ -138,10 +140,38 @@ describe("network assets to local", () => {
 
     await convertDocumentTreeNetworkAssets("root", undefined, {
       skippedUrls: new Set(["https://inkloomer.github.io/inkloom/a.png"]),
-      excludedPattern: "tracking\\.example",
+      excludedPattern: [
+        "# Comment for inkloom",
+        "// Disabled rule: inkloom",
+        "tracking\\.example",
+        "# another commented out pattern: example\\.com",
+      ].join("\n"),
     });
 
     expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenCalledWith("root");
     expect(api.updateBlockStrict).toHaveBeenCalledWith("markdown", expect.stringContaining("https://inkloomer.github.io/inkloom/a.png"), "root");
+  });
+
+  it("parses multi-line excluded rules and strips comments (# and //)", () => {
+    const raw = [
+      "# Comment line",
+      "inkloomer\\.github\\.io/inkloom",
+      "",
+      "  // Another comment line  ",
+      "github\\.com/[^/]+/[^/]+/(?:issues|pull)",
+      "# disabled-rule\\.com",
+    ].join("\n");
+
+    const rules = parseExcludedRules(raw);
+    expect(rules).toEqual([
+      "inkloomer\\.github\\.io/inkloom",
+      "github\\.com/[^/]+/[^/]+/(?:issues|pull)",
+    ]);
+
+    const patterns = compileExcludedPatterns(raw);
+    expect(patterns).toHaveLength(2);
+    expect(patterns[0].test("https://inkloomer.github.io/inkloom/asset.png")).toBe(true);
+    expect(patterns[1].test("https://github.com/user/repo/issues/1")).toBe(true);
+    expect(patterns.some((p) => p.test("https://disabled-rule.com/asset.png"))).toBe(false);
   });
 });

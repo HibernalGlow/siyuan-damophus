@@ -3,6 +3,8 @@
   import {
     convertDocumentTreeNetworkAssets,
     previewDocumentTreeNetworkAssets,
+    compileExcludedPatterns,
+    isUrlExcludedByPatterns,
     type NetworkAssetPreviewDocument,
   } from "./network-assets-local";
 
@@ -37,13 +39,10 @@
   let resourceCount = $derived(documents.reduce((total, document) => total + document.urls.filter((url) => !isExcluded(url)).length, 0));
   let matchedDocuments = $derived(documents.filter((document) => document.urls.length > 0));
 
-  function pattern(): RegExp | undefined {
-    if (!excludedPattern.trim()) return undefined;
-    try { return new RegExp(excludedPattern, "iu"); } catch { return undefined; }
-  }
+  let activePatterns = $derived(compileExcludedPatterns(excludedPattern));
 
   function isExcluded(url: string): boolean {
-    return skippedUrls.has(url) || Boolean(pattern()?.test(url));
+    return skippedUrls.has(url) || isUrlExcludedByPatterns(url, activePatterns);
   }
 
   function toggleSelected(url: string): void {

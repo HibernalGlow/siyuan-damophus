@@ -114,12 +114,34 @@ export async function resolveConvertibleBlocks(
   return rows.filter((row) => blockTypes.has(SIYUAN_SQL_BLOCK_TYPES[row.type] ?? row.type));
 }
 
-function excludedUrls(urls: readonly string[], options: NetworkAssetConversionOptions): Set<string> {
-  let pattern: RegExp | undefined;
-  if (options.excludedPattern?.trim()) {
-    try { pattern = new RegExp(options.excludedPattern, "iu"); } catch { /* invalid patterns are ignored by the caller */ }
+export function parseExcludedRules(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#") && !line.startsWith("//"));
+}
+
+export function compileExcludedPatterns(raw: string | undefined): RegExp[] {
+  const rules = parseExcludedRules(raw);
+  const patterns: RegExp[] = [];
+  for (const rule of rules) {
+    try {
+      patterns.push(new RegExp(rule, "iu"));
+    } catch {
+      // invalid patterns are ignored by the caller
+    }
   }
-  return new Set(urls.filter((url) => options.skippedUrls?.has(url) || pattern?.test(url)));
+  return patterns;
+}
+
+export function isUrlExcludedByPatterns(url: string, patterns: readonly RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(url));
+}
+
+function excludedUrls(urls: readonly string[], options: NetworkAssetConversionOptions): Set<string> {
+  const patterns = compileExcludedPatterns(options.excludedPattern);
+  return new Set(urls.filter((url) => options.skippedUrls?.has(url) || isUrlExcludedByPatterns(url, patterns)));
 }
 
 async function convertDocumentNetworkAssets(documentId: string, options: NetworkAssetConversionOptions): Promise<void> {

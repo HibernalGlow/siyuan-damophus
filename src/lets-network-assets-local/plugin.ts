@@ -16,7 +16,13 @@ const pluginMetadata: PluginMetadata = {
       title: "lets-network-assets-local.excludedPatternTitle",
       description: "lets-network-assets-local.excludedPatternDescription",
       key: "excludedPattern",
-      value: "inkloomer\\.github\\.io/inkloom|github\\.com/[^/]+/[^/]+/(?:issues|pull)",
+      value: [
+        "# InkLoom 动图与文档资源",
+        "inkloomer\\.github\\.io/inkloom",
+        "",
+        "# GitHub Issues 与 Pull Requests",
+        "github\\.com/[^/]+/[^/]+/(?:issues|pull)",
+      ].join("\n"),
     },
     {
       type: "blockTypes",
