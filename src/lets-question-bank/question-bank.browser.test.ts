@@ -229,7 +229,7 @@ describe("question bank browser flow", () => {
     const group = document.querySelector<HTMLElement>(".practice-filter-group");
     const items = [...document.querySelectorAll<HTMLElement>('.practice-filter-group [data-slot="toggle-group-item"]')];
     expect(group).not.toBeNull();
-    expect(items).toHaveLength(5);
+    expect(items).toHaveLength(6);
     expect(group!.scrollWidth).toBeLessThanOrEqual(group!.clientWidth);
     expect(items.every((item) => item.getBoundingClientRect().width >= 44)).toBe(true);
     expect(Math.max(...items.map((item) => item.getBoundingClientRect().width)) - Math.min(...items.map((item) => item.getBoundingClientRect().width))).toBeLessThan(1);

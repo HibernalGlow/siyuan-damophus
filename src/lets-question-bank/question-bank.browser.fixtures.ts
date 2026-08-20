@@ -3,7 +3,7 @@ import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import "@/styles/damophus.css";
 import { en } from "@/translations/parts/lets-question-bank";
-import type { AttemptAggregate, AttemptEvent, Question, TopicNode } from "@/question-bank/core/types";
+import type { AttemptAggregate, AttemptEvent, Question, QuestionBookmark, TopicNode } from "@/question-bank/core/types";
 import type { PracticeSessionSnapshot } from "@/question-bank/core";
 import type { PracticePreferences } from "./practice-preferences";
 import type { QuestionIndexPreview } from "@/question-bank/application";
@@ -271,6 +271,11 @@ export function mockController(options: {
       }],
     ])),
     loadDueCards: vi.fn(async () => options.dueCards ?? new Map()),
+    loadBookmarks: vi.fn(async () => new Map<string, QuestionBookmark>()),
+    getBookmark: vi.fn(async () => undefined),
+    saveBookmark: vi.fn(async () => undefined),
+    removeBookmark: vi.fn(async () => undefined),
+    listBookmarkedQuestionIds: vi.fn(async () => new Set<string>()),
     exportAttempts: vi.fn(async () => "{}\n"),
     previewImport,
     confirmImport,
