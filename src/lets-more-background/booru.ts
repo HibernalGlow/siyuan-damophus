@@ -134,11 +134,42 @@ export function matchesCondition(
 
 export function findSiteCredential(siteDomain: string, credentials?: SiteCredential[]): SiteCredential | undefined {
   if (!credentials || credentials.length === 0) return undefined;
-  const domain = resolveSite(siteDomain) || siteDomain.toLowerCase();
+  const rawTarget = siteDomain.toLowerCase().trim();
+  const resolvedTarget = resolveSite(rawTarget) || rawTarget;
+
+  // 1. 精确匹配（包含 alias）
+  const exact = credentials.find((c) => {
+    if (c.enabled === false) return false;
+    const credSite = c.site.toLowerCase().trim();
+    const credResolved = resolveSite(credSite) || credSite;
+    return (
+      credSite === rawTarget ||
+      credResolved === resolvedTarget ||
+      credSite === resolvedTarget ||
+      credResolved === rawTarget
+    );
+  });
+  if (exact) return exact;
+
+  // 2. 如果是 safebooru.donmai.us，可共用 danbooru.donmai.us 凭据
+  if (rawTarget.includes("safebooru.donmai.us")) {
+    const danbooruCred = credentials.find(
+      (c) => c.enabled !== false && c.site.toLowerCase().includes("danbooru.donmai.us"),
+    );
+    if (danbooruCred) return danbooruCred;
+  }
+
+  // 3. 域名包含匹配
   return credentials.find((c) => {
     if (c.enabled === false) return false;
-    const credDomain = resolveSite(c.site) || c.site.toLowerCase();
-    return credDomain === domain || domain.includes(credDomain) || credDomain.includes(domain);
+    const credDomain = c.site.toLowerCase().trim();
+    return (
+      credDomain === rawTarget ||
+      rawTarget.includes(credDomain) ||
+      credDomain.includes(rawTarget) ||
+      credDomain.includes(resolvedTarget) ||
+      resolvedTarget.includes(credDomain)
+    );
   });
 }
 
@@ -148,7 +179,11 @@ export async function testBooruSiteCredential(
   apiKey?: string,
 ): Promise<{ success: boolean; message: string; sampleUrl?: string }> {
   try {
-    const resolvedDomain = resolveSite(site) || site;
+    let resolvedDomain = resolveSite(site) || site;
+    if (site.includes("safebooru.donmai.us")) {
+      resolvedDomain = "danbooru.donmai.us";
+    }
+
     let credentialsQuery: string | undefined;
     if (login && apiKey) {
       if (resolvedDomain.includes("gelbooru")) {
@@ -170,18 +205,18 @@ export async function testBooruSiteCredential(
       const sample = extractImageUrlFromPost(results[0]);
       return {
         success: true,
-        message: `Connected to ${resolvedDomain} successfully!`,
+        message: `成功连接至 ${site} (${resolvedDomain})！`,
         sampleUrl: sample || undefined,
       };
     }
     return {
       success: true,
-      message: `Connected to ${resolvedDomain} successfully, but no posts returned for query.`,
+      message: `成功连接至 ${site}，但当前标签未返回结果。`,
     };
   } catch (e: any) {
     return {
       success: false,
-      message: `Connection failed: ${e?.message || String(e)}`,
+      message: `连接失败: ${e?.message || String(e)}`,
     };
   }
 }
@@ -199,7 +234,13 @@ export async function resolveBooruImageUrl(
       const effectiveLogin = login || matchedCred?.login;
       const effectiveApiKey = apiKey || matchedCred?.apiKey;
 
-      const resolvedDomain = resolveSite(site) || site;
+      // 区分 safebooru.org 与 safebooru.donmai.us
+      let resolvedDomain = resolveSite(site) || site;
+      let isDanbooruSafeMirror = false;
+      if (site.toLowerCase().includes("safebooru.donmai.us")) {
+        resolvedDomain = "danbooru.donmai.us";
+        isDanbooruSafeMirror = true;
+      }
 
       if (resolvedDomain) {
         const tagList: string[] = [];
@@ -213,7 +254,9 @@ export async function resolveBooruImageUrl(
           tagList.push(pickedCandidate);
         }
 
-        if (rating && rating !== "all") {
+        if (isDanbooruSafeMirror) {
+          tagList.push("rating:general");
+        } else if (rating && rating !== "all") {
           const siteInfo = sites[resolvedDomain];
           if (siteInfo && !siteInfo.nsfw) {
             // Safe by default

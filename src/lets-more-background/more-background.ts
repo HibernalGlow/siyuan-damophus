@@ -3,15 +3,16 @@ import { plugin } from "@/utils";
 import { getLogger } from "@/libs/logger";
 import {
   type CoverSourceItem,
-  type SiteCredential,
   DEFAULT_COVER_SOURCES,
   formatCoverUrl,
   isVideoUrl,
   sanitizeAssetsPath,
+  type SiteCredential,
 } from "./sources";
 import { isBooruSource, resolveBooruImageUrl } from "./booru";
 
 const log = getLogger("lets-more-background");
+const BUTTON_ATTR = "data-damophus-more-background";
 
 export interface MoreBackgroundOptions {
   width: number;
@@ -20,20 +21,16 @@ export interface MoreBackgroundOptions {
   readFromAssets: boolean;
   writeToAssets: boolean;
   siteCredentials?: SiteCredential[];
-  booruLogin?: string;
-  booruApiKey?: string;
-  sources: CoverSourceItem[];
-  t: (key: any) => string;
+  sources?: CoverSourceItem[];
+  t: (key: string) => string;
 }
 
 export interface MoreBackgroundHandle {
   scanRoot(root: HTMLElement): void;
   disposeRoot(root: HTMLElement): void;
-  updateOptions(options: MoreBackgroundOptions): void;
   dispose(): void;
+  updateOptions(options: MoreBackgroundOptions): void;
 }
-
-const BUTTON_ATTR = "data-damophus-more-background";
 
 function generateTimestampId(): string {
   const now = new Date();
@@ -108,12 +105,18 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     const cleanups: Array<() => void> = [];
 
+    // 1. 初始化标题栏与题头图控制按钮
+    const coverControlsCleanup = this.initTitleCoverControls(root);
+    cleanups.push(coverControlsCleanup);
+
+    // 2. 初始化视频背景支持
     const background = root.querySelector<HTMLElement>(".protyle-background");
     if (background) {
-      const bgCleanup = this.initBackground(root, background);
+      const bgCleanup = this.initVideoBackground(background);
       cleanups.push(bgCleanup);
     }
 
+    // 3. 画廊视频观察器
     const wysiwyg = root.querySelector<HTMLElement>(".protyle-wysiwyg");
     if (wysiwyg) {
       const galleryCleanup = this.observeGalleryVideos(wysiwyg);
@@ -150,7 +153,153 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     this.rootCleanups.clear();
   }
 
-  private initBackground(root: HTMLElement, background: HTMLElement): () => void {
+  private initTitleCoverControls(root: HTMLElement): () => void {
+    const injectButtons = () => {
+      // 1. 未添加题头图时：在 .protyle-background__action / .protyle-background__tags 注入按钮
+      const actionContainers = root.querySelectorAll<HTMLElement>(
+        ".protyle-background__action, .protyle-background__tags",
+      );
+
+      actionContainers.forEach((container) => {
+        if (container.querySelector("[data-damophus-more-background-title-btn]")) return;
+
+        const isButtonType = container.classList.contains("protyle-background__action");
+        const randomBtn =
+          container.querySelector<HTMLElement>('[data-type="random"]') ||
+          container.querySelector<HTMLElement>('[data-type="background"]') ||
+          container.querySelector<HTMLElement>('[data-type="tag"]') ||
+          container.lastElementChild as HTMLElement;
+
+        if (isButtonType) {
+          const btn = document.createElement("button");
+          btn.className = "b3-button b3-button--cancel";
+          btn.setAttribute("data-damophus-more-background-title-btn", "true");
+          btn.setAttribute("data-type", "more-background-random");
+          btn.innerHTML = `<svg><use xlink:href="#iconImage"></use></svg>${this.options.t("lets-more-background.moreBackgroundBtn")}`;
+
+          if (randomBtn) {
+            randomBtn.after(btn);
+          } else {
+            container.appendChild(btn);
+          }
+
+          btn.addEventListener("click", (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = btn.getBoundingClientRect();
+            const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+            this.showBackgroundMenu(rect, root, bg);
+          });
+        } else {
+          const span = document.createElement("span");
+          span.className = "protyle-background__tag protyle-background__tag--text";
+          span.setAttribute("data-damophus-more-background-title-btn", "true");
+          span.setAttribute("data-type", "more-background-random");
+          span.style.cursor = "pointer";
+          span.innerHTML = `<svg class="svg"><use xlink:href="#iconImage"></use></svg><span>${this.options.t("lets-more-background.moreBackgroundBtn")}</span>`;
+
+          if (randomBtn) {
+            randomBtn.after(span);
+          } else {
+            container.appendChild(span);
+          }
+
+          span.addEventListener("click", (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = span.getBoundingClientRect();
+            const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+            this.showBackgroundMenu(rect, root, bg);
+          });
+        }
+      });
+
+      // 1.2 兜底查找独立的 button[data-type="random"] 或 span[data-type="random"]
+      const standaloneRandomBtns = root.querySelectorAll<HTMLElement>(
+        'button[data-type="random"], button[data-type="background"], span[data-type="background"]',
+      );
+      standaloneRandomBtns.forEach((anchor) => {
+        const parent = anchor.parentElement;
+        if (!parent || parent.querySelector("[data-damophus-more-background-title-btn]")) return;
+
+        const isButton = anchor.tagName.toLowerCase() === "button";
+        const newEl = document.createElement(isButton ? "button" : "span");
+        newEl.className = anchor.className;
+        newEl.setAttribute("data-damophus-more-background-title-btn", "true");
+        newEl.setAttribute("data-type", "more-background-random");
+        if (!isButton) newEl.style.cursor = "pointer";
+        newEl.innerHTML = `<svg${isButton ? "" : ' class="svg"'}><use xlink:href="#iconImage"></use></svg>${isButton ? "" : "<span>"}${this.options.t("lets-more-background.moreBackgroundBtn")}${isButton ? "" : "</span>"}`;
+
+        anchor.after(newEl);
+
+        newEl.addEventListener("click", (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const rect = newEl.getBoundingClientRect();
+          const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+          this.showBackgroundMenu(rect, root, bg);
+        });
+      });
+
+      // 2. 已有题头图时：注入右上角操作条中的随机图源按钮 (.protyle-icons)
+      const topIcons = root.querySelectorAll<HTMLElement>(
+        ".protyle-top .protyle-icons, .protyle-background .protyle-icons, .protyle-background__img .protyle-icons",
+      );
+      topIcons.forEach((iconsContainer) => {
+        if (iconsContainer.querySelector(`[${BUTTON_ATTR}]`)) return;
+        const firstIcon =
+          iconsContainer.querySelector(".protyle-icon.ariaLabel") || iconsContainer.firstElementChild;
+        if (!firstIcon) return;
+
+        const button = document.createElement("span");
+        button.className = "protyle-icon ariaLabel";
+        button.setAttribute(BUTTON_ATTR, "true");
+        button.setAttribute("data-link", "more-background");
+        button.setAttribute("aria-label", this.options.t("lets-more-background.moreBackgroundBtn"));
+        button.innerHTML = '<svg><use xlink:href="#iconImage"></use></svg>';
+
+        firstIcon.before(button);
+
+        button.addEventListener("click", (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+          this.showBackgroundMenu(rect, root, bg);
+        });
+      });
+    };
+
+    injectButtons();
+
+    const observer = new MutationObserver(() => {
+      injectButtons();
+    });
+
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+    });
+
+    const handleMouse = () => {
+      injectButtons();
+    };
+
+    root.addEventListener("mouseover", handleMouse, { passive: true });
+    root.addEventListener("mouseenter", handleMouse, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      root.removeEventListener("mouseover", handleMouse);
+      root.removeEventListener("mouseenter", handleMouse);
+      const injected = root.querySelectorAll(
+        `[${BUTTON_ATTR}], [data-damophus-more-background-title-btn]`,
+      );
+      injected.forEach((el) => el.remove());
+    };
+  }
+
+  private initVideoBackground(background: HTMLElement): () => void {
     const img = background.querySelector<HTMLImageElement>("img");
     let videoObserver: MutationObserver | null = null;
 
@@ -180,98 +329,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       });
     }
 
-    const injectTitleTagButton = () => {
-      const tagsContainer =
-        root.querySelector<HTMLElement>(".protyle-background__tags") ||
-        background.querySelector<HTMLElement>(".protyle-background__tags");
-      if (!tagsContainer || tagsContainer.querySelector("[data-damophus-more-background-title-btn]")) {
-        return;
-      }
-
-      const bgTagBtn = tagsContainer.querySelector<HTMLElement>('span[data-type="background"]');
-      const tagTagBtn = tagsContainer.querySelector<HTMLElement>('span[data-type="tag"]');
-      const anchor = bgTagBtn || tagTagBtn;
-
-      const titleButton = document.createElement("span");
-      titleButton.className = "protyle-background__tag protyle-background__tag--text";
-      titleButton.setAttribute("data-damophus-more-background-title-btn", "true");
-      titleButton.setAttribute("data-type", "more-background");
-      titleButton.innerHTML = `<svg class="svg"><use xlink:href="#iconImage"></use></svg>${this.options.t("lets-more-background.moreBackgroundBtn")}`;
-
-      if (bgTagBtn) {
-        bgTagBtn.after(titleButton);
-      } else if (anchor) {
-        anchor.after(titleButton);
-      } else {
-        tagsContainer.appendChild(titleButton);
-      }
-
-      titleButton.addEventListener("click", (e: MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const rect = titleButton.getBoundingClientRect();
-        this.showBackgroundMenu(rect, root, background);
-      });
-    };
-
-    injectTitleTagButton();
-
-    const titleTagsObserver = new MutationObserver(() => {
-      injectTitleTagButton();
-    });
-
-    titleTagsObserver.observe(root, {
-      childList: true,
-      subtree: true,
-    });
-
-    const handleMouseOver = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      injectTitleTagButton();
-      const topEl = target.classList.contains("protyle-top")
-        ? target
-        : target.closest<HTMLElement>(".protyle-top");
-      if (!topEl) return;
-
-      const iconsContainer = topEl.querySelector<HTMLElement>(".protyle-icons");
-      if (!iconsContainer || iconsContainer.querySelector(`[${BUTTON_ATTR}]`)) {
-        return;
-      }
-
-      const firstIcon = iconsContainer.querySelector(".protyle-icon.ariaLabel");
-      if (!firstIcon) return;
-
-      const button = document.createElement("span");
-      button.className = "protyle-icon ariaLabel";
-      button.setAttribute(BUTTON_ATTR, "true");
-      button.setAttribute("data-link", "more-background");
-      button.setAttribute("aria-label", this.options.t("lets-more-background.moreBackgroundBtn"));
-      button.innerHTML = '<svg><use xlink:href="#iconImage"></use></svg>';
-
-      firstIcon.before(button);
-
-      const onClick = (e: MouseEvent) => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        this.showBackgroundMenu(rect, root, background);
-      };
-
-      button.addEventListener("click", onClick);
-    };
-
-    background.addEventListener("mouseover", handleMouseOver);
-
     return () => {
-      background.removeEventListener("mouseover", handleMouseOver);
-      titleTagsObserver.disconnect();
       if (videoObserver) {
         videoObserver.disconnect();
       }
       this.removeVideoBackground(background);
-      const injectedButtons = root.querySelectorAll(`[${BUTTON_ATTR}], [data-damophus-more-background-title-btn]`);
-      injectedButtons.forEach((b) => b.remove());
     };
   }
 
@@ -407,42 +469,30 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
   }
 
   private async saveBlobAndSetBackground(blob: Blob, background: HTMLElement): Promise<void> {
-    background.style.cursor = "wait";
-    try {
-      if (this.options.writeToAssets) {
-        const savedPath = await this.saveBlobToAssets(blob);
-        if (savedPath) {
-          await this.setBlockBackgroundImage(background, savedPath);
-          return;
-        }
-      }
+    const { name } = await detectImageTypeAndName(blob);
+    const location = sanitizeAssetsPath(this.options.assetsLocation);
 
+    const assetPath = await this.uploadToAssets(blob, name, location);
+    if (assetPath) {
+      await this.setBlockBackgroundImage(background, assetPath);
+    } else {
       const base64 = await this.blobToBase64(blob);
       await this.setBlockBackgroundImage(background, base64);
-    } catch (e) {
-      log.error("Failed to save/set blob background:", e);
-      showMessage(this.options.t("lets-more-background.loadUrlFailed"));
-    } finally {
-      background.style.cursor = "";
     }
   }
 
-  private async saveBlobToAssets(blob: Blob): Promise<string | null> {
+  private async uploadToAssets(blob: Blob, name: string, location: string): Promise<string | null> {
     try {
-      const { type, name } = await detectImageTypeAndName(blob);
-      const file = new File([blob], name, { type });
-      const location = sanitizeAssetsPath(this.options.assetsLocation);
-      const filePath = `/data${location}/${name}`;
-
       const formData = new FormData();
-      formData.append("path", filePath);
+      formData.append("path", `/data${location}/${name}`);
+      formData.append("file", blob, name);
       formData.append("isDir", "false");
-      formData.append("file", file);
 
       const res = await fetch("/api/file/putFile", {
         method: "POST",
         body: formData,
       });
+
       const data = await res.json();
       if (data.code !== 0) {
         showMessage(this.options.t("lets-more-background.writeImgToAssetsFailed"));
@@ -467,9 +517,13 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
   }
 
   private async setBlockBackgroundImage(background: HTMLElement, urlOrPath: string): Promise<void> {
-    const blockId = background.getAttribute("data-node-id");
+    const blockId =
+      background.getAttribute("data-node-id") ||
+      background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
+      background.closest(".protyle")?.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id");
+
     if (!blockId) {
-      log.warn("Cannot find block data-node-id on background element");
+      log.warn("Cannot find block data-node-id on background or protyle element");
       return;
     }
 
@@ -523,7 +577,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     if (!container) return;
 
     this.removeVideoBackground(background);
+
     const img = container.querySelector<HTMLImageElement>("img");
+    if (img) {
+      img.classList.add("fn__none");
+    }
 
     const video = document.createElement("video");
     video.currentTime = 0;
@@ -606,32 +664,25 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       video.addEventListener("click", (e) => {
         e.stopPropagation();
         if (video.paused) {
-          video.play().catch((err) => log.warn("Video playback prevented:", err));
+          void video.play();
         } else {
           video.pause();
         }
       });
 
-      img.replaceWith(video);
+      img.before(video);
+      img.classList.add("fn__none");
     };
 
-    const imgs = wysiwyg.querySelectorAll<HTMLImageElement>("img");
-    imgs.forEach(replaceImgWithVideo);
+    const scanAll = () => {
+      const images = wysiwyg.querySelectorAll<HTMLImageElement>("img");
+      images.forEach(replaceImgWithVideo);
+    };
 
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === "childList") {
-          mutation.addedNodes.forEach((node) => {
-            if (node instanceof HTMLElement) {
-              if (node instanceof HTMLImageElement) {
-                replaceImgWithVideo(node);
-              }
-              const childImgs = node.querySelectorAll<HTMLImageElement>("img");
-              childImgs.forEach(replaceImgWithVideo);
-            }
-          });
-        }
-      }
+    scanAll();
+
+    const observer = new MutationObserver(() => {
+      scanAll();
     });
 
     observer.observe(wysiwyg, {
@@ -641,8 +692,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     return () => {
       observer.disconnect();
-      const videos = wysiwyg.querySelectorAll<HTMLVideoElement>("video.damophus-gallery-video");
+      const videos = wysiwyg.querySelectorAll("video.damophus-gallery-video");
       videos.forEach((v) => v.remove());
+      const hiddenImages = wysiwyg.querySelectorAll("img.fn__none");
+      hiddenImages.forEach((img) => img.classList.remove("fn__none"));
     };
   }
 }

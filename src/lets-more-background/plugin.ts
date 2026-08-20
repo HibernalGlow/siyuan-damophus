@@ -1,5 +1,10 @@
 import type { PluginMetadata } from "@/types/plugin";
-import { DEFAULT_COVER_SOURCES, DEFAULT_SITE_CREDENTIALS, DEFAULT_TEMPLATES } from "./sources";
+import { createEntrySettings } from "@/libs/plugin-entry-settings";
+import {
+  DEFAULT_COVER_SOURCES,
+  DEFAULT_SITE_CREDENTIALS,
+  DEFAULT_TEMPLATES,
+} from "./sources";
 
 export const pluginMetadata: PluginMetadata = {
   name: "moreBackground",
@@ -9,6 +14,7 @@ export const pluginMetadata: PluginMetadata = {
   enabled: false,
   icon: "images",
   settings: [
+    ...createEntrySettings({ menu: true, tab: true }, { central: true }),
     {
       type: "number",
       title: "lets-more-background.widthTitle",

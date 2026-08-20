@@ -35,7 +35,11 @@
   import RemoteAccessSettings from "./lets-remote-access/RemoteAccessSettings.svelte";
   import SlashMenuSettings from "./lets-mobile-slash-menu/SlashMenuSettings.svelte";
   import MoreBackgroundSettings from "./lets-more-background/MoreBackgroundSettings.svelte";
-  import { DEFAULT_TEMPLATES, DEFAULT_SITE_CREDENTIALS } from "./lets-more-background/sources";
+  import {
+    DEFAULT_TEMPLATES,
+    DEFAULT_SITE_CREDENTIALS,
+    DEFAULT_TAG_POOLS,
+  } from "./lets-more-background/sources";
   import {
     DEFAULT_CUSTOM_PROPERTIES,
     DEFAULT_CUSTOM_PROPERTY_BLOCK_TYPES,
@@ -865,6 +869,7 @@
         <MoreBackgroundSettings
           title={getGroupLabel(focusGroup)}
           templates={getFocusedValue("templates", DEFAULT_TEMPLATES)}
+          tagPools={getFocusedValue("tagPools", DEFAULT_TAG_POOLS)}
           siteCredentials={getFocusedValue("siteCredentials", DEFAULT_SITE_CREDENTIALS)}
           width={getFocusedValue("width", 1920)}
           height={getFocusedValue("height", 1080)}

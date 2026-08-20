@@ -1,6 +1,8 @@
+import { mount, unmount } from "svelte";
+import { getAllEditor, openTab, showMessage, type IEventBusMap, type Menu } from "siyuan";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
+import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 import { plugin } from "@/utils";
-import { getAllEditor, type IEventBusMap, showMessage } from "siyuan";
 import {
   startMoreBackground,
   type MoreBackgroundHandle,
@@ -9,16 +11,102 @@ import {
 import {
   DEFAULT_COVER_SOURCES,
   DEFAULT_SITE_CREDENTIALS,
+  DEFAULT_TAG_POOLS,
+  DEFAULT_TEMPLATES,
   templateToUrl,
   type CoverSourceItem,
 } from "./sources";
-
 import { resolveBooruImageUrl } from "./booru";
+import { getCachedTagPools, loadTagPoolsFromStorage } from "./tag-pool-storage";
+import MoreBackgroundSettings from "./MoreBackgroundSettings.svelte";
+import { moreBackgroundTabTarget, moreBackgroundTabType } from "./tab-contract";
+
+const icon = resolveSiyuanPluginIcon("images");
 
 export default class MoreBackgroundPlugin extends SubPluginBase {
   private controller?: MoreBackgroundHandle;
   private listening = false;
   private layoutReady = false;
+  private tabRegistered = false;
+  private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
+
+  override registerModels(): void {
+    if (this.tabRegistered) return;
+    this.tabRegistered = true;
+    const owner = this;
+    plugin.addTab({
+      type: moreBackgroundTabType,
+      init() {
+        const element = this.element as HTMLElement;
+        element.classList.add(
+          "damophus-theme-root",
+          "damophus-question-bank-theme",
+          "h-full",
+          "overflow-auto",
+          "bg-background",
+          "text-foreground",
+          "p-5",
+        );
+        const opts = owner.buildOptions();
+        const templates = owner.getSetting("templates") || DEFAULT_TEMPLATES;
+        const tagPools = owner.getSetting("tagPools") || DEFAULT_TAG_POOLS;
+        const siteCredentials = owner.getSetting("siteCredentials") || DEFAULT_SITE_CREDENTIALS;
+
+        const app = mount(MoreBackgroundSettings, {
+          target: element,
+          props: {
+            group: "moreBackground",
+            title: owner.t("lets-more-background.displayName" as any),
+            templates,
+            tagPools,
+            siteCredentials,
+            width: opts.width,
+            height: opts.height,
+            assetsLocation: opts.assetsLocation,
+            readFromAssets: opts.readFromAssets,
+            writeToAssets: opts.writeToAssets,
+          },
+        });
+
+        element.addEventListener("changed", ((e: CustomEvent) => {
+          const detail = e.detail;
+          if (detail && detail.key) {
+            owner.setSetting(detail.key, detail.value);
+            owner.onDataChanged();
+          }
+        }) as EventListener);
+
+        owner.mountedTabs.set(element, app);
+      },
+      destroy() {
+        const element = this.element as HTMLElement;
+        const app = owner.mountedTabs.get(element);
+        if (app) void unmount(app);
+        owner.mountedTabs.delete(element);
+      },
+    });
+  }
+
+  addMenuItem(menu: Menu): void {
+    if (!this.isEntryEnabled("menu") || !this.isEntryEnabled("tab")) return;
+    menu.addItem({
+      icon,
+      label: this.t("lets-more-background.menuOpen" as any),
+      click: () => this.openInTab(),
+    });
+  }
+
+  openInTab(): void {
+    if (!this.isEntryEnabled("tab")) return;
+    void openTab({
+      app: plugin.app,
+      custom: {
+        icon,
+        title: this.t("lets-more-background.displayName" as any),
+        ...moreBackgroundTabTarget(plugin.name),
+      },
+    });
+  }
 
   async testConnection(): Promise<void> {
     const opts = this.buildOptions();
@@ -53,7 +141,9 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
     this.controller?.disposeRoot(event.detail.protyle.element);
   };
 
-  override onload(): void {}
+  override onload(): void {
+    void loadTagPoolsFromStorage();
+  }
 
   onDataChanged(): void {
     if (this.layoutReady && this.controller) {
@@ -64,10 +154,14 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
   onLayoutReady(): void {
     this.layoutReady = true;
     this.bindEvents();
-    this.startController();
+    void loadTagPoolsFromStorage().then(() => {
+      this.startController();
+    });
   }
 
   override onunload(): void {
+    for (const app of this.mountedTabs.values()) void unmount(app);
+    this.mountedTabs.clear();
     this.unbindEvents();
     this.controller?.dispose();
     this.controller = undefined;
@@ -105,12 +199,13 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
 
   private buildOptions(): MoreBackgroundOptions {
     const rawTemplates = this.getSetting("templates");
+    const tagPools = getCachedTagPools();
     let sources: CoverSourceItem[] = [];
 
     if (Array.isArray(rawTemplates) && rawTemplates.length > 0) {
       sources = rawTemplates.map((tpl) => ({
         label: tpl.name || "Template",
-        url: templateToUrl(tpl),
+        url: templateToUrl(tpl, tagPools),
       }));
     } else {
       const rawSources = this.getSetting("sources");
@@ -130,7 +225,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       writeToAssets: this.getSetting("writeToAssets") === true,
       siteCredentials,
       sources,
-      t: (key) => this.t(key),
+      t: (key) => this.t(key as any),
     };
   }
 }

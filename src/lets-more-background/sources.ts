@@ -7,12 +7,31 @@ export interface CoverSourceItem {
   url: string;
 }
 
+export interface TagEntry {
+  tag: string;
+  zh?: string;
+}
+
+export interface TagPool {
+  id: string;
+  name: string;
+  description?: string;
+  items: Array<string | TagEntry>;
+}
+
 export interface SiteCredential {
   id: string;
   site: string; // e.g. "danbooru.donmai.us", "gelbooru.com", "e621.net"
   login: string;
   apiKey: string;
   enabled?: boolean;
+}
+
+export interface FilterRule {
+  id: string;
+  field: "aspectRatio" | "site" | "rating" | "tags" | "minScore" | "tagPool";
+  operator: "equals" | "contains" | "gte" | "randomIn";
+  value: any;
 }
 
 export interface CoverTemplateItem {
@@ -25,10 +44,55 @@ export interface CoverTemplateItem {
   rating?: "safe" | "general" | "questionable" | "all";
   tags?: string;
   minScore?: number;
-  pool?: string[];
+  poolId?: string; // Reference to an independent TagPool
+  pool?: string[]; // Or inline pool items
+  rules?: FilterRule[];
   // For preset_api or custom_url
   url?: string;
 }
+
+import allArtistsData from "./all_artists.json";
+
+export const DEFAULT_TAG_POOLS: TagPool[] = [
+  {
+    id: "pool-top-artists",
+    name: "🎨 顶级核心画师池 (Top 11)",
+    description: "残夜、影法师、菲奇、毛玉牛乳等顶级核心画师",
+    items: allArtistsData.top,
+  },
+  {
+    id: "pool-best-artists",
+    name: "⭐ 极品精选画师池 (Best 25)",
+    description: "Ask、Blade、Gsusart、Mignon、Parsley 等",
+    items: allArtistsData.best,
+  },
+  {
+    id: "pool-nice-artists",
+    name: "✨ 优质推荐画师池 (Nice 34)",
+    description: "Rella、Kanzarin、Natsuhiko 等",
+    items: allArtistsData.nice,
+  },
+  {
+    id: "pool-all-artists",
+    name: "📚 完整画师词库 (362 位)",
+    description: "ComfyUI 搜集的全部高质量画师",
+    items: allArtistsData.all,
+  },
+  {
+    id: "pool-scenery-styles",
+    name: "🌄 治愈场景与题材",
+    description: "自然风景、夜空与光影题材",
+    items: [
+      { tag: "scenery", zh: "唯美风景 / 背景" },
+      { tag: "night_sky", zh: "璀璨夜空" },
+      { tag: "cloudy_sky", zh: "云海天空" },
+      { tag: "sunset", zh: "落日晚霞" },
+      { tag: "cityscape", zh: "城市街景" },
+      { tag: "cyberpunk", zh: "赛博朋克" },
+      { tag: "cherry_blossoms", zh: "浪漫樱花" },
+    ],
+  },
+];
 
 export const DEFAULT_SITE_CREDENTIALS: SiteCredential[] = [
   {
@@ -56,15 +120,13 @@ export const DEFAULT_TEMPLATES: CoverTemplateItem[] = [
     aspectRatio: "landscape",
     rating: "safe",
     tags: "wallpaper",
-    pool: [
-      "ask_(askzy)",
-      "blade_(galaxist)",
-      "chomoran",
-      "gsusart",
-      "henreader",
-      "mignon",
-      "parsley-f",
-      "fkey",
+    poolId: "pool-top-artists",
+    rules: [
+      { id: "r1", field: "aspectRatio", operator: "equals", value: "landscape" },
+      { id: "r2", field: "tagPool", operator: "randomIn", value: "pool-top-artists" },
+      { id: "r3", field: "site", operator: "equals", value: "safebooru.org" },
+      { id: "r4", field: "rating", operator: "equals", value: "safe" },
+      { id: "r5", field: "tags", operator: "contains", value: "wallpaper" },
     ],
   },
   {
@@ -75,6 +137,12 @@ export const DEFAULT_TEMPLATES: CoverTemplateItem[] = [
     aspectRatio: "landscape",
     rating: "safe",
     tags: "wallpaper scenery",
+    rules: [
+      { id: "r1", field: "aspectRatio", operator: "equals", value: "landscape" },
+      { id: "r2", field: "site", operator: "equals", value: "safebooru.org" },
+      { id: "r3", field: "rating", operator: "equals", value: "safe" },
+      { id: "r4", field: "tags", operator: "contains", value: "wallpaper scenery" },
+    ],
   },
   {
     id: "tpl-danbooru-scenery",
@@ -85,6 +153,13 @@ export const DEFAULT_TEMPLATES: CoverTemplateItem[] = [
     rating: "general",
     tags: "landscape scenery",
     minScore: 5,
+    rules: [
+      { id: "r1", field: "aspectRatio", operator: "equals", value: "wide" },
+      { id: "r2", field: "site", operator: "equals", value: "danbooru.donmai.us" },
+      { id: "r3", field: "rating", operator: "equals", value: "general" },
+      { id: "r4", field: "minScore", operator: "gte", value: 5 },
+      { id: "r5", field: "tags", operator: "contains", value: "landscape scenery" },
+    ],
   },
   {
     id: "tpl-yande-safe",
@@ -94,6 +169,12 @@ export const DEFAULT_TEMPLATES: CoverTemplateItem[] = [
     aspectRatio: "landscape",
     rating: "safe",
     tags: "scenery",
+    rules: [
+      { id: "r1", field: "aspectRatio", operator: "equals", value: "landscape" },
+      { id: "r2", field: "site", operator: "equals", value: "yande.re" },
+      { id: "r3", field: "rating", operator: "equals", value: "safe" },
+      { id: "r4", field: "tags", operator: "contains", value: "scenery" },
+    ],
   },
   {
     id: "tpl-bing-daily",
@@ -121,7 +202,7 @@ export const DEFAULT_TEMPLATES: CoverTemplateItem[] = [
   },
 ];
 
-export function templateToUrl(template: CoverTemplateItem): string {
+export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] = DEFAULT_TAG_POOLS): string {
   if (template.type === "preset_api" || template.type === "custom_url") {
     return template.url || "";
   }
@@ -142,8 +223,31 @@ export function templateToUrl(template: CoverTemplateItem): string {
   if (template.minScore !== undefined && template.minScore > 0) {
     params.set("min_score", String(template.minScore));
   }
-  if (template.pool && template.pool.length > 0) {
-    params.set("pool", template.pool.join(","));
+
+  // Resolve pool: prefer poolId from tagPools, fallback to inline pool
+  let candidateItems: string[] = [];
+  if (template.poolId) {
+    const matchedPool = tagPools.find((p) => p.id === template.poolId);
+    if (matchedPool && matchedPool.items?.length > 0) {
+      candidateItems = matchedPool.items.map((it) => {
+        if (typeof it === "string") {
+          return it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_");
+        }
+        return it.tag || "";
+      }).filter(Boolean);
+    }
+  }
+  if (candidateItems.length === 0 && template.pool && template.pool.length > 0) {
+    candidateItems = template.pool.map((it) => {
+      if (typeof it === "string") {
+        return it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_");
+      }
+      return (it as any).tag || "";
+    }).filter(Boolean);
+  }
+
+  if (candidateItems.length > 0) {
+    params.set("pool", candidateItems.join(","));
   }
 
   return `booru:${site}?${params.toString()}`;
@@ -151,7 +255,7 @@ export function templateToUrl(template: CoverTemplateItem): string {
 
 export const DEFAULT_COVER_SOURCES: CoverSourceItem[] = DEFAULT_TEMPLATES.map((tpl) => ({
   label: tpl.name,
-  url: templateToUrl(tpl),
+  url: templateToUrl(tpl, DEFAULT_TAG_POOLS),
 }));
 
 export function urlToTemplate(label: string, url: string, id?: string): CoverTemplateItem {
