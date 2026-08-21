@@ -66,6 +66,11 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
             readFromAssets: opts.readFromAssets,
             writeToAssets: opts.writeToAssets,
             directDrag: opts.directDrag === true,
+            toolbarPosition: opts.toolbarPosition ?? "belowIcon",
+            toolbarCustomX: opts.toolbarCustomX ?? 50,
+            toolbarCustomY: opts.toolbarCustomY ?? 15,
+            coverBreadcrumb: opts.coverBreadcrumb === true,
+            coverDocumentMenu: opts.coverDocumentMenu === true,
           },
         });
 
@@ -222,6 +227,11 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       readFromAssets: this.getSetting("readFromAssets") !== false,
       writeToAssets: this.getSetting("writeToAssets") === true,
       directDrag: this.getSetting("directDrag") === true,
+      toolbarPosition: this.getSetting("toolbarPosition"),
+      toolbarCustomX: Number(this.getSetting("toolbarCustomX")),
+      toolbarCustomY: Number(this.getSetting("toolbarCustomY")),
+      coverBreadcrumb: this.getSetting("coverBreadcrumb") === true,
+      coverDocumentMenu: this.getSetting("coverDocumentMenu") === true,
       siteCredentials,
       sources,
       t: (key) => this.t(key as any),

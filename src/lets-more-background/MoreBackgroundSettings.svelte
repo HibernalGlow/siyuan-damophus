@@ -84,6 +84,11 @@
   export let readFromAssets = true;
   export let writeToAssets = false;
   export let directDrag = false;
+  export let toolbarPosition: "native" | "belowIcon" | "custom" = "belowIcon";
+  export let toolbarCustomX = 50;
+  export let toolbarCustomY = 15;
+  export let coverBreadcrumb = false;
+  export let coverDocumentMenu = false;
   export let mobile = false;
 
   const dispatch = createEventDispatcher();
@@ -1649,6 +1654,66 @@
             checked={directDrag}
             onCheckedChange={(val) => handleBasicChange("directDrag", val)}
           />
+        </div>
+
+        <div class="border-t border-border pt-3.5 sm:pt-4 space-y-3">
+          <div>
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.toolbarPositionTitle")}</Label>
+            <select
+              class="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground"
+              value={toolbarPosition}
+              onchange={(event) => {
+                toolbarPosition = (event.currentTarget as HTMLSelectElement).value as typeof toolbarPosition;
+                void handleBasicChange("toolbarPosition", toolbarPosition);
+              }}
+            >
+              <option value="belowIcon">{t("lets-more-background.toolbarPositionBelowIcon")}</option>
+              <option value="native">{t("lets-more-background.toolbarPositionNative")}</option>
+              <option value="custom">{t("lets-more-background.toolbarPositionCustom")}</option>
+            </select>
+            <p class="text-[11px] text-muted-foreground mt-1">{t("lets-more-background.toolbarPositionDescription")}</p>
+          </div>
+
+          {#if toolbarPosition === "custom"}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+              <label class="space-y-1.5">
+                <span class="flex justify-between gap-2"><span>{t("lets-more-background.toolbarCustomXTitle")}</span><span>{toolbarCustomX}%</span></span>
+                <input class="w-full accent-primary" type="range" min="0" max="100" step="1" value={toolbarCustomX} oninput={(event) => {
+                  toolbarCustomX = Number((event.currentTarget as HTMLInputElement).value);
+                  void handleBasicChange("toolbarCustomX", toolbarCustomX);
+                }} />
+              </label>
+              <label class="space-y-1.5">
+                <span class="flex justify-between gap-2"><span>{t("lets-more-background.toolbarCustomYTitle")}</span><span>{toolbarCustomY}%</span></span>
+                <input class="w-full accent-primary" type="range" min="0" max="100" step="1" value={toolbarCustomY} oninput={(event) => {
+                  toolbarCustomY = Number((event.currentTarget as HTMLInputElement).value);
+                  void handleBasicChange("toolbarCustomY", toolbarCustomY);
+                }} />
+              </label>
+            </div>
+          {/if}
+        </div>
+
+        <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-0.5">
+            <div class="font-medium text-foreground">{t("lets-more-background.coverBreadcrumbTitle")}</div>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.coverBreadcrumbDescription")}</p>
+          </div>
+          <Switch checked={coverBreadcrumb} onCheckedChange={(value) => {
+            coverBreadcrumb = value;
+            void handleBasicChange("coverBreadcrumb", value);
+          }} />
+        </div>
+
+        <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-0.5">
+            <div class="font-medium text-foreground">{t("lets-more-background.coverDocumentMenuTitle")}</div>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.coverDocumentMenuDescription")}</p>
+          </div>
+          <Switch checked={coverDocumentMenu} onCheckedChange={(value) => {
+            coverDocumentMenu = value;
+            void handleBasicChange("coverDocumentMenu", value);
+          }} />
         </div>
       </div>
     </Tabs.Content>

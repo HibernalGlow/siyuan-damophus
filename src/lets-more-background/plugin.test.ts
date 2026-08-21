@@ -16,6 +16,11 @@ describe("lets-more-background plugin metadata", () => {
     expect(keys).toContain("readFromAssets");
     expect(keys).toContain("writeToAssets");
     expect(keys).toContain("directDrag");
+    expect(keys).toContain("toolbarPosition");
+    expect(keys).toContain("toolbarCustomX");
+    expect(keys).toContain("toolbarCustomY");
+    expect(keys).toContain("coverBreadcrumb");
+    expect(keys).toContain("coverDocumentMenu");
     expect(keys).toContain("siteCredentials");
     expect(keys).toContain("templates");
     expect(keys).toContain("sources");

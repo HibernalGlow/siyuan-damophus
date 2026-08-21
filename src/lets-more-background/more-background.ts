@@ -18,6 +18,9 @@ import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo } from "./boo
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
+const COVER_LAYOUT_STYLE_ID = "damophus-more-background-layout-style";
+
+export type CoverToolbarPosition = "native" | "belowIcon" | "custom";
 
 export interface MoreBackgroundOptions {
   width: number;
@@ -26,6 +29,11 @@ export interface MoreBackgroundOptions {
   readFromAssets: boolean;
   writeToAssets: boolean;
   directDrag?: boolean;
+  toolbarPosition?: CoverToolbarPosition;
+  toolbarCustomX?: number;
+  toolbarCustomY?: number;
+  coverBreadcrumb?: boolean;
+  coverDocumentMenu?: boolean;
   siteCredentials?: SiteCredential[];
   sources?: CoverSourceItem[];
   t: (key: string) => string;
@@ -36,6 +44,74 @@ export interface MoreBackgroundHandle {
   disposeRoot(root: HTMLElement): void;
   dispose(): void;
   updateOptions(options: MoreBackgroundOptions): void;
+}
+
+const coverLayoutCss = `
+.protyle[data-damophus-cover-layer="raised"] > .protyle-breadcrumb { position: relative; z-index: auto; }
+.protyle[data-damophus-cover-layer="raised"] .protyle-background { z-index: 2; }
+.protyle[data-damophus-cover-breadcrumb="preserve"] > .protyle-breadcrumb > .protyle-breadcrumb__bar,
+.protyle[data-damophus-cover-breadcrumb="preserve"] > .protyle-breadcrumb > .protyle-breadcrumb__space { position: relative; z-index: 3; }
+.protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="readonly"],
+.protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="doc"],
+.protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="more"],
+.protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="context"] { position: relative; z-index: 3; }
+.protyle-icons[data-damophus-cover-toolbar="belowIcon"] { position: static; width: max-content; max-width: 100%; margin: 0 0 8px; opacity: .86; }
+.protyle-icons[data-damophus-cover-toolbar="custom"] { position: absolute; right: auto; left: var(--damophus-cover-toolbar-x); top: var(--damophus-cover-toolbar-y); transform: translate(var(--damophus-cover-toolbar-offset-x), var(--damophus-cover-toolbar-offset-y)); opacity: .86; }
+`;
+
+function clampPercent(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : fallback;
+}
+
+export function applyCoverLayout(root: HTMLElement, options: Pick<MoreBackgroundOptions,
+  "toolbarPosition" | "toolbarCustomX" | "toolbarCustomY" | "coverBreadcrumb" | "coverDocumentMenu"
+>): () => void {
+  const background = root.querySelector<HTMLElement>(".protyle-background");
+  const imageContainer = background?.querySelector<HTMLElement>(".protyle-background__img");
+  const toolbar = background?.querySelector<HTMLElement>(
+    '.protyle-icons[data-damophus-cover-toolbar], .protyle-background__img > .protyle-icons',
+  );
+  if (!background || !imageContainer || !toolbar) return () => {};
+
+  const position: CoverToolbarPosition = options.toolbarPosition === "native" || options.toolbarPosition === "custom"
+    ? options.toolbarPosition
+    : "belowIcon";
+  const placeholder = document.createComment("damophus-cover-toolbar");
+  toolbar.before(placeholder);
+
+  toolbar.dataset.damophusCoverToolbar = position;
+  const customX = clampPercent(options.toolbarCustomX, 50);
+  const customY = clampPercent(options.toolbarCustomY, 15);
+  toolbar.style.setProperty("--damophus-cover-toolbar-x", `${customX}%`);
+  toolbar.style.setProperty("--damophus-cover-toolbar-y", `${customY}%`);
+  toolbar.style.setProperty("--damophus-cover-toolbar-offset-x", `${-customX}%`);
+  toolbar.style.setProperty("--damophus-cover-toolbar-offset-y", `${-customY}%`);
+
+  if (position === "belowIcon") {
+    const infoArea = background.querySelector<HTMLElement>(".protyle-background__ia");
+    const tags = infoArea?.querySelector<HTMLElement>(".b3-chips__doctag");
+    if (infoArea) infoArea.insertBefore(toolbar, tags ?? infoArea.querySelector(".protyle-background__action"));
+  } else if (toolbar.parentElement !== imageContainer) {
+    imageContainer.prepend(toolbar);
+  }
+
+  const raised = options.coverBreadcrumb === true || options.coverDocumentMenu === true;
+  root.dataset.damophusCoverLayer = raised ? "raised" : "native";
+  root.dataset.damophusCoverBreadcrumb = options.coverBreadcrumb === true ? "cover" : "preserve";
+  root.dataset.damophusCoverMenu = options.coverDocumentMenu === true ? "cover" : "preserve";
+
+  return () => {
+    if (placeholder.parentNode) placeholder.replaceWith(toolbar);
+    toolbar.removeAttribute("data-damophus-cover-toolbar");
+    toolbar.style.removeProperty("--damophus-cover-toolbar-x");
+    toolbar.style.removeProperty("--damophus-cover-toolbar-y");
+    toolbar.style.removeProperty("--damophus-cover-toolbar-offset-x");
+    toolbar.style.removeProperty("--damophus-cover-toolbar-offset-y");
+    root.removeAttribute("data-damophus-cover-layer");
+    root.removeAttribute("data-damophus-cover-breadcrumb");
+    root.removeAttribute("data-damophus-cover-menu");
+  };
 }
 
 function generateTimestampId(): string {
@@ -166,10 +242,17 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
   constructor(options: MoreBackgroundOptions) {
     this.options = options;
     ensureNoReferrerMeta();
+    if (!document.getElementById(COVER_LAYOUT_STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = COVER_LAYOUT_STYLE_ID;
+      style.textContent = coverLayoutCss;
+      document.head.append(style);
+    }
   }
 
   updateOptions(options: MoreBackgroundOptions): void {
     this.options = options;
+    for (const root of [...this.rootCleanups.keys()]) this.scanRoot(root);
   }
 
   scanRoot(root: HTMLElement): void {
@@ -177,6 +260,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     this.disposeRoot(root);
 
     const cleanups: Array<() => void> = [];
+
+    cleanups.push(applyCoverLayout(root, this.options));
 
     // 1. 初始化标题栏与题头图控制按钮
     const coverControlsCleanup = this.initTitleCoverControls(root);
@@ -226,6 +311,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }
     }
     this.rootCleanups.clear();
+    document.getElementById(COVER_LAYOUT_STYLE_ID)?.remove();
   }
 
   private initTitleCoverControls(root: HTMLElement): () => void {
