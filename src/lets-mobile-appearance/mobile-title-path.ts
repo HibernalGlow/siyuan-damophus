@@ -154,8 +154,11 @@ export class MobileTitlePath {
     document.querySelectorAll<HTMLElement>(".mobile-tabs__item").forEach((card) => {
       const target = card.querySelector<HTMLElement>(".damophus-mobile-tab-path");
       if (!target) return;
-      target.textContent = path;
-      target.hidden = !path;
+      const active = card.classList.contains("mobile-tabs__item--active");
+      if (active) {
+        target.textContent = path;
+        target.hidden = !path;
+      }
       if (fullPath) target.title = fullPath;
       else target.removeAttribute("title");
     });
