@@ -12,7 +12,9 @@ html[data-frontend="browser-mobile"] .damophus-mobile-title-path__location { dis
 html[data-frontend="mobile"] .damophus-mobile-title-path > #toolbarName.fn__hidden + .damophus-mobile-title-path__location,
 html[data-frontend="browser-mobile"] .damophus-mobile-title-path > #toolbarName.fn__hidden + .damophus-mobile-title-path__location { display: none; }
 html[data-frontend="mobile"] .damophus-mobile-tab-path,
-html[data-frontend="browser-mobile"] .damophus-mobile-tab-path { display: block; margin: 1px 28px 0 32px; overflow: hidden; color: var(--b3-theme-on-surface-light); font-size: 10px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+html[data-frontend="browser-mobile"] .damophus-mobile-tab-path { position: absolute; left: 32px; right: 28px; bottom: 3px; display: block; overflow: hidden; color: var(--b3-theme-on-surface-light); font-size: 10px; line-height: 13px; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+html[data-frontend="mobile"] .mobile-tabs__item,
+html[data-frontend="browser-mobile"] .mobile-tabs__item { position: relative; min-height: 58px; }
 `;
 
 export function readableParentPath(hpath: string): string {
@@ -115,14 +117,17 @@ export class MobileTitlePath {
 
   private mountTabCards(): void {
     if (!this.isMobileFrontend()) return;
+    const breadcrumb = document.querySelector<HTMLElement>(".protyle-breadcrumb");
+    const breadcrumbParts = breadcrumb?.innerText.split(/\n/).map((part) => part.trim()).filter(Boolean).slice(0, 2) ?? [];
+    const fallbackPath = breadcrumbParts.map((part) => part.replace(/\.\.\.$/, "")).join(" / ");
     document.querySelectorAll<HTMLElement>(".mobile-tabs__item").forEach((card) => {
       if (card.querySelector(".damophus-mobile-tab-path")) return;
       const title = card.querySelector<HTMLElement>(".mobile-tabs__item-title");
       if (!title) return;
       const path = document.createElement("small");
       path.className = "damophus-mobile-tab-path";
+      if (fallbackPath) path.textContent = fallbackPath;
       title.insertAdjacentElement("afterend", path);
-      card.style.minHeight = "58px";
     });
   }
 

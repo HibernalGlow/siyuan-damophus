@@ -8,6 +8,7 @@ import { getAllEditor, type IEventBusMap } from "siyuan";
 export default class MobileAppearancePlugin extends SubPluginBase {
   private topBarElement?: HTMLElement;
   private listening = false;
+  private syncTimer?: number;
   private readonly titlePath = new MobileTitlePath();
   private readonly outlineTheme = new MobileOutlineThemeCompatibility();
   private readonly handleProtyle = (event: CustomEvent<IEventBusMap["loaded-protyle-static"] | IEventBusMap["switch-protyle"]>): void => {
@@ -74,6 +75,14 @@ export default class MobileAppearancePlugin extends SubPluginBase {
     this.titlePath.start();
     const currentEditor = getAllEditor()[0];
     if (currentEditor) void this.titlePath.show(currentEditor as never);
+    window.setTimeout(() => {
+      const editor = getAllEditor()[0];
+      if (editor) void this.titlePath.show(editor as never);
+    }, 500);
+    this.syncTimer ??= window.setInterval(() => {
+      const editor = getAllEditor()[0];
+      if (editor) void this.titlePath.show(editor as never);
+    }, 1000);
     if (!this.listening && plugin.eventBus) {
       this.listening = true;
       plugin.eventBus.on("loaded-protyle-static", this.handleProtyle);
@@ -82,6 +91,10 @@ export default class MobileAppearancePlugin extends SubPluginBase {
   }
 
   private stopTitlePath(): void {
+    if (this.syncTimer !== undefined) {
+      window.clearInterval(this.syncTimer);
+      this.syncTimer = undefined;
+    }
     if (this.listening && plugin.eventBus) {
       plugin.eventBus.off("loaded-protyle-static", this.handleProtyle);
       plugin.eventBus.off("switch-protyle", this.handleProtyle);
