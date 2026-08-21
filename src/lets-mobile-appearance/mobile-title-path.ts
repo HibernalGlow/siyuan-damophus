@@ -117,18 +117,36 @@ export class MobileTitlePath {
 
   private mountTabCards(): void {
     if (!this.isMobileFrontend()) return;
-    const breadcrumb = document.querySelector<HTMLElement>(".protyle-breadcrumb");
-    const breadcrumbParts = breadcrumb?.innerText.split(/\n/).map((part) => part.trim()).filter(Boolean).slice(0, 2) ?? [];
-    const fallbackPath = breadcrumbParts.map((part) => part.replace(/\.\.\.$/, "")).join(" / ");
     document.querySelectorAll<HTMLElement>(".mobile-tabs__item").forEach((card) => {
       if (card.querySelector(".damophus-mobile-tab-path")) return;
       const title = card.querySelector<HTMLElement>(".mobile-tabs__item-title");
       if (!title) return;
       const path = document.createElement("small");
       path.className = "damophus-mobile-tab-path";
-      if (fallbackPath) path.textContent = fallbackPath;
       title.insertAdjacentElement("afterend", path);
     });
+  }
+
+  async showAll(editors: ReadonlyArray<{ protyle?: IProtyle }>): Promise<void> {
+    this.start();
+    this.mountTabCards();
+    const cards = Array.from(document.querySelectorAll<HTMLElement>(".mobile-tabs__item"));
+    await Promise.all(cards.map(async (card, index) => {
+      const rootId = editors[index]?.protyle?.block.rootID;
+      const target = card.querySelector<HTMLElement>(".damophus-mobile-tab-path");
+      if (!target || !rootId) {
+        if (target) target.textContent = "";
+        return;
+      }
+      try {
+        const hpath = await this.getHPath(rootId);
+        target.textContent = readableParentPath(hpath);
+        target.title = hpath;
+      } catch {
+        target.textContent = "";
+        target.removeAttribute("title");
+      }
+    }));
   }
 
   private updateActiveTabCard(path: string, fullPath: string): void {

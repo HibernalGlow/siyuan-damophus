@@ -73,15 +73,12 @@ export default class MobileAppearancePlugin extends SubPluginBase {
 
   private startTitlePath(): void {
     this.titlePath.start();
-    const currentEditor = getAllEditor()[0];
-    if (currentEditor) void this.titlePath.show(currentEditor as never);
+    void this.titlePath.showAll(getAllEditor() as never);
     window.setTimeout(() => {
-      const editor = getAllEditor()[0];
-      if (editor) void this.titlePath.show(editor as never);
+      void this.titlePath.showAll(getAllEditor() as never);
     }, 500);
     this.syncTimer ??= window.setInterval(() => {
-      const editor = getAllEditor()[0];
-      if (editor) void this.titlePath.show(editor as never);
+      void this.titlePath.showAll(getAllEditor() as never);
     }, 1000);
     if (!this.listening && plugin.eventBus) {
       this.listening = true;
