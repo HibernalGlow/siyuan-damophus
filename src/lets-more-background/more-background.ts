@@ -2,6 +2,11 @@ import { Menu, showMessage } from "siyuan";
 import { isMobile, plugin } from "@/utils";
 import { getLogger } from "@/libs/logger";
 import {
+  openCoverTagViewer,
+  mountCoverHoverOverlay,
+  type CoverTagViewerMeta,
+} from "./tag-viewer";
+import {
   type CoverSourceItem,
   DEFAULT_COVER_SOURCES,
   formatCoverUrl,
@@ -20,6 +25,7 @@ export interface MoreBackgroundOptions {
   assetsLocation: string;
   readFromAssets: boolean;
   writeToAssets: boolean;
+  directDrag?: boolean;
   siteCredentials?: SiteCredential[];
   sources?: CoverSourceItem[];
   t: (key: string) => string;
@@ -88,20 +94,57 @@ function triggerRandomIfNoImg(currentPage: HTMLElement): void {
 }
 
 const LAST_USED_SOURCE_KEY = "damophus_more_background_last_used_source";
+let memoryLastUsedSource: CoverSourceItem | null = null;
 
-function getLastUsedSource(): CoverSourceItem | null {
+export function getLastUsedSource(): CoverSourceItem | null {
+  if (memoryLastUsedSource) return memoryLastUsedSource;
   try {
-    const raw = localStorage.getItem(LAST_USED_SOURCE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (typeof localStorage !== "undefined") {
+      const raw = localStorage.getItem(LAST_USED_SOURCE_KEY);
+      if (raw) {
+        memoryLastUsedSource = JSON.parse(raw);
+        return memoryLastUsedSource;
+      }
+    }
   } catch {}
   return null;
 }
 
-function setLastUsedSource(item: CoverSourceItem): void {
-  try {
-    localStorage.setItem(LAST_USED_SOURCE_KEY, JSON.stringify(item));
-  } catch {}
+export function updateAllLastUsedButtons(item: CoverSourceItem): void {
+  if (typeof document === "undefined") return;
+  const lastLabel = item.label ? `${item.label}` : "上次使用的模板";
+  const newTitle = `使用上次配置: ${lastLabel}`;
+  const buttons = document.querySelectorAll<HTMLElement>('[data-type="more-background-last"]');
+  buttons.forEach((btn) => {
+    if (btn.title !== newTitle) {
+      btn.title = newTitle;
+    }
+    const labelSpan = btn.querySelector<HTMLElement>(".damophus-last-label");
+    if (labelSpan) {
+      if (labelSpan.textContent !== `⚡ ${lastLabel}`) {
+        labelSpan.textContent = `⚡ ${lastLabel}`;
+      }
+    } else {
+      if (btn.tagName === "BUTTON") {
+        btn.innerHTML = `<svg><use xlink:href="#iconRefresh"></use></svg><span class="damophus-last-label">⚡ ${lastLabel}</span>`;
+      } else {
+        btn.innerHTML = `<svg class="svg"><use xlink:href="#iconRefresh"></use></svg><span class="damophus-last-label">⚡ ${lastLabel}</span>`;
+      }
+    }
+  });
 }
+
+export function setLastUsedSource(item: CoverSourceItem): void {
+  memoryLastUsedSource = item;
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(LAST_USED_SOURCE_KEY, JSON.stringify(item));
+    }
+  } catch {}
+  updateAllLastUsedButtons(item);
+}
+
+export { openCoverTagViewer, type CoverTagViewerMeta } from "./tag-viewer";
 
 export function ensureNoReferrerMeta(): void {
   if (typeof document === "undefined") return;
@@ -139,11 +182,13 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const coverControlsCleanup = this.initTitleCoverControls(root);
     cleanups.push(coverControlsCleanup);
 
-    // 2. 初始化视频背景支持
+    // 2. 初始化视频背景与题头图多合一位置调整 (Alt拖拽/长按/滚轮/直接拖)
     const background = root.querySelector<HTMLElement>(".protyle-background");
     if (background) {
       const bgCleanup = this.initVideoBackground(background);
       cleanups.push(bgCleanup);
+      const posCleanup = this.initCoverPositionControls(background);
+      cleanups.push(posCleanup);
     }
 
     // 3. 画廊视频观察器
@@ -185,6 +230,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
   private initTitleCoverControls(root: HTMLElement): () => void {
     const injectButtons = () => {
+      if (!root.isConnected) return;
       const sources = this.options.sources?.length ? this.options.sources : DEFAULT_COVER_SOURCES;
       const lastUsed = getLastUsedSource() || sources[0];
 
@@ -201,7 +247,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           container.querySelector<HTMLElement>('[data-type="random"]') ||
           container.querySelector<HTMLElement>('[data-type="background"]') ||
           container.querySelector<HTMLElement>('[data-type="tag"]') ||
-          container.lastElementChild as HTMLElement;
+          (container.lastElementChild as HTMLElement);
+
+        const lastLabel = lastUsed?.label ? `${lastUsed.label}` : this.options.t("lets-more-background.useLastTemplate");
+        const chooseLabel = this.options.t("lets-more-background.chooseTemplate");
 
         if (isButtonType) {
           // 按钮 1: ⚡ 使用上次配置 (一键出图，无需二次点击)
@@ -209,16 +258,16 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           lastBtn.className = "b3-button b3-button--cancel";
           lastBtn.setAttribute("data-damophus-more-background-title-btn", "true");
           lastBtn.setAttribute("data-type", "more-background-last");
-          const lastLabel = lastUsed?.label ? `${lastUsed.label}` : this.options.t("lets-more-background.useLastTemplate");
           lastBtn.title = `使用上次配置: ${lastLabel}`;
-          lastBtn.innerHTML = `<svg><use xlink:href="#iconRefresh"></use></svg>⚡ ${lastLabel}`;
+          lastBtn.innerHTML = `<svg><use xlink:href="#iconRefresh"></use></svg><span class="damophus-last-label">⚡ ${lastLabel}</span>`;
 
           // 按钮 2: 🎨 选择模板 (弹出菜单)
           const menuBtn = document.createElement("button");
           menuBtn.className = "b3-button b3-button--cancel";
           menuBtn.setAttribute("data-damophus-more-background-title-btn", "true");
           menuBtn.setAttribute("data-type", "more-background-menu");
-          menuBtn.innerHTML = `<svg><use xlink:href="#iconImage"></use></svg>${this.options.t("lets-more-background.chooseTemplate")}`;
+          menuBtn.title = chooseLabel;
+          menuBtn.innerHTML = `<svg><use xlink:href="#iconImage"></use></svg><span>${chooseLabel}</span>`;
 
           if (randomBtn) {
             randomBtn.after(menuBtn);
@@ -231,9 +280,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           lastBtn.addEventListener("click", (e: MouseEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            if (lastUsed) {
+            const currentSources = this.options.sources?.length ? this.options.sources : DEFAULT_COVER_SOURCES;
+            const currentLast = getLastUsedSource() || currentSources[0];
+            if (currentLast) {
               const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-              void this.applyRandomSource(lastUsed, root, bg);
+              void this.applyRandomSource(currentLast, root, bg);
             }
           });
 
@@ -251,15 +302,16 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           spanLast.setAttribute("data-damophus-more-background-title-btn", "true");
           spanLast.setAttribute("data-type", "more-background-last");
           spanLast.style.cursor = "pointer";
-          const lastLabel = lastUsed?.label ? `${lastUsed.label}` : this.options.t("lets-more-background.useLastTemplate");
-          spanLast.innerHTML = `<svg class="svg"><use xlink:href="#iconRefresh"></use></svg><span>⚡ ${lastLabel}</span>`;
+          spanLast.title = `使用上次配置: ${lastLabel}`;
+          spanLast.innerHTML = `<svg class="svg"><use xlink:href="#iconRefresh"></use></svg><span class="damophus-last-label">⚡ ${lastLabel}</span>`;
 
           const spanMenu = document.createElement("span");
           spanMenu.className = "protyle-background__tag protyle-background__tag--text";
           spanMenu.setAttribute("data-damophus-more-background-title-btn", "true");
           spanMenu.setAttribute("data-type", "more-background-menu");
           spanMenu.style.cursor = "pointer";
-          spanMenu.innerHTML = `<svg class="svg"><use xlink:href="#iconImage"></use></svg><span>${this.options.t("lets-more-background.chooseTemplate")}</span>`;
+          spanMenu.title = chooseLabel;
+          spanMenu.innerHTML = `<svg class="svg"><use xlink:href="#iconImage"></use></svg><span>${chooseLabel}</span>`;
 
           if (randomBtn) {
             randomBtn.after(spanMenu);
@@ -272,9 +324,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           spanLast.addEventListener("click", (e: MouseEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            if (lastUsed) {
+            const currentSources = this.options.sources?.length ? this.options.sources : DEFAULT_COVER_SOURCES;
+            const currentLast = getLastUsedSource() || currentSources[0];
+            if (currentLast) {
               const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-              void this.applyRandomSource(lastUsed, root, bg);
+              void this.applyRandomSource(currentLast, root, bg);
             }
           });
 
@@ -288,7 +342,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         }
       });
 
-      // 2. 已有题头图时：注入右上角操作条中的随机图源按钮 (.protyle-icons)
+      // 2. 已有题头图时：注入右上角操作条中的随机图源按钮与 Tag 详情按钮 (.protyle-icons)
       const topIcons = root.querySelectorAll<HTMLElement>(
         ".protyle-top .protyle-icons, .protyle-background .protyle-icons, .protyle-background__img .protyle-icons",
       );
@@ -298,14 +352,13 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           iconsContainer.querySelector(".protyle-icon.ariaLabel") || iconsContainer.firstElementChild;
         if (!firstIcon) return;
 
+        // 按钮 1: 随机换图 / 模板菜单
         const button = document.createElement("span");
         button.className = "protyle-icon ariaLabel";
         button.setAttribute(BUTTON_ATTR, "true");
         button.setAttribute("data-link", "more-background");
         button.setAttribute("aria-label", this.options.t("lets-more-background.moreBackgroundBtn"));
         button.innerHTML = '<svg><use xlink:href="#iconImage"></use></svg>';
-
-        firstIcon.before(button);
 
         button.addEventListener("click", (e: MouseEvent) => {
           e.preventDefault();
@@ -314,31 +367,94 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
           this.showBackgroundMenu(rect, root, bg);
         });
+
+        // 按钮 2: Tag 标签查看按钮
+        const tagButton = document.createElement("span");
+        tagButton.className = "protyle-icon ariaLabel";
+        tagButton.setAttribute(BUTTON_ATTR, "true");
+        tagButton.setAttribute("data-link", "more-background-tag");
+        tagButton.setAttribute("aria-label", "查看题头图 Tag 标签 (中英对照)");
+        tagButton.innerHTML = '<svg><use xlink:href="#iconTag"></use></svg>';
+
+        tagButton.addEventListener("click", (e: MouseEvent) => {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+          const currentPostTags =
+            bg.getAttribute("data-damophus-post-tags") ||
+            bg.querySelector("img")?.getAttribute("data-damophus-post-tags") ||
+            "";
+          const currentPostUrl =
+            bg.getAttribute("data-damophus-post-url") ||
+            bg.querySelector("img")?.getAttribute("data-damophus-post-url") ||
+            "";
+          const currentPostSite = bg.getAttribute("data-damophus-post-site") || "";
+          const currentPostId = bg.getAttribute("data-damophus-post-id") || "";
+          const currentDimensions = bg.getAttribute("data-damophus-post-dimensions") || "";
+          const currentScore = bg.getAttribute("data-damophus-post-score") || "";
+
+          openCoverTagViewer({
+            site: currentPostSite,
+            postId: currentPostId,
+            postUrl: currentPostUrl,
+            tags: currentPostTags,
+            score: currentScore,
+            width: currentDimensions ? currentDimensions.split("×")[0]?.trim() : "",
+            height: currentDimensions ? currentDimensions.split("×")[1]?.trim() : "",
+          });
+        });
+
+        firstIcon.before(button);
+        firstIcon.before(tagButton);
       });
     };
 
     injectButtons();
 
-    const observer = new MutationObserver(() => {
-      injectButtons();
-    });
-
-    observer.observe(root, {
-      childList: true,
-      subtree: true,
-    });
-
-    const handleMouse = () => {
-      injectButtons();
+    // 局部事件代理：仅当鼠标进入 header / background / title 区域时才检查是否需要补全按钮
+    const handleHeaderMouse = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest(".protyle-background, .protyle-top, .protyle-title")) {
+        injectButtons();
+      }
     };
 
-    root.addEventListener("mouseover", handleMouse, { passive: true });
-    root.addEventListener("mouseenter", handleMouse, { passive: true });
+    const backgroundEl = root.querySelector<HTMLElement>(".protyle-background");
+    const topEl = root.querySelector<HTMLElement>(".protyle-top");
+    const titleEl = root.querySelector<HTMLElement>(".protyle-title");
+
+    backgroundEl?.addEventListener("mouseover", handleHeaderMouse, { passive: true });
+    topEl?.addEventListener("mouseover", handleHeaderMouse, { passive: true });
+    titleEl?.addEventListener("mouseover", handleHeaderMouse, { passive: true });
+
+    // 针对 background / top 的轻量级 MutationObserver（使用 rAF 节流，绝不 observe root 或 wysiwyg）
+    let bgObserver: MutationObserver | null = null;
+    let scheduledRaf = 0;
+    const scheduleInject = () => {
+      if (scheduledRaf) return;
+      scheduledRaf = requestAnimationFrame(() => {
+        scheduledRaf = 0;
+        injectButtons();
+      });
+    };
+
+    if (backgroundEl) {
+      bgObserver = new MutationObserver(() => {
+        scheduleInject();
+      });
+      bgObserver.observe(backgroundEl, {
+        childList: true,
+        subtree: true,
+      });
+    }
 
     return () => {
-      observer.disconnect();
-      root.removeEventListener("mouseover", handleMouse);
-      root.removeEventListener("mouseenter", handleMouse);
+      if (scheduledRaf) cancelAnimationFrame(scheduledRaf);
+      if (bgObserver) bgObserver.disconnect();
+      backgroundEl?.removeEventListener("mouseover", handleHeaderMouse);
+      topEl?.removeEventListener("mouseover", handleHeaderMouse);
+      titleEl?.removeEventListener("mouseover", handleHeaderMouse);
       const injected = root.querySelectorAll(
         `[${BUTTON_ATTR}], [data-damophus-more-background-title-btn]`,
       );
@@ -384,22 +500,158 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
   }
 
+  private initCoverTagOverlay(background: HTMLElement): () => void {
+    let overlayHost = background.querySelector<HTMLElement>(".damophus-cover-tag-overlay-host");
+    if (!overlayHost) {
+      overlayHost = document.createElement("div");
+      overlayHost.className = "damophus-cover-tag-overlay-host";
+      overlayHost.style.position = "absolute";
+      overlayHost.style.left = "0";
+      overlayHost.style.bottom = "0";
+      overlayHost.style.right = "0";
+      overlayHost.style.pointerEvents = "none";
+      overlayHost.style.zIndex = "10";
+      background.appendChild(overlayHost);
+    }
+
+    let unmountOverlay: (() => void) | null = null;
+
+    const updateOverlay = () => {
+      if (!background.isConnected) return;
+      let rawTags =
+        background.getAttribute("data-damophus-post-tags") ||
+        background.querySelector("img")?.getAttribute("data-damophus-post-tags") ||
+        "";
+
+      let site = background.getAttribute("data-damophus-post-site") || "";
+      let postId = background.getAttribute("data-damophus-post-id") || "";
+      let postUrl =
+        background.getAttribute("data-damophus-post-url") ||
+        background.querySelector("img")?.getAttribute("data-damophus-post-url") ||
+        "";
+      let score = background.getAttribute("data-damophus-post-score") || "";
+      let dimensions = background.getAttribute("data-damophus-post-dimensions") || "";
+
+      if (!rawTags) {
+        const blockId =
+          background.getAttribute("data-node-id") ||
+          background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
+          background.closest(".protyle")?.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id");
+
+        if (blockId && !background.hasAttribute("data-damophus-checked-attrs")) {
+          background.setAttribute("data-damophus-checked-attrs", "true");
+          void fetch("/api/attr/getBlockAttrs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: blockId }),
+          })
+            .then((r) => r.json())
+            .then((res) => {
+              if (res.code === 0 && res.data && res.data["custom-damophus-post-tags"]) {
+                const attrs = res.data;
+                background.setAttribute("data-damophus-post-tags", attrs["custom-damophus-post-tags"]);
+                if (attrs["custom-damophus-post-site"]) background.setAttribute("data-damophus-post-site", attrs["custom-damophus-post-site"]);
+                if (attrs["custom-damophus-post-id"]) background.setAttribute("data-damophus-post-id", attrs["custom-damophus-post-id"]);
+                if (attrs["custom-damophus-post-url"]) background.setAttribute("data-damophus-post-url", attrs["custom-damophus-post-url"]);
+                if (attrs["custom-damophus-post-score"]) background.setAttribute("data-damophus-post-score", attrs["custom-damophus-post-score"]);
+                if (attrs["custom-damophus-post-dimensions"]) background.setAttribute("data-damophus-post-dimensions", attrs["custom-damophus-post-dimensions"]);
+                updateOverlay();
+              }
+            })
+            .catch(() => {});
+        }
+
+        if (unmountOverlay) {
+          unmountOverlay();
+          unmountOverlay = null;
+        }
+        return;
+      }
+
+      if (unmountOverlay) {
+        unmountOverlay();
+        unmountOverlay = null;
+      }
+
+      unmountOverlay = mountCoverHoverOverlay(overlayHost!, {
+        tags: rawTags,
+        site,
+        postId,
+        postUrl,
+        score,
+        width: dimensions ? dimensions.split("×")[0]?.trim() : "",
+        height: dimensions ? dimensions.split("×")[1]?.trim() : "",
+      });
+    };
+
+    updateOverlay();
+
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "attributes" && m.attributeName?.startsWith("data-damophus")) {
+          updateOverlay();
+        }
+      }
+    });
+
+    observer.observe(background, {
+      attributes: true,
+      attributeFilter: ["data-damophus-post-tags", "data-damophus-post-url", "data-damophus-post-site"],
+    });
+
+    return () => {
+      observer.disconnect();
+      if (unmountOverlay) {
+        unmountOverlay();
+        unmountOverlay = null;
+      }
+      overlayHost?.remove();
+    };
+  }
+
   private showBackgroundMenu(rect: DOMRect, root: HTMLElement, background: HTMLElement): void {
     const menu = new Menu("DamophusMoreBackground");
     const sources = this.options.sources?.length ? this.options.sources : DEFAULT_COVER_SOURCES;
 
+    const currentPostTags =
+      background.getAttribute("data-damophus-post-tags") ||
+      background.querySelector("img")?.getAttribute("data-damophus-post-tags") ||
+      "";
     const currentPostUrl =
       background.getAttribute("data-damophus-post-url") ||
-      (background.querySelector("img")?.getAttribute("data-damophus-post-url"));
+      background.querySelector("img")?.getAttribute("data-damophus-post-url") ||
+      "";
+    const currentPostSite = background.getAttribute("data-damophus-post-site") || "";
+    const currentPostId = background.getAttribute("data-damophus-post-id") || "";
+    const currentDimensions = background.getAttribute("data-damophus-post-dimensions") || "";
+    const currentScore = background.getAttribute("data-damophus-post-score") || "";
 
-    if (currentPostUrl) {
+    if (currentPostTags || currentPostUrl) {
       menu.addItem({
-        label: "🌐 打开当前题头图原帖 (Booru Post ↗)",
-        icon: "iconLink",
+        label: "🏷️ 查看当前题头图 Tag 标签 (中英对照)",
+        icon: "iconTag",
         click: () => {
-          window.open(currentPostUrl, "_blank");
+          openCoverTagViewer({
+            site: currentPostSite,
+            postId: currentPostId,
+            postUrl: currentPostUrl,
+            tags: currentPostTags,
+            score: currentScore,
+            width: currentDimensions ? currentDimensions.split("×")[0]?.trim() : "",
+            height: currentDimensions ? currentDimensions.split("×")[1]?.trim() : "",
+          });
         },
       });
+
+      if (currentPostUrl) {
+        menu.addItem({
+          label: "🌐 打开当前题头图原帖 (Booru Post ↗)",
+          icon: "iconLink",
+          click: () => {
+            window.open(currentPostUrl, "_blank");
+          },
+        });
+      }
       menu.addSeparator();
     }
 
@@ -516,10 +768,23 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           return;
         }
         finalImageUrl = info.imageUrl;
-        if (info.postUrl) {
-          background.setAttribute("data-damophus-post-url", info.postUrl);
-          const img = background.querySelector("img");
-          if (img) img.setAttribute("data-damophus-post-url", info.postUrl);
+        if (info.postUrl) background.setAttribute("data-damophus-post-url", info.postUrl);
+        if (info.site) background.setAttribute("data-damophus-post-site", info.site);
+        if (info.postId) background.setAttribute("data-damophus-post-id", String(info.postId));
+        if (info.score !== undefined) background.setAttribute("data-damophus-post-score", String(info.score));
+        if (info.width && info.height) background.setAttribute("data-damophus-post-dimensions", `${info.width} × ${info.height}`);
+        if (info.tags) {
+          const rawTags = Array.isArray(info.tags) ? info.tags.join(" ") : String(info.tags);
+          background.setAttribute("data-damophus-post-tags", rawTags);
+        }
+
+        const img = background.querySelector("img");
+        if (img) {
+          if (info.postUrl) img.setAttribute("data-damophus-post-url", info.postUrl);
+          if (info.tags) {
+            const rawTags = Array.isArray(info.tags) ? info.tags.join(" ") : String(info.tags);
+            img.setAttribute("data-damophus-post-tags", rawTags);
+          }
         }
       }
 
@@ -619,14 +884,29 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       finalVal = finalVal.replace(/^\/+/, "");
     }
 
+    const attrs: Record<string, string> = {
+      "title-img": `background-image:url("${finalVal}")`,
+    };
+
+    const tags = background.getAttribute("data-damophus-post-tags");
+    if (tags) attrs["custom-damophus-post-tags"] = tags;
+    const site = background.getAttribute("data-damophus-post-site");
+    if (site) attrs["custom-damophus-post-site"] = site;
+    const postId = background.getAttribute("data-damophus-post-id");
+    if (postId) attrs["custom-damophus-post-id"] = postId;
+    const postUrl = background.getAttribute("data-damophus-post-url");
+    if (postUrl) attrs["custom-damophus-post-url"] = postUrl;
+    const score = background.getAttribute("data-damophus-post-score");
+    if (score) attrs["custom-damophus-post-score"] = score;
+    const dimensions = background.getAttribute("data-damophus-post-dimensions");
+    if (dimensions) attrs["custom-damophus-post-dimensions"] = dimensions;
+
     await fetch("/api/attr/setBlockAttrs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id: blockId,
-        attrs: {
-          "title-img": `background-image:url("${finalVal}")`,
-        },
+        attrs,
       }),
     });
   }
@@ -689,39 +969,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     }
 
     container.appendChild(video);
-
-    // Support dragging to adjust vertical position
-    video.addEventListener("mousedown", (event: MouseEvent) => {
-      event.preventDefault();
-      const icons = video.parentElement?.querySelector(".protyle-icons");
-      if (icons && !icons.classList.contains("fn__none")) {
-        return;
-      }
-      const startY = event.clientY;
-      const height = (video.videoHeight * video.clientWidth) / (video.videoWidth || 1) - video.clientHeight;
-      let originalPositionY = parseFloat(video.style.objectPosition.substring(7)) || 50;
-      if (video.style.objectPosition.endsWith("px")) {
-        originalPositionY = (-parseInt(video.style.objectPosition.substring(7), 10) / (height || 1)) * 100;
-      }
-
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        const delta = height ? ((startY - moveEvent.clientY) / height) * 100 + originalPositionY : 50;
-        const clampedDelta = Math.max(0, Math.min(100, delta)).toFixed(2);
-        video.style.objectPosition = `center ${clampedDelta}%`;
-        if (img) {
-          img.style.objectPosition = `center ${clampedDelta}%`;
-        }
-        moveEvent.preventDefault();
-      };
-
-      const onMouseUp = () => {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-      };
-
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
-    });
   }
 
   private removeVideoBackground(background: HTMLElement): void {
@@ -729,6 +976,289 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     if (video) {
       video.remove();
     }
+  }
+
+  /**
+   * 题头图多合一位置调整控制器：
+   * 1. 快捷模式：按住 Alt 键，鼠标在题头图上按下直接上下拖拽（光标自动变抓手，松手自动保存）
+   * 2. 滚轮微调：鼠标悬浮在题头图上，按住 Alt + 滚轮上下滚动，以 2% 为步长平滑微调（防抖自动保存）
+   * 3. 纯鼠标模式：鼠标左键在题头图上长按 300ms 触发拖拽，松手自动保存
+   * 4. 全局直接拖模式：若开启 directDrag，鼠标左键一拖即走
+   * 5. 交互反馈：拖拽/微调过程中居中显示轻量透明 HUD 百分比徽章 (如 45%)，松手平滑淡出
+   */
+  private initCoverPositionControls(background: HTMLElement): () => void {
+    let isDragging = false;
+    let isLongPressActive = false;
+    let startY = 0;
+    let startX = 0;
+    let startPositionY = 50;
+    let currentPositionY = 50;
+    let longPressTimer: any = null;
+    let wheelSaveTimer: any = null;
+
+    const getMediaElement = (): HTMLElement | null => {
+      return (
+        background.querySelector<HTMLVideoElement>(".protyle-background__video") ||
+        background.querySelector<HTMLImageElement>(".protyle-background__img img")
+      );
+    };
+
+    const parsePositionY = (el: HTMLElement): number => {
+      const pos = el.style.objectPosition || "";
+      if (!pos) return 50;
+      const match = pos.match(/(\d+(?:\.\d+)?)%/);
+      if (match) return parseFloat(match[1]);
+      return 50;
+    };
+
+    const updateElementsPosition = (percent: number) => {
+      const clamped = Math.max(0, Math.min(100, percent));
+      currentPositionY = clamped;
+      const val = `center ${clamped.toFixed(2)}%`;
+      const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+      if (img) img.style.objectPosition = val;
+      const video = background.querySelector<HTMLVideoElement>(".protyle-background__video");
+      if (video) video.style.objectPosition = val;
+    };
+
+    const showHUD = (percent: number, label = "题头图位置") => {
+      let hud = background.querySelector<HTMLElement>(".damophus-position-hud");
+      if (!hud) {
+        hud = document.createElement("div");
+        hud.className = "damophus-position-hud";
+        hud.setAttribute(
+          "style",
+          "position: absolute; top: 14px; left: 50%; transform: translateX(-50%) scale(0.95); " +
+          "background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(10px); " +
+          "color: #f8fafc; font-family: ui-monospace, SFMono-Regular, monospace; " +
+          "font-size: 12px; font-weight: 600; padding: 4px 14px; border-radius: 9999px; " +
+          "border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38); " +
+          "pointer-events: none; z-index: 100; display: flex; align-items: center; gap: 6px; " +
+          "opacity: 0; transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);",
+        );
+        background.appendChild(hud);
+      }
+
+      hud.innerHTML = `<span>↕️ ${label}</span><span style="color: #38bdf8; font-weight: 700; font-size: 13px;">${Math.round(percent)}%</span>`;
+      hud.style.opacity = "1";
+      hud.style.transform = "translateX(-50%) scale(1)";
+
+      const timerKey = "__damophus_hud_timer__";
+      if ((hud as any)[timerKey]) {
+        clearTimeout((hud as any)[timerKey]);
+      }
+    };
+
+    const hideHUD = (delay = 750) => {
+      const hud = background.querySelector<HTMLElement>(".damophus-position-hud");
+      if (!hud) return;
+      const timerKey = "__damophus_hud_timer__";
+      if ((hud as any)[timerKey]) {
+        clearTimeout((hud as any)[timerKey]);
+      }
+      (hud as any)[timerKey] = setTimeout(() => {
+        hud.style.opacity = "0";
+        hud.style.transform = "translateX(-50%) scale(0.95)";
+      }, delay);
+    };
+
+    const savePositionToBlock = async (positionPercent: number) => {
+      const blockId =
+        background.getAttribute("data-node-id") ||
+        background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
+        background.closest(".protyle")?.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id");
+
+      if (!blockId) return;
+
+      const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+      const video = background.querySelector<HTMLVideoElement>(".protyle-background__video");
+      const src = img?.getAttribute("src") || img?.src || video?.getAttribute("src") || video?.src || "";
+      if (!src) return;
+
+      let cleanSrc = src.trim();
+      if (!cleanSrc.startsWith("data:") && !cleanSrc.startsWith("http://") && !cleanSrc.startsWith("https://")) {
+        cleanSrc = cleanSrc.replace(/^\/+/, "");
+      }
+
+      const clampedVal = Math.max(0, Math.min(100, positionPercent)).toFixed(2);
+      const titleImgAttr = `background-image:url("${cleanSrc}");object-position:center ${clampedVal}%;`;
+
+      const attrs: Record<string, string> = {
+        "title-img": titleImgAttr,
+      };
+
+      const tags = background.getAttribute("data-damophus-post-tags");
+      if (tags) attrs["custom-damophus-post-tags"] = tags;
+      const site = background.getAttribute("data-damophus-post-site");
+      if (site) attrs["custom-damophus-post-site"] = site;
+      const postId = background.getAttribute("data-damophus-post-id");
+      if (postId) attrs["custom-damophus-post-id"] = postId;
+      const postUrl = background.getAttribute("data-damophus-post-url");
+      if (postUrl) attrs["custom-damophus-post-url"] = postUrl;
+      const score = background.getAttribute("data-damophus-post-score");
+      if (score) attrs["custom-damophus-post-score"] = score;
+      const dimensions = background.getAttribute("data-damophus-post-dimensions");
+      if (dimensions) attrs["custom-damophus-post-dimensions"] = dimensions;
+
+      try {
+        await fetch("/api/attr/setBlockAttrs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: blockId,
+            attrs,
+          }),
+        });
+      } catch (e) {
+        log.error("Failed to save cover position:", e);
+      }
+    };
+
+    // 鼠标悬停及按键响应
+    const handleMouseMoveOrKey = (e: MouseEvent | KeyboardEvent) => {
+      if (isDragging) return;
+      const media = getMediaElement();
+      if (!media) return;
+      if (e.altKey || this.options.directDrag) {
+        background.style.cursor = "grab";
+      } else {
+        background.style.cursor = "";
+      }
+    };
+
+    const handleMouseLeave = () => {
+      if (!isDragging) {
+        background.style.cursor = "";
+      }
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
+
+    // 滚轮微调 (Alt + Wheel)
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.altKey) return;
+      const media = getMediaElement();
+      if (!media) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      currentPositionY = parsePositionY(media);
+      const step = e.deltaY > 0 ? 2.5 : -2.5;
+      updateElementsPosition(currentPositionY + step);
+
+      showHUD(currentPositionY, "滚轮微调");
+
+      if (wheelSaveTimer) clearTimeout(wheelSaveTimer);
+      wheelSaveTimer = setTimeout(() => {
+        void savePositionToBlock(currentPositionY);
+        hideHUD(800);
+      }, 400);
+    };
+
+    // 鼠标按下：统一处理 Alt 拖拽、长按 300ms 激活、直接拖拽
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+
+      const target = e.target as HTMLElement | null;
+      if (target?.closest(".protyle-icons, .protyle-background__action, .protyle-background__tags, button, [data-type], .damophus-position-hud")) {
+        return;
+      }
+
+      const media = getMediaElement();
+      if (!media) return;
+
+      startX = e.clientX;
+      startY = e.clientY;
+      startPositionY = parsePositionY(media);
+      currentPositionY = startPositionY;
+
+      const isAlt = e.altKey;
+      const isDirect = this.options.directDrag === true;
+
+      if (isAlt || isDirect) {
+        e.preventDefault();
+        isDragging = true;
+        background.style.cursor = "grabbing";
+        document.body.style.cursor = "grabbing";
+        showHUD(currentPositionY, isAlt ? "Alt 快捷拖拽" : "题头图拖拽");
+      } else {
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+          isLongPressActive = true;
+          isDragging = true;
+          background.style.cursor = "grabbing";
+          document.body.style.cursor = "grabbing";
+          showHUD(currentPositionY, "长按已激活");
+        }, 300);
+      }
+
+      const onWindowMouseMove = (moveEvent: MouseEvent) => {
+        const moveDist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+
+        if (!isDragging && longPressTimer && moveDist > 6) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+          return;
+        }
+
+        if (!isDragging) return;
+
+        moveEvent.preventDefault();
+
+        const containerHeight = background.clientHeight || 200;
+        const deltaPercent = ((startY - moveEvent.clientY) / containerHeight) * 100 + startPositionY;
+        updateElementsPosition(deltaPercent);
+
+        const label = isAlt ? "Alt 快捷拖拽" : isLongPressActive ? "长按拖拽" : "题头图拖拽";
+        showHUD(currentPositionY, label);
+      };
+
+      const onWindowMouseUp = (upEvent: MouseEvent) => {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+
+        window.removeEventListener("mousemove", onWindowMouseMove);
+        window.removeEventListener("mouseup", onWindowMouseUp);
+
+        background.style.cursor = "";
+        document.body.style.cursor = "";
+
+        if (isDragging) {
+          isDragging = false;
+          isLongPressActive = false;
+          upEvent.preventDefault();
+          upEvent.stopPropagation();
+
+          void savePositionToBlock(currentPositionY);
+          hideHUD(800);
+        }
+      };
+
+      window.addEventListener("mousemove", onWindowMouseMove);
+      window.addEventListener("mouseup", onWindowMouseUp);
+    };
+
+    background.addEventListener("mousedown", handleMouseDown);
+    background.addEventListener("wheel", handleWheel, { passive: false });
+    background.addEventListener("mousemove", handleMouseMoveOrKey, { passive: true });
+    background.addEventListener("mouseleave", handleMouseLeave, { passive: true });
+
+    return () => {
+      if (longPressTimer) clearTimeout(longPressTimer);
+      if (wheelSaveTimer) clearTimeout(wheelSaveTimer);
+      background.removeEventListener("mousedown", handleMouseDown);
+      background.removeEventListener("wheel", handleWheel);
+      background.removeEventListener("mousemove", handleMouseMoveOrKey);
+      background.removeEventListener("mouseleave", handleMouseLeave);
+      background.style.cursor = "";
+      const hud = background.querySelector(".damophus-position-hud");
+      hud?.remove();
+    };
   }
 
   private observeGalleryVideos(wysiwyg: HTMLElement): () => void {
@@ -761,15 +1291,27 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       img.classList.add("fn__none");
     };
 
-    const scanAll = () => {
-      const images = wysiwyg.querySelectorAll<HTMLImageElement>("img");
-      images.forEach(replaceImgWithVideo);
-    };
+    // 初始扫描仅执行一次
+    const images = wysiwyg.querySelectorAll<HTMLImageElement>("img");
+    images.forEach(replaceImgWithVideo);
 
-    scanAll();
-
-    const observer = new MutationObserver(() => {
-      scanAll();
+    // 仅监听新增节点，避免每次 DOM 变化进行全量 querySelectorAll
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "childList") {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              if (el.tagName === "IMG") {
+                replaceImgWithVideo(el as HTMLImageElement);
+              } else if (el.querySelectorAll) {
+                const imgs = el.querySelectorAll<HTMLImageElement>("img");
+                imgs.forEach(replaceImgWithVideo);
+              }
+            }
+          });
+        }
+      }
     });
 
     observer.observe(wysiwyg, {

@@ -30,6 +30,7 @@
     Sliders,
     SlidersHorizontal,
     Sparkles,
+    Tag,
     Trash2,
     Upload,
     Wand2,
@@ -68,6 +69,7 @@
     resolveBooruImageInfo,
     testBooruSiteCredential,
   } from "./booru";
+  import { openCoverTagViewer } from "./tag-viewer";
   import { plugin } from "@/utils";
   import { settings } from "@/settings";
 
@@ -81,6 +83,7 @@
   export let assetsLocation = "/assets/more-background";
   export let readFromAssets = true;
   export let writeToAssets = false;
+  export let directDrag = false;
   export let mobile = false;
 
   const dispatch = createEventDispatcher();
@@ -180,7 +183,13 @@
     }
   });
 
-  function syncChanges(
+  // --- 实时保存状态跟踪与动画反馈 ---
+  type SaveStatus = "idle" | "saving" | "saved" | "error";
+  let saveStatus: SaveStatus = "idle";
+  let lastSavedTime = "";
+  let saveStatusResetTimer: any = null;
+
+  async function syncChanges(
     nextTemplates: CoverTemplateItem[],
     nextTagPools: TagPool[],
     nextCredentials: SiteCredential[],
@@ -188,24 +197,35 @@
     templates = nextTemplates;
     tagPools = nextTagPools;
     siteCredentials = nextCredentials;
+    saveStatus = "saving";
 
-    // 1. 独立保存庞大的画师和Tag词库到工作区独立数据库文件 (more_background_tag_pools.json)
-    void saveTagPoolsToStorage(nextTagPools);
+    try {
+      // 1. 独立保存庞大的画师和Tag词库到工作区独立数据库文件 (more_background_tag_pools.json)
+      await saveTagPoolsToStorage(nextTagPools);
 
-    const sources = nextTemplates.map((tpl) => ({
-      label: tpl.name,
-      url: templateToUrl(tpl, nextTagPools),
-    }));
+      const sources = nextTemplates.map((tpl) => ({
+        label: tpl.name,
+        url: templateToUrl(tpl, nextTagPools),
+      }));
 
-    // 2. 实时持久化写入思源笔记数据库 (damophus-settings.json)
-    settings.setBySpace(group, "templates", nextTemplates);
-    settings.setBySpace(group, "siteCredentials", nextCredentials);
-    settings.setBySpace(group, "sources", sources);
-    void settings.save();
+      // 2. 实时持久化写入思源笔记数据库 (damophus-settings.json)
+      settings.setBySpace(group, "templates", nextTemplates);
+      settings.setBySpace(group, "siteCredentials", nextCredentials);
+      settings.setBySpace(group, "sources", sources);
+      await settings.save();
 
-    dispatch("changed", { group, key: "templates", value: nextTemplates });
-    dispatch("changed", { group, key: "siteCredentials", value: nextCredentials });
-    dispatch("changed", { group, key: "sources", value: sources });
+      dispatch("changed", { group, key: "templates", value: nextTemplates });
+      dispatch("changed", { group, key: "siteCredentials", value: nextCredentials });
+      dispatch("changed", { group, key: "sources", value: sources });
+
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      lastSavedTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      saveStatus = "saved";
+    } catch (err) {
+      console.error("Failed to save MoreBackground settings:", err);
+      saveStatus = "error";
+    }
   }
 
   // --- Tag Pools Logic ---
@@ -648,6 +668,7 @@
           width: res.width,
           height: res.height,
           score: res.score,
+          tags: res.tags,
         };
       } else {
         templateTestResults[template.id] = {
@@ -707,10 +728,20 @@
     }
   }
 
-  function handleBasicChange(key: string, value: unknown) {
-    settings.setBySpace(group, key, value);
-    void settings.save();
-    dispatch("changed", { group, key, value });
+  async function handleBasicChange(key: string, value: unknown) {
+    saveStatus = "saving";
+    try {
+      settings.setBySpace(group, key, value);
+      await settings.save();
+      dispatch("changed", { group, key, value });
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      lastSavedTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      saveStatus = "saved";
+    } catch (err) {
+      console.error("Failed to save MoreBackground basic setting:", err);
+      saveStatus = "error";
+    }
   }
 
   const RATIO_OPTIONS: { id: AspectRatioType; label: string; desc: string }[] = [
@@ -744,7 +775,7 @@
 </script>
 
 <div class="more-background-settings flex flex-col gap-4 sm:gap-5 p-0.5 sm:p-1 relative" class:mobile>
-  <!-- 顶部标题与说明栏 -->
+  <!-- 顶部标题与保存状态栏 -->
   <header class="flex flex-wrap items-center justify-between gap-2.5 border-b border-border pb-3 sm:pb-4">
     <div class="space-y-1">
       <div class="flex items-center gap-2.5">
@@ -759,6 +790,32 @@
       <p class="text-xs text-muted-foreground leading-relaxed">
         {t("lets-more-background.description")}
       </p>
+    </div>
+
+    <!-- 实时保存状态指示器 (动画效果与时间戳) -->
+    <div
+      class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 shadow-xs border shrink-0
+      {saveStatus === 'saving' ? 'bg-primary/10 text-primary border-primary/30 animate-pulse' :
+       saveStatus === 'saved' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' :
+       saveStatus === 'error' ? 'bg-destructive/10 text-destructive border-destructive/30' :
+       'bg-muted/50 text-muted-foreground border-border'}"
+      title="配置实时自动保存状态"
+    >
+      {#if saveStatus === 'saving'}
+        <Loader2 class="size-3.5 animate-spin text-primary shrink-0" />
+        <span>正在保存...</span>
+      {:else if saveStatus === 'saved'}
+        <CheckCircle2 class="size-3.5 text-emerald-500 shrink-0 animate-in zoom-in-50 duration-200" />
+        <span>
+          已自动保存 {#if lastSavedTime}<span class="opacity-75 font-mono text-[10px] ml-0.5">({lastSavedTime})</span>{/if}
+        </span>
+      {:else if saveStatus === 'error'}
+        <XCircle class="size-3.5 text-destructive shrink-0" />
+        <span>保存失败</span>
+      {:else}
+        <Check class="size-3.5 text-muted-foreground shrink-0" />
+        <span>自动保存就绪</span>
+      {/if}
     </div>
   </header>
 
@@ -1189,7 +1246,30 @@
                       {/if}
                     </span>
 
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      {#if templateTestResults[template.id].tags && (Array.isArray(templateTestResults[template.id].tags) ? templateTestResults[template.id].tags.length > 0 : String(templateTestResults[template.id].tags).trim().length > 0)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          class="h-6 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10 px-2 py-0"
+                          onclick={() => {
+                            const r = templateTestResults[template.id];
+                            openCoverTagViewer({
+                              site: r.site,
+                              postId: r.postId,
+                              postUrl: r.postUrl,
+                              tags: r.tags,
+                              score: r.score,
+                              width: r.width,
+                              height: r.height,
+                            });
+                          }}
+                        >
+                          <Tag class="size-3" />
+                          <span>查看 Tag 标签 ({Array.isArray(templateTestResults[template.id].tags) ? templateTestResults[template.id].tags.length : templateTestResults[template.id].tags.split(/\s+/).length})</span>
+                        </Button>
+                      {/if}
+
                       {#if templateTestResults[template.id].postUrl}
                         <a
                           href={templateTestResults[template.id].postUrl}
@@ -1557,6 +1637,17 @@
           <Switch
             checked={writeToAssets}
             onCheckedChange={(val) => handleBasicChange("writeToAssets", val)}
+          />
+        </div>
+
+        <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-0.5">
+            <div class="font-medium text-foreground">{t("lets-more-background.directDragTitle", "题头图直接拖拽调整")}</div>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.directDragDescription")}</p>
+          </div>
+          <Switch
+            checked={directDrag}
+            onCheckedChange={(val) => handleBasicChange("directDrag", val)}
           />
         </div>
       </div>

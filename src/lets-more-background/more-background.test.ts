@@ -6,6 +6,11 @@ import {
   templateToUrl,
   urlToTemplate,
 } from "./sources";
+import {
+  getLastUsedSource,
+  setLastUsedSource,
+  updateAllLastUsedButtons,
+} from "./more-background";
 
 describe("more-background sources utilities", () => {
   it("replaces width and height placeholders correctly", () => {
@@ -55,6 +60,40 @@ describe("more-background sources utilities", () => {
     expect(parsed.name).toBe("Test Landscape");
     expect(parsed.aspectRatio).toBe("landscape");
     expect(parsed.tags).toBe("wallpaper");
+  });
+
+  it("persists and retrieves last used source in localStorage", () => {
+    const store: Record<string, string> = {};
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => store[k] || null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+      clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
+    };
+
+    const testItem = { label: "动漫唯美风景", url: "booru:safebooru.org?tags=scenery" };
+    setLastUsedSource(testItem);
+    const retrieved = getLastUsedSource();
+    expect(retrieved).toEqual(testItem);
+  });
+
+  it("updates existing button titles and labels idempotently", () => {
+    const mockSpan = { textContent: "⚡ 旧模板" };
+    const mockBtn = {
+      title: "旧配置",
+      tagName: "BUTTON",
+      innerHTML: "",
+      querySelector: (sel: string) => (sel === ".damophus-last-label" ? mockSpan : null),
+    };
+    (globalThis as any).document = {
+      querySelectorAll: (sel: string) => (sel === '[data-type="more-background-last"]' ? [mockBtn] : []),
+    };
+
+    updateAllLastUsedButtons({ label: "新画师模板", url: "booru:gelbooru.com" });
+    expect(mockBtn.title).toBe("使用上次配置: 新画师模板");
+    expect(mockSpan.textContent).toBe("⚡ 新画师模板");
+
+    delete (globalThis as any).document;
   });
 });
 

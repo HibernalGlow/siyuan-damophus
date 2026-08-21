@@ -77,6 +77,8 @@ export const en = {
   "lets-more-background.emptyAssets": "Assets folder is empty or not found",
   "lets-more-background.useLastTemplate": "Use Last Config",
   "lets-more-background.chooseTemplate": "Choose Template",
+  "lets-more-background.directDragTitle": "Direct Drag Cover to Adjust Position",
+  "lets-more-background.directDragDescription": "When enabled, you can drag the cover image directly with left mouse button to adjust vertical position, auto-saving upon release.",
   "lets-more-background.openSetting": "Open settings",
 };
 
@@ -159,5 +161,7 @@ export const zhCN: typeof en = {
   "lets-more-background.emptyAssets": "资源目录是空的或不存在",
   "lets-more-background.useLastTemplate": "使用上次配置",
   "lets-more-background.chooseTemplate": "选择模板",
+  "lets-more-background.directDragTitle": "题头图直接拖拽调整",
+  "lets-more-background.directDragDescription": "开启后无需按 Alt 或长按，鼠标左键按住题头图即可直接上下拖拽调整画面位置，松手自动保存。",
   "lets-more-background.openSetting": "打开设置",
 };
