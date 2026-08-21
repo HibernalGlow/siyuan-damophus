@@ -3,7 +3,7 @@ import { plugin } from "../utils";
 import { openMobileAppearanceMenu } from "./appearance-menu";
 import { MobileOutlineThemeCompatibility } from "./mobile-outline-theme";
 import { MobileTitlePath } from "./mobile-title-path";
-import { getAllEditor, type IEventBusMap } from "siyuan";
+import { getAllEditor, getAllTabs, type IEventBusMap } from "siyuan";
 
 export default class MobileAppearancePlugin extends SubPluginBase {
   private topBarElement?: HTMLElement;
@@ -73,9 +73,9 @@ export default class MobileAppearancePlugin extends SubPluginBase {
 
   private startTitlePath(): void {
     this.titlePath.start();
-    void this.titlePath.showAll(getAllEditor() as never);
+    void this.titlePath.showTabs(getAllTabs() as never);
     window.setTimeout(() => {
-      void this.titlePath.showAll(getAllEditor() as never);
+      void this.titlePath.showTabs(getAllTabs() as never);
     }, 500);
     this.syncTimer ??= window.setInterval(() => {
       void this.titlePath.showAll(getAllEditor() as never);

@@ -149,6 +149,29 @@ export class MobileTitlePath {
     }));
   }
 
+  async showTabs(tabs: ReadonlyArray<{ id?: string; model?: unknown; headElement?: HTMLElement }>): Promise<void> {
+    this.start();
+    this.mountTabCards();
+    await Promise.all(Array.from(document.querySelectorAll<HTMLElement>(".mobile-tabs__item")).map(async (card, index) => {
+      const target = card.querySelector<HTMLElement>(".damophus-mobile-tab-path");
+      const tab = tabs[index];
+      const editor = (tab?.model as { editor?: { protyle?: IProtyle } } | undefined)?.editor;
+      let rootId = editor?.protyle?.block.rootID;
+      if (!rootId) {
+        const initData = tab?.headElement?.getAttribute("data-initdata");
+        if (initData) {
+          try { rootId = JSON.parse(initData).rootId; } catch { /* ignore malformed host metadata */ }
+        }
+      }
+      if (!target || !rootId) return;
+      try {
+        const hpath = await this.getHPath(rootId);
+        target.textContent = readableParentPath(hpath);
+        target.title = hpath;
+      } catch { target.textContent = ""; }
+    }));
+  }
+
   private updateActiveTabCard(path: string, fullPath: string): void {
     this.mountTabCards();
     document.querySelectorAll<HTMLElement>(".mobile-tabs__item").forEach((card) => {
