@@ -51,6 +51,13 @@ export const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "checkbox",
+      title: "lets-more-background.directDragTitle",
+      description: "lets-more-background.directDragDescription",
+      key: "directDrag",
+      value: false,
+    },
+    {
       type: "list",
       title: "lets-more-background.credentialsTab",
       description: "lets-more-background.credentialsDescription",

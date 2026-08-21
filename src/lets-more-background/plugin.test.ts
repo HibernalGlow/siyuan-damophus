@@ -15,6 +15,7 @@ describe("lets-more-background plugin metadata", () => {
     expect(keys).toContain("assetsLocation");
     expect(keys).toContain("readFromAssets");
     expect(keys).toContain("writeToAssets");
+    expect(keys).toContain("directDrag");
     expect(keys).toContain("siteCredentials");
     expect(keys).toContain("templates");
     expect(keys).toContain("sources");

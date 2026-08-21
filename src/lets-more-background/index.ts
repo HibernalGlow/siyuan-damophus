@@ -65,6 +65,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
             assetsLocation: opts.assetsLocation,
             readFromAssets: opts.readFromAssets,
             writeToAssets: opts.writeToAssets,
+            directDrag: opts.directDrag === true,
           },
         });
 
@@ -128,7 +129,6 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
   private readonly handleProtyle = (
     event: CustomEvent<
       | IEventBusMap["loaded-protyle-static"]
-      | IEventBusMap["loaded-protyle-dynamic"]
       | IEventBusMap["switch-protyle"]
     >,
   ): void => {
@@ -172,7 +172,6 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
     if (this.listening) return;
     this.listening = true;
     plugin.eventBus.on("loaded-protyle-static", this.handleProtyle);
-    plugin.eventBus.on("loaded-protyle-dynamic", this.handleProtyle);
     plugin.eventBus.on("switch-protyle", this.handleProtyle);
     plugin.eventBus.on("destroy-protyle", this.handleProtyleDestroyed);
   }
@@ -181,7 +180,6 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
     if (!this.listening) return;
     this.listening = false;
     plugin.eventBus.off("loaded-protyle-static", this.handleProtyle);
-    plugin.eventBus.off("loaded-protyle-dynamic", this.handleProtyle);
     plugin.eventBus.off("switch-protyle", this.handleProtyle);
     plugin.eventBus.off("destroy-protyle", this.handleProtyleDestroyed);
   }
@@ -223,6 +221,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       assetsLocation: (this.getSetting("assetsLocation") || "/assets/more-background").toString(),
       readFromAssets: this.getSetting("readFromAssets") !== false,
       writeToAssets: this.getSetting("writeToAssets") === true,
+      directDrag: this.getSetting("directDrag") === true,
       siteCredentials,
       sources,
       t: (key) => this.t(key as any),
