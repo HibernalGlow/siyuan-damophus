@@ -8,6 +8,7 @@ type TSettingItemType =
   | "button"
   | "hint"
   | "list"
+  | "excludedRules"
   | "blockTypes";
 interface ISettingItem {
   key: string;

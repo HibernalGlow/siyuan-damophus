@@ -11,6 +11,7 @@
   import { plugin } from "../utils";
   import SettingListItem from "./SettingListItem.svelte";
   import SiyuanBlockTypeSelector from "./SiyuanBlockTypeSelector.svelte";
+  import ExcludedRuleList from "./ExcludedRuleList.svelte";
 
   export let type: string;
   export let title: string;
@@ -54,7 +55,7 @@
 
 </script>
 
-{#if type === "textarea" || type === "list" || type === "blockTypes"}
+{#if type === "textarea" || type === "list" || type === "blockTypes" || type === "excludedRules"}
   <div class="flex flex-col gap-3 border-b border-border px-3 py-4 last:border-b-0" class:damophus-setting-item-mobile={mobile}>
     <div>
       <div class="text-sm font-medium">{@html translatedTitle}</div>
@@ -68,6 +69,11 @@
         bind:value={settingValue}
         oninput={() => dispatch("preview", { key: settingKey, value: settingValue })}
         onchange={changed}
+      />
+    {:else if type === "excludedRules"}
+      <ExcludedRuleList
+        value={settingValue}
+        on:value={(event) => { settingValue = event.detail; changed(); }}
       />
     {:else if type === "list"}
       <SettingListItem value={settingValue} {columns} on:value={(event) => { settingValue = event.detail; changed(); }} />
