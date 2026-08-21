@@ -48,7 +48,7 @@ export const SETTING_CATEGORY_DEFINITIONS: SettingCategoryDefinition[] = [
     label: "settings.category.appearance",
     description: "settings.category.appearanceDescription",
     icon: "palette",
-    modules: ["mobileAppearance", "mobileBreadcrumb", "mobileLiquidGlass", "animatedImageReplay", "calloutAppearance", "appearanceTweaks", "snippetAudit"],
+    modules: ["mobileAppearance", "mobileBreadcrumb", "mobileTitlePath", "mobileLiquidGlass", "animatedImageReplay", "calloutAppearance", "appearanceTweaks", "snippetAudit"],
   },
   {
     id: "integrations",
