@@ -1,4 +1,5 @@
 import { getHPathByID } from "@/api";
+import { sql } from "@/api";
 import type { IProtyle } from "siyuan";
 
 export const MOBILE_TITLE_PATH_STYLE_ID = "damophus-mobile-title-path-style";
@@ -166,6 +167,37 @@ export class MobileTitlePath {
       if (!target || !rootId) return;
       try {
         const hpath = await this.getHPath(rootId);
+        target.textContent = readableParentPath(hpath);
+        target.title = hpath;
+      } catch { target.textContent = ""; }
+    }));
+  }
+
+  async showCardsFromDatabase(): Promise<void> {
+    this.start();
+    this.mountTabCards();
+    const cards = Array.from(document.querySelectorAll<HTMLElement>(".mobile-tabs__item"));
+    const titles = cards.map((card) => card.querySelector<HTMLElement>(".mobile-tabs__item-title")?.textContent?.trim() ?? "").filter(Boolean);
+    if (titles.length === 0) return;
+    const rows = await sql("select id, name, content from blocks where type='d' order by created");
+    const byTitle = new Map<string, string[]>();
+    for (const row of rows as Array<{ id?: string; name?: string; content?: string }>) {
+      if (!row.id) continue;
+      for (const value of [row.name, row.content]) {
+        if (!value) continue;
+        const normalized = value.replace(/^\p{Extended_Pictographic}\s*/u, "").trim();
+        const list = byTitle.get(normalized) ?? [];
+        if (!list.includes(row.id)) list.push(row.id);
+        byTitle.set(normalized, list);
+      }
+    }
+    await Promise.all(cards.map(async (card) => {
+      const title = card.querySelector<HTMLElement>(".mobile-tabs__item-title")?.textContent?.trim() ?? "";
+      const target = card.querySelector<HTMLElement>(".damophus-mobile-tab-path");
+      const id = byTitle.get(title.replace(/^\p{Extended_Pictographic}\s*/u, "").trim())?.shift();
+      if (!target || !id) return;
+      try {
+        const hpath = await this.getHPath(id);
         target.textContent = readableParentPath(hpath);
         target.title = hpath;
       } catch { target.textContent = ""; }
