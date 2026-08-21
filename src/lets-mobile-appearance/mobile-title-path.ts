@@ -192,10 +192,12 @@ export class MobileTitlePath {
       const payload = await response.json() as { code?: number; data?: typeof rows };
       if (payload.code !== 0 || !Array.isArray(payload.data)) return;
       rows = payload.data;
+      document.documentElement.dataset.damophusMobilePathRows = String(rows.length);
     } catch {
       return;
     }
     const byTitle = new Map<string, string[]>();
+    const usedIds = new Set<string>();
     const hpaths = new Map<string, string>();
     for (const row of rows as Array<{ id?: string; name?: string; content?: string; hpath?: string }>) {
       if (!row.id) continue;
@@ -215,8 +217,19 @@ export class MobileTitlePath {
       const normalizedTitle = normalizeTitle(title);
       const exact = byTitle.get(normalizedTitle);
       const fuzzy = exact ?? [...byTitle.entries()].find(([key]) => key.includes(normalizedTitle) || normalizedTitle.includes(key))?.[1];
-      const id = fuzzy?.shift();
+      let id = fuzzy?.shift();
+      if (!id) {
+        try {
+          const escaped = title.replace(/'/g, "''");
+          const response = await fetch("/api/query/sql", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stmt: `select id,hpath from blocks where type='d' and content like '%${escaped}%' order by created` }) });
+          const payload = await response.json() as { data?: Array<{ id?: string; hpath?: string }> };
+          const row = payload.data?.find((candidate) => candidate.id && !usedIds.has(candidate.id));
+          if (row?.id) { id = row.id; if (row.hpath) hpaths.set(row.id, row.hpath); }
+        } catch { /* ignore query failure */ }
+      }
+      if (id) card.dataset.damophusMobilePathId = id;
       if (!target || !id) return;
+      usedIds.add(id);
       try {
         const hpath = await this.getHPath(id).catch(() => hpaths.get(id) ?? "");
         if (!hpath) return;
