@@ -277,6 +277,9 @@ export default class DamophusPlugin extends Plugin {
     if (mobileSetting) dialog.element.classList.add("damophus-settings-dialog--mobile");
     const target = dialog.element.querySelector<HTMLElement>("#damophus-setting-panel");
     if (!target) return;
-    panel = mount(SettingPanel, { target });
+    panel = mount(SettingPanel, {
+      target,
+      props: { closeSettings: () => dialog.destroy() },
+    });
   }
 }

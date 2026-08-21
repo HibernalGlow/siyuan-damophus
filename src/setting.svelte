@@ -50,6 +50,8 @@
   import PluginIcon from "./components/plugin-icon.svelte";
   import SettingOverview from "./components/setting-overview.svelte";
 
+  export let closeSettings: (() => void) | undefined = undefined;
+
   const SWITCH_GROUP = "开关";
   const ENTRY_GROUP = "入口";
   const GENERAL_GROUP = "设置";
@@ -570,6 +572,14 @@
     view = "overview";
   }
 
+  function handleMobileBack() {
+    if (view === "detail") {
+      showOverviewPage();
+      return;
+    }
+    closeSettings?.();
+  }
+
   async function onOverviewToggle({ detail }: CustomEvent<{ id: string; enabled: boolean }>) {
     await setModuleEnabled(detail.id, detail.enabled);
     settingItems = initData();
@@ -666,6 +676,15 @@
     class:settings-stage--compact={compactLayout}
     data-testid={showOverview ? "setting-overview-page" : "setting-detail-page"}
   >
+    {#if showOverview && compactLayout && closeSettings}
+      <div class="settings-stage__heading">
+        <MobileSettingsTitlebar
+          title={t("settings.overviewTitle", "Damophus settings")}
+          backLabel={t("settings.back", "Back")}
+          on:back={handleMobileBack}
+        />
+      </div>
+    {/if}
     {#if showOverview && !compactLayout}
       <header class="settings-stage__heading border-b border-border pb-4" in:fade={{ duration: 140 }}>
         <div class="text-lg font-semibold" role="heading" aria-level="2">{t("settings.overviewTitle", "Damophus settings")}</div>
@@ -712,7 +731,7 @@
       <MobileSettingsTitlebar
         title={getGroupLabel(focusGroup)}
         backLabel={t("settings.backToOverview", "Back to overview")}
-        on:back={showOverviewPage}
+        on:back={handleMobileBack}
       />
     {/if}
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
@@ -977,11 +996,17 @@
   }
 
   .settings-stage--compact.settings-stage--overview {
-    padding: 1rem;
+    padding: 0;
     gap: 0;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-    grid-template-areas: "navigation";
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "heading"
+      "navigation";
+  }
+
+  .settings-stage--compact.settings-stage--overview .settings-stage__navigation {
+    padding: 1rem;
   }
 
   .settings-stage--compact.settings-stage--detail {
