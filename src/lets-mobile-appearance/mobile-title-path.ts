@@ -1,5 +1,4 @@
 import { getHPathByID } from "@/api";
-import { sql } from "@/api";
 import type { IProtyle } from "siyuan";
 
 export const MOBILE_TITLE_PATH_STYLE_ID = "damophus-mobile-title-path-style";
@@ -185,13 +184,22 @@ export class MobileTitlePath {
     if (titles.length === 0) return;
     let rows: Array<{ id?: string; name?: string; content?: string }> = [];
     try {
-      rows = await sql("select id, name, content, hpath from blocks where type='d' order by created") as typeof rows;
+      const response = await fetch("/api/query/sql", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stmt: "select id, name, content, hpath from blocks where type='d' order by created" }),
+      });
+      const payload = await response.json() as { code?: number; data?: typeof rows };
+      if (payload.code !== 0 || !Array.isArray(payload.data)) return;
+      rows = payload.data;
     } catch {
       return;
     }
     const byTitle = new Map<string, string[]>();
+    const hpaths = new Map<string, string>();
     for (const row of rows as Array<{ id?: string; name?: string; content?: string; hpath?: string }>) {
       if (!row.id) continue;
+      if (row.hpath) hpaths.set(row.id, row.hpath);
       const hpathName = row.hpath?.split("/").filter(Boolean).pop();
       for (const value of [row.name, row.content, hpathName]) {
         if (!value) continue;
@@ -210,7 +218,8 @@ export class MobileTitlePath {
       const id = fuzzy?.shift();
       if (!target || !id) return;
       try {
-        const hpath = await this.getHPath(id);
+        const hpath = await this.getHPath(id).catch(() => hpaths.get(id) ?? "");
+        if (!hpath) return;
         target.textContent = readableParentPath(hpath);
         target.title = hpath;
       } catch { target.textContent = ""; }

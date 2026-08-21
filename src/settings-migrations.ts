@@ -6,6 +6,16 @@ export function migrateLegacyModuleSettings(
 ): boolean {
   let changed = false;
 
+  const legacyTitlePath = isRecord(config.mobileTitlePath) ? config.mobileTitlePath : undefined;
+  const mobileAppearance = isRecord(config.mobileAppearance) ? config.mobileAppearance : {};
+  if (legacyTitlePath && typeof legacyTitlePath.enabled === "boolean" && mobileAppearance.enabled !== true) {
+    mobileAppearance.enabled = legacyTitlePath.enabled;
+    if (typeof mobileAppearance.titlePath !== "boolean") mobileAppearance.titlePath = legacyTitlePath.enabled;
+    config.mobileAppearance = mobileAppearance;
+    delete config.mobileTitlePath;
+    changed = true;
+  }
+
   for (const pluginConfig of pluginConfigs) {
     const legacyKey = pluginConfig.legacyEnabledSetting;
     if (!legacyKey || typeof config[legacyKey] !== "boolean") continue;

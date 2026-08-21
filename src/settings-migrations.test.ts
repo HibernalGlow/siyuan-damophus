@@ -34,6 +34,13 @@ describe("legacy module settings migration", () => {
     expect(config).toEqual({ mobileAppearance: { enabled: false } });
   });
 
+  it("moves the removed mobile title-path module into mobile appearance", () => {
+    const config = { mobileTitlePath: { enabled: true } };
+
+    expect(migrateLegacyModuleSettings(config, pluginConfigs)).toBe(true);
+    expect(config).toEqual({ mobileAppearance: { enabled: true, titlePath: true } });
+  });
+
   it("moves smart Callout insertion from appearance to Callout tools", () => {
     const config = {
       calloutAppearance: { enabled: true, smartInsert: false, paddingTop: 16 },
