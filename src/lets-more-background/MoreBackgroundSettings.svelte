@@ -1,18 +1,26 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from "svelte";
+  import { flip } from "svelte/animate";
+  import { dragHandle, dragHandleZone, type DndEvent } from "svelte-dnd-action";
   import {
     ArrowDown,
     ArrowUp,
+    ArrowUpDown,
     Check,
     CheckCircle2,
+    Copy,
     Database,
+    Download,
     Edit3,
     ExternalLink,
     Eye,
+    FileJson,
     Globe,
+    GripVertical,
     Image,
     Key,
     Layers,
+    LayoutGrid,
     Link2,
     Loader2,
     Palette,
@@ -23,6 +31,7 @@
     SlidersHorizontal,
     Sparkles,
     Trash2,
+    Upload,
     Wand2,
     X,
     XCircle,
@@ -57,7 +66,6 @@
   import {
     fetchImageForPreview,
     resolveBooruImageInfo,
-    resolveBooruImageUrl,
     testBooruSiteCredential,
   } from "./booru";
   import { plugin } from "@/utils";
@@ -81,8 +89,9 @@
   let testingTemplateId: string | null = null;
   let templateTestResults: Record<
     string,
-    { success: boolean; url?: string; error?: string }
+    { success: boolean; url?: string; error?: string; displayUrl?: string; postUrl?: string; postId?: string | number; site?: string; width?: number; height?: number; score?: number }
   > = {};
+  let templateImageLoadErrors: Record<string, boolean> = {};
 
   let testingCredId: string | null = null;
   let credTestResults: Record<
@@ -331,6 +340,218 @@
     syncChanges(DEFAULT_TEMPLATES, DEFAULT_TAG_POOLS, normalizedCredentials);
   }
 
+  // --- Reorder Kanban Modal Logic ---
+  let reorderModalOpen = false;
+  let reorderItems: CoverTemplateItem[] = [];
+
+  function openReorderModal() {
+    reorderItems = normalizedTemplates.map((t, i) => ({
+      ...t,
+      id: t.id || `tpl-${Date.now()}-${i}`,
+    }));
+    reorderModalOpen = true;
+  }
+
+  function closeReorderModal() {
+    reorderModalOpen = false;
+  }
+
+  function handleDndConsider(e: CustomEvent<DndEvent<CoverTemplateItem>>) {
+    reorderItems = e.detail.items;
+  }
+
+  function handleDndFinalize(e: CustomEvent<DndEvent<CoverTemplateItem>>) {
+    reorderItems = e.detail.items;
+    syncChanges(reorderItems, normalizedTagPools, normalizedCredentials);
+  }
+
+  function moveToTop(index: number) {
+    if (index <= 0) return;
+    const item = reorderItems[index];
+    const rest = reorderItems.filter((_, i) => i !== index);
+    reorderItems = [item, ...rest];
+    syncChanges(reorderItems, normalizedTagPools, normalizedCredentials);
+  }
+
+  function moveToBottom(index: number) {
+    if (index >= reorderItems.length - 1) return;
+    const item = reorderItems[index];
+    const rest = reorderItems.filter((_, i) => i !== index);
+    reorderItems = [...rest, item];
+    syncChanges(reorderItems, normalizedTagPools, normalizedCredentials);
+  }
+
+  // --- JSON Import / Export Logic ---
+  let jsonModalOpen = false;
+  let jsonModalMode: "export" | "import" = "export";
+  let jsonContent = "";
+  let jsonCopied = false;
+  let importMode: "append" | "overwrite" = "append";
+  let importError = "";
+  let fileInputRef: HTMLInputElement | null = null;
+
+  function copyToClipboard(text: string) {
+    if (navigator?.clipboard?.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+
+  function downloadJsonFile(content: string, filename = "more-background-templates.json") {
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function openExportModal() {
+    jsonModalMode = "export";
+    const exportData = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      templates: normalizedTemplates,
+    };
+    jsonContent = JSON.stringify(exportData, null, 2);
+    jsonCopied = false;
+    importError = "";
+    jsonModalOpen = true;
+  }
+
+  function openImportModal() {
+    jsonModalMode = "import";
+    jsonContent = "";
+    jsonCopied = false;
+    importError = "";
+    importMode = "append";
+    jsonModalOpen = true;
+  }
+
+  function closeJsonModal() {
+    jsonModalOpen = false;
+    jsonContent = "";
+    importError = "";
+  }
+
+  async function handleCopyJson() {
+    await copyToClipboard(jsonContent);
+    jsonCopied = true;
+    setTimeout(() => {
+      jsonCopied = false;
+    }, 2000);
+  }
+
+  function handleDownloadJson() {
+    downloadJsonFile(jsonContent, `damophus-more-background-templates-${Date.now()}.json`);
+  }
+
+  function handleFileSelect(e: Event) {
+    const files = (e.target as HTMLInputElement).files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        jsonContent = (event.target?.result as string) || "";
+        importError = "";
+      } catch (err: any) {
+        importError = `读取文件失败: ${err.message}`;
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function handleConfirmImport() {
+    importError = "";
+    if (!jsonContent.trim()) {
+      importError = "请输入或上传 JSON 内容";
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonContent.trim());
+      let templatesToImport: CoverTemplateItem[] = [];
+      let importedPools: TagPool[] | undefined;
+
+      if (Array.isArray(parsed)) {
+        templatesToImport = parsed;
+      } else if (parsed && typeof parsed === "object") {
+        if (Array.isArray(parsed.templates)) {
+          templatesToImport = parsed.templates;
+          if (Array.isArray(parsed.tagPools)) {
+            importedPools = parsed.tagPools;
+          }
+        } else if (parsed.name && (parsed.type || parsed.rules || parsed.site || parsed.url)) {
+          // Single template object
+          templatesToImport = [parsed as CoverTemplateItem];
+        }
+      }
+
+      if (templatesToImport.length === 0) {
+        importError = "未在 JSON 中找到有效的模板数据，请检查格式。";
+        return;
+      }
+
+      // Sanitize templates
+      const sanitizedTemplates: CoverTemplateItem[] = templatesToImport.map((tpl, i) => {
+        const id = tpl.id
+          ? importMode === "append"
+            ? `tpl-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`
+            : tpl.id
+          : `tpl-${Date.now()}-${i}`;
+        return {
+          id,
+          name: tpl.name || `导入模板 ${i + 1}`,
+          type: tpl.type || "booru",
+          site: tpl.site,
+          aspectRatio: tpl.aspectRatio,
+          rating: tpl.rating,
+          tags: tpl.tags,
+          minScore: tpl.minScore,
+          timeRange: tpl.timeRange,
+          imageQuality: tpl.imageQuality,
+          poolId: tpl.poolId,
+          pool: tpl.pool,
+          url: tpl.url,
+          rules: tpl.rules,
+        };
+      });
+
+      let nextTemplates: CoverTemplateItem[];
+      if (importMode === "overwrite") {
+        nextTemplates = sanitizedTemplates;
+      } else {
+        nextTemplates = [...normalizedTemplates, ...sanitizedTemplates];
+      }
+
+      let nextTagPools = normalizedTagPools;
+      if (importedPools && importedPools.length > 0) {
+        if (importMode === "overwrite") {
+          nextTagPools = importedPools;
+        } else {
+          const existingIds = new Set(normalizedTagPools.map((p) => p.id));
+          const newPools = importedPools.filter((p) => !existingIds.has(p.id));
+          nextTagPools = [...normalizedTagPools, ...newPools];
+        }
+      }
+
+      syncChanges(nextTemplates, nextTagPools, normalizedCredentials);
+      closeJsonModal();
+    } catch (e: any) {
+      importError = `JSON 解析错误: ${e.message || String(e)}`;
+    }
+  }
+
   // --- Filter Rules Sub-Editor inside Template ---
   function addRuleToTemplate(tplIndex: number, field: FilterRule["field"] = "aspectRatio") {
     const tpl = normalizedTemplates[tplIndex];
@@ -345,6 +566,10 @@
       defaultVal = "safebooru.org";
     } else if (field === "rating") {
       defaultVal = "safe";
+    } else if (field === "imageQuality") {
+      defaultVal = "sample";
+    } else if (field === "timeRange") {
+      defaultVal = "30d";
     } else if (field === "tags") {
       defaultVal = "wallpaper";
       defaultOp = "contains";
@@ -390,6 +615,8 @@
       if (r.field === "rating") patch.rating = r.value;
       if (r.field === "tags") patch.tags = r.value;
       if (r.field === "minScore") patch.minScore = Number(r.value) || undefined;
+      if (r.field === "timeRange") patch.timeRange = r.value;
+      if (r.field === "imageQuality") patch.imageQuality = r.value;
       if (r.field === "tagPool") patch.poolId = r.value;
     }
     updateTemplate(tplIndex, patch);
@@ -398,11 +625,19 @@
   async function testTemplate(template: CoverTemplateItem) {
     testingTemplateId = template.id;
     templateTestResults[template.id] = undefined as any;
+    templateImageLoadErrors[template.id] = false;
+    templateImageLoadErrors = { ...templateImageLoadErrors };
     try {
       const url = templateToUrl(template, normalizedTagPools);
       const res = await resolveBooruImageInfo(url, normalizedCredentials);
       if (res && res.imageUrl) {
-        const displayUrl = await fetchImageForPreview(res.imageUrl);
+        // 与实际设置题头图机制保持 100% 一致：
+        // 开启 writeToAssets 时测试代理下载到本地
+        // 关闭 writeToAssets 时直接测试浏览器远程直链加载
+        let displayUrl = res.imageUrl;
+        if (writeToAssets) {
+          displayUrl = await fetchImageForPreview(res.imageUrl);
+        }
         templateTestResults[template.id] = {
           success: true,
           url: res.imageUrl,
@@ -486,23 +721,25 @@
   ];
 
   const BOORU_SITES = [
-    { id: "safebooru.org", label: "Safebooru (公开免密·推荐)" },
-    { id: "safebooru.donmai.us", label: "Safebooru (Danbooru 安全镜像)" },
-    { id: "danbooru.donmai.us", label: "Danbooru (官方主站)" },
-    { id: "yande.re", label: "Yande.re (高清插画壁纸)" },
-    { id: "konachan.com", label: "Konachan (壁纸专区)" },
+    { id: "safebooru.org", label: "Safebooru.org (公开免密·免防盗链·首选推荐)" },
+    { id: "yande.re", label: "Yande.re (超高清插画·免防盗链·强烈推荐)" },
+    { id: "konachan.com", label: "Konachan (精品壁纸·免防盗链·强烈推荐)" },
     { id: "gelbooru.com", label: "Gelbooru (海量图库)" },
+    { id: "safebooru.donmai.us", label: "Safebooru (Danbooru 镜像)" },
+    { id: "danbooru.donmai.us", label: "Danbooru (官方主站·需存资源目录)" },
     { id: "e621.net", label: "E621" },
     { id: "tbib.org", label: "TBIB (The Big ImageBoard)" },
   ];
 
   const RULE_FIELDS: { id: FilterRule["field"]; label: string }[] = [
     { id: "aspectRatio", label: "画面比例 (Aspect Ratio)" },
+    { id: "timeRange", label: "发布时间限制 (Time Range)" },
+    { id: "minScore", label: "最低评分限制 (Min Score)" },
+    { id: "imageQuality", label: "清晰度/预览图 (Quality / Preview)" },
     { id: "tagPool", label: "随机抽选词库池 (Tag Pool)" },
     { id: "site", label: "目标站点 (Site)" },
     { id: "rating", label: "安全分级 (Rating)" },
     { id: "tags", label: "固定标签 (Fixed Tags)" },
-    { id: "minScore", label: "最低评分 (Min Score)" },
   ];
 </script>
 
@@ -573,8 +810,20 @@
           <Layers class="size-3.5 text-primary shrink-0" />
           <span>已配置 <strong class="font-semibold text-foreground">{normalizedTemplates.length}</strong> 个条件模板</span>
         </div>
-        <div class="flex items-center gap-2 self-end sm:self-auto">
-          <Button variant="outline" size="sm" onclick={resetDefaults} class="h-7 text-xs gap-1.5">
+        <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 self-end sm:self-auto">
+          <Button variant="outline" size="sm" onclick={openReorderModal} class="h-7 text-xs gap-1.5 font-medium border-primary/40 text-primary hover:bg-primary/10" title="通过看板拖拽自由调整模板优先级顺序">
+            <GripVertical class="size-3.5" />
+            <span>看板排序</span>
+          </Button>
+          <Button variant="outline" size="sm" onclick={openImportModal} class="h-7 text-xs gap-1.5" title="导入 JSON 预设文件或配置文本">
+            <Upload class="size-3.5" />
+            <span>导入 JSON</span>
+          </Button>
+          <Button variant="outline" size="sm" onclick={openExportModal} class="h-7 text-xs gap-1.5" title="导出全部模板为 JSON 格式">
+            <Download class="size-3.5" />
+            <span>导出 JSON</span>
+          </Button>
+          <Button variant="outline" size="sm" onclick={resetDefaults} class="h-7 text-xs gap-1.5" title="重置为默认官方预设">
             <RefreshCw class="size-3.5" />
             <span class="hidden xs:inline">恢复预设</span>
           </Button>
@@ -593,35 +842,15 @@
               <div class="flex flex-1 items-center gap-2 min-w-0">
                 <Sparkles class="size-4 text-primary shrink-0" />
                 <Input
-                  bind:value={template.name}
-                  oninput={() => updateTemplate(tplIndex, { name: template.name })}
+                  value={template.name || ""}
+                  oninput={(e) => updateTemplate(tplIndex, { name: (e.target as HTMLInputElement).value })}
                   placeholder={t("lets-more-background.templateName", "模板名称")}
                   class="font-medium text-sm h-8 bg-background flex-1 min-w-0"
                 />
               </div>
 
-              <!-- 排序与删除 -->
-              <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={tplIndex === 0}
-                  onclick={() => moveTemplate(tplIndex, "up")}
-                  title="上移"
-                  class="size-7 text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowUp class="size-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={tplIndex === normalizedTemplates.length - 1}
-                  onclick={() => moveTemplate(tplIndex, "down")}
-                  title="下移"
-                  class="size-7 text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowDown class="size-3.5" />
-                </Button>
+              <!-- 操作按钮 (删除) -->
+              <div class="flex items-center gap-1 shrink-0">
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -793,9 +1022,84 @@
                                 type="number"
                                 value={rule.value}
                                 oninput={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: parseInt((e.target as HTMLInputElement).value, 10) || 0 })}
-                                placeholder="例如 5"
+                                placeholder="例如 5 (分及以上)"
                                 class="h-7 text-xs font-mono bg-background w-full"
                               />
+                            {:else if rule.field === "timeRange"}
+                              {@const isPreset = ["any", "7d", "30d", "90d", "180d", "365d", "730d"].includes(rule.value || "any")}
+                              <div class="space-y-1.5 w-full">
+                                <select
+                                  value={isPreset ? (rule.value || "any") : "custom"}
+                                  onchange={(e) => {
+                                    const val = (e.target as any).value;
+                                    if (val !== "custom") {
+                                      updateRuleInTemplate(tplIndex, rIndex, { value: val });
+                                    } else if (isPreset) {
+                                      updateRuleInTemplate(tplIndex, rIndex, { value: "2023+" });
+                                    }
+                                  }}
+                                  class="damophus-select w-full font-medium"
+                                >
+                                  <option value="any">不限时间 (All Time - 全部收录)</option>
+                                  <option value="7d">最近 7 天内 (7d)</option>
+                                  <option value="30d">最近 30 天内 (30d / 1 个月)</option>
+                                  <option value="90d">最近 3 个月内 (90d)</option>
+                                  <option value="180d">最近半年内 (180d / 半年)</option>
+                                  <option value="365d">最近 1 年内 (365d / 1 年)</option>
+                                  <option value="730d">最近 2 年内 (730d / 2 年)</option>
+                                  <option value="custom">✏️ 自定义时间 (Custom / 年份 / 日期区间)...</option>
+                                </select>
+
+                                {#if !isPreset}
+                                  <Input
+                                    value={rule.value || ""}
+                                    oninput={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as HTMLInputElement).value })}
+                                    placeholder="例如: 2023+ | 2020..2024 | 60d | >= 2024-01-01"
+                                    class="h-7 text-xs font-mono bg-background w-full"
+                                  />
+                                  <div class="text-[10px] text-muted-foreground/85 leading-relaxed flex flex-wrap items-center gap-1.5 pt-0.5">
+                                    <span>💡 示例:</span>
+                                    <button
+                                      type="button"
+                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
+                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: "2023+" })}
+                                    >
+                                      2023+
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
+                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: "2020..2024" })}
+                                    >
+                                      2020..2024
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
+                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: "60d" })}
+                                    >
+                                      60d
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
+                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: ">= 2024-01-01" })}
+                                    >
+                                      &gt;= 2024-01-01
+                                    </button>
+                                  </div>
+                                {/if}
+                              </div>
+                            {:else if rule.field === "imageQuality"}
+                              <select
+                                value={rule.value || "sample"}
+                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
+                                class="damophus-select w-full font-medium"
+                              >
+                                <option value="original">原图高清 (Original - 默认最高画质)</option>
+                                <option value="sample">中等大图 (Sample - 850~1500px 防防盗链/加速)</option>
+                                <option value="preview">缩略预览 (Preview - 快速预览图/免防盗链)</option>
+                              </select>
                             {:else}
                               <Input
                                 value={rule.value || ""}
@@ -827,8 +1131,8 @@
                 <div class="rounded-lg border border-border bg-muted/30 p-3 sm:p-3.5 space-y-2">
                   <Label class="text-xs font-medium text-foreground block">图片 URL / API 接口地址</Label>
                   <Input
-                    bind:value={template.url}
-                    oninput={() => updateTemplate(tplIndex, { url: template.url })}
+                    value={template.url || ""}
+                    oninput={(e) => updateTemplate(tplIndex, { url: (e.target as HTMLInputElement).value })}
                     placeholder="https://..."
                     class="h-8 text-xs font-mono bg-background"
                   />
@@ -910,13 +1214,29 @@
                       </a>
                     </div>
                   </div>
-                  <div class="overflow-hidden rounded border border-border bg-background max-h-72 flex items-center justify-center">
-                    <img
-                      src={templateTestResults[template.id].displayUrl || templateTestResults[template.id].url}
-                      alt="Cover Preview"
-                      referrerpolicy="no-referrer"
-                      class="max-h-72 w-full object-cover rounded transition-transform hover:scale-[1.01] duration-200"
-                    />
+                  <div class="overflow-hidden rounded border border-border bg-background max-h-72 flex flex-col items-center justify-center relative">
+                    {#if templateImageLoadErrors[template.id]}
+                      <div class="p-4 text-center space-y-1.5 bg-destructive/10 text-destructive text-xs w-full">
+                        <p class="font-semibold flex items-center justify-center gap-1.5">
+                          <XCircle class="size-4" />
+                          <span>浏览器直链加载失败 (403 Forbidden / 防盗链拦截)</span>
+                        </p>
+                        <p class="text-[11px] text-muted-foreground leading-relaxed max-w-lg mx-auto">
+                          该站点官方 CDN（如 Danbooru）限制了浏览器跨域直链嵌入。若想使用该站点，请在下方勾选开启<b>「保存题头图到资源目录」</b>；或者将模板站点改为支持免防盗链直链的图源（如 <b>Safebooru.org</b>、<b>Yande.re</b>、<b>Konachan</b> 等）。
+                        </p>
+                      </div>
+                    {:else}
+                      <img
+                        src={templateTestResults[template.id].displayUrl || templateTestResults[template.id].url}
+                        alt="Cover Preview"
+                        referrerpolicy="no-referrer"
+                        onerror={() => {
+                          templateImageLoadErrors[template.id] = true;
+                          templateImageLoadErrors = { ...templateImageLoadErrors };
+                        }}
+                        class="max-h-72 w-full object-cover rounded transition-transform hover:scale-[1.01] duration-200"
+                      />
+                    {/if}
                   </div>
                 </div>
               {/if}
@@ -1104,8 +1424,8 @@
               <div>
                 <Label class="text-xs text-muted-foreground font-medium mb-1.5 block">站点域名 (Site Domain)</Label>
                 <Input
-                  bind:value={cred.site}
-                  oninput={() => updateCredential(index, { site: cred.site })}
+                  value={cred.site || ""}
+                  oninput={(e) => updateCredential(index, { site: (e.target as HTMLInputElement).value })}
                   placeholder="danbooru.donmai.us"
                   class="h-8 text-xs bg-background w-full"
                 />
@@ -1114,8 +1434,8 @@
               <div>
                 <Label class="text-xs text-muted-foreground font-medium mb-1.5 block">用户名 / Login ID</Label>
                 <Input
-                  bind:value={cred.login}
-                  oninput={() => updateCredential(index, { login: cred.login })}
+                  value={cred.login || ""}
+                  oninput={(e) => updateCredential(index, { login: (e.target as HTMLInputElement).value })}
                   placeholder="您的登录名 / User ID"
                   class="h-8 text-xs bg-background w-full"
                 />
@@ -1125,8 +1445,8 @@
                 <Label class="text-xs text-muted-foreground font-medium mb-1.5 block">API Key 密钥</Label>
                 <Input
                   type="password"
-                  bind:value={cred.apiKey}
-                  oninput={() => updateCredential(index, { apiKey: cred.apiKey })}
+                  value={cred.apiKey || ""}
+                  oninput={(e) => updateCredential(index, { apiKey: (e.target as HTMLInputElement).value })}
                   placeholder="API Key / Token"
                   class="h-8 text-xs font-mono bg-background w-full"
                 />
@@ -1302,6 +1622,299 @@
           <Button variant="secondary" size="sm" class="text-xs gap-1.5 font-medium" onclick={savePoolEditor}>
             <Check class="size-3.5" />
             保存词库
+          </Button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- JSON 导入/导出弹窗 -->
+  {#if jsonModalOpen}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="bg-card text-card-foreground border border-border rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+        <!-- 弹窗标题栏 -->
+        <div class="flex items-center justify-between border-b border-border px-4 py-3 bg-muted/40">
+          <div class="flex items-center gap-2">
+            <FileJson class="size-4 text-primary" />
+            <span class="font-semibold text-sm">
+              {jsonModalMode === "export" ? "导出预设模板 (JSON)" : "导入预设模板 (JSON)"}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="size-7 text-muted-foreground hover:text-foreground"
+            onclick={closeJsonModal}
+          >
+            <X class="size-4" />
+          </Button>
+        </div>
+
+        <!-- 弹窗内容区 -->
+        <div class="p-4 space-y-3.5 overflow-y-auto flex-1 text-xs">
+          {#if jsonModalMode === "export"}
+            <p class="text-muted-foreground leading-relaxed">
+              以下是您当前配置的全部条件模板 JSON 数据。您可以直接复制或下载为 <code>.json</code> 文件，用于备份或分享给他人。
+            </p>
+            <div class="relative">
+              <Textarea
+                readonly
+                value={jsonContent}
+                class="font-mono text-xs h-64 bg-background leading-relaxed select-all"
+              />
+            </div>
+          {:else}
+            <div class="space-y-3">
+              <p class="text-muted-foreground leading-relaxed">
+                您可以直接在下方文本框中粘贴模板 JSON 代码，或者点击按钮上传 <code>.json</code> 文件。
+              </p>
+
+              <!-- 文件上传控件 -->
+              <div class="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  class="hidden"
+                  bind:this={fileInputRef}
+                  onchange={handleFileSelect}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="h-7 text-xs gap-1.5"
+                  onclick={() => fileInputRef?.click()}
+                >
+                  <Upload class="size-3.5" />
+                  <span>选择 JSON 文件上传</span>
+                </Button>
+                {#if fileInputRef?.files?.[0]}
+                  <span class="text-xs text-muted-foreground truncate max-w-xs font-mono">
+                    {fileInputRef.files[0].name}
+                  </span>
+                {/if}
+              </div>
+
+              <div class="space-y-1.5">
+                <Label class="text-xs font-medium">JSON 数据内容：</Label>
+                <Textarea
+                  value={jsonContent}
+                  oninput={(e) => { jsonContent = (e.target as HTMLTextAreaElement).value; importError = ""; }}
+                  placeholder="在此粘贴 JSON 文本 (支持单个模板对象、模板数组或完整导出包)..."
+                  class="font-mono text-xs h-48 bg-background leading-relaxed"
+                />
+              </div>
+
+              <!-- 导入模式选择 -->
+              <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 rounded-lg bg-muted/40 border border-border p-2.5">
+                <span class="text-xs font-medium text-foreground">导入方式：</span>
+                <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="append"
+                    checked={importMode === "append"}
+                    onchange={() => (importMode = "append")}
+                    class="text-primary focus:ring-primary"
+                  />
+                  <span>追加到现有模板后面 (推荐)</span>
+                </label>
+                <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    value="overwrite"
+                    checked={importMode === "overwrite"}
+                    onchange={() => (importMode = "overwrite")}
+                    class="text-destructive focus:ring-destructive"
+                  />
+                  <span class="text-destructive font-medium">覆盖所有现有模板</span>
+                </label>
+              </div>
+
+              {#if importError}
+                <div class="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+                  <XCircle class="size-4 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+
+        <!-- 弹窗底部操作按钮 -->
+        <div class="flex items-center justify-between border-t border-border px-4 py-3 bg-muted/30">
+          <Button variant="ghost" size="sm" onclick={closeJsonModal} class="h-8 text-xs">
+            取消
+          </Button>
+
+          <div class="flex items-center gap-2">
+            {#if jsonModalMode === "export"}
+              <Button variant="outline" size="sm" onclick={handleDownloadJson} class="h-8 text-xs gap-1.5">
+                <Download class="size-3.5" />
+                <span>下载 JSON 文件</span>
+              </Button>
+              <Button variant="secondary" size="sm" onclick={handleCopyJson} class="h-8 text-xs gap-1.5 font-medium">
+                {#if jsonCopied}
+                  <Check class="size-3.5 text-emerald-500" />
+                  <span class="text-emerald-500">已复制到剪贴板！</span>
+                {:else}
+                  <Copy class="size-3.5" />
+                  <span>复制 JSON</span>
+                {/if}
+              </Button>
+            {:else}
+              <Button variant="secondary" size="sm" onclick={handleConfirmImport} class="h-8 text-xs gap-1.5 font-medium">
+                <Check class="size-3.5" />
+                <span>确认导入</span>
+              </Button>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- 模板拖拽排序看板弹窗 -->
+  {#if reorderModalOpen}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="bg-card text-card-foreground border border-border rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[88vh] animate-in zoom-in-95 duration-150">
+        <!-- 弹窗头部 -->
+        <div class="flex items-center justify-between border-b border-border px-4 py-3 bg-muted/40">
+          <div class="flex items-center gap-2">
+            <GripVertical class="size-4 text-primary" />
+            <span class="font-semibold text-sm">模板拖拽排序看板</span>
+            <Badge variant="outline" class="text-[11px] font-mono px-1.5 py-0">
+              共 {reorderItems.length} 个模板
+            </Badge>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="size-7 text-muted-foreground hover:text-foreground"
+            onclick={closeReorderModal}
+          >
+            <X class="size-4" />
+          </Button>
+        </div>
+
+        <!-- 说明栏 -->
+        <div class="px-4 py-2 bg-muted/20 border-b border-border text-[11px] text-muted-foreground flex items-center justify-between">
+          <span>🖐️ 按住左侧手柄拖拽卡片调整顺序（位置越靠前优先级越高，拖拽后自动实时保存生效）。</span>
+        </div>
+
+        <!-- 拖拽列表区域 -->
+        <div class="p-3.5 space-y-2 overflow-y-auto flex-1">
+          <div
+            class="space-y-2 focus:outline-none"
+            use:dragHandleZone={{
+              items: reorderItems,
+              flipDurationMs: 160,
+              dropTargetClasses: ["opacity-60", "border-primary"],
+            }}
+            onconsider={handleDndConsider}
+            onfinalize={handleDndFinalize}
+          >
+            {#each reorderItems as item, idx (item.id)}
+              <div
+                class="flex items-center justify-between gap-2.5 p-2.5 rounded-lg border border-border bg-card hover:border-primary/40 hover:shadow-xs transition-all select-none"
+                animate:flip={{ duration: 160 }}
+              >
+                <!-- 左侧：拖拽手柄 + 序号 + 模板简略信息 -->
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span
+                    use:dragHandle
+                    class="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center shrink-0"
+                    title="按住拖拽排序"
+                    aria-label={`Drag: ${item.name}`}
+                  >
+                    <GripVertical class="size-4" />
+                  </span>
+
+                  <Badge variant="outline" class="font-mono text-xs px-1.5 py-0 shrink-0">
+                    #{idx + 1}
+                  </Badge>
+
+                  <div class="min-w-0 flex-1 space-y-1">
+                    <div class="font-medium text-xs text-foreground truncate flex items-center gap-1.5">
+                      <span>{item.name}</span>
+                    </div>
+
+                    <!-- 简略标签 / 特征徽章 -->
+                    <div class="flex flex-wrap items-center gap-1">
+                      <Badge variant="secondary" class="text-[10px] px-1.5 py-0 font-normal">
+                        {item.site || (item.type === "preset_api" ? "内置 API" : "自定义 URL")}
+                      </Badge>
+                      {#if item.aspectRatio && item.aspectRatio !== "any"}
+                        <Badge variant="outline" class="text-[10px] px-1.5 py-0 font-normal">
+                          {item.aspectRatio === "wide" ? "宽屏 >=1.33" : item.aspectRatio === "landscape" ? "横屏 >=1.0" : "竖屏"}
+                        </Badge>
+                      {/if}
+                      {#if item.imageQuality}
+                        <Badge variant="outline" class="text-[10px] px-1.5 py-0 font-normal">
+                          {item.imageQuality === "sample" ? "Sample" : item.imageQuality === "preview" ? "Preview" : "Original"}
+                        </Badge>
+                      {/if}
+                      {#if item.minScore !== undefined && item.minScore > 0}
+                        <Badge variant="outline" class="text-[10px] px-1.5 py-0 font-normal text-amber-600 dark:text-amber-400">
+                          分值 &ge; {item.minScore}
+                        </Badge>
+                      {/if}
+                      {#if item.timeRange && item.timeRange !== "any"}
+                        <Badge variant="outline" class="text-[10px] px-1.5 py-0 font-normal text-sky-600 dark:text-sky-400">
+                          {item.timeRange}
+                        </Badge>
+                      {/if}
+                      {#if item.tags}
+                        <span class="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]">
+                          {item.tags}
+                        </span>
+                      {/if}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 右侧：置顶与置底快捷按钮 -->
+                <div class="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    class="size-6 text-muted-foreground hover:text-foreground"
+                    disabled={idx === 0}
+                    onclick={() => moveToTop(idx)}
+                    title="一键置顶"
+                  >
+                    <ArrowUp class="size-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    class="size-6 text-muted-foreground hover:text-foreground"
+                    disabled={idx === reorderItems.length - 1}
+                    onclick={() => moveToBottom(idx)}
+                    title="一键置底"
+                  >
+                    <ArrowDown class="size-3" />
+                  </Button>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <!-- 弹窗底部 -->
+        <div class="flex items-center justify-between border-t border-border px-4 py-2.5 bg-muted/30">
+          <span class="text-[11px] text-muted-foreground">已同步保存至设置</span>
+          <Button variant="secondary" size="sm" onclick={closeReorderModal} class="h-7 text-xs font-medium">
+            完成
           </Button>
         </div>
       </div>

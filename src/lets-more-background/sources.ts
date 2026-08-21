@@ -1,5 +1,9 @@
 export type AspectRatioType = "landscape" | "wide" | "portrait" | "any";
 
+export type ImageQualityType = "original" | "sample" | "preview";
+
+export type TimeRangeType = string;
+
 export type SourceType = "booru" | "preset_api" | "custom_url";
 
 export interface CoverSourceItem {
@@ -29,7 +33,7 @@ export interface SiteCredential {
 
 export interface FilterRule {
   id: string;
-  field: "aspectRatio" | "site" | "rating" | "tags" | "minScore" | "tagPool";
+  field: "aspectRatio" | "site" | "rating" | "tags" | "minScore" | "timeRange" | "tagPool" | "imageQuality";
   operator: "equals" | "contains" | "gte" | "randomIn";
   value: any;
 }
@@ -44,6 +48,8 @@ export interface CoverTemplateItem {
   rating?: "safe" | "general" | "questionable" | "all";
   tags?: string;
   minScore?: number;
+  timeRange?: TimeRangeType;
+  imageQuality?: ImageQualityType;
   poolId?: string; // Reference to an independent TagPool
   pool?: string[]; // Or inline pool items
   rules?: FilterRule[];
@@ -114,66 +120,108 @@ export const DEFAULT_SITE_CREDENTIALS: SiteCredential[] = [
 export const DEFAULT_TEMPLATES: CoverTemplateItem[] = [
   {
     id: "tpl-top-artists",
-    name: "🎨 喜欢画师 · 横屏精选",
+    name: "🎨 喜欢画师 · 横屏精选 (Safebooru)",
     type: "booru",
     site: "safebooru.org",
     aspectRatio: "landscape",
     rating: "safe",
+    imageQuality: "sample",
     tags: "wallpaper",
     poolId: "pool-top-artists",
     rules: [
       { id: "r1", field: "aspectRatio", operator: "equals", value: "landscape" },
-      { id: "r2", field: "tagPool", operator: "randomIn", value: "pool-top-artists" },
-      { id: "r3", field: "site", operator: "equals", value: "safebooru.org" },
-      { id: "r4", field: "rating", operator: "equals", value: "safe" },
-      { id: "r5", field: "tags", operator: "contains", value: "wallpaper" },
+      { id: "r2", field: "imageQuality", operator: "equals", value: "sample" },
+      { id: "r3", field: "tagPool", operator: "randomIn", value: "pool-top-artists" },
+      { id: "r4", field: "site", operator: "equals", value: "safebooru.org" },
+      { id: "r5", field: "rating", operator: "equals", value: "safe" },
+      { id: "r6", field: "tags", operator: "contains", value: "wallpaper" },
     ],
   },
   {
     id: "tpl-safebooru-wallpaper",
-    name: "✨ Safebooru · 唯美壁纸 (横屏)",
+    name: "✨ Safebooru · 唯美壁纸 (横屏/免防盗链)",
     type: "booru",
     site: "safebooru.org",
     aspectRatio: "landscape",
     rating: "safe",
+    imageQuality: "sample",
     tags: "wallpaper scenery",
     rules: [
       { id: "r1", field: "aspectRatio", operator: "equals", value: "landscape" },
-      { id: "r2", field: "site", operator: "equals", value: "safebooru.org" },
-      { id: "r3", field: "rating", operator: "equals", value: "safe" },
-      { id: "r4", field: "tags", operator: "contains", value: "wallpaper scenery" },
-    ],
-  },
-  {
-    id: "tpl-danbooru-scenery",
-    name: "🌄 Danbooru · 高分风景 (宽屏)",
-    type: "booru",
-    site: "danbooru.donmai.us",
-    aspectRatio: "wide",
-    rating: "general",
-    tags: "landscape scenery",
-    minScore: 5,
-    rules: [
-      { id: "r1", field: "aspectRatio", operator: "equals", value: "wide" },
-      { id: "r2", field: "site", operator: "equals", value: "danbooru.donmai.us" },
-      { id: "r3", field: "rating", operator: "equals", value: "general" },
-      { id: "r4", field: "minScore", operator: "gte", value: 5 },
-      { id: "r5", field: "tags", operator: "contains", value: "landscape scenery" },
+      { id: "r2", field: "imageQuality", operator: "equals", value: "sample" },
+      { id: "r3", field: "site", operator: "equals", value: "safebooru.org" },
+      { id: "r4", field: "rating", operator: "equals", value: "safe" },
+      { id: "r5", field: "tags", operator: "contains", value: "wallpaper scenery" },
     ],
   },
   {
     id: "tpl-yande-safe",
-    name: "🌸 Yande.re · 精选插画 (横屏)",
+    name: "🌸 Yande.re · 精选插画 (横屏/免防盗链)",
     type: "booru",
     site: "yande.re",
     aspectRatio: "landscape",
     rating: "safe",
+    imageQuality: "sample",
     tags: "scenery",
     rules: [
       { id: "r1", field: "aspectRatio", operator: "equals", value: "landscape" },
-      { id: "r2", field: "site", operator: "equals", value: "yande.re" },
-      { id: "r3", field: "rating", operator: "equals", value: "safe" },
-      { id: "r4", field: "tags", operator: "contains", value: "scenery" },
+      { id: "r2", field: "imageQuality", operator: "equals", value: "sample" },
+      { id: "r3", field: "site", operator: "equals", value: "yande.re" },
+      { id: "r4", field: "rating", operator: "equals", value: "safe" },
+      { id: "r5", field: "tags", operator: "contains", value: "scenery" },
+    ],
+  },
+  {
+    id: "tpl-konachan-wallpaper",
+    name: "🌌 Konachan · 宽屏高清壁纸 (宽屏/免防盗链)",
+    type: "booru",
+    site: "konachan.com",
+    aspectRatio: "wide",
+    rating: "safe",
+    imageQuality: "sample",
+    tags: "scenery landscape",
+    rules: [
+      { id: "r1", field: "aspectRatio", operator: "equals", value: "wide" },
+      { id: "r2", field: "imageQuality", operator: "equals", value: "sample" },
+      { id: "r3", field: "site", operator: "equals", value: "konachan.com" },
+      { id: "r4", field: "rating", operator: "equals", value: "safe" },
+      { id: "r5", field: "tags", operator: "contains", value: "scenery landscape" },
+    ],
+  },
+  {
+    id: "tpl-konachan-landscape",
+    name: "🏯 Konachan · 唯美风景插画 (横屏/免防盗链)",
+    type: "booru",
+    site: "konachan.com",
+    aspectRatio: "landscape",
+    rating: "safe",
+    imageQuality: "sample",
+    tags: "scenery",
+    rules: [
+      { id: "r1", field: "aspectRatio", operator: "equals", value: "landscape" },
+      { id: "r2", field: "imageQuality", operator: "equals", value: "sample" },
+      { id: "r3", field: "site", operator: "equals", value: "konachan.com" },
+      { id: "r4", field: "rating", operator: "equals", value: "safe" },
+      { id: "r5", field: "tags", operator: "contains", value: "scenery" },
+    ],
+  },
+  {
+    id: "tpl-konachan-best",
+    name: "⭐ Konachan · 高分壁纸精选 (评分>=10/宽屏)",
+    type: "booru",
+    site: "konachan.com",
+    aspectRatio: "wide",
+    rating: "safe",
+    minScore: 10,
+    imageQuality: "sample",
+    tags: "wallpaper",
+    rules: [
+      { id: "r1", field: "aspectRatio", operator: "equals", value: "wide" },
+      { id: "r2", field: "imageQuality", operator: "equals", value: "sample" },
+      { id: "r3", field: "minScore", operator: "gte", value: 10 },
+      { id: "r4", field: "site", operator: "equals", value: "konachan.com" },
+      { id: "r5", field: "rating", operator: "equals", value: "safe" },
+      { id: "r6", field: "tags", operator: "contains", value: "wallpaper" },
     ],
   },
   {
@@ -226,6 +274,10 @@ export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] =
         explicitTags = r.value;
       } else if (r.field === "minScore" && Number(r.value) > 0) {
         params.set("min_score", String(r.value));
+      } else if (r.field === "timeRange" && r.value && r.value !== "any") {
+        params.set("time_range", r.value);
+      } else if (r.field === "imageQuality" && r.value && r.value !== "original") {
+        params.set("quality", r.value);
       } else if (r.field === "tagPool" && r.value) {
         poolId = r.value;
       }
@@ -269,6 +321,12 @@ export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] =
   }
   if (template.minScore !== undefined && template.minScore > 0) {
     params.set("min_score", String(template.minScore));
+  }
+  if (template.timeRange && template.timeRange !== "any") {
+    params.set("time_range", template.timeRange);
+  }
+  if (template.imageQuality && template.imageQuality !== "original") {
+    params.set("quality", template.imageQuality);
   }
 
   // Resolve pool: prefer poolId from tagPools, fallback to inline pool
@@ -326,7 +384,19 @@ export function urlToTemplate(label: string, url: string, id?: string): CoverTem
   const ratio = (params.get("ratio") || params.get("aspectRatio") || "any") as AspectRatioType;
   const rating = (params.get("rating") || "safe") as CoverTemplateItem["rating"];
   const tags = params.get("tags") || "";
-  const minScore = params.has("min_score") ? parseInt(params.get("min_score")!, 10) : undefined;
+  const minScore = params.has("min_score")
+    ? parseInt(params.get("min_score")!, 10)
+    : params.has("score")
+    ? parseInt(params.get("score")!, 10)
+    : undefined;
+  const timeRange = (params.get("time_range") || params.get("timeRange") || params.get("time") || "any") as TimeRangeType;
+  const rawQuality = params.get("quality") || params.get("imageQuality");
+  let imageQuality: ImageQualityType = "original";
+  if (rawQuality === "preview" || params.get("preview") === "true" || params.get("thumb") === "true") {
+    imageQuality = "preview";
+  } else if (rawQuality === "sample" || rawQuality === "large") {
+    imageQuality = "sample";
+  }
   const rawPool = params.get("pool");
   const pool = rawPool ? rawPool.split(/[,|\n]/).map((s) => s.trim()).filter(Boolean) : undefined;
 
@@ -339,6 +409,8 @@ export function urlToTemplate(label: string, url: string, id?: string): CoverTem
     rating,
     tags,
     minScore,
+    timeRange,
+    imageQuality,
     pool,
   };
 }

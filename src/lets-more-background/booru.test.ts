@@ -87,5 +87,80 @@ describe("booru API client, condition templates & ratio filter", () => {
     const match2 = findSiteCredential("gelbooru.com", creds);
     expect(match2).toBeUndefined(); // disabled
   });
+
+  it("handles Danbooru image_width and image_height properties in matchesCondition", () => {
+    const danbooruWide = { image_width: 2560, image_height: 1440, score: 10 };
+    const danbooruPortrait = { image_width: 1080, image_height: 1920, score: 10 };
+
+    expect(matchesCondition(danbooruWide, "wide")).toBe(true);
+    expect(matchesCondition(danbooruWide, "landscape")).toBe(true);
+    expect(matchesCondition(danbooruPortrait, "wide")).toBe(false);
+    expect(matchesCondition(danbooruPortrait, "landscape")).toBe(false);
+    expect(matchesCondition(danbooruPortrait, "portrait")).toBe(true);
+  });
+
+  it("parses quality/preview options in parseBooruUri", () => {
+    expect(parseBooruUri("booru:sb?quality=sample").quality).toBe("sample");
+    expect(parseBooruUri("booru:sb?quality=preview").quality).toBe("preview");
+    expect(parseBooruUri("booru:sb?preview=true").quality).toBe("preview");
+    expect(parseBooruUri("booru:sb?quality=original").quality).toBe("original");
+  });
+
+  it("parses time_range and score in parseBooruUri", () => {
+    const parsed = parseBooruUri("booru:safebooru.org?time_range=30d&min_score=10");
+    expect(parsed.timeRange).toBe("30d");
+    expect(parsed.minScore).toBe(10);
+  });
+
+  it("filters posts by time range and score in matchesCondition", () => {
+    const recentPost = {
+      width: 1920,
+      height: 1080,
+      score: 15,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+    };
+    const oldPost = {
+      width: 1920,
+      height: 1080,
+      score: 15,
+      createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), // 60 days ago
+    };
+    const lowScoreRecentPost = {
+      width: 1920,
+      height: 1080,
+      score: 2,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    };
+
+    expect(matchesCondition(recentPost, "landscape", 10, "7d")).toBe(true);
+    expect(matchesCondition(oldPost, "landscape", 10, "7d")).toBe(false); // too old for 7d
+    expect(matchesCondition(oldPost, "landscape", 10, "90d")).toBe(true); // within 90d
+    expect(matchesCondition(lowScoreRecentPost, "landscape", 10, "7d")).toBe(false); // score 2 < 10
+  });
+
+  it("handles custom user date expressions (year ranges, open-ended, absolute dates)", () => {
+    const post2021 = { width: 1920, height: 1080, createdAt: new Date("2021-06-15T12:00:00Z") };
+    const post2023 = { width: 1920, height: 1080, createdAt: new Date("2023-08-20T12:00:00Z") };
+    const post2025 = { width: 1920, height: 1080, createdAt: new Date("2025-01-10T12:00:00Z") };
+
+    // 1. '2023+'
+    expect(matchesCondition(post2021, "any", undefined, "2023+")).toBe(false);
+    expect(matchesCondition(post2023, "any", undefined, "2023+")).toBe(true);
+    expect(matchesCondition(post2025, "any", undefined, "2023+")).toBe(true);
+
+    // 2. '2022..2024'
+    expect(matchesCondition(post2021, "any", undefined, "2022..2024")).toBe(false);
+    expect(matchesCondition(post2023, "any", undefined, "2022..2024")).toBe(true);
+    expect(matchesCondition(post2025, "any", undefined, "2022..2024")).toBe(false);
+
+    // 3. '>= 2024-01-01'
+    expect(matchesCondition(post2023, "any", undefined, ">= 2024-01-01")).toBe(false);
+    expect(matchesCondition(post2025, "any", undefined, ">= 2024-01-01")).toBe(true);
+
+    // 4. '2023'
+    expect(matchesCondition(post2021, "any", undefined, "2023")).toBe(false);
+    expect(matchesCondition(post2023, "any", undefined, "2023")).toBe(true);
+    expect(matchesCondition(post2025, "any", undefined, "2023")).toBe(false);
+  });
 });
 

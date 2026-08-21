@@ -6,6 +6,8 @@ const log = getLogger("lets-more-background:booru");
 
 export type AspectRatioFilter = "landscape" | "wide" | "portrait" | "any";
 
+export type TimeRangeFilter = string;
+
 export interface BooruQueryOptions {
   site: string;
   tags?: string;
@@ -16,7 +18,9 @@ export interface BooruQueryOptions {
   apiKey?: string;
   aspectRatio?: AspectRatioFilter;
   minScore?: number;
+  timeRange?: TimeRangeFilter;
   pool?: string[];
+  quality?: "original" | "sample" | "preview";
 }
 
 export function isBooruSource(urlOrUri: string): boolean {
@@ -73,7 +77,19 @@ export function parseBooruUri(uri: string): BooruQueryOptions {
     ? parseInt(params.get("min_score")!, 10)
     : params.has("minScore")
     ? parseInt(params.get("minScore")!, 10)
+    : params.has("score")
+    ? parseInt(params.get("score")!, 10)
     : undefined;
+
+  const timeRange = params.get("time_range") || params.get("timeRange") || params.get("time") || "any";
+
+  const rawQuality = params.get("quality") || params.get("imageQuality");
+  let quality: "original" | "sample" | "preview" = "original";
+  if (rawQuality === "preview" || params.get("preview") === "true" || params.get("thumb") === "true") {
+    quality = "preview";
+  } else if (rawQuality === "sample" || rawQuality === "large") {
+    quality = "sample";
+  }
 
   const rawPool = params.get("pool") || params.get("artists") || params.get("tags_pool");
   let pool: string[] | undefined;
@@ -94,7 +110,9 @@ export function parseBooruUri(uri: string): BooruQueryOptions {
     apiKey,
     aspectRatio,
     minScore,
+    timeRange,
     pool,
+    quality,
   };
 }
 
@@ -147,27 +165,41 @@ export interface BooruResolvedInfo {
   score?: number;
 }
 
-export async function fetchImageForPreview(imageUrl: string): Promise<string> {
-  if (!imageUrl) return "";
-  if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
-
-  // 1. 优先尝试直接 fetch 转 Blob URL (彻底剥离 Referer)
-  try {
-    const res = await fetch(imageUrl, {
-      referrerPolicy: "no-referrer",
-      headers: { Accept: "image/*,*/*" },
-    });
-    if (res.ok) {
-      const blob = await res.blob();
-      return URL.createObjectURL(blob);
-    }
-  } catch (directErr) {
-    log.debug("Direct fetch image for preview failed:", directErr);
+/** 根据图片 URL 自动推断需要伪装的 Referer（参考 PixLuna 防盗链绕过方案） */
+function getImageReferer(imageUrl: string): string {
+  if (imageUrl.includes("donmai.us") || imageUrl.includes("danbooru")) {
+    return "https://danbooru.donmai.us/";
   }
+  if (imageUrl.includes("pixiv") || imageUrl.includes("pximg")) {
+    return "https://www.pixiv.net/";
+  }
+  if (imageUrl.includes("yande.re")) {
+    return "https://yande.re/";
+  }
+  if (imageUrl.includes("konachan")) {
+    return "https://konachan.com/";
+  }
+  if (imageUrl.includes("gelbooru")) {
+    return "https://gelbooru.com/";
+  }
+  if (imageUrl.includes("safebooru.org")) {
+    return "https://safebooru.org/";
+  }
+  return "";
+}
 
-  // 2. 使用思源内核 forwardProxy 代理获取图片
-  // forwardProxy 返回的 body 在 bodyEncoding=text 时是字符串形式的二进制数据
-  // 需要将其转为 Uint8Array → Blob → Object URL
+/**
+ * 通过思源内核 forwardProxy 下载图片（走系统代理 + Referer 欺骗）
+ * 返回 base64 解码后的 Blob，失败返回 null
+ */
+export async function proxyFetchImageBlob(imageUrl: string): Promise<Blob | null> {
+  const referer = getImageReferer(imageUrl);
+  const headers = [
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+  ];
+  if (referer) headers.push(`Referer: ${referer}`);
+
   try {
     const proxyRes = await fetch("/api/network/forwardProxy", {
       method: "POST",
@@ -176,67 +208,228 @@ export async function fetchImageForPreview(imageUrl: string): Promise<string> {
         url: imageUrl,
         method: "GET",
         timeout: 30000,
-        contentType: "application/octet-stream",
-        headers: [
-          "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept: image/*,*/*",
-        ],
+        responseEncoding: "base64",
+        headers,
       }),
     });
     const proxyData = await proxyRes.json();
     if (proxyData.code === 0 && proxyData.data?.status === 200 && proxyData.data?.body) {
-      const body: string = proxyData.data.body;
+      const b64Body: string = proxyData.data.body;
       const contentType: string = proxyData.data.contentType || "image/jpeg";
-      const encoding: string = proxyData.data.bodyEncoding || "text";
-
-      let blob: Blob;
-      if (encoding === "base64") {
-        // base64 编码：直接解码
-        const binaryStr = atob(body);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-        blob = new Blob([bytes], { type: contentType });
-      } else {
-        // text 编码：逐字符提取 charCode 构建 Uint8Array
-        const bytes = new Uint8Array(body.length);
-        for (let i = 0; i < body.length; i++) bytes[i] = body.charCodeAt(i) & 0xff;
-        blob = new Blob([bytes], { type: contentType });
-      }
-
-      if (blob.size > 0) {
-        return URL.createObjectURL(blob);
-      }
+      const binaryStr = atob(b64Body);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      const blob = new Blob([bytes], { type: contentType });
+      if (blob.size > 0) return blob;
     }
-  } catch (proxyErr) {
-    log.debug("SiYuan forwardProxy image fetch failed:", proxyErr);
+  } catch (err) {
+    log.debug("proxyFetchImageBlob failed:", err);
+  }
+  return null;
+}
+
+export async function fetchImageForPreview(imageUrl: string): Promise<string> {
+  if (!imageUrl) return "";
+  if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) return imageUrl;
+
+  // 1. 优先使用思源内核 forwardProxy（走系统代理 + Referer 欺骗，参考 PixLuna 防盗链方案）
+  const blob = await proxyFetchImageBlob(imageUrl);
+  if (blob) return URL.createObjectURL(blob);
+
+  // 2. 回退：直接 fetch 转 Blob URL（无代理环境）
+  try {
+    const res = await fetch(imageUrl, {
+      referrerPolicy: "no-referrer",
+      headers: { Accept: "image/*,*/*" },
+    });
+    if (res.ok) {
+      const b = await res.blob();
+      return URL.createObjectURL(b);
+    }
+  } catch (directErr) {
+    log.debug("Direct fetch image for preview failed:", directErr);
   }
 
   return imageUrl;
+}
+
+export function extractPostTimestamp(post: any): number | null {
+  if (!post) return null;
+  if (post.createdAt instanceof Date) {
+    return post.createdAt.getTime();
+  }
+  if (typeof post.createdAt === "string" || typeof post.createdAt === "number") {
+    const ts = new Date(post.createdAt).getTime();
+    if (!isNaN(ts)) return ts;
+  }
+  if (typeof post.created_at === "string" || typeof post.created_at === "number") {
+    const ts = new Date(post.created_at).getTime();
+    if (!isNaN(ts)) return ts;
+  }
+  if (typeof post.change === "number") {
+    return post.change > 1e11 ? post.change : post.change * 1000;
+  }
+  if (typeof post.uploadDate === "number") {
+    return post.uploadDate > 1e11 ? post.uploadDate : post.uploadDate * 1000;
+  }
+  return null;
+}
+
+export interface ParsedTimeFilter {
+  minTimestamp?: number;
+  maxTimestamp?: number;
+}
+
+export function parseTimeFilter(raw?: string, now = Date.now()): ParsedTimeFilter {
+  if (!raw) return {};
+  const str = String(raw).trim();
+  if (!str || str.toLowerCase() === "any" || str.toLowerCase() === "all" || str.toLowerCase() === "none") return {};
+
+  const lower = str.toLowerCase();
+
+  // 1. 相对过去时长: '7d', '30d', '6m', '1y', '100d', '最近30天', '30天', '6个月', '1年'
+  const relMatch = lower.match(/^(?:最近|past\s*)?(\d+)\s*(d|day|days|天|m|month|months|月|个月|y|year|years|年)$/);
+  if (relMatch) {
+    const num = parseInt(relMatch[1], 10);
+    const unit = relMatch[2];
+    let ms = 0;
+    if (unit.startsWith("d") || unit === "天") ms = num * 24 * 3600 * 1000;
+    else if (unit.startsWith("m") || unit.includes("月")) ms = num * 30 * 24 * 3600 * 1000;
+    else if (unit.startsWith("y") || unit === "年") ms = num * 365 * 24 * 3600 * 1000;
+    return { minTimestamp: now - ms };
+  }
+
+  // 2. 年份/日期之后: '2023+' or '2024-05+'
+  const plusMatch = str.match(/^(\d{4}(?:-\d{1,2}(?:-\d{1,2})?)?)\+$/);
+  if (plusMatch) {
+    const dateStr = plusMatch[1];
+    const parsedDate = /^\d{4}$/.test(dateStr) ? new Date(`${dateStr}-01-01T00:00:00Z`) : new Date(dateStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return { minTimestamp: parsedDate.getTime() };
+    }
+  }
+
+  // 3. 区间: '2020..2024' or '2022-01-01..2023-12-31' or '2022-01-01 - 2023-12-31'
+  const rangeMatch = str.match(/^(.+?)(?:\.\.|\s+-\s+|\s*至\s*|\s*到\s*)(.+)$/);
+  if (rangeMatch) {
+    const startPart = rangeMatch[1].trim();
+    const endPart = rangeMatch[2].trim();
+    let minTimestamp: number | undefined;
+    let maxTimestamp: number | undefined;
+
+    // start
+    if (/^\d{4}$/.test(startPart)) {
+      minTimestamp = new Date(`${startPart}-01-01T00:00:00Z`).getTime();
+    } else {
+      const d = new Date(startPart);
+      if (!isNaN(d.getTime())) minTimestamp = d.getTime();
+    }
+
+    // end
+    if (/^\d{4}$/.test(endPart)) {
+      maxTimestamp = new Date(`${endPart}-12-31T23:59:59.999Z`).getTime();
+    } else {
+      const d = new Date(endPart);
+      if (!isNaN(d.getTime())) maxTimestamp = d.getTime();
+    }
+    return { minTimestamp, maxTimestamp };
+  }
+
+  // 4. '>=2023', '>2022-06-01', 'after:2023-01-01'
+  const gteMatch = str.match(/^(?:>=?|after:|从|大于等于?)\s*(.+)$/i);
+  if (gteMatch) {
+    const dateStr = gteMatch[1].trim();
+    const parsedDate = /^\d{4}$/.test(dateStr) ? new Date(`${dateStr}-01-01T00:00:00Z`) : new Date(dateStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return { minTimestamp: parsedDate.getTime() };
+    }
+  }
+
+  // 5. '<=2023', '<2024-01-01', 'before:2024-01-01'
+  const lteMatch = str.match(/^(?:<=?|before:|至|小于等于?)\s*(.+)$/i);
+  if (lteMatch) {
+    const dateStr = lteMatch[1].trim();
+    const parsedDate = /^\d{4}$/.test(dateStr) ? new Date(`${dateStr}-12-31T23:59:59.999Z`) : new Date(dateStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return { maxTimestamp: parsedDate.getTime() };
+    }
+  }
+
+  // 6. 单独指定某一年: '2024'
+  if (/^\d{4}$/.test(str)) {
+    return {
+      minTimestamp: new Date(`${str}-01-01T00:00:00Z`).getTime(),
+      maxTimestamp: new Date(`${str}-12-31T23:59:59.999Z`).getTime(),
+    };
+  }
+
+  // 7. 单独日期（默认 >= 该日期）: '2023-05-12'
+  const singleDate = new Date(str);
+  if (!isNaN(singleDate.getTime())) {
+    return { minTimestamp: singleDate.getTime() };
+  }
+
+  return {};
 }
 
 export function matchesCondition(
   post: Post | any,
   aspectRatio: AspectRatioFilter = "any",
   minScore?: number,
+  timeRange: TimeRangeFilter = "any",
 ): boolean {
   if (!post) return false;
 
-  const width = post.width || 0;
-  const height = post.height || 0;
-  const ratio = width > 0 && height > 0 ? width / height : post.aspectRatio || 1;
+  const width =
+    post.image_width ||
+    post.width ||
+    post.imageWidth ||
+    post.preview_width ||
+    post.previewWidth ||
+    post.sample_width ||
+    post.sampleWidth ||
+    0;
+  const height =
+    post.image_height ||
+    post.height ||
+    post.imageHeight ||
+    post.preview_height ||
+    post.previewHeight ||
+    post.sample_height ||
+    post.sampleHeight ||
+    0;
+  const ratio = width > 0 && height > 0 ? width / height : post.aspectRatio || 0;
 
-  if (aspectRatio === "landscape" && ratio < 1.0) {
+  if (aspectRatio === "landscape" && (ratio < 1.0 || ratio === 0)) {
     return false;
   }
-  if (aspectRatio === "wide" && ratio < 1.33) {
+  if (aspectRatio === "wide" && (ratio < 1.33 || ratio === 0)) {
     return false;
   }
-  if (aspectRatio === "portrait" && ratio >= 1.0) {
+  if (aspectRatio === "portrait" && (ratio >= 1.0 || ratio === 0)) {
     return false;
   }
 
-  if (minScore !== undefined && typeof post.score === "number" && post.score < minScore) {
+  // 最低评分限制
+  const rawScore = typeof post.score === "number" ? post.score : parseInt(post.score, 10);
+  if (minScore !== undefined && !isNaN(rawScore) && rawScore < minScore) {
     return false;
+  }
+
+  // 自定义发布时间限制 (支持相对时间、年份区间、指定日期等)
+  if (timeRange && timeRange !== "any" && timeRange !== "all") {
+    const { minTimestamp, maxTimestamp } = parseTimeFilter(timeRange);
+    if (minTimestamp !== undefined || maxTimestamp !== undefined) {
+      const postTime = extractPostTimestamp(post);
+      if (postTime) {
+        if (minTimestamp !== undefined && postTime < minTimestamp) {
+          return false;
+        }
+        if (maxTimestamp !== undefined && postTime > maxTimestamp) {
+          return false;
+        }
+      }
+    }
   }
 
   return true;
@@ -323,7 +516,42 @@ async function fetchDanbooruPosts(
 
   let lastError = "";
 
-  // 1. 尝试直接 fetch
+  // 1. 优先使用思源内核 forwardProxy（走系统代理，绕过 Electron 无代理 / CORS / Cloudflare 限制）
+  try {
+    const headerList = Object.entries(headers).map(([k, v]) => `${k}: ${v}`);
+    const proxyRes = await fetch("/api/network/forwardProxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        method: "GET",
+        timeout: 15000,
+        contentType: "application/json",
+        headers: headerList,
+      }),
+    });
+    const proxyData = await proxyRes.json();
+    if (proxyData.code === 0 && proxyData.data?.body) {
+      const rawBody = proxyData.data.body;
+      if (proxyData.data.status === 401 || rawBody.includes("Invalid API key") || rawBody.includes("AuthenticationFailure")) {
+        return {
+          success: false,
+          posts: [],
+          error: "认证失败 (401)：Danbooru 提示 API Key 无效。请注意登录名必须是 Danbooru 用户名 (Username)，不要填纯数字 ID！",
+        };
+      }
+      if (proxyData.data.status === 200) {
+        const parsed = JSON.parse(rawBody);
+        if (Array.isArray(parsed)) return { success: true, posts: parsed };
+      }
+      lastError = `forwardProxy HTTP ${proxyData.data.status}`;
+    }
+  } catch (proxyErr: any) {
+    lastError = proxyErr?.message || String(proxyErr);
+    log.debug("forwardProxy fetch failed, falling back to direct fetch:", lastError);
+  }
+
+  // 2. 回退：直接 fetch（部分环境可直接访问）
   try {
     const res = await fetch(url, { headers });
     const text = await res.text();
@@ -344,37 +572,6 @@ async function fetchDanbooruPosts(
     }
   } catch (directErr: any) {
     lastError = directErr?.message || String(directErr);
-  }
-
-  // 2. 尝试思源内核代理 forwardProxy (绕过 CORS / Cloudflare 质询)
-  try {
-    const headerList = Object.entries(headers).map(([k, v]) => `${k}: ${v}`);
-    const proxyRes = await fetch("/api/network/forwardProxy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url,
-        method: "GET",
-        timeout: 10000,
-        contentType: "application/json",
-        headers: headerList,
-      }),
-    });
-    const proxyData = await proxyRes.json();
-    if (proxyData.code === 0 && proxyData.data?.body) {
-      const rawBody = proxyData.data.body;
-      if (proxyData.data.status === 401 || rawBody.includes("Invalid API key") || rawBody.includes("AuthenticationFailure")) {
-        return {
-          success: false,
-          posts: [],
-          error: "认证失败 (401)：Danbooru 提示 API Key 无效。请注意登录名必须是 Danbooru 用户名 (Username)，不要填纯数字 ID！",
-        };
-      }
-      const parsed = JSON.parse(rawBody);
-      if (Array.isArray(parsed)) return { success: true, posts: parsed };
-    }
-  } catch (proxyErr: any) {
-    lastError = proxyErr?.message || String(proxyErr);
   }
 
   return { success: false, posts: [], error: lastError || "未能获取到图片数据" };
@@ -460,7 +657,7 @@ export async function resolveBooruImageInfo(
 ): Promise<BooruResolvedInfo | null> {
   try {
     if (urlOrUri.startsWith("booru:")) {
-      const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, pool } =
+      const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, timeRange, pool, quality } =
         parseBooruUri(urlOrUri);
 
       const matchedCred = findSiteCredential(site, siteCredentials);
@@ -492,29 +689,37 @@ export async function resolveBooruImageInfo(
           tagList,
           effectiveLogin,
           effectiveApiKey,
-          30,
+          50, // 抓取 50 条增加找到目标宽高比/评分的命中率
         );
 
         if (res.success && res.posts && res.posts.length > 0) {
           let candidates = res.posts.slice();
           if (aspectRatio && aspectRatio !== "any") {
-            const filtered = candidates.filter((p) => {
-              const width = p.image_width || p.width || 0;
-              const height = p.image_height || p.height || 0;
-              const ratio = width > 0 && height > 0 ? width / height : 1;
-              if (aspectRatio === "landscape" && ratio < 1.0) return false;
-              if (aspectRatio === "wide" && ratio < 1.33) return false;
-              if (aspectRatio === "portrait" && ratio >= 1.0) return false;
-              if (minScore !== undefined && typeof p.score === "number" && p.score < minScore) return false;
-              return true;
-            });
+            const filtered = candidates.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange));
             if (filtered.length > 0) {
               candidates = filtered;
+            } else {
+              // 严格过滤：若本次结果无匹配比例，不降级为竖图
+              candidates = [];
             }
+          } else if (minScore !== undefined || (timeRange && timeRange !== "any")) {
+            candidates = candidates.filter((p) => matchesCondition(p, "any", minScore, timeRange));
+          }
+
+          if (candidates.length === 0) {
+            return null;
           }
 
           const picked = candidates[Math.floor(Math.random() * candidates.length)];
-          const imgUrl = picked?.file_url || picked?.large_file_url || picked?.preview_file_url;
+          let imgUrl: string | undefined;
+          if (quality === "preview") {
+            imgUrl = picked?.preview_file_url || picked?.large_file_url || picked?.file_url;
+          } else if (quality === "sample") {
+            imgUrl = picked?.large_file_url || picked?.file_url || picked?.preview_file_url;
+          } else {
+            imgUrl = picked?.file_url || picked?.large_file_url || picked?.preview_file_url;
+          }
+
           if (imgUrl) {
             const postUrl = picked.id ? extractPostDetailUrl(site, picked.id) : undefined;
             return {
@@ -554,9 +759,9 @@ export async function resolveBooruImageInfo(
           credentialsQuery = `api_key=${encodeURIComponent(effectiveApiKey)}`;
         }
 
-        log.info(`Searching booru ${resolvedDomain} with tags:`, tagList, { aspectRatio, minScore });
+        log.info(`Searching booru ${resolvedDomain} with tags:`, tagList, { aspectRatio, minScore, timeRange });
         const results = await search(resolvedDomain, tagList, {
-          limit: 25,
+          limit: 50,
           random: random ?? true,
           credentials: credentialsQuery ? { query: credentialsQuery } : undefined,
         });
@@ -564,14 +769,30 @@ export async function resolveBooruImageInfo(
         if (results && results.length > 0) {
           let candidates = results.slice();
           if (aspectRatio && aspectRatio !== "any") {
-            const filtered = candidates.filter((p) => matchesCondition(p, aspectRatio, minScore));
+            const filtered = candidates.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange));
             if (filtered.length > 0) {
               candidates = filtered;
+            } else {
+              candidates = [];
             }
+          } else if (minScore !== undefined || (timeRange && timeRange !== "any")) {
+            candidates = candidates.filter((p) => matchesCondition(p, "any", minScore, timeRange));
+          }
+
+          if (candidates.length === 0) {
+            return null;
           }
 
           const picked = candidates[Math.floor(Math.random() * candidates.length)];
-          const imgUrl = extractImageUrlFromPost(picked);
+          let imgUrl: string | null = null;
+          if (quality === "preview") {
+            imgUrl = picked.previewUrl || (picked as any).preview_url || picked.sampleUrl || picked.fileUrl || null;
+          } else if (quality === "sample") {
+            imgUrl = picked.sampleUrl || (picked as any).sample_url || picked.fileUrl || picked.previewUrl || null;
+          } else {
+            imgUrl = extractImageUrlFromPost(picked);
+          }
+
           if (imgUrl) {
             const postUrl = picked.id ? extractPostDetailUrl(resolvedDomain, picked.id) : undefined;
             return {
@@ -613,6 +834,7 @@ export function extractBooruImageUrl(
   baseUrl: string,
   aspectRatio: AspectRatioFilter = "any",
   minScore?: number,
+  timeRange: TimeRangeFilter = "any",
 ): string | null {
   if (!data) return null;
 
@@ -641,11 +863,8 @@ export function extractBooruImageUrl(
         (p.directory !== undefined && p.image !== undefined)),
   );
 
-  if (aspectRatio !== "any" || minScore !== undefined) {
-    const conditioned = validPosts.filter((p) => matchesCondition(p, aspectRatio, minScore));
-    if (conditioned.length > 0) {
-      validPosts = conditioned;
-    }
+  if (aspectRatio !== "any" || minScore !== undefined || (timeRange && timeRange !== "any")) {
+    validPosts = validPosts.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange));
   }
 
   if (validPosts.length === 0) return null;

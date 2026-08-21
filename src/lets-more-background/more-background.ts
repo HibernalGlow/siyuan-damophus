@@ -9,7 +9,7 @@ import {
   sanitizeAssetsPath,
   type SiteCredential,
 } from "./sources";
-import { isBooruSource, resolveBooruImageInfo } from "./booru";
+import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo } from "./booru";
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
@@ -103,12 +103,26 @@ function setLastUsedSource(item: CoverSourceItem): void {
   } catch {}
 }
 
+export function ensureNoReferrerMeta(): void {
+  if (typeof document === "undefined") return;
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="referrer"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = "referrer";
+    meta.content = "no-referrer";
+    document.head.appendChild(meta);
+  } else if (meta.content !== "no-referrer") {
+    meta.content = "no-referrer";
+  }
+}
+
 export class MoreBackgroundController implements MoreBackgroundHandle {
   private options: MoreBackgroundOptions;
   private readonly rootCleanups = new Map<HTMLElement, () => void>();
 
   constructor(options: MoreBackgroundOptions) {
     this.options = options;
+    ensureNoReferrerMeta();
   }
 
   updateOptions(options: MoreBackgroundOptions): void {
@@ -510,14 +524,17 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }
 
       if (this.options.writeToAssets) {
-        let blob: Blob | null = null;
-        try {
-          const res = await fetch(finalImageUrl, { referrerPolicy: "no-referrer" });
-          if (res.ok) {
-            blob = await res.blob();
+        // 优先使用 proxyFetchImageBlob（走系统代理 + Referer 欺骗，参考 PixLuna 防盗链方案）
+        let blob: Blob | null = await proxyFetchImageBlob(finalImageUrl);
+
+        // 回退：直接 fetch
+        if (!blob || blob.size === 0) {
+          try {
+            const res = await fetch(finalImageUrl, { referrerPolicy: "no-referrer" });
+            if (res.ok) blob = await res.blob();
+          } catch (fetchErr) {
+            log.warn("Direct fetch image failed:", fetchErr);
           }
-        } catch (fetchErr) {
-          log.warn("Direct fetch image failed, falling back to direct URL:", fetchErr);
         }
 
         if (blob && blob.size > 0) {
@@ -527,7 +544,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           await this.setBlockBackgroundImage(background, finalImageUrl);
         }
       } else {
-        // Direct remote or data URL
+        // writeToAssets === false: 纯远程 URL 模式，不写任何本地文件，完全依托浏览器 HTTP 缓存
         await this.setBlockBackgroundImage(background, finalImageUrl);
       }
     } catch (e: any) {

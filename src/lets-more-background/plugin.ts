@@ -12,7 +12,7 @@ export const pluginMetadata: PluginMetadata = {
   description: "lets-more-background.description",
   version: "1.0.0",
   enabled: false,
-  icon: "images",
+  icon: "image",
   settings: [
     ...createEntrySettings({ menu: true, tab: true }, { central: true }),
     {

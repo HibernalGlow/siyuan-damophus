@@ -29,6 +29,7 @@ export default class DamophusPlugin extends Plugin {
   private settingsTabRegistered = false;
   private readonly mountedSettingTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
 
+
   private init(): void {
     const plugin = registerPlugin(this);
     setPlugin(plugin);
@@ -37,6 +38,17 @@ export default class DamophusPlugin extends Plugin {
 
   override async onload(): Promise<void> {
     this.init();
+    if (typeof document !== "undefined") {
+      let meta = document.querySelector<HTMLMetaElement>('meta[name="referrer"]');
+      if (!meta) {
+        meta = document.createElement("meta");
+        meta.name = "referrer";
+        meta.content = "no-referrer";
+        document.head.appendChild(meta);
+      } else {
+        meta.content = "no-referrer";
+      }
+    }
     // Custom tab models must be registered before the first await so SiYuan
     // can restore persisted tabs during startup.
     this.pluginRegistry.scanPlugins();
