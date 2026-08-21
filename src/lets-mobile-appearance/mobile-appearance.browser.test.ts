@@ -44,4 +44,17 @@ describe("mobile appearance enhancements", () => {
     expect(outline.classList.contains("file-tree")).toBe(false);
     expect(outline.classList.contains("sy__outline")).toBe(false);
   });
+
+  it("updates tab cards even when the mobile tab-list view has no toolbar title", async () => {
+    document.documentElement.dataset.frontend = "mobile";
+    const tabs = document.createElement("div");
+    tabs.innerHTML = '<div class="mobile-tabs__item"><span class="mobile-tabs__item-title">公务员法</span></div>';
+    document.body.append(tabs);
+    const titlePath = new MobileTitlePath(async () => "/行政法/公务员法");
+
+    await titlePath.show({ block: { rootID: "doc-2" } } as never);
+
+    expect(document.querySelector(".damophus-mobile-tab-path")?.textContent).toBe("/行政法");
+    titlePath.destroy();
+  });
 });

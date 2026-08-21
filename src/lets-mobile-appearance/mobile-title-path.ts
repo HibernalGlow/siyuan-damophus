@@ -57,10 +57,13 @@ export class MobileTitlePath {
     if (!rootId) return this.clear();
     try {
       const hpath = await this.getHPath(rootId);
-      if (version !== this.requestVersion || !this.location) return;
-      this.location.textContent = readableParentPath(hpath);
-      this.location.title = hpath;
-      this.updateActiveTabCard(readableParentPath(hpath), hpath);
+      if (version !== this.requestVersion) return;
+      const displayPath = readableParentPath(hpath);
+      if (this.location) {
+        this.location.textContent = displayPath;
+        this.location.title = hpath;
+      }
+      this.updateActiveTabCard(displayPath, hpath);
     } catch {
       if (version === this.requestVersion) this.clear();
     }
