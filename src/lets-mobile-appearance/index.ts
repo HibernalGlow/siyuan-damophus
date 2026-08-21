@@ -3,7 +3,7 @@ import { plugin } from "../utils";
 import { openMobileAppearanceMenu } from "./appearance-menu";
 import { MobileOutlineThemeCompatibility } from "./mobile-outline-theme";
 import { MobileTitlePath } from "./mobile-title-path";
-import type { IEventBusMap } from "siyuan";
+import { getAllEditor, type IEventBusMap } from "siyuan";
 
 export default class MobileAppearancePlugin extends SubPluginBase {
   private topBarElement?: HTMLElement;
@@ -15,8 +15,47 @@ export default class MobileAppearancePlugin extends SubPluginBase {
   };
 
   override onLayoutReady(): void {
-    if (!this.isMobileFrontend() || this.topBarElement) return;
+    if (!this.isMobileFrontend()) return;
+    this.applySettings();
+  }
 
+  onDataChanged(): void {
+    if (!this.isMobileFrontend()) return;
+    this.applySettings();
+  }
+
+  override onunload(): void {
+    this.removeTopBar();
+    this.stopTitlePath();
+    this.stopOutlineTheme();
+  }
+
+  private applySettings(): void {
+    const isTopBarEnabled = this.getSetting?.("topBarShortcut") ?? true;
+    const isTitlePathEnabled = this.getSetting?.("titlePath") ?? true;
+    const isOutlineThemeEnabled = this.getSetting?.("outlineTheme") ?? true;
+
+    if (isTopBarEnabled) {
+      this.ensureTopBar();
+    } else {
+      this.removeTopBar();
+    }
+
+    if (isTitlePathEnabled) {
+      this.startTitlePath();
+    } else {
+      this.stopTitlePath();
+    }
+
+    if (isOutlineThemeEnabled) {
+      this.outlineTheme.start();
+    } else {
+      this.stopOutlineTheme();
+    }
+  }
+
+  private ensureTopBar(): void {
+    if (this.topBarElement) return;
     const title = window.siyuan?.languages?.appearanceMode ?? "Appearance mode";
     this.topBarElement = plugin.addTopBar({
       icon: "iconTheme",
@@ -24,29 +63,40 @@ export default class MobileAppearancePlugin extends SubPluginBase {
       position: "right",
       callback: openMobileAppearanceMenu,
     });
+  }
+
+  private removeTopBar(): void {
+    this.topBarElement?.remove();
+    this.topBarElement = undefined;
+  }
+
+  private startTitlePath(): void {
     this.titlePath.start();
-    this.outlineTheme.start();
-    if (!this.listening) {
+    const currentEditor = getAllEditor()[0];
+    if (currentEditor) void this.titlePath.show(currentEditor as never);
+    if (!this.listening && plugin.eventBus) {
       this.listening = true;
       plugin.eventBus.on("loaded-protyle-static", this.handleProtyle);
       plugin.eventBus.on("switch-protyle", this.handleProtyle);
     }
   }
 
-  override onunload(): void {
-    this.topBarElement?.remove();
-    this.topBarElement = undefined;
-    if (this.listening) {
+  private stopTitlePath(): void {
+    if (this.listening && plugin.eventBus) {
       plugin.eventBus.off("loaded-protyle-static", this.handleProtyle);
       plugin.eventBus.off("switch-protyle", this.handleProtyle);
       this.listening = false;
     }
     this.titlePath.destroy();
+  }
+
+  private stopOutlineTheme(): void {
     this.outlineTheme.destroy();
   }
 
   private isMobileFrontend(): boolean {
-    const frontend = document.documentElement.dataset.frontend;
+    if (typeof document === "undefined") return false;
+    const frontend = document.documentElement?.dataset?.frontend;
     return frontend === "mobile" || frontend === "browser-mobile";
   }
 }

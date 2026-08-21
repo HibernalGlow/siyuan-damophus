@@ -118,7 +118,6 @@ export class MobileTitlePath {
       if (!title) return;
       const path = document.createElement("small");
       path.className = "damophus-mobile-tab-path";
-      path.hidden = true;
       title.insertAdjacentElement("afterend", path);
       card.style.minHeight = "58px";
     });
@@ -129,16 +128,16 @@ export class MobileTitlePath {
     document.querySelectorAll<HTMLElement>(".mobile-tabs__item").forEach((card) => {
       const target = card.querySelector<HTMLElement>(".damophus-mobile-tab-path");
       if (!target) return;
-      const active = card.classList.contains("mobile-tabs__item--active");
-      target.textContent = active ? path : "";
-      target.hidden = !active || !path;
+      target.textContent = path;
+      target.hidden = !path;
       if (fullPath) target.title = fullPath;
       else target.removeAttribute("title");
     });
   }
 
   private isMobileFrontend(): boolean {
-    const frontend = document.documentElement.dataset.frontend;
+    if (typeof document === "undefined") return false;
+    const frontend = document.documentElement?.dataset?.frontend;
     return frontend === "mobile" || frontend === "browser-mobile";
   }
 }
