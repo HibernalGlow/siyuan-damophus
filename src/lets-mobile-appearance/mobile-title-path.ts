@@ -23,6 +23,10 @@ export function readableParentPath(hpath: string): string {
   return segments.length <= 1 ? "/" : `/${segments.slice(0, -1).join("/")}`;
 }
 
+function normalizeTitle(value: string): string {
+  return value.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").replace(/\.\.\./g, "").replace(/\s+/g, "").trim().toLowerCase();
+}
+
 export class MobileTitlePath {
   private wrapper?: HTMLDivElement;
   private location?: HTMLElement;
@@ -179,13 +183,18 @@ export class MobileTitlePath {
     const cards = Array.from(document.querySelectorAll<HTMLElement>(".mobile-tabs__item"));
     const titles = cards.map((card) => card.querySelector<HTMLElement>(".mobile-tabs__item-title")?.textContent?.trim() ?? "").filter(Boolean);
     if (titles.length === 0) return;
-    const rows = await sql("select id, name, content from blocks where type='d' order by created");
+    let rows: Array<{ id?: string; name?: string; content?: string }> = [];
+    try {
+      rows = await sql("select id, name, content from blocks where type='d' order by created") as typeof rows;
+    } catch {
+      return;
+    }
     const byTitle = new Map<string, string[]>();
     for (const row of rows as Array<{ id?: string; name?: string; content?: string }>) {
       if (!row.id) continue;
       for (const value of [row.name, row.content]) {
         if (!value) continue;
-        const normalized = value.replace(/^\p{Extended_Pictographic}\s*/u, "").trim();
+        const normalized = normalizeTitle(value);
         const list = byTitle.get(normalized) ?? [];
         if (!list.includes(row.id)) list.push(row.id);
         byTitle.set(normalized, list);
@@ -194,7 +203,10 @@ export class MobileTitlePath {
     await Promise.all(cards.map(async (card) => {
       const title = card.querySelector<HTMLElement>(".mobile-tabs__item-title")?.textContent?.trim() ?? "";
       const target = card.querySelector<HTMLElement>(".damophus-mobile-tab-path");
-      const id = byTitle.get(title.replace(/^\p{Extended_Pictographic}\s*/u, "").trim())?.shift();
+      const normalizedTitle = normalizeTitle(title);
+      const exact = byTitle.get(normalizedTitle);
+      const fuzzy = exact ?? [...byTitle.entries()].find(([key]) => key.includes(normalizedTitle) || normalizedTitle.includes(key))?.[1];
+      const id = fuzzy?.shift();
       if (!target || !id) return;
       try {
         const hpath = await this.getHPath(id);
