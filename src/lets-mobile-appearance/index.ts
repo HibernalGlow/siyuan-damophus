@@ -78,7 +78,7 @@ export default class MobileAppearancePlugin extends SubPluginBase {
       void this.titlePath.showCardsFromDatabase();
     }, 500);
     this.syncTimer ??= window.setInterval(() => {
-      void this.titlePath.showAll(getAllEditor() as never);
+      void this.titlePath.showCardsFromDatabase();
     }, 1000);
     if (!this.listening && plugin.eventBus) {
       this.listening = true;
