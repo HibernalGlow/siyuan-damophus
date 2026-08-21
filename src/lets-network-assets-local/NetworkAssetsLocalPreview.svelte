@@ -5,6 +5,7 @@
     previewDocumentTreeNetworkAssets,
     compileExcludedPatterns,
     isUrlExcludedByPatterns,
+    type ExcludedRuleItem,
     type NetworkAssetPreviewDocument,
   } from "./network-assets-local";
 
@@ -23,7 +24,7 @@
     onDocumentLocate: (id: string) => void;
     onDocumentDelete: (id: string) => Promise<void>;
     blockTypes: string[];
-    defaultExcludedPattern: string;
+    defaultExcludedPattern: string | ExcludedRuleItem[];
   } = $props();
   let documents = $state<NetworkAssetPreviewDocument[]>([]);
   let loading = $state(true);
@@ -31,7 +32,7 @@
   let error = $state("");
   let completed = $state(false);
   let progress = $state("");
-  let excludedPattern = $state("");
+  let excludedPattern = $state<string | ExcludedRuleItem[]>("");
   let selectedUrls = $state<Set<string>>(new Set());
   let skippedUrls = $state<Set<string>>(new Set());
   let filtersOpen = $state(false);
@@ -66,7 +67,9 @@
   }
 
   $effect(() => {
-    if (excludedPattern === "" && defaultExcludedPattern) excludedPattern = defaultExcludedPattern;
+    if ((excludedPattern === "" || (Array.isArray(excludedPattern) && excludedPattern.length === 0)) && defaultExcludedPattern) {
+      excludedPattern = defaultExcludedPattern;
+    }
   });
 
   async function refresh(): Promise<void> {
@@ -140,7 +143,13 @@
       <section class="damophus-network-assets-local__filters">
         <label>
           <span>{labels.regex}</span>
-          <input class="b3-text-field" bind:value={excludedPattern} placeholder={labels.regexPlaceholder} disabled={running} />
+          <input
+            class="b3-text-field"
+            value={typeof excludedPattern === "string" ? excludedPattern : excludedPattern.filter((r) => r.enabled).map((r) => r.pattern).join(" | ")}
+            oninput={(event) => { excludedPattern = event.currentTarget.value; }}
+            placeholder={labels.regexPlaceholder}
+            disabled={running}
+          />
         </label>
       </section>
     {/if}

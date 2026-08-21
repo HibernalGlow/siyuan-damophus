@@ -15,9 +15,28 @@ export interface NetworkAssetConversionResult {
   documents: number;
 }
 
+export interface ExcludedRuleItem {
+  pattern: string;
+  description?: string;
+  enabled: boolean;
+}
+
+export const DEFAULT_EXCLUDED_RULES: ExcludedRuleItem[] = [
+  {
+    pattern: "inkloomer\\.github\\.io/inkloom",
+    description: "InkLoom 动图与文档资源",
+    enabled: true,
+  },
+  {
+    pattern: "github\\.com/[^/]+/[^/]+/(?:issues|pull)",
+    description: "GitHub Issues 与 Pull Requests",
+    enabled: true,
+  },
+];
+
 export interface NetworkAssetConversionOptions {
   skippedUrls?: ReadonlySet<string>;
-  excludedPattern?: string;
+  excludedPattern?: string | ExcludedRuleItem[];
   blockTypes?: ReadonlySet<string>;
 }
 
@@ -114,20 +133,56 @@ export async function resolveConvertibleBlocks(
   return rows.filter((row) => blockTypes.has(SIYUAN_SQL_BLOCK_TYPES[row.type] ?? row.type));
 }
 
-export function parseExcludedRules(raw: string | undefined): string[] {
-  if (!raw?.trim()) return [];
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#") && !line.startsWith("//"));
+export function normalizeExcludedRules(input: unknown): ExcludedRuleItem[] {
+  if (Array.isArray(input)) {
+    return input.map((item) => {
+      if (typeof item === "string") {
+        return { pattern: item, description: "", enabled: true };
+      }
+      return {
+        pattern: String(item?.pattern ?? ""),
+        description: typeof item?.description === "string" ? item.description : "",
+        enabled: item?.enabled !== false,
+      };
+    }).filter((item) => item.pattern.trim().length > 0 || (item.description?.trim().length ?? 0) > 0);
+  }
+  if (typeof input === "string" && input.trim()) {
+    try {
+      const parsed = JSON.parse(input);
+      if (Array.isArray(parsed)) return normalizeExcludedRules(parsed);
+    } catch {
+      // Not JSON, parse text lines
+    }
+    return input
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => {
+        const isComment = line.startsWith("#") || line.startsWith("//");
+        const cleanPattern = isComment ? line.replace(/^(?:#|\/\/)\s*/, "") : line;
+        return {
+          pattern: cleanPattern,
+          description: "",
+          enabled: !isComment,
+        };
+      });
+  }
+  return [];
 }
 
-export function compileExcludedPatterns(raw: string | undefined): RegExp[] {
-  const rules = parseExcludedRules(raw);
+export function parseExcludedRules(raw: string | ExcludedRuleItem[] | undefined): string[] {
+  return normalizeExcludedRules(raw)
+    .filter((rule) => rule.enabled && rule.pattern.trim().length > 0)
+    .map((rule) => rule.pattern.trim());
+}
+
+export function compileExcludedPatterns(raw: string | ExcludedRuleItem[] | undefined): RegExp[] {
+  const rules = normalizeExcludedRules(raw);
   const patterns: RegExp[] = [];
   for (const rule of rules) {
+    if (!rule.enabled || !rule.pattern?.trim()) continue;
     try {
-      patterns.push(new RegExp(rule, "iu"));
+      patterns.push(new RegExp(rule.pattern.trim(), "iu"));
     } catch {
       // invalid patterns are ignored by the caller
     }

@@ -1,6 +1,6 @@
 import type { PluginMetadata } from "@/types/plugin";
 import { createEntrySettings } from "@/libs/plugin-entry-settings";
-import { DEFAULT_NETWORK_ASSET_BLOCK_TYPES } from "./network-assets-local";
+import { DEFAULT_EXCLUDED_RULES, DEFAULT_NETWORK_ASSET_BLOCK_TYPES } from "./network-assets-local";
 
 const pluginMetadata: PluginMetadata = {
   name: "networkAssetsLocal",
@@ -8,21 +8,15 @@ const pluginMetadata: PluginMetadata = {
   description: "lets-network-assets-local.description",
   version: "1.0.0",
   enabled: false,
-  icon: "network",
+  icon: "globe2",
   settings: [
     ...createEntrySettings({ contextMenu: true, tab: true }, { central: true }),
     {
-      type: "textarea",
+      type: "excludedRules",
       title: "lets-network-assets-local.excludedPatternTitle",
       description: "lets-network-assets-local.excludedPatternDescription",
       key: "excludedPattern",
-      value: [
-        "# InkLoom 动图与文档资源",
-        "inkloomer\\.github\\.io/inkloom",
-        "",
-        "# GitHub Issues 与 Pull Requests",
-        "github\\.com/[^/]+/[^/]+/(?:issues|pull)",
-      ].join("\n"),
+      value: DEFAULT_EXCLUDED_RULES,
     },
     {
       type: "blockTypes",

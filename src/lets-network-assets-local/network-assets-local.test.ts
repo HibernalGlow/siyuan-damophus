@@ -3,12 +3,15 @@ import * as api from "@/api";
 import {
   compileExcludedPatterns,
   convertDocumentTreeNetworkAssets,
+  DEFAULT_EXCLUDED_RULES,
   hasRemoteResource,
   isRemoteResourceUrl,
+  normalizeExcludedRules,
   parseExcludedRules,
   previewDocumentTreeNetworkAssets,
   remoteResourceUrls,
   resolveDocumentTree,
+  type ExcludedRuleItem,
 } from "./network-assets-local";
 
 vi.mock("@/api", () => ({
@@ -173,5 +176,31 @@ describe("network assets to local", () => {
     expect(patterns[0].test("https://inkloomer.github.io/inkloom/asset.png")).toBe(true);
     expect(patterns[1].test("https://github.com/user/repo/issues/1")).toBe(true);
     expect(patterns.some((p) => p.test("https://disabled-rule.com/asset.png"))).toBe(false);
+  });
+
+  it("handles structured ExcludedRuleItem array with independent switch toggles", () => {
+    const rules: ExcludedRuleItem[] = [
+      { pattern: "inkloomer\\.github\\.io/inkloom", description: "InkLoom assets", enabled: true },
+      { pattern: "github\\.com/[^/]+/[^/]+/(?:issues|pull)", description: "GitHub", enabled: false }, // Switch turned OFF
+      { pattern: "baidu\\.com", description: "Baidu", enabled: true },
+    ];
+
+    const normalized = normalizeExcludedRules(rules);
+    expect(normalized).toHaveLength(3);
+    expect(normalized[0].enabled).toBe(true);
+    expect(normalized[1].enabled).toBe(false);
+
+    const patterns = compileExcludedPatterns(rules);
+    expect(patterns).toHaveLength(2);
+    expect(patterns.some((p) => p.test("https://inkloomer.github.io/inkloom/a.png"))).toBe(true);
+    expect(patterns.some((p) => p.test("https://github.com/user/repo/issues/1"))).toBe(false);
+    expect(patterns.some((p) => p.test("https://baidu.com/logo.png"))).toBe(true);
+  });
+
+  it("includes default excluded rules with InkLoom and GitHub enabled", () => {
+    expect(DEFAULT_EXCLUDED_RULES.length).toBeGreaterThanOrEqual(2);
+    expect(DEFAULT_EXCLUDED_RULES.every((r) => r.enabled)).toBe(true);
+    const patterns = compileExcludedPatterns(DEFAULT_EXCLUDED_RULES);
+    expect(patterns.some((p) => p.test("https://inkloomer.github.io/inkloom/demo.png"))).toBe(true);
   });
 });

@@ -131,8 +131,8 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
     }
   }
 
-  private excludedPattern(): string {
-    return String(this.getSetting("excludedPattern") ?? "");
+  private excludedPattern(): any {
+    return this.getSetting("excludedPattern") ?? "";
   }
 
   private blockTypes(): string[] {
