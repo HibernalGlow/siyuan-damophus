@@ -185,14 +185,15 @@ export class MobileTitlePath {
     if (titles.length === 0) return;
     let rows: Array<{ id?: string; name?: string; content?: string }> = [];
     try {
-      rows = await sql("select id, name, content from blocks where type='d' order by created") as typeof rows;
+      rows = await sql("select id, name, content, hpath from blocks where type='d' order by created") as typeof rows;
     } catch {
       return;
     }
     const byTitle = new Map<string, string[]>();
-    for (const row of rows as Array<{ id?: string; name?: string; content?: string }>) {
+    for (const row of rows as Array<{ id?: string; name?: string; content?: string; hpath?: string }>) {
       if (!row.id) continue;
-      for (const value of [row.name, row.content]) {
+      const hpathName = row.hpath?.split("/").filter(Boolean).pop();
+      for (const value of [row.name, row.content, hpathName]) {
         if (!value) continue;
         const normalized = normalizeTitle(value);
         const list = byTitle.get(normalized) ?? [];
