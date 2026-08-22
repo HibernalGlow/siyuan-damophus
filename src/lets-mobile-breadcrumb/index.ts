@@ -40,6 +40,7 @@ export default class MobileBreadcrumbPlugin extends SubPluginBase {
 
   override onload(): void {
     if (!DIAGNOSTIC_RUNTIME_ENABLED) return;
+    this.applySettings();
     if (!this.listening) {
       this.listening = true;
       plugin.eventBus.on("loaded-protyle-static", this.handleLoaded);
@@ -52,7 +53,12 @@ export default class MobileBreadcrumbPlugin extends SubPluginBase {
     }
   }
 
+  override onDataChanged(): void {
+    this.applySettings();
+  }
+
   override onunload(): void {
+    delete document.documentElement.dataset.damophusMobileBreadcrumbOutline;
     this.flashcards.stop();
     if (this.listening) {
       plugin.eventBus.off("loaded-protyle-static", this.handleLoaded);
@@ -61,5 +67,10 @@ export default class MobileBreadcrumbPlugin extends SubPluginBase {
       this.listening = false;
     }
     this.renderer.destroy();
+  }
+
+  private applySettings(): void {
+    document.documentElement.dataset.damophusMobileBreadcrumbOutline =
+      this.getSetting?.("outline") === false ? "false" : "true";
   }
 }

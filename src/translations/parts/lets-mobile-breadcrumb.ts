@@ -14,6 +14,8 @@ export const en = {
   "lets-mobile-breadcrumb.maxCharactersDescription": "Used in character limit mode. Values are kept between 4 and 100.",
   "lets-mobile-breadcrumb.maxTextWidthTitle": "Maximum Text Width (px)",
   "lets-mobile-breadcrumb.maxTextWidthDescription": "Used in width limit mode. Values are kept between 64px and 480px.",
+  "lets-mobile-breadcrumb.outlineTitle": "Breadcrumb outline",
+  "lets-mobile-breadcrumb.outlineDescription": "Show the native outline around the mobile breadcrumb. Disable this to use a borderless breadcrumb.",
   "lets-mobile-breadcrumb.expand": "Expand",
 };
 
@@ -33,5 +35,7 @@ export const zhCN: typeof en = {
   "lets-mobile-breadcrumb.maxCharactersDescription": "仅用于按字符数裁剪模式，实际范围为 4 至 100。",
   "lets-mobile-breadcrumb.maxTextWidthTitle": "最大文字宽度（px）",
   "lets-mobile-breadcrumb.maxTextWidthDescription": "仅用于按宽度裁剪模式，实际范围为 64px 至 480px。",
+  "lets-mobile-breadcrumb.outlineTitle": "面包屑描边",
+  "lets-mobile-breadcrumb.outlineDescription": "显示移动端面包屑周围的原生描边；关闭后使用无描边样式。",
   "lets-mobile-breadcrumb.expand": "展开",
 };

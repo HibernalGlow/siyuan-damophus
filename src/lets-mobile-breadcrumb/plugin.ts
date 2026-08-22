@@ -45,6 +45,13 @@ export const pluginMetadata: PluginMetadata = {
       key: "maxTextWidth",
       value: 160,
     },
+    {
+      type: "checkbox",
+      title: "lets-mobile-breadcrumb.outlineTitle",
+      description: "lets-mobile-breadcrumb.outlineDescription",
+      key: "outline",
+      value: true,
+    },
   ],
 };
 
