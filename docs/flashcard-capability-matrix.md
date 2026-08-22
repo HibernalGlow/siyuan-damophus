@@ -2,6 +2,8 @@
 
 Status: design baseline, not runtime evidence.
 
+功能基线是 [Specialized-Flashcard-Plugin `aa3bb02c8ed68164ddda53b87daa391822a1b7be`](https://github.com/PearlLin2000/Specialized-Flashcard-Plugin/tree/aa3bb02c8ed68164ddda53b87daa391822a1b7be)。下表中的“迁移”表示 DAMO 必须提供等价用户能力；SFP、Tomato 和文档流不作为运行依赖。
+
 “已查证”表示源码/API/参考项目已核对；“待实现”表示本仓库尚未交付；“回退”是明确的安全行为，不是静默成功。
 
 | Capability | SiYuan 3.8.1+ target | DAMO contract | Current status | Fallback/limit |
@@ -25,6 +27,25 @@ Status: design baseline, not runtime evidence.
 | Mobile review | Native panel | Same adapter contract | 待验证 | report unsupported capability |
 | Unload recovery | Descriptor/interceptor | Restore exact original | 待实现 | plugin must fail closed |
 | Future Riff/card-deck changes | Adapter boundary | V1/V2 profiles | 设计已定 | read-only/native fallback |
+
+## SFP parity backlog
+
+| SFP feature | Required DAMO parity | Design status | Verification |
+| --- | --- | --- | --- |
+| SQL 分组复习 | 任意 SQL 生成候选，再向上传递到卡根并与到期卡取交集 | 已定 | 标签、文档、反链、数据库、格式条件样例 |
+| 分组/分类管理 | CRUD、启用/禁用、拖拽或顺序保持、配置持久化 | 待实现 | 设置页与重启恢复 |
+| 缓存与查询优先 | 可配置缓存期限、query-first、手动刷新和失效清理 | 已定 | 缓存命中/过期/SQL 失败 |
+| 到期卡入口 | 全部到期与指定分组到期入口，限制首轮候选量 | 已定 | 原生 `siyuan-card` 数据契约 |
+| 向上传递识别 | 任意子块命中时解析最近显式卡根、去重、循环/深度保护 | 已定 | list/superBlock/heading 混合树 |
+| 自动推迟今日新卡 | 可开关、天数配置、只处理今日创建且可推迟卡 | 待实现 | 新卡筛选、重复执行幂等、失败报告 |
+| 自动优先级扫描 | 按启用分组和扫描间隔批量同步优先级 | 待实现 | P1-P4 映射与运行时能力降级 |
+| 批量优先级调整 | 对当前 SQL 分组全部匹配卡执行 preview/confirm 后调整 | 待实现 | 含非到期卡与已登记卡 |
+| 原始 SQL 结果查看 | 显示不做卡片过滤的原始块结果 | 待实现 | SQL 结果与错误状态 |
+| 过滤后结果查看 | 显示向上传递、识别、去重后的卡根结果 | 待实现 | 与复习候选集合逐项对照 |
+| 文档流入口 | 可选调用文档流；DAMO 自有查看路径不依赖插件 | 待实现 | 未安装文档流时仍可用 |
+| 设置/菜单/生命周期 | DAMO 子插件注册、i18n、logger、unload 清理 | 待实现 | 插件重载、卸载、移动端 |
+
+SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-sources.md)。
 
 ## Evidence required before implementation is called complete
 

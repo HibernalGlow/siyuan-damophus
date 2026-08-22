@@ -1,6 +1,6 @@
 # Reference Sources
 
-Reference snapshot date: 2026-08-04.
+Reference snapshot date: 2026-08-23.
 
 实际 clone 放在仓库根目录的 `ref/`，该目录已被 Git 忽略。本文档记录允许参考的来源和固定 commit；更新参考源码时先更新此表，再重新检出对应 commit。
 
@@ -14,6 +14,9 @@ Reference snapshot date: 2026-08-04.
 | `nazdridoy/obsidian-flashquiz` | `65c7dfd98100855081b82a26bbb56b09cbfa1b69` | 题型解析和考试题源格式；MIT |
 | `carbon-softlab/CQuiz` | `e439a4069fc0c2d343266dedb238ffaf66eec0fb` | 跨文件题库和组卷交互参考；只读研究 |
 | `dscherdi/decks` | `9cdd7fd09cbbf232eaabbbe23996cc8524f9ccdd` | 组卷 profile、结果和复习配置参考；只读研究 |
+| `PearlLin2000/Specialized-Flashcard-Plugin` | `aa3bb02c8ed68164ddda53b87daa391822a1b7be` | DAMO 闪卡功能等价迁移基线；MIT；不复制其独立插件壳 |
+| `Samuelxiaozhuofeng/orca-srs-plugin` | `55529a99352bf26ee817a636f84c5750c44327bc` | SRS 数据模型、牌组/调度边界参考；只读研究，不作为依赖 |
+| `hqweay/orca-hqweay-go` | `ac4814e12d9d08663e05ff0138ffd73198b0fb03` | Orca 宿主与复习集成参考；只读研究，不作为依赖 |
 
 ### Additional UI Sources
 
@@ -32,6 +35,7 @@ Reference snapshot date: 2026-08-04.
 3. 优先复用公开稳定 API和成熟包；只有思源 IAL AST 扩展和 Damophus 领域规则允许自研核心逻辑。
 4. 复制代码前确认其边界、依赖和许可证；即使个人使用，也保留来源说明。
 5. 实际 API 行为与文档不一致时，以固定版本源码和本地思源验证结果为准，并在本仓库补充测试或 ADR。
+6. SFP 的功能可以迁移，SFP 的 Tomato 和文档流私有调用不能直接成为 DAMO 核心依赖；迁移前先记录行为，再在 DAMO adapter 中实现等价能力和降级状态。
 
 ## Expected Layout
 

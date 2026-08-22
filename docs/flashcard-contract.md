@@ -2,7 +2,7 @@
 
 Status: accepted design, implementation pending.
 
-本文定义 DAMO 闪卡与 Markdown、SiYuan Riff、题库考点之间的边界。字段名和语义是稳定协议；块 ID、数据库行 ID、Riff card ID 和运行时调度字段不是协议身份。
+本文定义 DAMO 闪卡与 Markdown、SiYuan Riff、题库考点之间的边界，并规定对 Specialized-Flashcard-Plugin 的功能等价迁移。字段名和语义是稳定协议；块 ID、数据库行 ID、Riff card ID 和运行时调度字段不是协议身份。
 
 ## Ownership
 
@@ -82,3 +82,32 @@ Riff 独占 due、interval、review log、suspend、bury、评分历史等运行
 兼容层从 SiYuan 3.8.1 起支持，按 V1/V2 capability profile 检查目标字段、属性描述符、Riff API 和 card/deck 关系。缺少能力时回退到原始全局配置或只读“待制卡”，并记录可诊断原因。插件卸载必须恢复原始 descriptor/拦截器。
 
 动态列表在预加载阶段执行 SQL 候选查询、向上解析根块、与 Riff 到期卡取交集并批量读取 renderer，之后仍交给原生面板。每轮固定候选集；下一轮重新执行 SQL，失败则停止而不是扩大范围。
+
+## Group configuration contract
+
+每个 SQL 分组至少包含以下可迁移字段：
+
+```text
+groupId
+name
+categoryId
+sqlQuery
+enabled
+queryFirst
+cachePolicy
+priorityPolicy
+```
+
+分组设置必须支持新建、编辑、删除、启用/禁用、分类归档和安全重命名。缓存是派生数据，按分组保存候选根块、时间戳和查询版本；缓存过期、手动刷新或 `queryFirst` 时重新执行 SQL。SQL 失败不得用旧结果伪装为新成功，复习入口必须显示错误或明确使用仍有效的旧缓存。
+
+## Automation contract
+
+- **Postpone today cards**：可开关并配置天数，只处理当前日期创建且仍满足可推迟条件的卡；重复扫描幂等，部分失败逐卡报告。
+- **Automatic priority scan**：按启用的分组和扫描间隔读取候选卡，只更新今日创建且优先级不同的卡；P1-P4 标签优先于任何运行时数值。
+- **Batch priority**：用户选择分组后先 preview 受影响卡和目标优先级，再 confirm；不得把不可逆的运行时更新伪装成普通查询。
+
+若当前 SiYuan/Riff 没有稳定优先级写入能力，DAMO 仍维护 P1-P4 标签并返回 `pending-runtime-priority`；不得依赖 Tomato 私有 API 才报告整个功能成功。
+
+## Result viewing contract
+
+每个分组提供两种结果查看：原始 SQL 结果，以及执行向上传递、卡根识别和去重后的过滤结果。过滤结果可以进入原生 `siyuan-card` 复习；原始结果只用于核验 SQL 和内容范围。文档流是可选外部打开器，未安装时 DAMO 的结果查看和复习能力仍必须可用。
