@@ -4,6 +4,7 @@ import {
   buildCardCoverHTML,
   extractCardBlockId,
   INHERITED_IMG_CLASS,
+  AvCoverInheritManager,
 } from "./av-cover-inherit";
 import {
   detectSubject,
@@ -50,6 +51,50 @@ describe("Database Enhancements: Card Cover Inherit", () => {
       },
     } as any;
     expect(extractCardBlockId(cardEl)).toBe("bound-block-789");
+  });
+
+  it("does NOT create or inject a cover when .av__gallery-cover is missing (user set cover to none)", () => {
+    const manager = new AvCoverInheritManager();
+    let modified = false;
+    const cardEl = {
+      querySelector: (selector: string) => {
+        if (selector.includes("av__gallery-cover")) return null;
+        return null;
+      },
+      prepend: () => {
+        modified = true;
+      },
+      insertBefore: () => {
+        modified = true;
+      },
+    } as any;
+
+    manager.applyCoverToCard(cardEl, "assets/cover.png");
+    expect(modified).toBe(false);
+  });
+
+  it("applies cover when .av__gallery-cover container exists", () => {
+    const manager = new AvCoverInheritManager();
+    const classList = new Set(["av__gallery-cover", "fn__none"]);
+    const coverEl = {
+      querySelector: () => null,
+      classList: {
+        remove: (cls: string) => classList.delete(cls),
+        add: (cls: string) => classList.add(cls),
+        contains: (cls: string) => classList.has(cls),
+      },
+      innerHTML: "",
+    };
+    const cardEl = {
+      querySelector: (selector: string) => {
+        if (selector.includes("av__gallery-cover")) return coverEl;
+        return null;
+      },
+    } as any;
+
+    manager.applyCoverToCard(cardEl, "assets/cover.png");
+    expect(classList.has("fn__none")).toBe(false);
+    expect(coverEl.innerHTML).toContain("assets/cover.png");
   });
 });
 

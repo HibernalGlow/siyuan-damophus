@@ -136,12 +136,18 @@ export class AvCoverInheritManager {
     const neededBlockIds: string[] = [];
 
     cards.forEach((card) => {
+      // 只有当卡片本身具有封面槽位（未被用户设置为“卡片封面：无”）时才处理
+      const coverContainer = card.querySelector<HTMLElement>(".av__gallery-cover");
+      if (!coverContainer) return;
+
       const blockId = extractCardBlockId(card);
       if (!blockId) return;
 
       // 检查是否已有原生真正的封面图片（且不是继承图或透明图）
       const nativeGalleryImg = card.querySelector<HTMLImageElement>(
         `.av__gallery-cover:not(.${INHERITED_COVER_CLASS}) img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
+      const nativeGalleryImg = coverContainer.querySelector<HTMLImageElement>(
+        `img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
       );
       if (nativeGalleryImg) {
         const src = nativeGalleryImg.getAttribute("src") || "";
@@ -233,9 +239,15 @@ export class AvCoverInheritManager {
   }
 
   applyCoverToCard(card: HTMLElement, titleImg: string): void {
+    // 只有当卡片本身拥有封面容器（即用户未在思源视图中设置“卡片封面：无”）时才处理，绝不强行新建封面
+    const coverContainer = card.querySelector<HTMLElement>(".av__gallery-cover");
+    if (!coverContainer) return;
+
     // 只有当卡片已有原生真正的封面图片时才跳过
     const nativeGalleryImg = card.querySelector<HTMLImageElement>(
       `.av__gallery-cover:not(.${INHERITED_COVER_CLASS}) img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
+    const nativeGalleryImg = coverContainer.querySelector<HTMLImageElement>(
+      `img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
     );
     if (nativeGalleryImg) {
       const src = nativeGalleryImg.getAttribute("src") || "";
@@ -260,12 +272,18 @@ export class AvCoverInheritManager {
         card.prepend(newCover);
       }
     }
+    coverContainer.classList.remove("fn__none");
+    coverContainer.classList.add(INHERITED_COVER_CLASS);
+    coverContainer.innerHTML = buildCardCoverHTML(titleImg);
   }
 
   restoreWysiwyg(wysiwyg: HTMLElement): void {
     const inheritedCovers = wysiwyg.querySelectorAll<HTMLElement>(`.${INHERITED_COVER_CLASS}`);
     inheritedCovers.forEach((el) => {
       el.remove();
+      el.classList.remove(INHERITED_COVER_CLASS);
+      el.classList.add("fn__none");
+      el.innerHTML = "";
     });
   }
 }
