@@ -113,7 +113,17 @@
   .practice-controls { position: relative; display: flex; align-items: center; min-width: max-content; }
   .practice-overflow-trigger { display: inline-flex; }
   .practice-overflow-menu .practice-overflow-compact-action { display: none; }
-  .save-status { padding: 4px 20px; color: var(--b3-theme-on-surface); font-size: 11px; text-align: right; }
+  .save-status {
+    position: absolute;
+    top: 4px;
+    right: 20px;
+    z-index: 2;
+    pointer-events: none;
+    color: var(--b3-theme-on-surface);
+    font-size: 11px;
+    text-align: right;
+    opacity: 0.75;
+  }
   .answer-card-scrim { position: absolute; z-index: 3; inset: 0 0 58px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: color-mix(in srgb, var(--b3-theme-background) 54%, transparent); }
   .answer-card-panel { position: absolute; z-index: 4; top: 8px; right: 12px; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 74px); padding: 14px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow); overflow: auto; }
   .answer-card-panel header { min-height: 34px; display: grid; grid-template-columns: minmax(0, 1fr) auto 34px; align-items: center; gap: 10px; }

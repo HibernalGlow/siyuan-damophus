@@ -605,6 +605,7 @@ export async function applyQuestionIndexPreview(
         topicPreview.assignments,
         "merge",
         topicPreview.token,
+        { syncProgress: false },
       );
       const topicFailures = topicResult.results.filter((result) => result.status === "failed");
       if (topicFailures.length > 0 || topicResult.issues.length > 0) {

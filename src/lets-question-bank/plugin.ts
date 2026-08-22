@@ -69,6 +69,13 @@ const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "checkbox",
+      title: "lets-question-bank.syncTopicProgress",
+      description: "lets-question-bank.syncTopicProgressDescription",
+      key: "syncTopicProgress",
+      value: false,
+    },
+    {
       type: "select",
       title: "lets-question-bank.defaultQuestionOrder",
       description: "lets-question-bank.defaultQuestionOrderDescription",

@@ -96,6 +96,7 @@
     sourceTypeLabel as getSourceTypeLabel,
   } from "./question-bank-display";
   export let controller: QuestionBankUiController;
+  export let loadSubjectQuestionTotals: (() => Promise<unknown>) | undefined = undefined;
   export let initialDocumentId: string | undefined = undefined;
   export let getCurrentDocumentId: (() => string | undefined) | undefined = undefined;
   export let translations: Record<string, string> = {};
@@ -116,6 +117,8 @@
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let autoScanDocument = false;
   export let onAutoScanDocumentChange: ((value: boolean) => void) | undefined = undefined;
+  export let syncTopicProgress = false;
+  export let onSyncTopicProgressChange: ((value: boolean) => void) | undefined = undefined;
   export let showPracticeTitle = false;
   export let showPracticeBreadcrumb = true;
   export let timingEnabled = true;
@@ -645,7 +648,14 @@
     updateAdaptivePanels();
     workspaceResizeObserver = new ResizeObserver(updateAdaptivePanels);
     workspaceResizeObserver.observe(rootElement);
-    void run(refreshStoredSessions);
+    void run(async () => {
+      const workspaceTotals = loadSubjectQuestionTotals ? await loadSubjectQuestionTotals() : undefined;
+      subjectQuestionTotals = {
+        ...normalizeSubjectQuestionTotals(workspaceTotals),
+        ...normalizeSubjectQuestionTotals(controller.getSetting?.("statisticsSubjectQuestionTotals")),
+      };
+      await refreshStoredSessions();
+    });
     scheduleAutoScan(250);
     return () => {
       host?.removeEventListener("damophus-practice-command", command);
@@ -1011,6 +1021,20 @@
     });
   }
 
+  function toggleSyncTopicProgress(checked: boolean): void {
+    syncTopicProgress = checked;
+    controller.setSetting?.("syncTopicProgress", checked);
+    void controller.saveSetting?.("syncTopicProgress", checked);
+    onSyncTopicProgressChange?.(checked);
+  }
+
+  function rebuildTopicProgress(): void {
+    if (!controller.rebuildTopicStatistics) return;
+    void run(async () => {
+      await controller.rebuildTopicStatistics!();
+    });
+  }
+
   function confirmTopicRelations(): void {
     if (topicRelationMode === "off" || !topicRelationPreview || !controller.confirmTopicRelationSync) return;
     const mode = topicRelationMode;
@@ -1019,6 +1043,7 @@
         topicAssignments,
         mode,
         topicRelationPreview!.token,
+        { syncProgress: syncTopicProgress },
       );
     });
   }
@@ -1522,6 +1547,7 @@
   {scanMessageGroups} {sourceTypeLabel} {completionStatusLabel} {messageContext} {messageClipboardText} {scanLogText} {copyText}
   {confirmSync} {toggleAutoSyncIndex} topicAssignmentCount={topicAssignments.length} {topicRelationMode} {topicRelationPreview}
   {topicRelationReady} {setTopicRelationMode} {previewTopicRelations} {confirmTopicRelations}
+  {syncTopicProgress} toggleSyncTopicProgress={toggleSyncTopicProgress} rebuildTopicProgress={rebuildTopicProgress}
   {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
   {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
   {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {indefinitePracticeMode} {renderedQuestionContent}

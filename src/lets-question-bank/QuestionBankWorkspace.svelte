@@ -67,6 +67,9 @@
   export let setTopicRelationMode: (mode: "off" | TopicRelationSyncMode) => void;
   export let previewTopicRelations: () => void;
   export let confirmTopicRelations: () => void;
+  export let syncTopicProgress = false;
+  export let toggleSyncTopicProgress: ((checked: boolean) => void) | undefined = undefined;
+  export let rebuildTopicProgress: (() => void) | undefined = undefined;
   export let recoverableSession: any;
   export let resumePractice: () => void;
   export let pendingReplacement = false;
@@ -344,6 +347,9 @@
       {setTopicRelationMode}
       {previewTopicRelations}
       {confirmTopicRelations}
+      {syncTopicProgress}
+      {toggleSyncTopicProgress}
+      {rebuildTopicProgress}
       {label}
     />
     </QuestionBankPanel>

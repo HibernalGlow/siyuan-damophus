@@ -161,16 +161,6 @@
   $: maxWeakness = Math.max(1, ...(snapshot?.weakQuestions.map((question) => question.weaknessScore) ?? [1]));
   $: localHeights = { ...defaultStatisticsLayout.heights, ...statisticsLayout?.heights };
 
-  let expandedDimensions = new Set<string>();
-  function toggleDimensionExpand(dimension: string): void {
-    if (expandedDimensions.has(dimension)) {
-      expandedDimensions.delete(dimension);
-    } else {
-      expandedDimensions.add(dimension);
-    }
-    expandedDimensions = expandedDimensions;
-  }
-
   function duration(milliseconds: number): string {
     if (!milliseconds) return "0 秒";
     const seconds = Math.round(milliseconds / 1000);
@@ -206,7 +196,7 @@
   }
 
   function localizedMetricLabel(dimension: StatisticsDimension, key: string, fallback: string): string {
-    if (key === "Unclassified") return label("statisticsUnclassified", "Unclassified");
+    if (key === "Unclassified") return label("statisticsUnclassified", "未分类");
     if (dimension === "subject") {
       const translationKey = subjectTranslationKeys[key];
       const defaultName = defaultSubjectNames[key] ?? fallback;
@@ -216,13 +206,27 @@
       const labelKey = questionTypeLabelKeys[key];
       return labelKey ? label(labelKey, fallback) : fallback;
     }
-    if (dimension === "category" && topicDictionary) {
-      return resolveTopicDictionaryClassificationLabel(topicDictionary, "categories", key, fallback);
+    if (dimension === "category") {
+      if (topicDictionary) {
+        const resolved = resolveTopicDictionaryClassificationLabel(topicDictionary, "categories", key, "");
+        if (resolved && resolved !== key) return resolved;
+      }
+      return fallback;
     }
     if (dimension === "collection" && key === "gold") {
-      return label("statisticsCollectionGold", fallback);
+      return label("statisticsCollectionGold", "真金题");
     }
     return fallback;
+  }
+
+  function formatQuestionLabel(questionId: string): string {
+    const subjectPrefix = Object.keys(defaultSubjectNames).find((sub) => questionId.startsWith(sub));
+    if (subjectPrefix) {
+      const subName = defaultSubjectNames[subjectPrefix];
+      const remainder = questionId.slice(subjectPrefix.length).replace(/^-(gold|real)-?/u, "").replace(/^-/u, "");
+      return `${subName} ${remainder}`;
+    }
+    return questionId;
   }
 
   function updateLayout(next: Partial<StatisticsLayout>): void {
@@ -369,7 +373,7 @@
       aria-labelledby="statistics-subject-progress-heading"
       data-testid="subject-dashboard"
       data-resizable-card="subject-progress"
-      style={localHeights["subject-progress"] ? `height: ${localHeights["subject-progress"]}px;` : undefined}
+      style={`height: ${localHeights["subject-progress"] ?? statisticsCardDefaultHeight}px;`}
     >
       <div class="flex shrink-0 items-center justify-between gap-2">
         <div class="flex items-center gap-2.5">
@@ -458,7 +462,7 @@
         aria-labelledby="statistics-trend-heading"
         data-testid="trend-dashboard"
         data-resizable-card="trend"
-        style={localHeights["trend"] ? `height: ${localHeights["trend"]}px;` : undefined}
+        style={`height: ${localHeights["trend"] ?? statisticsCardDefaultHeight}px;`}
       >
         <div class="flex shrink-0 items-center justify-between gap-2">
           <div class="flex items-center gap-2">
@@ -501,23 +505,37 @@
         aria-labelledby="statistics-weak-heading"
         data-testid="weak-dashboard"
         data-resizable-card="weak"
-        style={localHeights["weak"] ? `height: ${localHeights["weak"]}px;` : undefined}
+        style={`height: ${localHeights["weak"] ?? statisticsCardDefaultHeight}px;`}
       >
-        <div class="flex shrink-0 items-center justify-between gap-2">
+        <div class="flex shrink-0 items-center justify-between gap-2 flex-wrap">
           <div class="flex items-center gap-2">
             <div class="flex h-6 w-6 items-center justify-center rounded-md bg-destructive/10 text-destructive">
               <AlertTriangle size={14} />
             </div>
             <h3 id="statistics-weak-heading" class="font-semibold text-sm">{label("statisticsWeak", "Weak questions")}</h3>
           </div>
-          <Badge variant="outline" class="rounded-full text-xs font-normal">{snapshot.weakQuestions.length}</Badge>
+          <div class="flex items-center gap-2">
+            <Select.Root type="single" value={sort} onValueChange={changeSort}>
+              <Select.Trigger class="h-6 w-28 text-xs border-border/60 px-2" aria-label={label("statisticsSort", "薄弱题排序")}>
+                <Filter size={12} class="mr-1 opacity-70" aria-hidden="true" />
+                <span class="truncate">{sort === "weakness" ? label("statisticsWeakness", "综合薄弱度") : sort === "wrong" ? label("statisticsWrongCount", "错误次数") : sort === "accuracy" ? label("statisticsAccuracySort", "正确率") : label("statisticsRecentSort", "最近作答")}</span>
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="weakness" label={label("statisticsWeakness", "综合薄弱度")} />
+                <Select.Item value="wrong" label={label("statisticsWrongCount", "错误次数")} />
+                <Select.Item value="accuracy" label={label("statisticsAccuracySort", "正确率")} />
+                <Select.Item value="recent" label={label("statisticsRecentSort", "最近作答")} />
+              </Select.Content>
+            </Select.Root>
+            <Badge variant="outline" class="rounded-full text-xs font-normal">{snapshot.weakQuestions.length}</Badge>
+          </div>
         </div>
-        <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
+        <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
           {#if snapshot.weakQuestions.length === 0}
             <p class="text-sm opacity-70">{label("statisticsNoAttempts", "No attempts in this range")}</p>
           {:else}
             <div class="space-y-3">
-              {#each snapshot.weakQuestions.slice(0, 8) as question (question.questionId)}
+              {#each snapshot.weakQuestions as question (question.questionId)}
                 {@const subjectKey = question.subject || ""}
                 {@const subjectName = subjectKey ? localizedMetricLabel("subject", subjectKey, subjectKey) : ""}
                 {@const categoryName = question.category ? localizedMetricLabel("category", question.category, question.category) : ""}
@@ -589,13 +607,11 @@
       {#each dimensions as dimension (dimension.value)}
         {@const distribution = distributionByDimension.get(dimension.value)}
         {@const items = distribution?.items ?? []}
-        {@const expanded = expandedDimensions.has(dimension.value)}
-        {@const visibleItems = expanded ? items : items.slice(0, 6)}
         <section
           class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden p-4"
           data-distribution-card={dimension.value}
           data-resizable-card={dimension.value}
-          style={localHeights[dimension.value] ? `height: ${localHeights[dimension.value]}px;` : undefined}
+          style={`height: ${localHeights[dimension.value] ?? statisticsCardDefaultHeight}px;`}
         >
           <div class="flex shrink-0 items-center justify-between gap-2">
             <div class="flex items-center gap-2">
@@ -606,12 +622,12 @@
             </div>
             <Badge variant="outline" class="rounded-full text-xs font-normal">{items.length} 项</Badge>
           </div>
-          <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
+          <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
             {#if items.length === 0}
               <p class="text-xs opacity-70">{label("statisticsNoData", "No data")}</p>
             {:else}
               <div class="space-y-2.5">
-                {#each visibleItems as item (item.key)}
+                {#each items as item (item.key)}
                   <div class="statistics-distribution-row text-xs">
                     <span class="truncate font-medium opacity-85" title={localizedMetricLabel(dimension.value, item.key, item.label)}>{localizedMetricLabel(dimension.value, item.key, item.label)}</span>
                     <span class="text-right font-semibold tabular-nums">{item.accuracy}%</span>
@@ -621,15 +637,6 @@
                   </div>
                 {/each}
               </div>
-              {#if items.length > 6}
-                <button
-                  type="button"
-                  class="statistics-expand-btn"
-                  onclick={() => toggleDimensionExpand(dimension.value)}
-                >
-                  {expanded ? label("statisticsCollapse", "收起") : `${label("statisticsExpand", "展开全部")} (${items.length})`}
-                </button>
-              {/if}
             {/if}
           </div>
           <button
@@ -649,7 +656,7 @@
       aria-labelledby="statistics-history-heading"
       data-testid="recent-attempts-dashboard"
       data-resizable-card="recent-attempts"
-      style={localHeights["recent-attempts"] ? `height: ${localHeights["recent-attempts"]}px;` : undefined}
+      style={`height: ${localHeights["recent-attempts"] ?? statisticsCardDefaultHeight}px;`}
     >
       <div class="flex shrink-0 items-center justify-between gap-2">
         <div class="flex items-center gap-2">
@@ -671,10 +678,10 @@
             </tr>
           </thead>
           <tbody>
-            {#each snapshot.recentAttempts.slice(0, 20) as attempt (attempt.attemptId)}
+            {#each snapshot.recentAttempts as attempt (attempt.attemptId)}
               <tr class="border-b border-border/30 last:border-0 hover:bg-muted/30 transition-colors">
                 <td class="py-2.5 tabular-nums opacity-75">{attempt.answeredAt.slice(0, 16).replace("T", " ")}</td>
-                <td class="font-medium">{attempt.questionId}</td>
+                <td class="font-medium" title={attempt.questionId}>{formatQuestionLabel(attempt.questionId)}</td>
                 <td>
                   {#if attempt.objectiveCorrect === null}
                     <span class="opacity-75">主观</span>
@@ -763,7 +770,24 @@
   .statistics-card-content {
     box-sizing: border-box;
     min-height: 0;
+    flex: 1 1 0%;
+    overflow-y: auto;
     scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--b3-theme-on-surface, var(--foreground)) 28%, transparent) transparent;
+  }
+  .statistics-card-content::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .statistics-card-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .statistics-card-content::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--b3-theme-on-surface, var(--foreground)) 25%, transparent);
+  }
+  .statistics-card-content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--b3-theme-on-surface, var(--foreground)) 45%, transparent);
   }
   .statistics-card-resizer {
     position: absolute;

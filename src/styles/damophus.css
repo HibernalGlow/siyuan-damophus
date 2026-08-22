@@ -1082,3 +1082,37 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__ico
     flex: 1;
   }
 }
+/* Compact placement shortcuts appended to the native menu item. */
+.b3-menu__item.damophus-question-bank-menu-item {
+  padding-right: 4px;
+}
+
+.damophus-question-bank-menu-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.damophus-question-bank-menu-action {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--b3-theme-on-surface-light);
+  border-radius: var(--b3-border-radius);
+}
+
+.damophus-question-bank-menu-action:hover,
+.damophus-question-bank-menu-action:focus-visible {
+  color: var(--b3-theme-on-background);
+  background-color: var(--b3-list-hover);
+  outline: none;
+}
+
+.damophus-question-bank-menu-action svg {
+  width: 16px;
+  height: 16px;
+}

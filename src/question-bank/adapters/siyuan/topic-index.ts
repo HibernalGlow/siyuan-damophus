@@ -418,12 +418,35 @@ export async function previewTopicRelationSync(
   };
 }
 
+async function runConcurrent<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (currentIndex < items.length) {
+      const index = currentIndex++;
+      results[index] = await fn(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+export interface ConfirmTopicRelationSyncOptions {
+  syncProgress?: boolean;
+}
+
 export async function confirmTopicRelationSync(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
   assignments: readonly QuestionTopicAssignment[],
   mode: TopicRelationSyncMode,
   expectedToken: string,
+  options?: ConfirmTopicRelationSyncOptions,
 ): Promise<TopicRelationPreview> {
   const preview = await previewTopicRelationSync(client, binding, assignments, mode);
   if (preview.token !== expectedToken) throw new Error("Topic relation preview is stale; preview it again");
@@ -437,8 +460,9 @@ export async function confirmTopicRelationSync(
   );
   const results: TopicRelationWriteResult[] = [];
   const pendingActions: TopicRelationAction[] = [];
-  let wroteRelation = false;
-  for (const action of preview.actions) {
+  const affectedTopicIds = new Set<string>();
+
+  await runConcurrent(preview.actions, 6, async (action) => {
     const questionItemId = questionItemById.get(action.questionId);
     try {
       if (!questionItemId) throw new Error(`Question '${action.questionId}' disappeared before topic sync`);
@@ -449,25 +473,38 @@ export async function confirmTopicRelationSync(
         questionItemId,
         relationCells(action.finalTopicIds.map((topicId) => topicItemById.get(topicId)!).filter(Boolean)),
       );
-      wroteRelation = true;
+      for (const topicId of [...action.addedTopicIds, ...action.removedTopicIds, ...action.currentTopicIds, ...action.finalTopicIds]) {
+        affectedTopicIds.add(topicId);
+      }
       results.push({ questionId: action.questionId, status: "synced" });
     } catch (reason) {
       pendingActions.push(action);
       results.push({ questionId: action.questionId, status: "failed", message: errorMessage(reason) });
     }
-  }
+  });
+
   const issues = [...preview.issues];
-  if (wroteRelation) {
-    const rebuilt = await rebuildTopicStatistics(client, binding);
-    issues.push(...rebuilt.issues);
+  if (affectedTopicIds.size > 0) {
+    if (options?.syncProgress) {
+      const rebuilt = await rebuildTopicStatistics(client, binding, { topicIds: [...affectedTopicIds] });
+      issues.push(...rebuilt.issues);
+    } else {
+      const refreshed = await refreshTopicRelationSnapshots(client, binding, { topicIds: [...affectedTopicIds] });
+      issues.push(...refreshed.issues);
+    }
   }
   return { ...preview, actions: pendingActions, issues, results };
+}
+
+export interface RestoreQuestionTopicRelationsOptions {
+  syncProgress?: boolean;
 }
 
 export async function restoreQuestionTopicRelations(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
   questionIds: readonly string[],
+  options?: RestoreQuestionTopicRelationsOptions,
 ): Promise<{ restoredQuestionIds: string[]; issues: ScanMessage[] }> {
   const { result, questionAv } = await readTopicState(client, binding);
   const questionItemById = new Map(
@@ -475,13 +512,14 @@ export async function restoreQuestionTopicRelations(
   );
   const relations = fieldValues(questionAv, binding.questionIndex.keys.topics_relation);
   const restoredQuestionIds: string[] = [];
+  const affectedTopicIds = new Set<string>();
   const issues = [...result.issues];
+
   for (const questionId of [...new Set(questionIds)]) {
     const questionItemId = questionItemById.get(questionId);
     if (!questionItemId) continue;
-    const snapshotTopicItemIds = result.topics
-      .filter((topic) => topic.questionIdSnapshot.includes(questionId))
-      .map((topic) => topic.itemId);
+    const snapshotTopics = result.topics.filter((topic) => topic.questionIdSnapshot.includes(questionId));
+    const snapshotTopicItemIds = snapshotTopics.map((topic) => topic.itemId);
     if (snapshotTopicItemIds.length === 0) continue;
     const current = relations.get(questionItemId)?.relation?.blockIDs ?? [];
     const final = [...current, ...snapshotTopicItemIds.filter((itemId) => !current.includes(itemId))];
@@ -494,6 +532,7 @@ export async function restoreQuestionTopicRelations(
         questionItemId,
         relationCells(final),
       );
+      for (const topic of snapshotTopics) affectedTopicIds.add(topic.topicId);
       restoredQuestionIds.push(questionId);
     } catch (reason) {
       issues.push({
@@ -503,9 +542,15 @@ export async function restoreQuestionTopicRelations(
       });
     }
   }
-  if (restoredQuestionIds.length > 0) {
-    const rebuilt = await rebuildTopicStatistics(client, binding);
-    issues.push(...rebuilt.issues);
+
+  if (affectedTopicIds.size > 0) {
+    if (options?.syncProgress) {
+      const rebuilt = await rebuildTopicStatistics(client, binding, { topicIds: [...affectedTopicIds] });
+      issues.push(...rebuilt.issues);
+    } else {
+      const refreshed = await refreshTopicRelationSnapshots(client, binding, { topicIds: [...affectedTopicIds] });
+      issues.push(...refreshed.issues);
+    }
   }
   return { restoredQuestionIds, issues };
 }
@@ -519,17 +564,28 @@ function nextQuestionIdSnapshot(topic: TopicRecord, indexedQuestionIds: Readonly
   ])].sort();
 }
 
+export interface RefreshTopicRelationSnapshotsOptions {
+  topicIds?: readonly string[];
+}
+
 export async function refreshTopicRelationSnapshots(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
+  options?: RefreshTopicRelationSnapshotsOptions,
 ): Promise<{ updatedTopics: number; issues: ScanMessage[] }> {
   const { result, questionAv } = await readTopicState(client, binding);
   const indexedQuestionIds = new Set(questionIdsByItemId(questionAv, binding).values());
+  const targetTopicIdSet = options?.topicIds ? new Set(options.topicIds) : undefined;
+  const filteredTopics = targetTopicIdSet
+    ? result.topics.filter((topic) => targetTopicIdSet.has(topic.topicId))
+    : result.topics;
+
   let updatedTopics = 0;
   const issues = [...result.issues];
-  for (const topic of result.topics) {
+
+  await runConcurrent(filteredTopics, 6, async (topic) => {
     const snapshot = nextQuestionIdSnapshot(topic, indexedQuestionIds);
-    if (JSON.stringify(snapshot) === JSON.stringify(topic.questionIdSnapshot)) continue;
+    if (JSON.stringify(snapshot) === JSON.stringify(topic.questionIdSnapshot)) return;
     try {
       await setAttributeViewCell(
         client,
@@ -545,27 +601,44 @@ export async function refreshTopicRelationSnapshots(
         message: `Topic '${topic.topicId}' relation snapshot could not be written: ${errorMessage(reason)}`,
       });
     }
-  }
+  });
+
   return { updatedTopics, issues };
+}
+
+export interface RebuildTopicStatisticsOptions {
+  topicIds?: readonly string[];
 }
 
 export async function rebuildTopicStatistics(
   client: SiyuanKernelClient,
   binding: QuestionBankBinding,
+  options?: RebuildTopicStatisticsOptions,
 ): Promise<{
   statistics: TopicStatistic[];
   issues: ScanMessage[];
   results: TopicStatisticWriteResult[];
 }> {
-  const [{ result: { topics, issues }, questionAv }, attempts] = await Promise.all([
+  const [{ result: { topics, issues }, topicAv, questionAv }, attempts] = await Promise.all([
     readTopicState(client, binding),
     rebuildAttemptStatistics(client, binding),
   ]);
   const indexedQuestionIds = new Set(questionIdsByItemId(questionAv, binding).values());
+  const questionSnapshots = fieldValues(topicAv, binding.topicIndex.keys.question_ids_snapshot);
+  const attemptsMap = fieldValues(topicAv, binding.topicIndex.keys.attempt_count);
+  const wrongMap = fieldValues(topicAv, binding.topicIndex.keys.wrong_count);
+  const ratesMap = fieldValues(topicAv, binding.topicIndex.keys.wrong_rate);
+
+  const targetTopicIdSet = options?.topicIds ? new Set(options.topicIds) : undefined;
+  const filteredTopics = targetTopicIdSet
+    ? topics.filter((topic) => targetTopicIdSet.has(topic.topicId))
+    : topics;
+
   const statistics: TopicStatistic[] = [];
   const results: TopicStatisticWriteResult[] = [];
   const writeIssues: ScanMessage[] = [];
-  for (const topic of topics) {
+
+  await runConcurrent(filteredTopics, 6, async (topic) => {
     let attemptCount = 0;
     let wrongCount = 0;
     for (const questionId of topic.questionIds) {
@@ -583,35 +656,65 @@ export async function rebuildTopicStatistics(
       wrongRate,
     };
     statistics.push(statistic);
+
+    const currentSnapshotStr = textValue(questionSnapshots.get(topic.itemId));
+    const currentAttempts = numberValue(attemptsMap.get(topic.itemId));
+    const currentWrong = numberValue(wrongMap.get(topic.itemId));
+    const currentRate = numberValue(ratesMap.get(topic.itemId));
+
+    const targetSnapshotStr = JSON.stringify(questionIdSnapshot);
+
+    const cellUpdates: Array<() => Promise<void>> = [];
+
+    if (currentSnapshotStr !== targetSnapshotStr) {
+      cellUpdates.push(() =>
+        setAttributeViewCell(
+          client,
+          binding.topicIndex.avId,
+          binding.topicIndex.keys.question_ids_snapshot,
+          topic.itemId,
+          textCell(targetSnapshotStr),
+        )
+      );
+    }
+    if (currentAttempts !== attemptCount && (attemptCount !== 0 || currentAttempts !== undefined)) {
+      cellUpdates.push(() =>
+        setAttributeViewCell(
+          client,
+          binding.topicIndex.avId,
+          binding.topicIndex.keys.attempt_count,
+          topic.itemId,
+          numberCell(attemptCount),
+        )
+      );
+    }
+    if (currentWrong !== wrongCount && (wrongCount !== 0 || currentWrong !== undefined)) {
+      cellUpdates.push(() =>
+        setAttributeViewCell(
+          client,
+          binding.topicIndex.avId,
+          binding.topicIndex.keys.wrong_count,
+          topic.itemId,
+          numberCell(wrongCount),
+        )
+      );
+    }
+    if (currentRate !== wrongRate && (wrongRate !== undefined || currentRate !== undefined)) {
+      cellUpdates.push(() =>
+        setAttributeViewCell(
+          client,
+          binding.topicIndex.avId,
+          binding.topicIndex.keys.wrong_rate,
+          topic.itemId,
+          numberCell(wrongRate),
+        )
+      );
+    }
+
     try {
-      await setAttributeViewCell(
-        client,
-        binding.topicIndex.avId,
-        binding.topicIndex.keys.question_ids_snapshot,
-        topic.itemId,
-        textCell(JSON.stringify(questionIdSnapshot)),
-      );
-      await setAttributeViewCell(
-        client,
-        binding.topicIndex.avId,
-        binding.topicIndex.keys.attempt_count,
-        topic.itemId,
-        numberCell(attemptCount),
-      );
-      await setAttributeViewCell(
-        client,
-        binding.topicIndex.avId,
-        binding.topicIndex.keys.wrong_count,
-        topic.itemId,
-        numberCell(wrongCount),
-      );
-      await setAttributeViewCell(
-        client,
-        binding.topicIndex.avId,
-        binding.topicIndex.keys.wrong_rate,
-        topic.itemId,
-        numberCell(wrongRate),
-      );
+      for (const update of cellUpdates) {
+        await update();
+      }
       results.push({ topicId: topic.topicId, status: "synced" });
     } catch (reason) {
       const message = errorMessage(reason);
@@ -621,7 +724,8 @@ export async function rebuildTopicStatistics(
         message: `Topic '${topic.topicId}' statistics were not fully written: ${message}`,
       });
     }
-  }
+  });
+
   return { statistics, issues: [...issues, ...attempts.issues, ...writeIssues], results };
 }
 

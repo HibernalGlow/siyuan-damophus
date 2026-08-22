@@ -29,20 +29,21 @@ export function normalizeStatisticsLayout(value: unknown): StatisticsLayout {
 
 export function normalizeSubjectQuestionTotals(value: unknown): SubjectQuestionTotals {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value).flatMap(([subjectId, total]) => {
+  const entries = Object.entries(value).flatMap(([subjectId, total]) => {
     const normalizedId = subjectId.trim();
     const normalizedTotal = Number(total);
     if (!normalizedId || !Number.isFinite(normalizedTotal) || normalizedTotal <= 0) return [];
     return [[normalizedId, Math.floor(normalizedTotal)]];
-  }));
+  });
+  return Object.fromEntries(entries);
 }
 
 export function subjectPlannedTotal(
   metric: Pick<StatisticsMetric, "totalQuestions">,
   configuredTotal: number | undefined,
 ): number {
-  if (!configuredTotal) return metric.totalQuestions;
-  return Math.max(metric.totalQuestions, configuredTotal);
+  const planned = configuredTotal ?? metric.totalQuestions;
+  return Math.max(metric.totalQuestions, planned);
 }
 
 export function subjectCompletionPercent(attemptedQuestions: number, plannedTotal: number): number {

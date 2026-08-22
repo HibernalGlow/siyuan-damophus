@@ -27,6 +27,7 @@ import type {
   QuestionTopicAssignment,
   TopicRelationPreview,
   TopicRelationSyncMode,
+  TopicStatisticWriteResult,
 } from "@/question-bank/adapters/siyuan/topic-index";
 import type { RiffCard } from "@/question-bank/adapters/siyuan/riff";
 import type { AttemptImportPreview, AttemptImportResult } from "@/question-bank/application/recovery";
@@ -107,7 +108,9 @@ export interface QuestionBankUiController {
     assignments: readonly QuestionTopicAssignment[],
     mode: TopicRelationSyncMode,
     token: string,
+    options?: { syncProgress?: boolean },
   ): Promise<TopicRelationPreview>;
+  rebuildTopicStatistics?(topicIds?: readonly string[]): Promise<TopicStatisticWriteResult[]>;
   listQuestionSetBlueprints?(): Promise<QuestionSetBlueprint[]>;
   saveQuestionSetBlueprint?(blueprint: QuestionSetBlueprint): Promise<void>;
   removeQuestionSetBlueprint?(blueprintId: string): Promise<void>;
@@ -374,10 +377,17 @@ export class QuestionBankController implements QuestionBankUiController {
     assignments: readonly QuestionTopicAssignment[],
     mode: TopicRelationSyncMode,
     token: string,
+    options?: { syncProgress?: boolean },
   ): Promise<TopicRelationPreview> {
+    void options;
     const preview = await this.previewTopicRelationSync(assignments, mode);
     if (preview.token !== token) throw new Error("Topic relation preview is stale");
     return preview;
+  }
+
+  async rebuildTopicStatistics(topicIds?: readonly string[]): Promise<TopicStatisticWriteResult[]> {
+    void topicIds;
+    return [];
   }
 
   async listQuestionSetBlueprints(): Promise<QuestionSetBlueprint[]> {

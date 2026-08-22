@@ -58,6 +58,9 @@
   export let setTopicRelationMode: (mode: "off" | TopicRelationSyncMode) => void;
   export let previewTopicRelations: () => void;
   export let confirmTopicRelations: () => void;
+  export let syncTopicProgress = false;
+  export let toggleSyncTopicProgress: ((checked: boolean) => void) | undefined = undefined;
+  export let rebuildTopicProgress: (() => void) | undefined = undefined;
 </script>
 
 <section class="scan-summary" aria-label={label("scanSummary", "Scan summary")}>
@@ -137,6 +140,29 @@
           onclick={previewTopicRelations}
         >
           {label("previewTopicSync", "Preview topic sync")}
+        </Button>
+        {#if toggleSyncTopicProgress}
+          <FormLabel class="auto-sync-toggle cursor-pointer gap-2" for="sync-topic-progress-toggle">
+            <Switch
+              id="sync-topic-progress-toggle"
+              size="sm"
+              checked={syncTopicProgress}
+              onCheckedChange={toggleSyncTopicProgress}
+              aria-label={label("syncTopicProgress", "Sync topic progress statistics")}
+            />
+            <span>{label("syncTopicProgressToggle", "Include progress statistics")}</span>
+          </FormLabel>
+        {/if}
+      {/if}
+      {#if topicRelationReady && rebuildTopicProgress}
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onclick={rebuildTopicProgress}
+          title={label("syncTopicProgressDescription", "Recompute attempt statistics for all topics")}
+        >
+          {label("rebuildTopicProgress", "Rebuild topic progress")}
         </Button>
       {/if}
       {#if topicRelationMode !== "off" && !topicRelationReady}

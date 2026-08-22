@@ -88,7 +88,7 @@
   aria-labelledby="statistics-heatmap-heading"
   data-testid="statistics-heatmap"
   data-resizable-card="heatmap"
-  style={localHeight ? `height: ${localHeight}px;` : undefined}
+  style={`height: ${localHeight ?? statisticsCardDefaultHeight}px;`}
 >
   <div class="flex shrink-0 items-center justify-between gap-2">
     <div class="flex items-center gap-2">
@@ -147,7 +147,24 @@
   .statistics-card-content {
     box-sizing: border-box;
     min-height: 0;
+    flex: 1 1 0%;
+    overflow-y: auto;
     scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--b3-theme-on-surface, var(--foreground)) 28%, transparent) transparent;
+  }
+  .statistics-card-content::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .statistics-card-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .statistics-card-content::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--b3-theme-on-surface, var(--foreground)) 25%, transparent);
+  }
+  .statistics-card-content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--b3-theme-on-surface, var(--foreground)) 45%, transparent);
   }
   .statistics-card-resizer {
     position: absolute;

@@ -147,6 +147,9 @@
   export let setTopicRelationMode: any;
   export let previewTopicRelations: any;
   export let confirmTopicRelations: any;
+  export let syncTopicProgress = false;
+  export let toggleSyncTopicProgress: any = undefined;
+  export let rebuildTopicProgress: any = undefined;
   export let recoverableSession: any;
   export let resumePractice: any;
   export let pendingReplacement: boolean;
@@ -409,6 +412,9 @@
       {setTopicRelationMode}
       {previewTopicRelations}
       {confirmTopicRelations}
+      {syncTopicProgress}
+      {toggleSyncTopicProgress}
+      {rebuildTopicProgress}
       {recoverableSession}
       {resumePractice}
       bind:pendingReplacement

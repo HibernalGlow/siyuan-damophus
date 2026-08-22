@@ -24,6 +24,7 @@ import { BroadcastPracticeSessionLeaseCoordinator } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { loadSourceBlockIdentity } from "./source-identity";
 import { questionSourceOpenTarget } from "./source-navigation";
+import { createQuestionBankMenuItem, focusWindow, oppositeWindow, type QuestionBankOpenAction } from "./open-actions";
 import { normalizeDurationComparisonPosition } from "./duration-comparison-position";
 import {
   ANSWER_MASK_STYLES,
@@ -224,6 +225,15 @@ export default class QuestionBankPlugin extends SubPluginBase {
       title: this.t("lets-question-bank.open"),
       icon: "iconDatabase",
       execute: () => this.openConfiguredSurface(),
+      menuItem: () => createQuestionBankMenuItem(
+        this.t("lets-question-bank.open"),
+        {
+          current: this.t("lets-question-bank.openInCurrentArea"),
+          opposite: this.t("lets-question-bank.openInOppositeArea"),
+          sidebar: this.t("lets-question-bank.openInSidebar"),
+        },
+        (action) => this.openAt(action),
+      ),
       command: {
         langKey: "lets-question-bank.commandOpen",
       },
@@ -350,11 +360,19 @@ export default class QuestionBankPlugin extends SubPluginBase {
 
   private addLaunchMenuItem(menu: IEventBusMap["click-blockicon"]["menu"], blockId?: string): void {
     if (!blockId || !this.isEntryEnabled("contextMenu")) return;
-    menu.addItem(bindMenuIdentity({
-      icon: "iconDatabase",
-      label: this.t("lets-question-bank.openFromBlock"),
-      click: () => this.openConfiguredSurface(blockId),
-    }, { plugin: "siyuan-damophus", module: "questionBank" }));
+    menu.addItem(bindMenuIdentity(createQuestionBankMenuItem(
+      this.t("lets-question-bank.openFromBlock"),
+      {
+        current: this.t("lets-question-bank.openInCurrentArea"),
+        opposite: this.t("lets-question-bank.openInOppositeArea"),
+        sidebar: this.t("lets-question-bank.openInSidebar"),
+      },
+      (action) => {
+        if (action === "sidebar") this.openEntry?.openDock();
+        else if (action === "opposite") this.openAt(action, blockId);
+        else void this.open(blockId);
+      },
+    ), { plugin: "siyuan-damophus", module: "questionBank" }));
   }
 
   private configuredEntrySurfaces() {
@@ -378,6 +396,24 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
   }
 
+  private openAt(action: QuestionBankOpenAction, blockId = this.currentDocumentId()): void {
+    if (action === "sidebar") {
+      this.openEntry?.openDock();
+      return;
+    }
+    if (action === "opposite") {
+      const target = oppositeWindow();
+      if (target) {
+        focusWindow(target);
+        void this.open(blockId);
+        return;
+      }
+      void this.open(blockId, "right");
+      return;
+    }
+    void this.open(blockId);
+  }
+
   private currentDocumentId(): string | undefined {
     const activeId = document.querySelector<HTMLElement>(
       ".layout__wnd--active .protyle.fn__flex-1:not(.fn__none) .protyle-background",
@@ -385,7 +421,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     return activeId ?? getAllEditor()[0]?.protyle?.block?.rootID;
   }
 
-  private async open(blockId = this.currentDocumentId()): Promise<void> {
+  private async open(blockId = this.currentDocumentId(), position?: "right" | "bottom"): Promise<void> {
     if (isMobile) {
       let app: ReturnType<typeof mount> | undefined;
       let removeGestureIsolation: (() => void) | undefined;
@@ -412,6 +448,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
     const openedTab = await openTab({
       app: plugin.app,
+      position,
       custom: {
         icon: "iconDatabase",
         title: this.t("lets-question-bank.displayName"),
@@ -579,6 +616,12 @@ export default class QuestionBankPlugin extends SubPluginBase {
         getCurrentDocumentId: () => this.currentDocumentId(),
         translations: plugin.i18n,
         loadTopicDictionary: () => topicDictionaryStore.load(),
+        loadSubjectQuestionTotals: async () => {
+          const raw = await new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient)
+            .read("/data/storage/petal/siyuan-damophus/subject-question-totals.json");
+          if (!raw) return undefined;
+          try { return JSON.parse(raw); } catch { return undefined; }
+        },
         reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
         inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
         questionRenderMode: this.getSetting("questionRenderMode") ?? "native",

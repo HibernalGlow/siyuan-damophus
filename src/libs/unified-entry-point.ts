@@ -15,6 +15,7 @@ export interface UnifiedEntryDefinition {
   title: string;
   icon: string;
   execute(): void;
+  menuItem?: (execute: () => void) => IMenu;
   command?: {
     langKey: string;
     hotkey?: string;
@@ -107,6 +108,7 @@ export class UnifiedEntryPoint {
   }
 
   menuItem(): IMenu {
+    if (this.definition.menuItem) return this.definition.menuItem(() => this.definition.execute());
     return {
       icon: this.definition.icon,
       label: this.definition.title,
