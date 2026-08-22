@@ -4,7 +4,9 @@ import type { IProtyle } from "siyuan";
 export const MOBILE_TITLE_PATH_STYLE_ID = "damophus-mobile-title-path-style";
 const MOBILE_TITLE_PATH_CSS = `
 html[data-frontend="mobile"] .damophus-mobile-title-path,
-html[data-frontend="browser-mobile"] .damophus-mobile-title-path { flex: 1; min-width: 1px; height: 48px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; box-sizing: border-box; }
+html[data-frontend="browser-mobile"] .damophus-mobile-title-path { flex: 1 1 auto; min-width: 1px; height: 58px; min-height: 58px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; box-sizing: border-box; }
+html[data-frontend="mobile"] > body > .toolbar:has(.damophus-mobile-title-path),
+html[data-frontend="browser-mobile"] > body > .toolbar:has(.damophus-mobile-title-path) { min-height: 58px; height: 58px; }
 html[data-frontend="mobile"] .damophus-mobile-title-path > #toolbarName,
 html[data-frontend="browser-mobile"] .damophus-mobile-title-path > #toolbarName { flex: 0 0 auto; width: 100%; height: 24px; min-height: 24px; box-sizing: border-box; line-height: 24px; font-size: 16px; }
 html[data-frontend="mobile"] .damophus-mobile-title-path__location,

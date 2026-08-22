@@ -23,7 +23,13 @@ describe("mobile appearance enhancements", () => {
     await titlePath.show({ block: { rootID: "doc-1" } } as never);
 
     expect(readableParentPath("/Civil/Obligations/Contract")).toBe("/Civil/Obligations");
-    expect(document.querySelector(".damophus-mobile-title-path__location")?.textContent).toBe("/Civil/Obligations");
+    const titleWrapper = document.querySelector<HTMLElement>(".damophus-mobile-title-path");
+    const titleInput = titleWrapper?.querySelector("#toolbarName");
+    const titleLocation = titleWrapper?.querySelector<HTMLElement>(".damophus-mobile-title-path__location");
+    expect(titleLocation?.textContent).toBe("/Civil/Obligations");
+    expect(titleWrapper?.children[0]).toBe(titleInput);
+    expect(titleWrapper?.children[1]).toBe(titleLocation);
+    expect(document.getElementById("damophus-mobile-title-path-style")?.textContent).toContain("height: 58px");
     expect(document.querySelector(".damophus-mobile-tab-path")?.textContent).toBe("/Civil/Obligations");
     titlePath.destroy();
   });
