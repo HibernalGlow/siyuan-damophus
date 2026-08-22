@@ -24,7 +24,7 @@ export const SETTING_CATEGORY_DEFINITIONS: SettingCategoryDefinition[] = [
     label: "settings.category.study",
     description: "settings.category.studyDescription",
     icon: "graduationCap",
-    modules: ["questionBank", "exerciseFocus", "quickAttr", "topicDictionary", "topicRelations", "selectionHighlight", "tableFit"],
+    modules: ["questionBank", "exerciseFocus", "quickAttr", "topicDictionary", "topicRelations", "selectionHighlight", "tableFit", "databaseEnhancements"],
   },
   {
     id: "workflow",
@@ -48,7 +48,7 @@ export const SETTING_CATEGORY_DEFINITIONS: SettingCategoryDefinition[] = [
     label: "settings.category.appearance",
     description: "settings.category.appearanceDescription",
     icon: "palette",
-    modules: ["mobileAppearance", "mobileBreadcrumb", "mobileTitlePath", "mobileOutlineTheme", "mobileLiquidGlass", "animatedImageReplay", "calloutAppearance", "appearanceTweaks", "snippetAudit"],
+    modules: ["mobileAppearance", "mobileBreadcrumb", "mobileLiquidGlass", "animatedImageReplay", "calloutAppearance", "appearanceTweaks", "snippetAudit"],
   },
   {
     id: "integrations",

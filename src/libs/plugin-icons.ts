@@ -5,6 +5,7 @@ export const pluginIconNames = [
   "boxes",
   "brain",
   "cloudCog",
+  "database",
   "fileOutput",
   "film",
   "glassWater",
