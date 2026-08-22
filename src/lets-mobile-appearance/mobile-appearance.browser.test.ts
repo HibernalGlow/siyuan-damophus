@@ -63,4 +63,16 @@ describe("mobile appearance enhancements", () => {
     expect(document.querySelector(".damophus-mobile-tab-path")?.textContent).toBe("/行政法");
     titlePath.destroy();
   });
+
+  it("bounds the native title when the path wrapper is not mounted", () => {
+    document.documentElement.dataset.frontend = "mobile";
+    const toolbar = document.createElement("div");
+    toolbar.className = "toolbar";
+    toolbar.innerHTML = '<input id="toolbarName" value="A long document title">';
+    document.body.append(toolbar);
+    const titlePath = new MobileTitlePath();
+    titlePath.start();
+    expect(document.getElementById("damophus-mobile-title-path-style")?.textContent).toContain("max-width: calc(100% - 160px)");
+    titlePath.destroy();
+  });
 });
