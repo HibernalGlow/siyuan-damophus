@@ -144,8 +144,6 @@ export class AvCoverInheritManager {
       if (!blockId) return;
 
       // 检查是否已有原生真正的封面图片（且不是继承图或透明图）
-      const nativeGalleryImg = card.querySelector<HTMLImageElement>(
-        `.av__gallery-cover:not(.${INHERITED_COVER_CLASS}) img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
       const nativeGalleryImg = coverContainer.querySelector<HTMLImageElement>(
         `img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
       );
@@ -244,8 +242,6 @@ export class AvCoverInheritManager {
     if (!coverContainer) return;
 
     // 只有当卡片已有原生真正的封面图片时才跳过
-    const nativeGalleryImg = card.querySelector<HTMLImageElement>(
-      `.av__gallery-cover:not(.${INHERITED_COVER_CLASS}) img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
     const nativeGalleryImg = coverContainer.querySelector<HTMLImageElement>(
       `img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
     );
@@ -256,22 +252,6 @@ export class AvCoverInheritManager {
       }
     }
 
-    const coverContainer = card.querySelector<HTMLElement>(".av__gallery-cover");
-    if (coverContainer) {
-      coverContainer.classList.remove("fn__none");
-      coverContainer.classList.add(INHERITED_COVER_CLASS);
-      coverContainer.innerHTML = buildCardCoverHTML(titleImg);
-    } else {
-      const newCover = document.createElement("div");
-      newCover.className = `av__gallery-cover ${INHERITED_COVER_CLASS}`;
-      newCover.innerHTML = buildCardCoverHTML(titleImg);
-      const fields = card.querySelector(".av__gallery-fields");
-      if (fields) {
-        card.insertBefore(newCover, fields);
-      } else {
-        card.prepend(newCover);
-      }
-    }
     coverContainer.classList.remove("fn__none");
     coverContainer.classList.add(INHERITED_COVER_CLASS);
     coverContainer.innerHTML = buildCardCoverHTML(titleImg);
