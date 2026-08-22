@@ -6,6 +6,10 @@ Status: accepted on 2026-08-04.
 
 ## Ownership
 
+Flashcard-specific fields and container rules are defined in the [Flashcard
+Contract](flashcard-contract.md). This question-bank contract remains the
+authority for `custom-qb-*` question and topic semantics.
+
 | Layer | Owns | Must not own |
 | --- | --- | --- |
 | Markdown + IAL | 题目正文、稳定 ID、题型、标准答案、答案区边界、笔记考点提供声明和题目考点引用 | 作答历史、派生统计、Riff 状态、数据库 key ID、日常考点关联 |

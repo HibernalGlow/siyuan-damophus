@@ -66,6 +66,10 @@ Dashboard、链接/引用转换、排版、快捷属性操作、列表视图转�
 ### Flashcards
 
 - 使用思源 Riff 维护调度状态。
+- 闪卡作为独立 DAMO 子模块，使用可移植的 Markdown/IAL 卡片身份和显式容器；支持 mark、list、heading、superBlock、blockquote、callout。
+- 复习继续使用思源原生 `siyuan-card` 面板。DAMO 只在预加载/预渲染阶段按卡片 renderer 适配全局 flashcard 配置，不复制复习面板。
+- 一键制卡必须 preview、confirm、Riff 登记并查询验证；失败时显示待制卡/未注册。
+- 动态闪卡列表在预加载阶段把 SQL 候选与 Riff 到期卡取交集，再交给原生面板。
 - 使用快速制卡，不依赖历史兼容的卡包分类。
 - Damophus 按文档、专题、考点和题目 ID 过滤到期题目并负责渲染。
 - 建议评级只做高亮；用户点击任意评级后立即提交并进入下一题。
@@ -96,3 +100,5 @@ Dashboard、链接/引用转换、排版、快捷属性操作、列表视图转�
 - 不进行 AI 主观题判分。
 - 不在首版实现复杂组卷、排名、社交或多用户协作。
 - 不让题库核心依赖思源 API，以免阻断未来网站复用。
+- 不承诺 SiYuan 3.7.1 及更早版本；闪卡兼容边界从 3.8.1 开始。
+- 不把 Riff card ID、思源块 ID、due 或 review log 写入 Markdown 作为业务事实。

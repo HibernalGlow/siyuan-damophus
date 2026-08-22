@@ -37,6 +37,10 @@ Safe structural inferences are listed during scan and persisted only after confi
 
 Damophus uses SiYuan's built-in quick-card deck and does not import legacy custom deck classification. Existing quick cards remain owned by SiYuan and are recognized when their block IDs match indexed question title blocks.
 
+The DAMO flashcard identity, source rebind, renderer compatibility and rollback
+rules are defined separately in [Flashcard Migration](flashcard-migration.md)
+and [ADR 0012](adr/0012-damophus-flashcard-protocol.md).
+
 ## Recovery Archives
 
 Attempt archives use schema version 1. Import is additive and deduplicates by `attempt_id`. Importing the same archive more than once does not duplicate existing events. Events whose `question_id` is not currently indexed are imported and listed as orphans.

@@ -6,7 +6,7 @@ Status: accepted on 2026-08-04.
 
 ## Existing Shell
 
-Damophus 继续使用上游的 `PluginRegistry` 和 `SubPluginBase` 生命周期。运行时只发现 `src/lets-question-bank/` 与 `src/lets-block-attr/`；题库核心不得放进 UI 模块。
+Damophus 继续使用上游的 `PluginRegistry` 和 `SubPluginBase` 生命周期。当前运行时发现 `src/lets-question-bank/` 与 `src/lets-block-attr/`；闪卡交付时新增 `src/lets-flashcard/` 并通过同一注册路径加载。题库和闪卡核心不得放进 UI 模块。
 
 ## Target Layers
 
@@ -17,6 +17,13 @@ src/question-bank/
   adapters/
     siyuan/             blocks, attributes, AV and Riff
   application/          scan, sync, practice and review use cases
+
+src/flashcard/
+  core/                  portable card identity, container and renderer policy
+  markdown/              structured Markdown/Kramdown + IAL card parsing
+  adapters/siyuan/       Riff registration, native pre-render compatibility and dynamic queues
+
+src/lets-flashcard/      flashcard sub-plugin lifecycle and commands
 
 src/lets-question-bank/ Svelte 5 plugin UI and lifecycle integration
 ```
@@ -55,6 +62,11 @@ src/lets-question-bank/ Svelte 5 plugin UI and lifecycle integration
 - `submitAttempt`: 用户给出掌握评级后追加不可变作答事件并更新派生视图。
 - `reviewDueQuestions`: 读取 Riff 到期状态并用 Damophus UI 复习。
 - `exportAttempts` / `importAttempts`: 版本化 JSON 备份与恢复。
+
+闪卡子模块遵循 [ADR 0012](adr/0012-damophus-flashcard-protocol.md) 和
+[Flashcard Contract](flashcard-contract.md)：内容身份与卡片元数据留在
+Markdown/IAL，Riff 只拥有调度和复习历史，复习仍走思源原生卡片面板。按卡片
+renderer 的预渲染适配和动态闪卡列表属于待实现的 SiYuan adapter 能力。
 
 ## State Ownership
 
