@@ -288,14 +288,6 @@
   text-overflow: ellipsis;
 }
 
-html[data-frontend="mobile"] > body > .toolbar > #toolbarName,
-html[data-frontend="browser-mobile"] > body > .toolbar > #toolbarName,
-html[data-frontend="mobile"] > body > .toolbar > #toolbarNameReadonly,
-html[data-frontend="browser-mobile"] > body > .toolbar > #toolbarNameReadonly {
-  min-width: 0;
-  margin-inline-end: 120px;
-}
-
 html[data-frontend="mobile"],
 html[data-frontend="browser-mobile"] {
   /* SiYuan's mobile toolbar is 42px tall; keep portaled breadcrumb actions
