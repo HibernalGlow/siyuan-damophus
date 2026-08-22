@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, Copy, ExternalLink, Sparkles, Tag, ChevronRight, X } from "lucide-svelte";
+  import { Check, Copy, ExternalLink, Tag, ChevronRight, X } from "lucide-svelte";
   import { getDetailedTagInfo, type TagDefinition } from "./tag-dictionary";
   import { batchResolveTagsOnline } from "./tag-translation-service";
   import { openCoverTagViewer } from "./tag-viewer";
@@ -96,114 +96,102 @@
   function getBadgeClass(cat?: string) {
     switch (cat) {
       case "artist":
-        return "bg-amber-500/25 text-amber-200 border-amber-400/40 hover:bg-amber-500/35";
+        return "bg-amber-500/15 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/35 hover:bg-amber-500/25";
       case "copyright":
-        return "bg-purple-500/25 text-purple-200 border-purple-400/40 hover:bg-purple-500/35";
+        return "bg-purple-500/15 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/35 hover:bg-purple-500/25";
       case "character":
-        return "bg-sky-500/25 text-sky-200 border-sky-400/40 hover:bg-sky-500/35";
+        return "bg-sky-500/15 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/35 hover:bg-sky-500/25";
       case "scenery":
-        return "bg-emerald-500/25 text-emerald-200 border-emerald-400/40 hover:bg-emerald-500/35";
+        return "bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/35 hover:bg-emerald-500/25";
       case "style":
-        return "bg-pink-500/25 text-pink-200 border-pink-400/40 hover:bg-pink-500/35";
+        return "bg-pink-500/15 dark:bg-pink-500/20 text-pink-700 dark:text-pink-300 border-pink-500/35 hover:bg-pink-500/25";
       default:
-        return "bg-white/10 text-white/90 border-white/20 hover:bg-white/20";
+        return "bg-background/80 dark:bg-background/85 text-foreground/85 hover:text-foreground hover:bg-background border-border/60";
     }
   }
 </script>
 
 {#if sortedTags.length > 0}
-  <!-- 浮动在题头图左上方，仅当题头图 hover 时显示，移出或下滑自动隐藏，不遮挡下方标题与图标 -->
+  <!-- 位于操作栏内部的自适应流式排布，与添加标签同排自适应，无重叠 -->
   <div
     role="region"
-    aria-label="Cover tags overlay"
-    class="damophus-cover-hover-tag-bar absolute top-3.5 left-4 z-20 pointer-events-none opacity-0 transition-all duration-200 ease-out select-none transform -translate-y-1"
+    aria-label="Cover tags"
+    class="damophus-cover-tag-bar inline-flex items-center gap-1.5 flex-wrap select-none my-0.5"
   >
-    <div
-      class="pointer-events-auto flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-lg backdrop-blur-md bg-black/60 dark:bg-black/70 text-white/95 border border-white/15 shadow-xl max-w-[min(88vw,700px)]"
+    <!-- 标签图标与计数独立小椭圆 -->
+    <button
+      type="button"
+      class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/40 shrink-0 cursor-pointer shadow-2xs transition-colors"
+      onclick={handleOpenModal}
+      title="查看全部 {sortedTags.length} 个标签"
     >
-      <!-- 标签图标与计数 -->
+      <Tag class="size-3 text-primary" />
+      <span class="font-mono text-[10px] font-medium text-foreground/80">
+        {sortedTags.length}
+      </span>
+    </button>
+
+    <!-- 核心 Tag 独立小椭圆胶囊列表 -->
+    {#each (isExpanded ? sortedTags : topTags) as tagItem}
       <button
         type="button"
-        class="flex items-center gap-1 text-[11px] font-medium text-white/70 px-1 shrink-0 cursor-pointer hover:text-white transition-colors bg-transparent border-0"
-        onclick={handleOpenModal}
-        title="查看全部 {sortedTags.length} 个标签"
+        class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-all duration-150 cursor-pointer shrink-0 shadow-2xs hover:scale-102 group {getBadgeClass(
+          tagItem.category,
+        )}"
+        onclick={(e) => handleCopyTag(tagItem, e)}
+        title="单击复制: {tagItem.tag}"
       >
-        <Tag class="size-3 text-primary" />
-        <span class="font-mono text-[10px] bg-white/15 px-1.5 py-0.2 rounded-full text-white/90 font-medium">
-          {sortedTags.length}
+        <!-- 优先展示中文名称 -->
+        <span class="font-medium font-sans">
+          {tagItem.zh && tagItem.zh.toLowerCase() !== tagItem.tag.toLowerCase().replace(/_/g, " ")
+            ? tagItem.zh
+            : tagItem.tag}
         </span>
+
+        {#if copiedTag === tagItem.tag}
+          <Check class="size-2.5 text-emerald-500 ml-0.5 shrink-0" />
+        {:else}
+          <Copy class="size-2 opacity-0 group-hover:opacity-50 ml-0.5 shrink-0 transition-opacity" />
+        {/if}
       </button>
+    {/each}
 
-      <!-- 核心 Tag 胶囊列表 -->
-      {#each (isExpanded ? sortedTags : topTags) as tagItem}
-        <button
-          type="button"
-          class="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border transition-all cursor-pointer group shadow-2xs {getBadgeClass(
-            tagItem.category,
-          )}"
-          onclick={(e) => handleCopyTag(tagItem, e)}
-          title="单击复制: {tagItem.tag}"
-        >
-          <!-- 优先展示中文名称 -->
-          <span class="font-medium font-sans">
-            {tagItem.zh && tagItem.zh.toLowerCase() !== tagItem.tag.toLowerCase().replace(/_/g, " ")
-              ? tagItem.zh
-              : tagItem.tag}
-          </span>
-
-          {#if copiedTag === tagItem.tag}
-            <Check class="size-2.5 text-emerald-400 ml-0.5 shrink-0" />
-          {:else}
-            <Copy class="size-2 opacity-0 group-hover:opacity-60 ml-0.5 shrink-0 transition-opacity" />
-          {/if}
-        </button>
-      {/each}
-
-      {#if !isExpanded && remainingCount > 0}
-        <button
-          type="button"
-          class="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] bg-white/15 text-white/90 hover:bg-white/25 border border-white/20 transition-colors cursor-pointer font-medium"
-          onclick={() => (isExpanded = true)}
-          title="展开剩余 {remainingCount} 个标签"
-        >
-          <span>+{remainingCount}</span>
-          <ChevronRight class="size-2.5" />
-        </button>
-      {/if}
-
-      <!-- 打开独立详情弹窗按钮 -->
+    {#if !isExpanded && remainingCount > 0}
       <button
         type="button"
-        class="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] bg-white/10 hover:bg-white/20 text-white/90 border border-white/15 transition-colors cursor-pointer font-medium ml-1"
-        onclick={handleOpenModal}
-        title="打开全量标签弹窗 (包含搜索、复制全部等)"
+        class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/40 transition-colors cursor-pointer shrink-0 shadow-2xs"
+        onclick={() => (isExpanded = true)}
+        title="展开剩余 {remainingCount} 个标签"
       >
-        <ExternalLink class="size-2.5" />
-        <span>全部</span>
+        <span>+{remainingCount}</span>
+        <ChevronRight class="size-2.5" />
       </button>
+    {/if}
 
-      {#if isExpanded}
-        <button
-          type="button"
-          class="p-0.5 rounded-md text-white/60 hover:text-white hover:bg-white/20 transition-colors cursor-pointer ml-0.5"
-          onclick={(e) => {
-            e.stopPropagation();
-            isExpanded = false;
-          }}
-          title="收起多余标签"
-        >
-          <X class="size-3" />
-        </button>
-      {/if}
-    </div>
+    <!-- 打开独立详情弹窗按钮 (小椭圆) -->
+    <button
+      type="button"
+      class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 transition-colors cursor-pointer shrink-0 shadow-2xs"
+      onclick={handleOpenModal}
+      title="打开全量标签弹窗 (包含中英对照、搜索、一键复制全部等)"
+    >
+      <ExternalLink class="size-2.5" />
+      <span>全部</span>
+    </button>
+
+    {#if isExpanded}
+      <button
+        type="button"
+        class="size-5 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+        onclick={(e) => {
+          e.stopPropagation();
+          isExpanded = false;
+        }}
+        title="收起多余标签"
+      >
+        <X class="size-3" />
+      </button>
+    {/if}
   </div>
 {/if}
 
-<style>
-  :global(.protyle-background:hover .damophus-cover-hover-tag-bar),
-  :global(.protyle-top:hover .damophus-cover-hover-tag-bar) {
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    transform: translateY(0) !important;
-  }
-</style>

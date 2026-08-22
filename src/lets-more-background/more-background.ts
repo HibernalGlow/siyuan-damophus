@@ -4,23 +4,85 @@ import { getLogger } from "@/libs/logger";
 import {
   openCoverTagViewer,
   mountCoverHoverOverlay,
-  type CoverTagViewerMeta,
 } from "./tag-viewer";
 import {
   type CoverSourceItem,
+  type CoverHistoryEntry,
   DEFAULT_COVER_SOURCES,
+  DEFAULT_BLACKLISTED_TAGS,
   formatCoverUrl,
   isVideoUrl,
   sanitizeAssetsPath,
   type SiteCredential,
 } from "./sources";
-import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo } from "./booru";
+import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo, type BooruResolvedInfo } from "./booru";
+import { settings } from "@/settings";
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
 const COVER_LAYOUT_STYLE_ID = "damophus-more-background-layout-style";
 
-export type CoverToolbarPosition = "native" | "belowIcon" | "custom";
+// Keep the original URL in block attributes, but reuse a decoded, display-sized
+// copy in the page. Chromium's HTTP cache handles the source fetch; this map
+// also prevents duplicate concurrent requests when a document is refreshed.
+const displayImageCache = new Map<string, Promise<string>>();
+
+function displayImageWidth(background: HTMLElement): number {
+  const width = background.querySelector<HTMLElement>(".protyle-background__img")?.clientWidth
+    || background.clientWidth
+    || window.innerWidth;
+  return Math.max(640, Math.min(1920, Math.ceil(width * Math.max(1, window.devicePixelRatio || 1))));
+}
+
+async function createDisplayImage(url: string, maxWidth: number): Promise<string> {
+  const key = `${url}|${maxWidth}`;
+  const cached = displayImageCache.get(key);
+  if (cached) return cached;
+  const task = (async () => {
+    const response = await fetch(url, { cache: "force-cache", referrerPolicy: "no-referrer" });
+    if (!response.ok) throw new Error(`Image request failed: ${response.status}`);
+    const blob = await response.blob();
+    if (!blob.type.startsWith("image/")
+      || blob.type === "image/gif"
+      || blob.type === "image/svg+xml"
+      || typeof createImageBitmap !== "function") return url;
+    const bitmap = await createImageBitmap(blob);
+    if (bitmap.width <= maxWidth) {
+      bitmap.close();
+      return url;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = maxWidth;
+    canvas.height = Math.max(1, Math.round(bitmap.height * maxWidth / bitmap.width));
+    const context = canvas.getContext("2d");
+    if (!context) {
+      bitmap.close();
+      return url;
+    }
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const resized = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.86));
+    return resized ? URL.createObjectURL(resized) : url;
+  })().catch(() => url);
+  displayImageCache.set(key, task);
+  return task;
+}
+
+async function optimizeBackgroundDisplay(background: HTMLElement, originalUrl: string): Promise<void> {
+  if (!originalUrl || originalUrl.startsWith("data:") || isVideoUrl(originalUrl)) return;
+  const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+  if (!image) return;
+  image.dataset.damophusOriginalUrl = originalUrl;
+  const displayUrl = await createDisplayImage(originalUrl, displayImageWidth(background));
+  if (!image.isConnected || image.dataset.damophusOriginalUrl !== originalUrl) return;
+  if (displayUrl === originalUrl) return;
+  const previous = image.dataset.damophusDisplayUrl;
+  if (previous && previous !== displayUrl && previous.startsWith("blob:")) URL.revokeObjectURL(previous);
+  image.dataset.damophusDisplayUrl = displayUrl;
+  image.src = displayUrl;
+}
+
+export type CoverToolbarPosition = "adaptive" | "belowTags" | "belowIcon" | "native" | "custom";
 
 export interface MoreBackgroundOptions {
   width: number;
@@ -34,6 +96,9 @@ export interface MoreBackgroundOptions {
   toolbarCustomY?: number;
   coverBreadcrumb?: boolean;
   coverDocumentMenu?: boolean;
+  autoAddCoverOnEmptyDoc?: boolean;
+  autoRetryOnFailure?: boolean;
+  blacklistedTags?: string;
   siteCredentials?: SiteCredential[];
   sources?: CoverSourceItem[];
   t: (key: string) => string;
@@ -57,6 +122,11 @@ const coverLayoutCss = `
 .protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="context"] { position: relative; z-index: 3; }
 .protyle-icons[data-damophus-cover-toolbar="belowIcon"] { position: static; width: max-content; max-width: 100%; margin: 0 0 8px; opacity: .86; }
 .protyle-icons[data-damophus-cover-toolbar="custom"] { position: absolute; right: auto; left: var(--damophus-cover-toolbar-x); top: var(--damophus-cover-toolbar-y); transform: translate(var(--damophus-cover-toolbar-offset-x), var(--damophus-cover-toolbar-offset-y)); opacity: .86; }
+.protyle-icons[data-damophus-cover-toolbar] { opacity: 0; pointer-events: none; transition: opacity .2s ease-in-out; }
+.protyle-top:hover .protyle-icons[data-damophus-cover-toolbar],
+.protyle-background:hover .protyle-icons[data-damophus-cover-toolbar] { opacity: 1; pointer-events: auto; }
+.protyle-icons[data-damophus-cover-toolbar="belowIcon"] { position: static; width: max-content; max-width: 100%; margin: 0 0 8px; }
+.protyle-icons[data-damophus-cover-toolbar="custom"] { position: absolute; right: auto; left: var(--damophus-cover-toolbar-x); top: var(--damophus-cover-toolbar-y); transform: translate(var(--damophus-cover-toolbar-offset-x), var(--damophus-cover-toolbar-offset-y)); }
 `;
 
 function clampPercent(value: unknown, fallback: number): number {
@@ -220,7 +290,85 @@ export function setLastUsedSource(item: CoverSourceItem): void {
   updateAllLastUsedButtons(item);
 }
 
-export { openCoverTagViewer, type CoverTagViewerMeta } from "./tag-viewer";
+export const COVER_HISTORY_KEY = "damophus_more_background_cover_history";
+export const MAX_COVER_HISTORY_COUNT = 150;
+
+export function getCoverHistory(): CoverHistoryEntry[] {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const raw = localStorage.getItem(COVER_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    log.warn("Failed to load cover history from localStorage:", e);
+    return [];
+  }
+}
+
+export function saveCoverHistory(list: CoverHistoryEntry[]): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(COVER_HISTORY_KEY, JSON.stringify(list.slice(0, MAX_COVER_HISTORY_COUNT)));
+  } catch (e) {
+    log.warn("Failed to save cover history to localStorage:", e);
+  }
+}
+
+export function recordCoverHistory(entry: Omit<CoverHistoryEntry, "id" | "appliedAt">): void {
+  const fullEntry: CoverHistoryEntry = {
+    ...entry,
+    id: `cov-hist-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    appliedAt: Date.now(),
+  };
+
+  const list = getCoverHistory();
+  const nextList = [fullEntry, ...list.filter((it) => it.imageUrl !== fullEntry.imageUrl || it.docId !== fullEntry.docId)].slice(0, MAX_COVER_HISTORY_COUNT);
+  saveCoverHistory(nextList);
+}
+
+export function removeCoverHistoryEntry(id: string): CoverHistoryEntry[] {
+  const list = getCoverHistory().filter((it) => it.id !== id);
+  saveCoverHistory(list);
+  return list;
+}
+
+export function clearCoverHistory(): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.removeItem(COVER_HISTORY_KEY);
+  } catch {}
+}
+
+export function checkAndAutoAddCover(root: HTMLElement, controller: MoreBackgroundController): void {
+  const opts = controller.getOptions();
+  if (opts.autoAddCoverOnEmptyDoc !== true) return;
+
+  const bg = root.querySelector<HTMLElement>(".protyle-background");
+  const img = bg?.querySelector("img");
+  const hasCoverImg = img && img.getAttribute("src");
+  if (hasCoverImg) return;
+
+  const blockId =
+    bg?.getAttribute("data-node-id") ||
+    root.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
+    root.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id");
+
+  if (!blockId) return;
+
+  if (root.hasAttribute("data-damophus-auto-cover-attempted")) return;
+  root.setAttribute("data-damophus-auto-cover-attempted", "true");
+
+  const sources = opts.sources?.length ? opts.sources : DEFAULT_COVER_SOURCES;
+  const lastUsed = getLastUsedSource() || sources[0];
+  if (lastUsed) {
+    setTimeout(() => {
+      if (!root.isConnected) return;
+      const currentBg = root.querySelector<HTMLElement>(".protyle-background") || root;
+      void controller.applyRandomSource(lastUsed, root, currentBg);
+    }, 200);
+  }
+}
 
 export function ensureNoReferrerMeta(): void {
   if (typeof document === "undefined") return;
@@ -250,6 +398,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     }
   }
 
+  getOptions(): MoreBackgroundOptions {
+    return this.options;
+  }
+
   updateOptions(options: MoreBackgroundOptions): void {
     this.options = options;
     for (const root of [...this.rootCleanups.keys()]) this.scanRoot(root);
@@ -272,8 +424,27 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     if (background) {
       const bgCleanup = this.initVideoBackground(background);
       cleanups.push(bgCleanup);
+      const existingImage = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+      const existingSource = existingImage?.dataset.damophusOriginalUrl
+        || existingImage?.currentSrc
+        || existingImage?.src
+        || "";
+      if (existingSource && !background.querySelector(".protyle-background__video")) {
+        void optimizeBackgroundDisplay(background, existingSource);
+      }
+      if (existingImage) {
+        const imageObserver = new MutationObserver(() => {
+          if (background.querySelector(".protyle-background__video")) return;
+          const source = existingImage.dataset.damophusOriginalUrl || existingImage.currentSrc || existingImage.src;
+          if (source) void optimizeBackgroundDisplay(background, source);
+        });
+        imageObserver.observe(existingImage, { attributes: true, attributeFilter: ["src"] });
+        cleanups.push(() => imageObserver.disconnect());
+      }
       const posCleanup = this.initCoverPositionControls(background);
       cleanups.push(posCleanup);
+      const tagOverlayCleanup = this.initCoverTagOverlay(root);
+      cleanups.push(tagOverlayCleanup);
     }
 
     // 3. 画廊视频观察器
@@ -282,6 +453,9 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       const galleryCleanup = this.observeGalleryVideos(wysiwyg);
       cleanups.push(galleryCleanup);
     }
+
+    // 4. 自动为无题头图文档添加题头图
+    checkAndAutoAddCover(root, this);
 
     this.rootCleanups.set(root, () => {
       for (const cleanup of cleanups) {
@@ -586,43 +760,52 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
   }
 
-  private initCoverTagOverlay(background: HTMLElement): () => void {
-    let overlayHost = background.querySelector<HTMLElement>(".damophus-cover-tag-overlay-host");
+  private initCoverTagOverlay(root: HTMLElement): () => void {
+    const background = root.querySelector<HTMLElement>(".protyle-background") || root;
+    const topContainer = root.querySelector<HTMLElement>(".protyle-top") || root;
+    const actionContainer =
+      root.querySelector<HTMLElement>(".protyle-background__tags") ||
+      root.querySelector<HTMLElement>(".protyle-background__action") ||
+      topContainer;
+
+    let overlayHost = actionContainer.querySelector<HTMLElement>(".damophus-cover-tag-overlay-host");
     if (!overlayHost) {
       overlayHost = document.createElement("div");
       overlayHost.className = "damophus-cover-tag-overlay-host";
-      overlayHost.style.position = "absolute";
-      overlayHost.style.left = "0";
-      overlayHost.style.bottom = "0";
-      overlayHost.style.right = "0";
-      overlayHost.style.pointerEvents = "none";
-      overlayHost.style.zIndex = "10";
-      background.appendChild(overlayHost);
+      overlayHost.style.display = "inline-flex";
+      overlayHost.style.alignItems = "center";
+      overlayHost.style.verticalAlign = "middle";
+      overlayHost.style.flexWrap = "wrap";
+      overlayHost.style.gap = "6px";
+      overlayHost.style.marginLeft = "4px";
+      actionContainer.appendChild(overlayHost);
     }
 
     let unmountOverlay: (() => void) | null = null;
 
     const updateOverlay = () => {
-      if (!background.isConnected) return;
+      if (!root.isConnected) return;
       let rawTags =
         background.getAttribute("data-damophus-post-tags") ||
         background.querySelector("img")?.getAttribute("data-damophus-post-tags") ||
+        root.getAttribute("data-damophus-post-tags") ||
         "";
 
-      let site = background.getAttribute("data-damophus-post-site") || "";
-      let postId = background.getAttribute("data-damophus-post-id") || "";
+      let site = background.getAttribute("data-damophus-post-site") || root.getAttribute("data-damophus-post-site") || "";
+      let postId = background.getAttribute("data-damophus-post-id") || root.getAttribute("data-damophus-post-id") || "";
       let postUrl =
         background.getAttribute("data-damophus-post-url") ||
         background.querySelector("img")?.getAttribute("data-damophus-post-url") ||
+        root.getAttribute("data-damophus-post-url") ||
         "";
-      let score = background.getAttribute("data-damophus-post-score") || "";
-      let dimensions = background.getAttribute("data-damophus-post-dimensions") || "";
+      let score = background.getAttribute("data-damophus-post-score") || root.getAttribute("data-damophus-post-score") || "";
+      let dimensions = background.getAttribute("data-damophus-post-dimensions") || root.getAttribute("data-damophus-post-dimensions") || "";
 
       if (!rawTags) {
         const blockId =
           background.getAttribute("data-node-id") ||
-          background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
-          background.closest(".protyle")?.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id");
+          root.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
+          root.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id");
 
         if (blockId && !background.hasAttribute("data-damophus-checked-attrs")) {
           background.setAttribute("data-damophus-checked-attrs", "true");
@@ -672,14 +855,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     updateOverlay();
 
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type === "attributes" && m.attributeName?.startsWith("data-damophus")) {
-          updateOverlay();
-        }
-      }
-    });
-
+    const observer = new MutationObserver(() => updateOverlay());
     observer.observe(background, {
       attributes: true,
       attributeFilter: ["data-damophus-post-tags", "data-damophus-post-url", "data-damophus-post-site"],
@@ -752,6 +928,38 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     menu.addSeparator();
 
+    const isAutoCover = this.options.autoAddCoverOnEmptyDoc === true;
+    menu.addItem({
+      label: `${isAutoCover ? "✓ " : ""}${this.options.t("lets-more-background.autoAddCoverOnEmptyDoc") || "自动为无题头图文档添加 (使用上次模板)"}`,
+      icon: "iconSparkles",
+      click: () => {
+        const nextVal = !isAutoCover;
+        this.options.autoAddCoverOnEmptyDoc = nextVal;
+        try {
+          settings.setBySpace("moreBackground", "autoAddCoverOnEmptyDoc", nextVal);
+          void settings.save();
+        } catch {}
+        showMessage(nextVal ? "已开启：打开无题头图文档时自动补图" : "已关闭：无题头图文档自动补图");
+      },
+    });
+
+    const isAutoRetry = this.options.autoRetryOnFailure !== false;
+    menu.addItem({
+      label: `${isAutoRetry ? "✓ " : ""}${this.options.t("lets-more-background.autoRetryOnFailure") || "加载失败自动重试"}`,
+      icon: "iconRefresh",
+      click: () => {
+        const nextVal = !isAutoRetry;
+        this.options.autoRetryOnFailure = nextVal;
+        try {
+          settings.setBySpace("moreBackground", "autoRetryOnFailure", nextVal);
+          void settings.save();
+        } catch {}
+        showMessage(nextVal ? "已开启：加载失败自动多轮重试" : "已关闭：加载失败自动重试");
+      },
+    });
+
+    menu.addSeparator();
+
     menu.addItem({
       label: this.options.t("lets-more-background.uploadFromClipboard"),
       icon: "iconCopy",
@@ -783,7 +991,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     }
   }
 
-  private async applyRandomSource(
+  async applyRandomSource(
     item: CoverSourceItem,
     root: HTMLElement,
     background: HTMLElement,
@@ -842,43 +1050,59 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     await this.setBlockBackgroundImage(background, chosenFile);
   }
 
-  private async fetchAndSetBackground(url: string, background: HTMLElement): Promise<void> {
+  private async fetchAndSetBackground(
+    url: string,
+    background: HTMLElement,
+    attempt = 1,
+    maxRetries = 10,
+  ): Promise<void> {
     background.style.cursor = "wait";
+    const autoRetry = this.options.autoRetryOnFailure !== false;
+    const effectiveMaxRetries = autoRetry ? maxRetries : 1;
+
     try {
       let finalImageUrl = url;
+      let postInfo: BooruResolvedInfo | null = null;
+
       if (isBooruSource(url)) {
         const credentials = this.options.siteCredentials;
-        const info = await resolveBooruImageInfo(url, credentials);
-        if (!info || !info.imageUrl) {
-          showMessage(this.options.t("lets-more-background.loadUrlFailed"));
+        const globalBlacklist = this.options.blacklistedTags || DEFAULT_BLACKLISTED_TAGS;
+        postInfo = await resolveBooruImageInfo(url, credentials, globalBlacklist);
+
+        if (!postInfo || !postInfo.imageUrl) {
+          if (attempt < effectiveMaxRetries) {
+            log.info(`Fetch cover filtered/failed (attempt ${attempt}/${effectiveMaxRetries}), retrying...`);
+            showMessage(`正在尝试重新匹配符合条件的题头图 (第 ${attempt + 1}/${effectiveMaxRetries} 次)...`);
+            await new Promise((r) => setTimeout(r, 400));
+            return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries);
+          }
+          showMessage("未找到满足条件（宽高比/评分/已排除屏蔽词）的题头图，建议放宽筛选条件");
           return;
         }
-        finalImageUrl = info.imageUrl;
-        if (info.postUrl) background.setAttribute("data-damophus-post-url", info.postUrl);
-        if (info.site) background.setAttribute("data-damophus-post-site", info.site);
-        if (info.postId) background.setAttribute("data-damophus-post-id", String(info.postId));
-        if (info.score !== undefined) background.setAttribute("data-damophus-post-score", String(info.score));
-        if (info.width && info.height) background.setAttribute("data-damophus-post-dimensions", `${info.width} × ${info.height}`);
-        if (info.tags) {
-          const rawTags = Array.isArray(info.tags) ? info.tags.join(" ") : String(info.tags);
+
+        finalImageUrl = postInfo.imageUrl;
+        if (postInfo.postUrl) background.setAttribute("data-damophus-post-url", postInfo.postUrl);
+        if (postInfo.site) background.setAttribute("data-damophus-post-site", postInfo.site);
+        if (postInfo.postId) background.setAttribute("data-damophus-post-id", String(postInfo.postId));
+        if (postInfo.score !== undefined) background.setAttribute("data-damophus-post-score", String(postInfo.score));
+        if (postInfo.width && postInfo.height) background.setAttribute("data-damophus-post-dimensions", `${postInfo.width} × ${postInfo.height}`);
+        if (postInfo.tags) {
+          const rawTags = Array.isArray(postInfo.tags) ? postInfo.tags.join(" ") : String(postInfo.tags);
           background.setAttribute("data-damophus-post-tags", rawTags);
         }
 
         const img = background.querySelector("img");
         if (img) {
-          if (info.postUrl) img.setAttribute("data-damophus-post-url", info.postUrl);
-          if (info.tags) {
-            const rawTags = Array.isArray(info.tags) ? info.tags.join(" ") : String(info.tags);
+          if (postInfo.postUrl) img.setAttribute("data-damophus-post-url", postInfo.postUrl);
+          if (postInfo.tags) {
+            const rawTags = Array.isArray(postInfo.tags) ? postInfo.tags.join(" ") : String(postInfo.tags);
             img.setAttribute("data-damophus-post-tags", rawTags);
           }
         }
       }
 
       if (this.options.writeToAssets) {
-        // 优先使用 proxyFetchImageBlob（走系统代理 + Referer 欺骗，参考 PixLuna 防盗链方案）
         let blob: Blob | null = await proxyFetchImageBlob(finalImageUrl);
-
-        // 回退：直接 fetch
         if (!blob || blob.size === 0) {
           try {
             const res = await fetch(finalImageUrl, { referrerPolicy: "no-referrer" });
@@ -889,33 +1113,46 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         }
 
         if (blob && blob.size > 0) {
-          await this.saveBlobAndSetBackground(blob, background);
+          await this.saveBlobAndSetBackground(blob, background, postInfo);
         } else {
-          // 降级为直接写入远程 URL
-          await this.setBlockBackgroundImage(background, finalImageUrl);
+          if (attempt < effectiveMaxRetries && isBooruSource(url)) {
+            log.info(`Image blob download failed (attempt ${attempt}/${effectiveMaxRetries}), retrying another post...`);
+            showMessage(`图片下载受限，正在重试其他候选图 (第 ${attempt + 1}/${effectiveMaxRetries} 次)...`);
+            await new Promise((r) => setTimeout(r, 400));
+            return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries);
+          }
+          await this.setBlockBackgroundImage(background, finalImageUrl, postInfo);
         }
       } else {
-        // writeToAssets === false: 纯远程 URL 模式，不写任何本地文件，完全依托浏览器 HTTP 缓存
-        await this.setBlockBackgroundImage(background, finalImageUrl);
+        await this.setBlockBackgroundImage(background, finalImageUrl, postInfo);
       }
     } catch (e: any) {
       log.error("Failed to fetch image from URL:", url, e);
+      if (attempt < effectiveMaxRetries && isBooruSource(url)) {
+        showMessage(`获取异常，正在重试 (第 ${attempt + 1}/${effectiveMaxRetries} 次)...`);
+        await new Promise((r) => setTimeout(r, 500));
+        return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries);
+      }
       showMessage(this.options.t("lets-more-background.loadUrlFailed"));
     } finally {
       background.style.cursor = "";
     }
   }
 
-  private async saveBlobAndSetBackground(blob: Blob, background: HTMLElement): Promise<void> {
+  private async saveBlobAndSetBackground(
+    blob: Blob,
+    background: HTMLElement,
+    postInfo?: BooruResolvedInfo | null,
+  ): Promise<void> {
     const { name } = await detectImageTypeAndName(blob);
     const location = sanitizeAssetsPath(this.options.assetsLocation);
 
     const assetPath = await this.uploadToAssets(blob, name, location);
     if (assetPath) {
-      await this.setBlockBackgroundImage(background, assetPath);
+      await this.setBlockBackgroundImage(background, assetPath, postInfo);
     } else {
       const base64 = await this.blobToBase64(blob);
-      await this.setBlockBackgroundImage(background, base64);
+      await this.setBlockBackgroundImage(background, base64, postInfo);
     }
   }
 
@@ -954,7 +1191,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     });
   }
 
-  private async setBlockBackgroundImage(background: HTMLElement, urlOrPath: string): Promise<void> {
+  private async setBlockBackgroundImage(
+    background: HTMLElement,
+    urlOrPath: string,
+    postInfo?: BooruResolvedInfo | null,
+  ): Promise<void> {
     const blockId =
       background.getAttribute("data-node-id") ||
       background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
@@ -995,6 +1236,37 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         attrs,
       }),
     });
+
+    // Keep the persisted attribute pointed at the original image while the
+    // visible image uses a viewport-sized cached derivative.
+    const displaySource = finalVal.startsWith("http://") || finalVal.startsWith("https://")
+      ? finalVal
+      : `/${finalVal.replace(/^\/+/, "")}`;
+    void optimizeBackgroundDisplay(background, displaySource);
+
+    // 记录到历史记录
+    try {
+      const protyle = background.closest(".protyle");
+      const docTitle =
+        protyle?.querySelector<HTMLElement>(".protyle-title__input")?.textContent?.trim() ||
+        protyle?.querySelector<HTMLElement>(".protyle-title")?.textContent?.trim() ||
+        protyle?.querySelector<HTMLElement>(".protyle-breadcrumb__bar")?.textContent?.trim() ||
+        "当前文档";
+
+      const lastUsed = getLastUsedSource();
+      recordCoverHistory({
+        docId: blockId,
+        docTitle,
+        imageUrl: finalVal,
+        postUrl: postUrl || postInfo?.postUrl,
+        site: site || postInfo?.site,
+        postId: postId || postInfo?.postId,
+        tags: tags ? tags.split(/\s+/) : postInfo?.tags,
+        templateName: lastUsed?.label,
+      });
+    } catch (histErr) {
+      log.debug("Failed to record cover history:", histErr);
+    }
   }
 
   private async listImageFiles(path: string): Promise<string[] | null> {
@@ -1158,7 +1430,12 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
       const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
       const video = background.querySelector<HTMLVideoElement>(".protyle-background__video");
-      const src = img?.getAttribute("src") || img?.src || video?.getAttribute("src") || video?.src || "";
+      const src = img?.dataset.damophusOriginalUrl
+        || img?.getAttribute("src")
+        || img?.src
+        || video?.getAttribute("src")
+        || video?.src
+        || "";
       if (!src) return;
 
       let cleanSrc = src.trim();

@@ -7,7 +7,11 @@ import {
   urlToTemplate,
 } from "./sources";
 import {
+  clearCoverHistory,
+  getCoverHistory,
   getLastUsedSource,
+  recordCoverHistory,
+  removeCoverHistoryEntry,
   setLastUsedSource,
   updateAllLastUsedButtons,
 } from "./more-background";
@@ -62,6 +66,31 @@ describe("more-background sources utilities", () => {
     expect(parsed.tags).toBe("wallpaper");
   });
 
+  it("converts template with excludeTagPool and blacklist rules into query params", () => {
+    const customPools = [
+      {
+        id: "pool-my-blacklist",
+        name: "My Blacklist",
+        items: [{ tag: "grayscale", zh: "黑白" }, { tag: "two_males", zh: "双男" }],
+      },
+    ];
+
+    const tplWithExcludeRule = {
+      id: "tpl-exclude-test",
+      name: "Exclude Test",
+      type: "booru" as const,
+      site: "safebooru.org",
+      rules: [
+        { id: "r1", field: "aspectRatio" as const, operator: "equals" as const, value: "landscape" },
+        { id: "r2", field: "excludeTagPool" as const, operator: "excludeAllIn" as const, value: "pool-my-blacklist" },
+        { id: "r3", field: "blacklist" as const, operator: "containsNone" as const, value: "guro,gore" },
+      ],
+    };
+
+    const url = templateToUrl(tplWithExcludeRule, customPools);
+    expect(url).toContain("blacklist=grayscale%2Ctwo_males%2Cguro%2Cgore");
+  });
+
   it("persists and retrieves last used source in localStorage", () => {
     const store: Record<string, string> = {};
     (globalThis as any).localStorage = {
@@ -94,6 +123,36 @@ describe("more-background sources utilities", () => {
     expect(mockSpan.textContent).toBe("⚡ 新画师模板");
 
     delete (globalThis as any).document;
+  });
+
+  it("records, retrieves, removes, and clears cover history entries", () => {
+    const store: Record<string, string> = {};
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => store[k] || null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+      clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
+    };
+
+    clearCoverHistory();
+    expect(getCoverHistory()).toEqual([]);
+
+    recordCoverHistory({
+      docId: "doc-123",
+      docTitle: "民事诉讼法专题",
+      imageUrl: "https://safebooru.org/images/1.png",
+      tags: ["scenery", "night_sky"],
+      templateName: "唯美风景",
+    });
+
+    const list = getCoverHistory();
+    expect(list.length).toBe(1);
+    expect(list[0].docTitle).toBe("民事诉讼法专题");
+    expect(list[0].imageUrl).toBe("https://safebooru.org/images/1.png");
+
+    // Remove entry
+    removeCoverHistoryEntry(list[0].id);
+    expect(getCoverHistory().length).toBe(0);
   });
 });
 

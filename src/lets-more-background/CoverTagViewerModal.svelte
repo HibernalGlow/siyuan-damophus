@@ -10,13 +10,11 @@
     Maximize2,
     RefreshCw,
     Search,
-    Sparkles,
     Star,
     Tag,
     X,
   } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
-  import { Badge } from "@/components/ui/badge";
   import { Input } from "@/components/ui/input";
   import { getDetailedTagInfo, type TagDefinition } from "./tag-dictionary";
   import { batchResolveTagsOnline } from "./tag-translation-service";
@@ -74,6 +72,13 @@
     style: processedTags.filter((t) => t.category === "style").length,
     general: processedTags.filter((t) => t.category === "general").length,
   };
+
+  $: isValidScore =
+    score !== undefined &&
+    score !== null &&
+    score !== "" &&
+    score !== "null" &&
+    score !== "undefined";
 
   async function handleAutoTranslate() {
     if (isTranslatingOnline) return;
@@ -140,56 +145,56 @@
   function getCategoryBadgeClass(cat?: string) {
     switch (cat) {
       case "artist":
-        return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/25";
+        return "bg-amber-500/10 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20";
       case "copyright":
-        return "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30 hover:bg-purple-500/25";
+        return "bg-purple-500/10 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30 hover:bg-purple-500/20";
       case "character":
-        return "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 hover:bg-sky-500/25";
+        return "bg-sky-500/10 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30 hover:bg-sky-500/20";
       case "scenery":
-        return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25";
+        return "bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20";
       case "style":
-        return "bg-pink-500/15 text-pink-700 dark:text-pink-300 border-pink-500/30 hover:bg-pink-500/25";
+        return "bg-pink-500/10 dark:bg-pink-500/15 text-pink-700 dark:text-pink-300 border-pink-500/30 hover:bg-pink-500/20";
       default:
-        return "bg-secondary/70 text-secondary-foreground border-border/60 hover:bg-secondary";
+        return "bg-muted/50 dark:bg-muted/60 text-foreground/85 hover:text-foreground hover:bg-muted border-border/45";
     }
   }
 </script>
 
 <div class="damophus-shadcn-tag-viewer flex flex-col h-full bg-background text-foreground select-none">
-  <!-- 顶部元信息栏 -->
-  <div class="px-4 py-3 border-b border-border/40 bg-muted/20 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-    <div class="flex flex-wrap items-center gap-1.5 text-xs">
-      <Badge variant="secondary" class="gap-1 font-mono text-[11px] px-2 py-0.5 rounded-md">
+  <!-- 顶部元信息栏 (柔和胶囊设计) -->
+  <div class="px-5 py-3 border-b border-border/40 bg-muted/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <span class="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-muted/80 text-foreground border border-border/40 shadow-2xs">
         <Tag class="size-3 text-primary" />
         <span>共 {processedTags.length} 个标签</span>
-      </Badge>
+      </span>
 
       {#if site}
-        <Badge variant="outline" class="gap-1 text-[11px] font-normal px-2 py-0.5 rounded-md border-border/60">
+        <span class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground border border-border/40">
           <Globe class="size-3 text-muted-foreground" />
           <span>{site}</span>
-        </Badge>
+        </span>
       {/if}
 
       {#if postId}
-        <Badge variant="outline" class="gap-1 font-mono text-[11px] px-2 py-0.5 rounded-md border-border/60">
+        <span class="inline-flex items-center gap-1.5 font-mono text-[11px] px-2.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground border border-border/40">
           <Hash class="size-3 text-muted-foreground" />
           <span>{postId}</span>
-        </Badge>
+        </span>
       {/if}
 
       {#if width && height}
-        <Badge variant="outline" class="gap-1 font-mono text-[11px] px-2 py-0.5 rounded-md border-border/60">
+        <span class="inline-flex items-center gap-1.5 font-mono text-[11px] px-2.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground border border-border/40">
           <Maximize2 class="size-3 text-muted-foreground" />
           <span>{width} × {height}</span>
-        </Badge>
+        </span>
       {/if}
 
-      {#if score !== undefined && score !== ""}
-        <Badge variant="outline" class="gap-1 text-amber-600 dark:text-amber-400 font-mono text-[11px] px-2 py-0.5 rounded-md border-amber-500/30 bg-amber-500/5">
+      {#if isValidScore}
+        <span class="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-mono text-[11px] px-2.5 py-0.5 rounded-full border border-amber-500/25 bg-amber-500/10">
           <Star class="size-3 fill-current" />
           <span>评分 {score}</span>
-        </Badge>
+        </span>
       {/if}
     </div>
 
@@ -198,7 +203,7 @@
       <Button
         variant="ghost"
         size="sm"
-        class="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground rounded-md px-2"
+        class="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground rounded-full px-3"
         onclick={handleAutoTranslate}
         disabled={isTranslatingOnline}
         title="联网匹配官方词库与补全翻译"
@@ -216,7 +221,7 @@
         <Button
           variant="ghost"
           size="sm"
-          class="h-7 text-xs gap-1.5 text-primary hover:text-primary hover:bg-primary/10 rounded-md px-2"
+          class="h-7 text-xs gap-1.5 text-primary hover:text-primary hover:bg-primary/10 rounded-full px-3"
           onclick={() => window.open(postUrl, "_blank")}
         >
           <ExternalLink class="size-3.5" />
@@ -227,18 +232,18 @@
   </div>
 
   <!-- 搜索框与 Segmented 分类药丸 -->
-  <div class="p-4 border-b border-border/40 space-y-3 bg-card/40 shrink-0">
-    <!-- 实时搜索输入框 -->
+  <div class="px-5 py-3.5 border-b border-border/40 space-y-3 bg-muted/10 shrink-0">
+    <!-- 实时搜索输入框 (圆角药丸搜索栏) -->
     <div class="relative flex items-center">
-      <Search class="size-3.5 absolute left-3 text-muted-foreground/70 pointer-events-none" />
+      <Search class="size-3.5 absolute left-3.5 text-muted-foreground/70 pointer-events-none" />
       <Input
         bind:value={searchQuery}
         placeholder="搜索 Tag 英文名、画师、原作或官方中文翻译..."
-        class="h-8.5 text-xs pl-8.5 pr-8 bg-muted/40 border-border/50 rounded-lg focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:border-primary"
+        class="h-8.5 text-xs pl-9 pr-8 bg-background border-border/50 rounded-full focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:border-primary shadow-2xs"
       />
       {#if searchQuery}
         <button
-          class="absolute right-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors cursor-pointer"
+          class="absolute right-3 text-muted-foreground hover:text-foreground p-0.5 rounded-full transition-colors cursor-pointer"
           onclick={() => (searchQuery = "")}
         >
           <X class="size-3.5" />
@@ -246,13 +251,13 @@
       {/if}
     </div>
 
-    <!-- Segmented Tabs 风格分类筛选器 -->
-    <div class="flex flex-wrap items-center gap-1.5 p-1 bg-muted/50 rounded-lg border border-border/40 text-xs">
+    <!-- Segmented Tabs 风格分类筛选药丸栏 -->
+    <div class="flex flex-wrap items-center gap-1.5 p-1 bg-muted/40 rounded-full border border-border/40 text-xs">
       <button
-        class="px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-medium
+        class="px-3 py-1 rounded-full text-xs transition-all cursor-pointer font-medium
         {selectedCategory === 'all'
-          ? 'bg-background text-foreground shadow-xs'
-          : 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+          ? 'bg-background text-foreground shadow-2xs border border-border/50'
+          : 'text-muted-foreground hover:text-foreground hover:bg-background/40'}"
         onclick={() => (selectedCategory = "all")}
       >
         全部 ({categoryCounts.all})
@@ -260,9 +265,9 @@
 
       {#if categoryCounts.artist > 0}
         <button
-          class="px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-medium
+          class="px-3 py-1 rounded-full text-xs transition-all cursor-pointer font-medium
           {selectedCategory === 'artist'
-            ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-xs'
+            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/35 shadow-2xs'
             : 'text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10'}"
           onclick={() => (selectedCategory = "artist")}
         >
@@ -272,9 +277,9 @@
 
       {#if categoryCounts.copyright > 0}
         <button
-          class="px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-medium
+          class="px-3 py-1 rounded-full text-xs transition-all cursor-pointer font-medium
           {selectedCategory === 'copyright'
-            ? 'bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 shadow-xs'
+            ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/35 shadow-2xs'
             : 'text-muted-foreground hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10'}"
           onclick={() => (selectedCategory = "copyright")}
         >
@@ -284,9 +289,9 @@
 
       {#if categoryCounts.character > 0}
         <button
-          class="px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-medium
+          class="px-3 py-1 rounded-full text-xs transition-all cursor-pointer font-medium
           {selectedCategory === 'character'
-            ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/30 shadow-xs'
+            ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/35 shadow-2xs'
             : 'text-muted-foreground hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-500/10'}"
           onclick={() => (selectedCategory = "character")}
         >
@@ -296,9 +301,9 @@
 
       {#if categoryCounts.scenery > 0}
         <button
-          class="px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-medium
+          class="px-3 py-1 rounded-full text-xs transition-all cursor-pointer font-medium
           {selectedCategory === 'scenery'
-            ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shadow-xs'
+            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/35 shadow-2xs'
             : 'text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10'}"
           onclick={() => (selectedCategory = "scenery")}
         >
@@ -308,9 +313,9 @@
 
       {#if categoryCounts.style > 0}
         <button
-          class="px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-medium
+          class="px-3 py-1 rounded-full text-xs transition-all cursor-pointer font-medium
           {selectedCategory === 'style'
-            ? 'bg-pink-500/20 text-pink-700 dark:text-pink-300 border border-pink-500/30 shadow-xs'
+            ? 'bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/35 shadow-2xs'
             : 'text-muted-foreground hover:text-pink-600 dark:hover:text-pink-400 hover:bg-pink-500/10'}"
           onclick={() => (selectedCategory = "style")}
         >
@@ -320,10 +325,10 @@
 
       {#if categoryCounts.general > 0}
         <button
-          class="px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer font-medium
+          class="px-3 py-1 rounded-full text-xs transition-all cursor-pointer font-medium
           {selectedCategory === 'general'
-            ? 'bg-background text-foreground shadow-xs'
-            : 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+            ? 'bg-background text-foreground shadow-2xs border border-border/50'
+            : 'text-muted-foreground hover:text-foreground hover:bg-background/40'}"
           onclick={() => (selectedCategory = "general")}
         >
           🏷️ 通用 ({categoryCounts.general})
@@ -332,25 +337,25 @@
     </div>
   </div>
 
-  <!-- Tag 标签展示区 (Sleek Badge Pills) -->
-  <div class="p-4 overflow-y-auto flex-1 space-y-2">
+  <!-- Tag 标签展示区 (小椭圆胶囊 Pill 布局) -->
+  <div class="p-5 overflow-y-auto flex-1 space-y-2">
     {#if filteredTags.length === 0}
       <div class="py-16 text-center text-muted-foreground text-xs space-y-1">
         <Tag class="size-6 mx-auto opacity-40 mb-2" />
         <p>未找到匹配的 Tag 标签</p>
       </div>
     {:else}
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-2.5">
         {#each filteredTags as tagItem}
           <button
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all cursor-pointer select-none group text-left shadow-xs {getCategoryBadgeClass(
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border transition-all duration-150 cursor-pointer select-none group text-left shadow-2xs hover:scale-102 {getCategoryBadgeClass(
               tagItem.category,
             )}"
             onclick={() => handleCopyTag(tagItem)}
             title="单击复制此 Tag: {tagItem.tag}"
           >
             <!-- 英文 Tag -->
-            <span class="font-mono font-medium">{tagItem.tag}</span>
+            <span class="font-mono font-medium text-[11px]">{tagItem.tag}</span>
 
             <!-- 中文对照 -->
             {#if tagItem.zh && tagItem.zh.toLowerCase() !== tagItem.tag.toLowerCase().replace(/_/g, " ")}
@@ -372,13 +377,13 @@
     {/if}
   </div>
 
-  <!-- 底部操作按钮栏 -->
-  <div class="px-4 py-3 border-t border-border/40 bg-muted/20 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+  <!-- 底部操作按钮栏 (小椭圆按钮) -->
+  <div class="px-5 py-3.5 border-t border-border/40 bg-muted/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
     <div class="flex flex-wrap items-center gap-2">
       <Button
         variant="outline"
         size="sm"
-        class="h-7.5 text-xs gap-1.5 rounded-lg border-border/60 hover:bg-muted"
+        class="h-8 text-xs gap-1.5 rounded-full border-border/60 hover:bg-muted px-3.5 shadow-2xs"
         onclick={handleCopyAllRaw}
       >
         {#if copiedBatchType === "raw"}
@@ -393,7 +398,7 @@
       <Button
         variant="outline"
         size="sm"
-        class="h-7.5 text-xs gap-1.5 rounded-lg border-border/60 hover:bg-muted"
+        class="h-8 text-xs gap-1.5 rounded-full border-border/60 hover:bg-muted px-3.5 shadow-2xs"
         onclick={handleCopyAllWithZh}
       >
         {#if copiedBatchType === "zh"}
@@ -410,7 +415,7 @@
       <Button
         variant="secondary"
         size="sm"
-        class="h-7.5 text-xs font-medium px-4 rounded-lg"
+        class="h-8 text-xs font-medium px-5 rounded-full shadow-2xs"
         onclick={onclose}
       >
         关闭
@@ -418,3 +423,4 @@
     {/if}
   </div>
 </div>
+

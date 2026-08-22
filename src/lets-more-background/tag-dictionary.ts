@@ -279,7 +279,6 @@ export function getDetailedTagInfo(rawTag: string): TagDefinition {
   }
 
   // 4. 尝试匹配画师格式：ask_(askzy) -> Ask (画师)
-  const artistMatch = cleanTag.match(/^([a-zA-Z0-9]+)_(\([a-zA-Z0-9_-]+\))?$/);
   if (cleanTag.includes("(artist)") || cleanTag.endsWith("_(circle)")) {
     const name = cleanTag.split("_")[0];
     return {

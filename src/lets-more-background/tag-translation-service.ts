@@ -1,4 +1,4 @@
-import { saveDynamicTagTranslation, getDetailedTagInfo, type TagDefinition } from "./tag-dictionary";
+import { saveDynamicTagTranslation, getDetailedTagInfo } from "./tag-dictionary";
 import { getLogger } from "@/libs/logger";
 
 const log = getLogger("tag-translation-service");

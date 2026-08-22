@@ -5,7 +5,6 @@
   import {
     ArrowDown,
     ArrowUp,
-    ArrowUpDown,
     Check,
     CheckCircle2,
     Copy,
@@ -20,7 +19,6 @@
     Image,
     Key,
     Layers,
-    LayoutGrid,
     Link2,
     Loader2,
     Palette,
@@ -84,7 +82,7 @@
   export let readFromAssets = true;
   export let writeToAssets = false;
   export let directDrag = false;
-  export let toolbarPosition: "native" | "belowIcon" | "custom" = "belowIcon";
+  export let toolbarPosition: "adaptive" | "belowTags" | "belowIcon" | "native" | "custom" = "adaptive";
   export let toolbarCustomX = 50;
   export let toolbarCustomY = 15;
   export let coverBreadcrumb = false;
@@ -97,7 +95,7 @@
   let testingTemplateId: string | null = null;
   let templateTestResults: Record<
     string,
-    { success: boolean; url?: string; error?: string; displayUrl?: string; postUrl?: string; postId?: string | number; site?: string; width?: number; height?: number; score?: number }
+    { success: boolean; url?: string; error?: string; displayUrl?: string; postUrl?: string; postId?: string | number; site?: string; width?: number; height?: number; score?: number; tags?: string[] | string }
   > = {};
   let templateImageLoadErrors: Record<string, boolean> = {};
 
@@ -155,6 +153,9 @@
     }
     if (tpl.minScore) {
       generated.push({ id: `r-score-${tpl.id}`, field: "minScore", operator: "gte", value: tpl.minScore });
+    }
+    if (tpl.blacklist) {
+      generated.push({ id: `r-bl-${tpl.id}`, field: "blacklist", operator: "containsNone", value: tpl.blacklist });
     }
     return generated;
   }
@@ -227,6 +228,10 @@
       const pad = (n: number) => n.toString().padStart(2, "0");
       lastSavedTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
       saveStatus = "saved";
+      if (saveStatusResetTimer) clearTimeout(saveStatusResetTimer);
+      saveStatusResetTimer = setTimeout(() => {
+        saveStatus = "idle";
+      }, 3000);
     } catch (err) {
       console.error("Failed to save MoreBackground settings:", err);
       saveStatus = "error";
@@ -351,16 +356,6 @@
     syncChanges(next, normalizedTagPools, normalizedCredentials);
   }
 
-  function moveTemplate(index: number, direction: "up" | "down") {
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= normalizedTemplates.length) return;
-    const next = [...normalizedTemplates];
-    const temp = next[index];
-    next[index] = next[targetIndex];
-    next[targetIndex] = temp;
-    syncChanges(next, normalizedTagPools, normalizedCredentials);
-  }
-
   function resetDefaults() {
     syncChanges(DEFAULT_TEMPLATES, DEFAULT_TAG_POOLS, normalizedCredentials);
   }
@@ -381,28 +376,31 @@
     reorderModalOpen = false;
   }
 
-  function handleDndConsider(e: CustomEvent<DndEvent<CoverTemplateItem>>) {
+  function handleReorderDnd(e: CustomEvent<DndEvent<CoverTemplateItem>>) {
     reorderItems = e.detail.items;
   }
 
-  function handleDndFinalize(e: CustomEvent<DndEvent<CoverTemplateItem>>) {
+  function handleReorderFinalize(e: CustomEvent<DndEvent<CoverTemplateItem>>) {
     reorderItems = e.detail.items;
     syncChanges(reorderItems, normalizedTagPools, normalizedCredentials);
   }
 
-  function moveToTop(index: number) {
-    if (index <= 0) return;
-    const item = reorderItems[index];
-    const rest = reorderItems.filter((_, i) => i !== index);
-    reorderItems = [item, ...rest];
+  const handleDndConsider = handleReorderDnd;
+  const handleDndFinalize = handleReorderFinalize;
+
+  function moveToTop(idx: number) {
+    if (idx <= 0) return;
+    const item = reorderItems.splice(idx, 1)[0];
+    reorderItems.unshift(item);
+    reorderItems = [...reorderItems];
     syncChanges(reorderItems, normalizedTagPools, normalizedCredentials);
   }
 
-  function moveToBottom(index: number) {
-    if (index >= reorderItems.length - 1) return;
-    const item = reorderItems[index];
-    const rest = reorderItems.filter((_, i) => i !== index);
-    reorderItems = [...rest, item];
+  function moveToBottom(idx: number) {
+    if (idx >= reorderItems.length - 1) return;
+    const item = reorderItems.splice(idx, 1)[0];
+    reorderItems.push(item);
+    reorderItems = [...reorderItems];
     syncChanges(reorderItems, normalizedTagPools, normalizedCredentials);
   }
 
@@ -446,6 +444,7 @@
       version: 1,
       exportedAt: new Date().toISOString(),
       templates: normalizedTemplates,
+      tagPools: normalizedTagPools,
     };
     jsonContent = JSON.stringify(exportData, null, 2);
     jsonCopied = false;
@@ -486,58 +485,52 @@
     const file = files[0];
     const reader = new FileReader();
     reader.onload = (event) => {
-      try {
-        jsonContent = (event.target?.result as string) || "";
-        importError = "";
-      } catch (err: any) {
-        importError = `读取文件失败: ${err.message}`;
-      }
+      jsonContent = (event.target?.result as string) || "";
+      importError = "";
+    };
+    reader.onerror = () => {
+      importError = "读取文件失败，请检查文件编码或格式。";
     };
     reader.readAsText(file);
+  }
+
+  function handleTriggerFileInput() {
+    if (fileInputRef) {
+      fileInputRef.value = "";
+      fileInputRef.click();
+    }
   }
 
   function handleConfirmImport() {
     importError = "";
     if (!jsonContent.trim()) {
-      importError = "请输入或上传 JSON 内容";
+      importError = "请输入或导入有效的 JSON 文本内容。";
       return;
     }
-
     try {
-      const parsed = JSON.parse(jsonContent.trim());
-      let templatesToImport: CoverTemplateItem[] = [];
-      let importedPools: TagPool[] | undefined;
+      const parsed = JSON.parse(jsonContent);
+      const rawTemplates = Array.isArray(parsed) ? parsed : Array.isArray(parsed.templates) ? parsed.templates : null;
+      const rawPools = Array.isArray(parsed.tagPools) ? parsed.tagPools : null;
 
-      if (Array.isArray(parsed)) {
-        templatesToImport = parsed;
-      } else if (parsed && typeof parsed === "object") {
-        if (Array.isArray(parsed.templates)) {
-          templatesToImport = parsed.templates;
-          if (Array.isArray(parsed.tagPools)) {
-            importedPools = parsed.tagPools;
-          }
-        } else if (parsed.name && (parsed.type || parsed.rules || parsed.site || parsed.url)) {
-          // Single template object
-          templatesToImport = [parsed as CoverTemplateItem];
-        }
-      }
-
-      if (templatesToImport.length === 0) {
-        importError = "未在 JSON 中找到有效的模板数据，请检查格式。";
+      if (!rawTemplates && !rawPools) {
+        importError = "未在 JSON 中找到可识别的 templates 或 tagPools 数组配置。";
         return;
       }
 
-      // Sanitize templates
-      const sanitizedTemplates: CoverTemplateItem[] = templatesToImport.map((tpl, i) => {
-        const id = tpl.id
-          ? importMode === "append"
-            ? `tpl-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`
-            : tpl.id
-          : `tpl-${Date.now()}-${i}`;
+      const importedTemplates: CoverTemplateItem[] = rawTemplates || [];
+      const importedPools: typeof normalizedTagPools = (rawPools || []).map((p: any) => ({
+        ...p,
+        items: (p.items || []).map(normalizeTagItem),
+      }));
+
+      const sanitizedTemplates: CoverTemplateItem[] = importedTemplates.map((tpl, i) => {
+        const id = tpl.id || `tpl-imported-${Date.now()}-${i}`;
+        const name = tpl.name || `导入模板 ${i + 1}`;
+        const type = tpl.type || "booru";
         return {
           id,
-          name: tpl.name || `导入模板 ${i + 1}`,
-          type: tpl.type || "booru",
+          name,
+          type,
           site: tpl.site,
           aspectRatio: tpl.aspectRatio,
           rating: tpl.rating,
@@ -561,11 +554,15 @@
 
       let nextTagPools = normalizedTagPools;
       if (importedPools && importedPools.length > 0) {
+        const sanitizedPools = importedPools.map((p) => ({
+          ...p,
+          items: (p.items || []).map(normalizeTagItem),
+        }));
         if (importMode === "overwrite") {
-          nextTagPools = importedPools;
+          nextTagPools = sanitizedPools;
         } else {
           const existingIds = new Set(normalizedTagPools.map((p) => p.id));
-          const newPools = importedPools.filter((p) => !existingIds.has(p.id));
+          const newPools = sanitizedPools.filter((p) => !existingIds.has(p.id));
           nextTagPools = [...normalizedTagPools, ...newPools];
         }
       }
@@ -601,6 +598,12 @@
     } else if (field === "minScore") {
       defaultVal = 5;
       defaultOp = "gte";
+    } else if (field === "excludeTagPool") {
+      defaultVal = normalizedTagPools.find((p) => p.id === "pool-blacklist-default")?.id || normalizedTagPools[0]?.id || "";
+      defaultOp = "excludeAllIn";
+    } else if (field === "blacklist") {
+      defaultVal = "grayscale, gay, two_males, bara, yaoi, guro, gore";
+      defaultOp = "containsNone";
     }
 
     const newRule: FilterRule = {
@@ -643,6 +646,7 @@
       if (r.field === "timeRange") patch.timeRange = r.value;
       if (r.field === "imageQuality") patch.imageQuality = r.value;
       if (r.field === "tagPool") patch.poolId = r.value;
+      if (r.field === "blacklist") patch.blacklist = r.value;
     }
     updateTemplate(tplIndex, patch);
   }
@@ -773,6 +777,8 @@
     { id: "minScore", label: "最低评分限制 (Min Score)" },
     { id: "imageQuality", label: "清晰度/预览图 (Quality / Preview)" },
     { id: "tagPool", label: "随机抽选词库池 (Tag Pool)" },
+    { id: "excludeTagPool", label: "🚫 排除/屏蔽词库池 (Exclude Tag Pool)" },
+    { id: "blacklist", label: "🚫 排除固定标签 (Exclude Tags / Blacklist)" },
     { id: "site", label: "目标站点 (Site)" },
     { id: "rating", label: "安全分级 (Rating)" },
     { id: "tags", label: "固定标签 (Fixed Tags)" },
@@ -1013,6 +1019,10 @@
                             <span class="text-muted-foreground font-mono text-[11px] px-2 py-0.5 rounded bg-muted border border-border shrink-0">
                               {rule.operator === "randomIn"
                                 ? "random in"
+                                : rule.operator === "excludeAllIn"
+                                ? "exclude all in"
+                                : rule.operator === "containsNone"
+                                ? "exclude tags"
                                 : rule.operator === "contains"
                                 ? "contains"
                                 : rule.operator === "gte"
@@ -1058,6 +1068,25 @@
                                   </option>
                                 {/each}
                               </select>
+                            {:else if rule.field === "excludeTagPool"}
+                              <select
+                                value={rule.value || (normalizedTagPools.find(p => p.id === "pool-blacklist-default")?.id || normalizedTagPools[0]?.id)}
+                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
+                                class="damophus-select w-full text-destructive font-medium border-destructive/30"
+                              >
+                                {#each normalizedTagPools as pool}
+                                  <option value={pool.id}>
+                                    {pool.name} (共 {pool.items?.length || 0} 条排除项)
+                                  </option>
+                                {/each}
+                              </select>
+                            {:else if rule.field === "blacklist"}
+                              <Input
+                                value={rule.value || ""}
+                                oninput={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as HTMLInputElement).value })}
+                                placeholder="例如: grayscale, gay, two_males, bara, yaoi, guro"
+                                class="h-7 text-xs font-mono bg-background w-full border-destructive/30"
+                              />
                             {:else if rule.field === "site"}
                               <select
                                 value={rule.value || "safebooru.org"}
@@ -1271,7 +1300,7 @@
                           }}
                         >
                           <Tag class="size-3" />
-                          <span>查看 Tag 标签 ({Array.isArray(templateTestResults[template.id].tags) ? templateTestResults[template.id].tags.length : templateTestResults[template.id].tags.split(/\s+/).length})</span>
+                          <span>查看 Tag 标签 ({Array.isArray(templateTestResults[template.id].tags) ? templateTestResults[template.id].tags.length : String(templateTestResults[template.id].tags || "").split(/\s+/).filter(Boolean).length})</span>
                         </Button>
                       {/if}
 
@@ -1843,7 +1872,7 @@
                   variant="outline"
                   size="sm"
                   class="h-7 text-xs gap-1.5"
-                  onclick={() => fileInputRef?.click()}
+                  onclick={handleTriggerFileInput}
                 >
                   <Upload class="size-3.5" />
                   <span>选择 JSON 文件上传</span>

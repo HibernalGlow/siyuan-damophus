@@ -24,7 +24,25 @@ function renderHeader(): HTMLElement {
 describe("more-background cover layout", () => {
   afterEach(() => { document.body.innerHTML = ""; });
 
-  it("places the native toolbar below the title icon and above tags and add actions", () => {
+  it("places the toolbar adaptively after action buttons without pushing it into cover", () => {
+    const root = renderHeader();
+    const toolbar = root.querySelector<HTMLElement>(".protyle-icons")!;
+    const cleanup = applyCoverLayout(root, { toolbarPosition: "adaptive" });
+    const infoChildren = [...root.querySelector(".protyle-background__ia")!.children];
+
+    expect(toolbar.dataset.damophusCoverToolbar).toBe("adaptive");
+    expect(infoChildren.map((element) => element.className)).toEqual([
+      "protyle-background__icon",
+      "b3-chips b3-chips__doctag",
+      "protyle-background__action",
+      "protyle-icons",
+    ]);
+
+    cleanup();
+    expect(toolbar.parentElement?.className).toBe("protyle-background__img");
+  });
+
+  it("places the native toolbar below the title icon and above tags and add actions when belowIcon is configured", () => {
     const root = renderHeader();
     const toolbar = root.querySelector<HTMLElement>(".protyle-icons")!;
     const cleanup = applyCoverLayout(root, { toolbarPosition: "belowIcon" });

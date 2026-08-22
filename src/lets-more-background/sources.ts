@@ -33,8 +33,8 @@ export interface SiteCredential {
 
 export interface FilterRule {
   id: string;
-  field: "aspectRatio" | "site" | "rating" | "tags" | "minScore" | "timeRange" | "tagPool" | "imageQuality";
-  operator: "equals" | "contains" | "gte" | "randomIn";
+  field: "aspectRatio" | "site" | "rating" | "tags" | "minScore" | "timeRange" | "tagPool" | "imageQuality" | "excludeTagPool" | "blacklist";
+  operator: "equals" | "contains" | "gte" | "randomIn" | "excludeAllIn" | "containsNone";
   value: any;
 }
 
@@ -52,14 +52,45 @@ export interface CoverTemplateItem {
   imageQuality?: ImageQualityType;
   poolId?: string; // Reference to an independent TagPool
   pool?: string[]; // Or inline pool items
+  blacklist?: string;
   rules?: FilterRule[];
   // For preset_api or custom_url
   url?: string;
 }
 
+export interface CoverHistoryEntry {
+  id: string;
+  docId: string;
+  docTitle?: string;
+  imageUrl: string;
+  postUrl?: string;
+  site?: string;
+  postId?: string | number;
+  tags?: string[];
+  templateName?: string;
+  appliedAt: number;
+}
+
+export const DEFAULT_BLACKLISTED_TAGS = "grayscale, gay, two_males, bara, yaoi, guro, gore";
+
 import allArtistsData from "./all_artists.json";
 
 export const DEFAULT_TAG_POOLS: TagPool[] = [
+  {
+    id: "pool-blacklist-default",
+    name: "🚫 默认排除 / 屏蔽词库 (Blacklist)",
+    description: "过滤灰阶黑白图、男男耽美同人及重口味题材",
+    items: [
+      { tag: "grayscale", zh: "灰阶 / 黑白图" },
+      { tag: "monochrome", zh: "单色 / 黑白" },
+      { tag: "gay", zh: "男同 / 耽美" },
+      { tag: "two_males", zh: "双男 / 男同" },
+      { tag: "bara", zh: "健美男同" },
+      { tag: "yaoi", zh: "耽美" },
+      { tag: "guro", zh: "猎奇" },
+      { tag: "gore", zh: "血腥暴力" },
+    ],
+  },
   {
     id: "pool-top-artists",
     name: "🎨 顶级核心画师池 (Top 11)",
@@ -280,7 +311,26 @@ export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] =
         params.set("quality", r.value);
       } else if (r.field === "tagPool" && r.value) {
         poolId = r.value;
+      } else if (r.field === "excludeTagPool" && r.value) {
+        const matchedExcludePool = tagPools.find((p) => p.id === r.value);
+        if (matchedExcludePool && matchedExcludePool.items?.length > 0) {
+          const excludeItems = matchedExcludePool.items
+            .map((it) => (typeof it === "string" ? it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_") : it.tag || ""))
+            .filter(Boolean);
+          if (excludeItems.length > 0) {
+            const currentBl = params.get("blacklist");
+            params.set("blacklist", currentBl ? `${currentBl},${excludeItems.join(",")}` : excludeItems.join(","));
+          }
+        }
+      } else if (r.field === "blacklist" && r.value) {
+        const currentBl = params.get("blacklist");
+        params.set("blacklist", currentBl ? `${currentBl},${r.value}` : String(r.value));
       }
+    }
+
+    if (template.blacklist) {
+      const currentBl = params.get("blacklist");
+      params.set("blacklist", currentBl ? `${currentBl},${template.blacklist}` : template.blacklist);
     }
 
     params.set("site", site);
@@ -351,6 +401,10 @@ export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] =
     }).filter(Boolean);
   }
 
+  if (template.blacklist) {
+    params.set("blacklist", template.blacklist);
+  }
+
   if (candidateItems.length > 0) {
     params.set("pool", candidateItems.join(","));
   }
@@ -399,6 +453,7 @@ export function urlToTemplate(label: string, url: string, id?: string): CoverTem
   }
   const rawPool = params.get("pool");
   const pool = rawPool ? rawPool.split(/[,|\n]/).map((s) => s.trim()).filter(Boolean) : undefined;
+  const blacklist = params.get("blacklist") || params.get("blocked") || undefined;
 
   return {
     id: generatedId,
@@ -412,6 +467,7 @@ export function urlToTemplate(label: string, url: string, id?: string): CoverTem
     timeRange,
     imageQuality,
     pool,
+    blacklist,
   };
 }
 

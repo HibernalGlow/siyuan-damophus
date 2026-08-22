@@ -21,6 +21,7 @@ export interface BooruQueryOptions {
   timeRange?: TimeRangeFilter;
   pool?: string[];
   quality?: "original" | "sample" | "preview";
+  blacklist?: string[] | string;
 }
 
 export function isBooruSource(urlOrUri: string): boolean {
@@ -100,6 +101,15 @@ export function parseBooruUri(uri: string): BooruQueryOptions {
       .filter(Boolean);
   }
 
+  const rawBlacklist = params.get("blacklist") || params.get("blocked");
+  let blacklist: string[] | undefined;
+  if (rawBlacklist) {
+    blacklist = rawBlacklist
+      .split(/[,|;\s\n]/)
+      .map((item) => item.trim().toLowerCase().replace(/^[-+]/, "").replace(/\s+/g, "_"))
+      .filter(Boolean);
+  }
+
   return {
     site,
     tags,
@@ -113,6 +123,7 @@ export function parseBooruUri(uri: string): BooruQueryOptions {
     timeRange,
     pool,
     quality,
+    blacklist,
   };
 }
 
@@ -153,6 +164,16 @@ export function extractPostDetailUrl(siteDomain: string, postId: string | number
   return `https://${domain}/posts/${idStr}`;
 }
 
+export interface BooruResolveDiagnostic {
+  totalFetched: number;
+  filteredCount: number;
+  rejectedByRatio?: number;
+  rejectedByScore?: number;
+  rejectedByBlacklist?: number;
+  rejectedByTime?: number;
+  errorMessage?: string;
+}
+
 export interface BooruResolvedInfo {
   imageUrl: string;
   previewBlobUrl?: string;
@@ -163,6 +184,7 @@ export interface BooruResolvedInfo {
   width?: number;
   height?: number;
   score?: number;
+  diagnostic?: BooruResolveDiagnostic;
 }
 
 /** 根据图片 URL 自动推断需要伪装的 Referer（参考 PixLuna 防盗链绕过方案） */
@@ -372,13 +394,46 @@ export function parseTimeFilter(raw?: string, now = Date.now()): ParsedTimeFilte
   return {};
 }
 
+export function extractPostTags(post: any): string[] {
+  if (!post) return [];
+  if (Array.isArray(post.tags)) return post.tags.map((t: string) => String(t).toLowerCase().trim());
+  if (typeof post.tag_string === "string") return post.tag_string.toLowerCase().split(/\s+/).filter(Boolean);
+  if (typeof post.tags === "string") return post.tags.toLowerCase().split(/\s+/).filter(Boolean);
+  return [];
+}
+
+export function isPostBlacklisted(post: any, blacklistedTags?: string[] | string): boolean {
+  if (!blacklistedTags) return false;
+  const blacklistList = (Array.isArray(blacklistedTags) ? blacklistedTags : blacklistedTags.split(/[,|\s\n]+/))
+    .map((t) => t.trim().toLowerCase().replace(/^[-+]/, "").replace(/\s+/g, "_"))
+    .filter(Boolean);
+  if (blacklistList.length === 0) return false;
+
+  const postTags = extractPostTags(post);
+  if (postTags.length === 0) return false;
+
+  for (const bTag of blacklistList) {
+    if (postTags.includes(bTag)) return true;
+    if (bTag.includes("*")) {
+      const reg = new RegExp(`^${bTag.replace(/\*/g, ".*")}$`);
+      if (postTags.some((t) => reg.test(t))) return true;
+    }
+  }
+  return false;
+}
+
 export function matchesCondition(
   post: Post | any,
   aspectRatio: AspectRatioFilter = "any",
   minScore?: number,
   timeRange: TimeRangeFilter = "any",
+  blacklist?: string[] | string,
 ): boolean {
   if (!post) return false;
+
+  if (blacklist && isPostBlacklisted(post, blacklist)) {
+    return false;
+  }
 
   const width =
     post.image_width ||
@@ -654,10 +709,11 @@ export async function testBooruSiteCredential(
 export async function resolveBooruImageInfo(
   urlOrUri: string,
   siteCredentials?: SiteCredential[],
+  globalBlacklist?: string[] | string,
 ): Promise<BooruResolvedInfo | null> {
   try {
     if (urlOrUri.startsWith("booru:")) {
-      const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, timeRange, pool, quality } =
+      const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, timeRange, pool, quality, blacklist } =
         parseBooruUri(urlOrUri);
 
       const matchedCred = findSiteCredential(site, siteCredentials);
@@ -677,6 +733,11 @@ export async function resolveBooruImageInfo(
         tagList.push(pickedCandidate);
       }
 
+      const combinedBlacklist = [
+        ...(Array.isArray(globalBlacklist) ? globalBlacklist : (globalBlacklist || "").split(/[,|\s\n]+/)),
+        ...(Array.isArray(blacklist) ? blacklist : (blacklist || "").split(/[,|\s\n]+/)),
+      ].map((t) => t.trim().toLowerCase().replace(/^[-+]/, "").replace(/\s+/g, "_")).filter(Boolean);
+
       if (isDanbooruFamily) {
         if (site.toLowerCase().includes("safebooru.donmai.us") || rating === "safe") {
           tagList.push("rating:general");
@@ -693,20 +754,64 @@ export async function resolveBooruImageInfo(
         );
 
         if (res.success && res.posts && res.posts.length > 0) {
-          let candidates = res.posts.slice();
-          if (aspectRatio && aspectRatio !== "any") {
-            const filtered = candidates.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange));
-            if (filtered.length > 0) {
-              candidates = filtered;
-            } else {
-              // 严格过滤：若本次结果无匹配比例，不降级为竖图
-              candidates = [];
+          const totalFetched = res.posts.length;
+          let rejectedByBlacklist = 0;
+          let rejectedByRatio = 0;
+          let rejectedByScore = 0;
+          let rejectedByTime = 0;
+
+          const candidates = res.posts.filter((p) => {
+            if (combinedBlacklist.length > 0 && isPostBlacklisted(p, combinedBlacklist)) {
+              rejectedByBlacklist++;
+              return false;
             }
-          } else if (minScore !== undefined || (timeRange && timeRange !== "any")) {
-            candidates = candidates.filter((p) => matchesCondition(p, "any", minScore, timeRange));
-          }
+            if (aspectRatio && aspectRatio !== "any") {
+              const width = p.image_width || p.width || 0;
+              const height = p.image_height || p.height || 0;
+              const ratio = width > 0 && height > 0 ? width / height : p.aspectRatio || 0;
+              if (aspectRatio === "landscape" && (ratio < 1.0 || ratio === 0)) {
+                rejectedByRatio++;
+                return false;
+              }
+              if (aspectRatio === "wide" && (ratio < 1.33 || ratio === 0)) {
+                rejectedByRatio++;
+                return false;
+              }
+              if (aspectRatio === "portrait" && (ratio >= 1.0 || ratio === 0)) {
+                rejectedByRatio++;
+                return false;
+              }
+            }
+            const rawScore = typeof p.score === "number" ? p.score : parseInt(p.score, 10);
+            if (minScore !== undefined && !isNaN(rawScore) && rawScore < minScore) {
+              rejectedByScore++;
+              return false;
+            }
+            if (timeRange && timeRange !== "any" && timeRange !== "all") {
+              const { minTimestamp, maxTimestamp } = parseTimeFilter(timeRange);
+              const postTime = extractPostTimestamp(p);
+              if (postTime) {
+                if (minTimestamp !== undefined && postTime < minTimestamp) {
+                  rejectedByTime++;
+                  return false;
+                }
+                if (maxTimestamp !== undefined && postTime > maxTimestamp) {
+                  rejectedByTime++;
+                  return false;
+                }
+              }
+            }
+            return true;
+          });
 
           if (candidates.length === 0) {
+            log.info("All Danbooru posts filtered out by conditions:", {
+              totalFetched,
+              rejectedByBlacklist,
+              rejectedByRatio,
+              rejectedByScore,
+              rejectedByTime,
+            });
             return null;
           }
 
@@ -731,6 +836,14 @@ export async function resolveBooruImageInfo(
               width: picked.image_width || picked.width,
               height: picked.image_height || picked.height,
               score: picked.score,
+              diagnostic: {
+                totalFetched,
+                filteredCount: candidates.length,
+                rejectedByBlacklist,
+                rejectedByRatio,
+                rejectedByScore,
+                rejectedByTime,
+              },
             };
           }
         }
@@ -759,7 +872,7 @@ export async function resolveBooruImageInfo(
           credentialsQuery = `api_key=${encodeURIComponent(effectiveApiKey)}`;
         }
 
-        log.info(`Searching booru ${resolvedDomain} with tags:`, tagList, { aspectRatio, minScore, timeRange });
+        log.info(`Searching booru ${resolvedDomain} with tags:`, tagList, { aspectRatio, minScore, timeRange, combinedBlacklist });
         const results = await search(resolvedDomain, tagList, {
           limit: 50,
           random: random ?? true,
@@ -767,19 +880,64 @@ export async function resolveBooruImageInfo(
         });
 
         if (results && results.length > 0) {
-          let candidates = results.slice();
-          if (aspectRatio && aspectRatio !== "any") {
-            const filtered = candidates.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange));
-            if (filtered.length > 0) {
-              candidates = filtered;
-            } else {
-              candidates = [];
+          const totalFetched = results.length;
+          let rejectedByBlacklist = 0;
+          let rejectedByRatio = 0;
+          let rejectedByScore = 0;
+          let rejectedByTime = 0;
+
+          const candidates = results.filter((p) => {
+            if (combinedBlacklist.length > 0 && isPostBlacklisted(p, combinedBlacklist)) {
+              rejectedByBlacklist++;
+              return false;
             }
-          } else if (minScore !== undefined || (timeRange && timeRange !== "any")) {
-            candidates = candidates.filter((p) => matchesCondition(p, "any", minScore, timeRange));
-          }
+            if (aspectRatio && aspectRatio !== "any") {
+              const width = p.width || p.image_width || (p as any).preview_width || 0;
+              const height = p.height || p.image_height || (p as any).preview_height || 0;
+              const ratio = width > 0 && height > 0 ? width / height : (p as any).aspectRatio || 0;
+              if (aspectRatio === "landscape" && (ratio < 1.0 || ratio === 0)) {
+                rejectedByRatio++;
+                return false;
+              }
+              if (aspectRatio === "wide" && (ratio < 1.33 || ratio === 0)) {
+                rejectedByRatio++;
+                return false;
+              }
+              if (aspectRatio === "portrait" && (ratio >= 1.0 || ratio === 0)) {
+                rejectedByRatio++;
+                return false;
+              }
+            }
+            const rawScore = typeof p.score === "number" ? p.score : parseInt(p.score, 10);
+            if (minScore !== undefined && !isNaN(rawScore) && rawScore < minScore) {
+              rejectedByScore++;
+              return false;
+            }
+            if (timeRange && timeRange !== "any" && timeRange !== "all") {
+              const { minTimestamp, maxTimestamp } = parseTimeFilter(timeRange);
+              const postTime = extractPostTimestamp(p);
+              if (postTime) {
+                if (minTimestamp !== undefined && postTime < minTimestamp) {
+                  rejectedByTime++;
+                  return false;
+                }
+                if (maxTimestamp !== undefined && postTime > maxTimestamp) {
+                  rejectedByTime++;
+                  return false;
+                }
+              }
+            }
+            return true;
+          });
 
           if (candidates.length === 0) {
+            log.info("All Booru posts filtered out by conditions:", {
+              totalFetched,
+              rejectedByBlacklist,
+              rejectedByRatio,
+              rejectedByScore,
+              rejectedByTime,
+            });
             return null;
           }
 
@@ -804,6 +962,14 @@ export async function resolveBooruImageInfo(
               width: picked.width,
               height: picked.height,
               score: picked.score,
+              diagnostic: {
+                totalFetched,
+                filteredCount: candidates.length,
+                rejectedByBlacklist,
+                rejectedByRatio,
+                rejectedByScore,
+                rejectedByTime,
+              },
             };
           }
         }
@@ -824,8 +990,9 @@ export async function resolveBooruImageInfo(
 export async function resolveBooruImageUrl(
   urlOrUri: string,
   siteCredentials?: SiteCredential[],
+  globalBlacklist?: string[] | string,
 ): Promise<string | null> {
-  const info = await resolveBooruImageInfo(urlOrUri, siteCredentials);
+  const info = await resolveBooruImageInfo(urlOrUri, siteCredentials, globalBlacklist);
   return info?.imageUrl || null;
 }
 
@@ -835,6 +1002,7 @@ export function extractBooruImageUrl(
   aspectRatio: AspectRatioFilter = "any",
   minScore?: number,
   timeRange: TimeRangeFilter = "any",
+  blacklist?: string[] | string,
 ): string | null {
   if (!data) return null;
 
@@ -863,8 +1031,8 @@ export function extractBooruImageUrl(
         (p.directory !== undefined && p.image !== undefined)),
   );
 
-  if (aspectRatio !== "any" || minScore !== undefined || (timeRange && timeRange !== "any")) {
-    validPosts = validPosts.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange));
+  if (aspectRatio !== "any" || minScore !== undefined || (timeRange && timeRange !== "any") || blacklist) {
+    validPosts = validPosts.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange, blacklist));
   }
 
   if (validPosts.length === 0) return null;

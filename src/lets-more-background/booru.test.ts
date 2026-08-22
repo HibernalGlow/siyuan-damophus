@@ -160,7 +160,35 @@ describe("booru API client, condition templates & ratio filter", () => {
     // 4. '2023'
     expect(matchesCondition(post2021, "any", undefined, "2023")).toBe(false);
     expect(matchesCondition(post2023, "any", undefined, "2023")).toBe(true);
+    expect(matchesCondition(post2023, "any", undefined, "2023")).toBe(true);
     expect(matchesCondition(post2025, "any", undefined, "2023")).toBe(false);
+  });
+
+  it("parses blacklist tags from URI and filters out blacklisted posts", () => {
+    const parsed = parseBooruUri("booru:sb?tags=scenery&blacklist=grayscale,gay,two_males");
+    expect(parsed.blacklist).toEqual(["grayscale", "gay", "two_males"]);
+
+    const cleanPost = {
+      width: 1920,
+      height: 1080,
+      tags: ["scenery", "sky", "clouds", "1girl"],
+    };
+    const grayscalePost = {
+      width: 1920,
+      height: 1080,
+      tags: ["scenery", "monochrome", "grayscale"],
+    };
+    const danbooruGayPost = {
+      image_width: 1920,
+      image_height: 1080,
+      tag_string: "scenery 2boys gay two_males outdoors",
+    };
+
+    const blacklist = ["grayscale", "gay", "two_males"];
+
+    expect(matchesCondition(cleanPost, "landscape", undefined, "any", blacklist)).toBe(true);
+    expect(matchesCondition(grayscalePost, "landscape", undefined, "any", blacklist)).toBe(false);
+    expect(matchesCondition(danbooruGayPost, "landscape", undefined, "any", blacklist)).toBe(false);
   });
 });
 
