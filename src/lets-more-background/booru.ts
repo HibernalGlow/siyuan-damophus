@@ -537,6 +537,99 @@ interface DanbooruFetchResult {
   error?: string;
 }
 
+interface GenericBooruSite {
+  domain?: string;
+  insecure?: boolean;
+  api?: { search?: string };
+  tagQuery?: string;
+  tagJoin?: string;
+  paginate?: string;
+  random?: boolean;
+  defaultTags?: string[];
+}
+
+function normalizeBooruPost(post: any): any {
+  if (!post || typeof post !== "object") return post;
+  return {
+    ...post,
+    fileUrl: post.fileUrl || post.file_url || null,
+    sampleUrl: post.sampleUrl || post.sample_url || null,
+    previewUrl: post.previewUrl || post.preview_url || null,
+    width: post.width || post.image_width || post.sample_width || post.preview_width || 0,
+    height: post.height || post.image_height || post.sample_height || post.preview_height || 0,
+    tags: Array.isArray(post.tags)
+      ? post.tags
+      : typeof post.tags === "string"
+      ? post.tags.split(/\s+/).filter(Boolean)
+      : typeof post.tag_string === "string"
+      ? post.tag_string.split(/\s+/).filter(Boolean)
+      : [],
+  };
+}
+
+async function fetchGenericBooruPosts(
+  resolvedDomain: string,
+  tags: string[],
+  limit: number,
+  random: boolean,
+  credentialsQuery?: string,
+): Promise<any[]> {
+  const site = sites[resolvedDomain] as GenericBooruSite | undefined;
+  if (!site?.api?.search || !site.domain) return [];
+
+  const queryTags = [...tags];
+  let requestLimit = limit;
+  if (random && site.random) {
+    queryTags.push("order:random");
+  } else if (random) {
+    requestLimit = Math.max(limit, 100);
+  }
+  for (const defaultTag of site.defaultTags || []) {
+    if (!queryTags.includes(defaultTag)) queryTags.push(defaultTag);
+  }
+
+  const tagQuery = site.tagQuery || "tags";
+  const tagJoin = site.tagJoin || "+";
+  const pagination = site.paginate || "page";
+  const page = pagination === "pid" ? 0 : 1;
+  const encodedTags = queryTags.map((tag) => encodeURIComponent(tag)).join(tagJoin);
+  const protocol = site.insecure ? "http" : "https";
+  const query = `${tagQuery}=${encodedTags}&limit=${requestLimit}&${pagination}=${page}`;
+  const url = `${protocol}://${site.domain}${site.api.search}${query}${credentialsQuery ? `&${credentialsQuery.replace(/^&/, "")}` : ""}`;
+
+  try {
+    const proxyRes = await fetch("/api/network/forwardProxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        method: "GET",
+        timeout: 15000,
+        contentType: "application/json",
+        responseEncoding: "text",
+        headers: ["Accept: application/json"],
+      }),
+    });
+    const proxyData = await proxyRes.json();
+    const rawBody = proxyData.data?.body;
+    if (proxyData.code === 0 && proxyData.data?.status === 200 && typeof rawBody === "string") {
+      const parsed = JSON.parse(rawBody);
+      if (Array.isArray(parsed)) return parsed.map(normalizeBooruPost);
+      if (Array.isArray(parsed?.post)) return parsed.post.map(normalizeBooruPost);
+    }
+    log.debug("Generic booru forwardProxy returned no posts", { resolvedDomain, status: proxyData.data?.status });
+  } catch (proxyErr) {
+    log.debug("Generic booru forwardProxy failed, falling back to direct search:", proxyErr);
+  }
+
+  const directResults = await search(resolvedDomain, tags, {
+    limit,
+    random,
+    credentials: credentialsQuery ? { query: credentialsQuery } : undefined,
+  });
+  return Array.from(directResults || []);
+}
+
 async function fetchDanbooruPosts(
   domain: string,
   tags: string[],
@@ -873,11 +966,13 @@ export async function resolveBooruImageInfo(
         }
 
         log.info(`Searching booru ${resolvedDomain} with tags:`, tagList, { aspectRatio, minScore, timeRange, combinedBlacklist });
-        const results = await search(resolvedDomain, tagList, {
-          limit: 50,
-          random: random ?? true,
-          credentials: credentialsQuery ? { query: credentialsQuery } : undefined,
-        });
+        const results = await fetchGenericBooruPosts(
+          resolvedDomain,
+          tagList,
+          50,
+          random ?? true,
+          credentialsQuery,
+        );
 
         if (results && results.length > 0) {
           const totalFetched = results.length;

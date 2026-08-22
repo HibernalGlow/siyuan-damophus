@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   isBooruSource,
   parseBooruUri,
@@ -7,10 +7,42 @@ import {
   cleanArtistTag,
   matchesCondition,
   findSiteCredential,
+  resolveBooruImageInfo,
 } from "./booru";
 import { resolveSite, sites } from "@himeka/booru";
 
 describe("booru API client, condition templates & ratio filter", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("uses the kernel proxy for Safebooru API responses", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      json: async () => ({
+        code: 0,
+        data: {
+          status: 200,
+          body: JSON.stringify([{
+            id: 42,
+            file_url: "https://safebooru.org/images/42/test.jpg",
+            sample_url: "https://safebooru.org/samples/42/test.jpg",
+            width: 1920,
+            height: 1080,
+            score: 50,
+            tags: "scenery wallpaper",
+          }],
+          ),
+        },
+      }),
+    } as Response);
+
+    const resolved = await resolveBooruImageInfo("booru:sb?tags=scenery&ratio=wide&min_score=30");
+
+    expect(resolved?.imageUrl).toBe("https://safebooru.org/images/42/test.jpg");
+    expect(fetchMock).toHaveBeenCalledWith("/api/network/forwardProxy", expect.objectContaining({ method: "POST" }));
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(request.url).toContain("safebooru.org/index.php?page=dapi");
+    expect(request.responseEncoding).toBe("text");
+  });
+
   it("detects booru sources accurately", () => {
     expect(isBooruSource("booru:safebooru?tags=wallpaper")).toBe(true);
     expect(isBooruSource("booru:sb?tags=wallpaper")).toBe(true);
@@ -191,4 +223,3 @@ describe("booru API client, condition templates & ratio filter", () => {
     expect(matchesCondition(danbooruGayPost, "landscape", undefined, "any", blacklist)).toBe(false);
   });
 });
-
