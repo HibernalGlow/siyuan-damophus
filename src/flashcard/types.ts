@@ -39,6 +39,7 @@ export interface FlashcardRoot {
   renderer: FlashcardRenderer | "unknown";
   kind: FlashcardKind | "unknown";
   cardId?: string;
+  content?: string;
   attributes: FlashcardAttributes;
 }
 
@@ -137,11 +138,20 @@ export function normalizeBlockRow(row: FlashcardBlockRow): FlashcardBlockRow {
 }
 
 export function cardRenderer(attributes: FlashcardAttributes): FlashcardRoot["renderer"] {
+  return cardRendererForRow(attributes);
+}
+
+function cardRendererForRow(attributes: FlashcardAttributes, type?: string): FlashcardRoot["renderer"] {
   const value = attributes["custom-dm-card-renderer"];
   if (value && (FLASHCARD_RENDERERS as readonly string[]).includes(value)) {
     return value as FlashcardRenderer;
   }
   if (attributes["custom-riff-decks"] || attributes["custom-dm-card-id"]) return "unknown";
+  if (type === "l") return "list";
+  if (type === "h") return "heading";
+  if (type === "s") return "superBlock";
+  if (type === "b") return "blockquote";
+  if (type === "callout") return "callout";
   return "unknown";
 }
 
@@ -151,22 +161,29 @@ export function cardKind(attributes: FlashcardAttributes): FlashcardRoot["kind"]
 }
 
 export function isExplicitCardRoot(row: FlashcardBlockRow): boolean {
-  const attributes = normalizeBlockRow(row).attributes ?? {};
+  const normalized = normalizeBlockRow(row);
+  const attributes = normalized.attributes ?? {};
   return Boolean(
     attributes["custom-dm-card-id"]
       || attributes["custom-dm-card-renderer"]
       || attributes["custom-riff-decks"],
-  );
+  ) || ["l", "h", "s", "b", "callout"].includes(normalized.type ?? "");
 }
 
 export function toFlashcardRoot(row: FlashcardBlockRow): FlashcardRoot | undefined {
   const normalized = normalizeBlockRow(row);
   if (!isExplicitCardRoot(normalized)) return undefined;
+  const renderer = cardRendererForRow(normalized.attributes ?? {}, normalized.type);
+  const declaredKind = cardKind(normalized.attributes ?? {});
+  const kind = declaredKind !== "unknown"
+    ? declaredKind
+    : renderer === "mark" ? "cloze" : renderer === "unknown" ? "unknown" : "basic";
   return {
     blockId: normalized.id,
-    renderer: cardRenderer(normalized.attributes ?? {}),
-    kind: cardKind(normalized.attributes ?? {}),
+    renderer,
+    kind,
     cardId: normalized.attributes?.["custom-dm-card-id"],
+    content: normalized.content,
     attributes: normalized.attributes ?? {},
   };
 }

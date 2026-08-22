@@ -35,10 +35,10 @@ Status: accepted design, implementation pending.
 | --- | --- | --- |
 | `list` | 普通问答卡 | 默认 basic 渲染器，问题与答案由明确的子项边界组成 |
 | `mark` | 挖空卡 | 仅显式 `cloze` 卡启用；普通 `==高亮==` 忽略 |
-| `heading` | 标题承载卡 | 支持识别；不得把相邻标题隐式并入答案 |
-| `superBlock` | 超级块承载卡 | 支持识别；范围限于该超级块子树 |
-| `blockquote` | 引用承载卡 | 支持识别；须有显式卡片 IAL |
-| `callout` | Callout 承载卡 | 支持识别；须有显式卡片 IAL |
+| `heading` | 标题承载卡 | 原生 heading 根块或显式卡片 IAL；不得把相邻标题隐式并入答案 |
+| `superBlock` | 超级块承载卡 | 原生 superBlock 根块或显式卡片 IAL；范围限于该超级块子树 |
+| `blockquote` | 引用承载卡 | 原生 blockquote 根块或显式卡片 IAL |
+| `callout` | Callout 承载卡 | 原生 callout 根块或显式卡片 IAL |
 
 未来一个根块可能产生多个变体。变体 ID 使用 `parent-card-id + variant-key` 的确定性组合；当前 Riff 一块一张卡，因此 V1 只登记根块卡，变体字段保留给后续 adapter profile。
 
@@ -81,7 +81,7 @@ Riff 独占 due、interval、review log、suspend、bury、评分历史等运行
 
 兼容层从 SiYuan 3.8.1 起支持，按 V1/V2 capability profile 检查目标字段、属性描述符、Riff API 和 card/deck 关系。缺少能力时回退到原始全局配置或只读“待制卡”，并记录可诊断原因。插件卸载必须恢复原始 descriptor/拦截器。
 
-动态列表在预加载阶段执行 SQL 候选查询、向上解析根块、与 Riff 到期卡取交集并批量读取 renderer，之后仍交给原生面板。每轮固定候选集；下一轮重新执行 SQL，失败则停止而不是扩大范围。
+动态列表在预加载阶段执行 SQL 候选查询、向上解析根块、与 Riff 到期卡取交集并批量读取 renderer，之后仍交给原生面板。每轮使用当轮 SQL 候选集；评分后下一轮重新执行 SQL，失败则停止而不是扩大范围。
 
 ## Group configuration contract
 
@@ -102,7 +102,7 @@ priorityPolicy
 
 ## Automation contract
 
-- **Postpone today cards**：可开关并配置天数，只处理当前日期创建且仍满足可推迟条件的卡；重复扫描幂等，部分失败逐卡报告。
+- **Postpone today cards**：可开关并配置天数，扫描整个牌组中当前日期创建且仍满足可推迟条件的卡；重复扫描幂等，部分失败逐卡报告。
 - **Automatic priority scan**：按启用的分组和扫描间隔读取候选卡，只更新今日创建且优先级不同的卡；P1-P4 标签优先于任何运行时数值。
 - **Batch priority**：用户选择分组后先 preview 受影响卡和目标优先级，再 confirm；不得把不可逆的运行时更新伪装成普通查询。
 

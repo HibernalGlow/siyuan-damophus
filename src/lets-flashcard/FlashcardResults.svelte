@@ -10,6 +10,7 @@
   export let onRegister: () => void | Promise<void>;
 
   const rootIds = new Set(roots.map((root) => root.blockId));
+  const rootById = new Map(roots.map((root) => [root.blockId, root]));
 </script>
 
 <div class="flashcard-results" data-testid="flashcard-results">
@@ -19,7 +20,7 @@
       <p>{rows.length} 个 SQL 结果，{roots.length} 个闪卡根块{due ? `，${due.cards.length} 个到期卡` : ""}</p>
     </div>
     <div class="actions">
-      {#if roots.length > 0}<button class="b3-button" on:click={onRegister}>登记为闪卡</button>{/if}
+      {#if roots.length > 0}<button class="b3-button" on:click={onRegister}>一键制卡并登记</button>{/if}
       {#if due && due.cards.length > 0}<button class="b3-button" on:click={onReview}>复习过滤结果</button>{/if}
     </div>
   </header>
@@ -28,7 +29,10 @@
       <div class:root={rootIds.has(row.id)} class="result-row">
         <code>{row.id}</code>
         <span>{row.content || row.type || "block"}</span>
-        {#if rootIds.has(row.id)}<b>闪卡根</b>{/if}
+        {#if rootIds.has(row.id)}
+          {@const root = rootById.get(row.id)}
+          <b>{root?.renderer ?? "unknown"} · {root?.kind ?? "unknown"}</b>
+        {/if}
       </div>
     {/each}
   </div>

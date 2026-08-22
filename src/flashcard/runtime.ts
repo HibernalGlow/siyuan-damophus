@@ -186,7 +186,15 @@ export class FlashcardRuntime {
   }
 
   async buildAllDueCards(): Promise<DueCardsData> {
-    return this.adapter.getDueCards(this.load().deckId);
+    const settings = this.load();
+    const due = await this.adapter.getDueCards(settings.deckId);
+    const cards = due.cards.slice(0, Math.max(1, settings.maxReviewCards));
+    return {
+      cards,
+      unreviewedCount: cards.length,
+      unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
+      unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
+    };
   }
 
   async registerCards(blockIds: readonly string[]) {
@@ -217,9 +225,11 @@ export class FlashcardRuntime {
   async postponeTodayCards(): Promise<{status: "disabled" | "empty" | "completed" | "pending"; count: number}> {
     const settings = this.load();
     if (!settings.postponeEnabled || settings.postponeDays <= 0) return { status: "disabled", count: 0 };
-    const cards = (await this.adapter.getCardsByBlockIds(
-      (await Promise.all(this.getEnabledGroups().map((group) => this.provideGroupBlockIds(group)))).flat(),
-    )).filter((card) => FlashcardSiyuanAdapter.isTodayCard(card) && FlashcardSiyuanAdapter.isPostponable(card));
+    // SFP's automation operates on the whole configured deck. Group membership
+    // is intentionally ignored here so a newly-created card cannot bypass the
+    // global postpone policy merely because it is not in an enabled SQL group.
+    const cards = (await this.getAllDeckCards())
+      .filter((card) => FlashcardSiyuanAdapter.isTodayCard(card) && FlashcardSiyuanAdapter.isPostponable(card));
     if (cards.length === 0) return { status: "empty", count: 0 };
     try {
       await this.adapter.postponeCards(cards, settings.postponeDays);

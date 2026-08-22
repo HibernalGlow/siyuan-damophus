@@ -17,6 +17,7 @@ export const pluginIconNames = [
   "imagePlay",
   "images",
   "layoutGrid",
+  "layers",
   "listTree",
   "messageSquareText",
   "move",

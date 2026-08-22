@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `DataManager.ts` | `src/flashcard/runtime.ts` | 配置、分类、分组、缓存、query-first、失效和预加载；缓存是可重建派生数据 |
 | `GroupActionService.ts` | `src/lets-flashcard/index.ts` + `runtime.ts` | 分组复习、原始 SQL、过滤后 IdList、批量优先级；批量写入增加 preview/confirm |
-| `AutomationService.ts` | `FlashcardRuntime.postponeTodayCards/scanPriorities` | 今日新卡推迟、按启用分组扫描今日卡；原生 Riff 优先，Tomato 仅可选加速 |
+| `AutomationService.ts` | `FlashcardRuntime.postponeTodayCards/scanPriorities` | 今日新卡推迟扫描整个牌组；优先级按启用分组扫描今日卡；原生 Riff 优先，Tomato 仅可选加速 |
 | `TimerService.ts` | `FlashcardRuntime.startAutomation/stopAutomation` | 定时器可重启、卸载清理，并在启动时立即执行一次预加载/自动化 |
 | `MenuService.ts` | DAMO 子插件菜单、命令和设置 Tab | 全部到期卡、启用分组入口、设置入口均复用原生 `siyuan-card` |
 | `apiSiyuanSQL.ts` | `FlashcardSiyuanAdapter.paginatedSql/loadBlocks` | SQL 分页、块读取、父链解析；保留任意可执行 SQL 聚合能力 |
@@ -17,6 +17,8 @@
 ## 动态列表生命周期
 
 分组入口先执行 SQL 分页和向上传递识别，再取 Riff 到期卡交集并打开原生 `siyuan-card`。DAMO 主插件实现原生 `updateCards` 分发，分组复习在每个原生复习轮次重新执行 SQL 并过滤新到期结果；因此评分后切换下一张仍保持动态分组边界。卡片 renderer 在同一预加载阶段读取并写入兼容层缓存，原生面板本身不被复制。
+
+SQL 结果如果直接命中原生可制卡容器（list、heading、superBlock、blockquote、callout），DAMO 将其作为一键登记候选；命中容器子块时沿父链解析最近根块。旧的 `custom-riff-decks` 卡片仍优先保留旧 renderer，普通段落中的高亮不会被推断为 mark 卡。
 
 ## 明确不照搬的部分
 

@@ -8,7 +8,7 @@ const pluginMetadata: PluginMetadata = {
   version: "1.0.0",
   author: "HibernalGlow",
   enabled: true,
-  icon: "brain",
+  icon: "layers",
   settings: createEntrySettings({
     menu: true,
     command: true,

@@ -16,6 +16,17 @@ describe("flashcard core", () => {
     expect(toFlashcardRoot({ id: "20260823000000-aaaaaaa", type: "p", content: "==reading==" })).toBeUndefined();
   });
 
+  it("recognizes native flashcard container roots for one-click registration", () => {
+    expect(toFlashcardRoot({ id: "20260823000000-aaaaaaa", type: "h", content: "Heading" })).toMatchObject({
+      blockId: "20260823000000-aaaaaaa",
+      renderer: "heading",
+      kind: "basic",
+    });
+    expect(toFlashcardRoot({ id: "20260823000001-bbbbbbb", type: "callout", content: "Callout" })).toMatchObject({
+      renderer: "callout",
+    });
+  });
+
   it("supports every declared renderer", () => {
     expect(cardRenderer({ "custom-dm-card-renderer": "heading" })).toBe("heading");
     expect(cardRenderer({ "custom-dm-card-renderer": "callout" })).toBe("callout");

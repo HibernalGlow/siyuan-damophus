@@ -71,10 +71,13 @@ function responseCards(value: unknown): RiffCardRecord[] {
   return list.map(normalizeRiffCard).filter((card): card is RiffCardRecord => Boolean(card));
 }
 
-function todayStartTimestamp(): number {
+function todayString(): string {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today.getTime();
+  return [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("");
 }
 
 export class FlashcardSiyuanAdapter {
@@ -242,8 +245,7 @@ export class FlashcardSiyuanAdapter {
   }
 
   static isTodayCard(card: RiffCardRecord): boolean {
-    const today = new Date(todayStartTimestamp()).toISOString().slice(0, 10).replace(/-/g, "");
-    return String(card.riffCardID ?? card.cardID).startsWith(today);
+    return String(card.riffCardID ?? card.cardID).startsWith(todayString());
   }
 
   static isPostponable(card: RiffCardRecord): boolean {

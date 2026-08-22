@@ -80,22 +80,34 @@ export default class FlashcardPlugin extends SubPluginBase {
   }): Promise<typeof cardsData> {
     const scope = this.reviewScope;
     if (!scope || !Array.isArray(cardsData?.cards)) return cardsData;
-    const hasScopeCard = cardsData.cards.some((card) => scope.ids.has(card.blockID));
-    if (!hasScopeCard) {
-      this.reviewScope = undefined;
-      return cardsData;
+    // Native Siyuan invokes updateCards again after a review round. The next
+    // round may contain only newly-due cards, so none of their IDs need to be
+    // present in the initial snapshot. Refresh the SQL boundary before
+    // deciding whether this is a continuation; an unrelated native review
+    // with no matching candidate releases the scope instead of showing blank.
+    try {
+      const roots = await this.runtime.provideGroupBlockIds(scope.group, true);
+      const allowed = new Set(roots);
+      const cards = cardsData.cards.filter((card) => allowed.has(card.blockID));
+      const overlapsInitial = cardsData.cards.some((card) => scope.ids.has(card.blockID));
+      if (!overlapsInitial && cards.length === 0) {
+        this.reviewScope = undefined;
+        return cardsData;
+      }
+      const renderers = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
+      this.compat.preloadMany(renderers);
+      return {
+        cards,
+        unreviewedCount: cards.length,
+        unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
+        unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
+      };
+    } catch (error) {
+      // A failed dynamic query must fail closed. Returning the native input
+      // here would silently widen a scoped review to the whole deck.
+      log.error("dynamic-review-query-failed", error);
+      return { cards: [], unreviewedCount: 0, unreviewedNewCardCount: 0, unreviewedOldCardCount: 0 };
     }
-    const roots = await this.runtime.provideGroupBlockIds(scope.group, true);
-    const allowed = new Set(roots);
-    const cards = cardsData.cards.filter((card) => allowed.has(card.blockID));
-    const renderers = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
-    this.compat.preloadMany(renderers);
-    return {
-      cards,
-      unreviewedCount: cards.length,
-      unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
-      unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
-    };
   }
 
   override onunload(): void {

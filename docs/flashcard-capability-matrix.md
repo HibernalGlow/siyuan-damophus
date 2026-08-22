@@ -10,10 +10,10 @@ Status: implementation baseline; embedded-browser evidence is tracked as a relea
 | --- | --- | --- | --- | --- |
 | `mark` container | Supported | Explicit cloze only | 已实现 | 普通高亮不入队；目标版本浏览器验证待补 |
 | `list` container | Supported | Default basic renderer | 已实现 | 需显式根块 IAL |
-| `heading` container | Supported by parser target | Supported renderer | 已实现 | 不按相邻标题猜范围 |
-| `superBlock` container | Supported by parser target | Supported renderer | 已实现 | 范围限于超级块子树 |
-| `blockquote` container | Native config added by 3.8.1 | Supported renderer | 已实现 | 依赖目标版本字段能力检测 |
-| `callout` container | Native config added by 3.8.1 | Supported renderer | 已实现 | 依赖目标版本字段能力检测 |
+| `heading` container | Supported by parser target | Native root or explicit IAL | 已实现 | 不按相邻标题猜范围 |
+| `superBlock` container | Supported by parser target | Native root or explicit IAL | 已实现 | 范围限于超级块子树 |
+| `blockquote` container | Native config capability | Native root or explicit IAL | 已实现 | 依赖目标版本字段能力检测 |
+| `callout` container | Native config capability | Native root or explicit IAL | 已实现 | 依赖目标版本字段能力检测 |
 | Portable card identity | IAL | `custom-dm-card-id` | 协议已定 | 缺失则 preview blocker |
 | Source identity | IAL | `custom-dm-source-key` | 协议已定 | 多匹配停止 |
 | Topic provider relation | IAL + dynamic lookup | `custom-qb-note-topic-id` | 已有题库关系基础 | 块 ID 只在索引中缓存 |
@@ -51,5 +51,5 @@ SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-
 
 - Portable core tests cover container parsing, identity, renderer policy, dedupe, source rebind and conflict/orphan outcomes.
 - Fake Riff adapter covers API success, API failure, duplicate registration, query mismatch, old cards and version downgrade.
-- Embedded-browser evidence covers old mark, new list, heading, superBlock, blockquote, callout, mixed documents, rating-to-next-card, dynamic list, mobile review and plugin unload.
+- Embedded-browser evidence is the remaining release gate for old mark, new list, heading, superBlock, blockquote, callout, mixed documents, rating-to-next-card, dynamic list, mobile review and plugin unload; the current workspace has not yet recorded that live run.
 - No claim of completion may rely on typecheck alone; repository check, build, focused tests and diff inspection are required.
