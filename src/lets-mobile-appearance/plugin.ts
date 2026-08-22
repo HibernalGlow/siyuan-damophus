@@ -25,6 +25,13 @@ export const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-mobile-appearance.toolbarActionsTitle",
+      description: "lets-mobile-appearance.toolbarActionsDescription",
+      key: "toolbarActions",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-mobile-appearance.outlineThemeTitle",
       description: "lets-mobile-appearance.outlineThemeDescription",
       key: "outlineTheme",

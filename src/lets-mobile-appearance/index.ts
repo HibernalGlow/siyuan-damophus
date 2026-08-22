@@ -29,11 +29,13 @@ export default class MobileAppearancePlugin extends SubPluginBase {
     this.removeTopBar();
     this.stopTitlePath();
     this.stopOutlineTheme();
+    delete document.documentElement.dataset.damophusMobileToolbarActions;
   }
 
   private applySettings(): void {
     const isTopBarEnabled = this.getSetting?.("topBarShortcut") ?? true;
     const isTitlePathEnabled = this.getSetting?.("titlePath") ?? true;
+    const areToolbarActionsEnabled = this.getSetting?.("toolbarActions") ?? true;
     const isOutlineThemeEnabled = this.getSetting?.("outlineTheme") ?? true;
 
     if (isTopBarEnabled) {
@@ -53,6 +55,7 @@ export default class MobileAppearancePlugin extends SubPluginBase {
     } else {
       this.stopOutlineTheme();
     }
+    document.documentElement.dataset.damophusMobileToolbarActions = areToolbarActionsEnabled ? "true" : "false";
   }
 
   private ensureTopBar(): void {

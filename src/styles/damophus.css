@@ -372,6 +372,20 @@ html[data-frontend="browser-mobile"] #editor > .protyle-breadcrumb > .block__ico
   right: 100px;
 }
 
+html[data-frontend="mobile"][data-damophus-mobile-toolbar-actions="false"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"],
+html[data-frontend="browser-mobile"][data-damophus-mobile-toolbar-actions="false"] #editor > .protyle-breadcrumb > .block__icon[data-type="readonly"],
+html[data-frontend="mobile"][data-damophus-mobile-toolbar-actions="false"] #editor > .protyle-breadcrumb > .block__icon[data-type="doc"],
+html[data-frontend="browser-mobile"][data-damophus-mobile-toolbar-actions="false"] #editor > .protyle-breadcrumb > .block__icon[data-type="doc"],
+html[data-frontend="mobile"][data-damophus-mobile-toolbar-actions="false"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"],
+html[data-frontend="browser-mobile"][data-damophus-mobile-toolbar-actions="false"] #editor > .protyle-breadcrumb > .block__icon[data-type="more"] {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  background: initial;
+}
+
 .question-bank-workflow {
   display: flex;
   min-height: 0;
