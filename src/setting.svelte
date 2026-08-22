@@ -895,6 +895,10 @@
           assetsLocation={getFocusedValue("assetsLocation", "/assets/more-background")}
           readFromAssets={getFocusedValue("readFromAssets", true)}
           writeToAssets={getFocusedValue("writeToAssets", false)}
+          localCache={getFocusedValue("localCache", false)}
+          localCacheRoot={getFocusedValue("localCacheRoot", "/storage/petal/siyuan-damophus/more-background/covers")}
+          localCachePathTemplate={getFocusedValue("localCachePathTemplate", "{year}/{month}/{hash}.webp")}
+          localCacheMaxEdge={getFocusedValue("localCacheMaxEdge", "1920")}
           mobile={compactLayout}
           on:changed={(event) => void onChanged(new CustomEvent("changed", { detail: { group: focusGroup, ...event.detail } }))}
         />

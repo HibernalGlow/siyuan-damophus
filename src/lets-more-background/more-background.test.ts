@@ -14,6 +14,7 @@ import {
   removeCoverHistoryEntry,
   setLastUsedSource,
   updateAllLastUsedButtons,
+  localCachePath,
 } from "./more-background";
 
 describe("more-background sources utilities", () => {
@@ -42,6 +43,14 @@ describe("more-background sources utilities", () => {
     expect(sanitizeAssetsPath("assets/more-background")).toBe("/assets/more-background");
     expect(sanitizeAssetsPath("/assets/more-background/")).toBe("/assets/more-background");
     expect(sanitizeAssetsPath("assets\\more-background\\")).toBe("/assets/more-background");
+  });
+
+  it("uses a deterministic device-local WebP cache path for each source and resize mode", () => {
+    const source = "https://example.com/images/cover.png?size=large";
+    const context = { sourceUrl: source, maxEdge: "1920" as const, now: new Date("2026-08-22T00:00:00Z") };
+    expect(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{year}/{month}/{hash}.webp", context)).toMatch(/^\/data\/storage\/petal\/siyuan-damophus\/more-background\/covers\/2026\/08\/[a-f0-9]{8}\.webp$/);
+    expect(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{year}/{month}/{hash}.webp", context)).toBe(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{year}/{month}/{hash}.webp", context));
+    expect(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{hash}-{maxEdge}.{ext}", { ...context, maxEdge: "1280" })).not.toBe(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{hash}-{maxEdge}.{ext}", context));
   });
 
   it("converts CoverTemplateItem to booru url and back correctly", () => {
@@ -155,4 +164,3 @@ describe("more-background sources utilities", () => {
     expect(getCoverHistory().length).toBe(0);
   });
 });
-

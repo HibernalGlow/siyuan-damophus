@@ -21,6 +21,14 @@ import { settings } from "@/settings";
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
 const COVER_LAYOUT_STYLE_ID = "damophus-more-background-layout-style";
+const LOCAL_CACHE_QUALITY = 75;
+const DEFAULT_LOCAL_CACHE_ROOT = "/storage/petal/siyuan-damophus/more-background/covers";
+const DEFAULT_LOCAL_CACHE_PATH_TEMPLATE = "{year}/{month}/{hash}.webp";
+const SYNCIGNORE_PATH = "/data/.siyuan/syncignore";
+const LOCAL_CACHE_INDEX_NAME = "index.json";
+const COVER_SOURCE_ATTRIBUTE = "custom-damophus-cover-source-url";
+const COVER_CACHE_ATTRIBUTE = "custom-damophus-cover-cache-path";
+const objectUrls = new WeakMap<HTMLImageElement, string>();
 
 export type CoverToolbarPosition = "adaptive" | "belowTags" | "belowIcon" | "native" | "custom";
 
@@ -30,6 +38,10 @@ export interface MoreBackgroundOptions {
   assetsLocation: string;
   readFromAssets: boolean;
   writeToAssets: boolean;
+  localCache: boolean;
+  localCacheRoot: string;
+  localCachePathTemplate: string;
+  localCacheMaxEdge: "none" | "1280" | "1920" | "2560";
   directDrag?: boolean;
   toolbarPosition?: CoverToolbarPosition;
   toolbarCustomX?: number;
@@ -131,6 +143,170 @@ function generateTimestampId(): string {
   const minutes = String(now.getMinutes()).padStart(2, "0");
   const seconds = String(now.getSeconds()).padStart(2, "0");
   return `${year}${month}${day}${hours}${minutes}${seconds}`;
+}
+
+function cacheHash(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function normalizeLocalCacheRoot(root: string): string {
+  const normalized = String(root || DEFAULT_LOCAL_CACHE_ROOT).replace(/\\/g, "/").replace(/\/+/g, "/");
+  const withoutData = normalized.replace(/^\/?data\//i, "");
+  const safe = withoutData.split("/").filter((segment) => segment && segment !== "." && segment !== "..").join("/");
+  return `/data/${safe || DEFAULT_LOCAL_CACHE_ROOT.replace(/^\//, "")}`;
+}
+
+function sanitizeTemplateValue(value: unknown, fallback = "unknown"): string {
+  const text = String(value ?? "").trim().replace(/[\\/:*?"<>|\s]+/g, "-");
+  return text || fallback;
+}
+
+export interface LocalCachePathContext {
+  sourceUrl: string;
+  maxEdge: MoreBackgroundOptions["localCacheMaxEdge"];
+  site?: string;
+  postId?: string | number;
+  now?: Date;
+}
+
+export function localCachePath(root: string, template: string, context: LocalCachePathContext): string {
+  const now = context.now ?? new Date();
+  const sourceHash = cacheHash(`${context.sourceUrl}|${context.maxEdge}|webp-q${LOCAL_CACHE_QUALITY}`);
+  const values: Record<string, string> = {
+    hash: sourceHash,
+    sourceHash,
+    year: String(now.getFullYear()),
+    month: String(now.getMonth() + 1).padStart(2, "0"),
+    day: String(now.getDate()).padStart(2, "0"),
+    site: sanitizeTemplateValue(context.site, "source"),
+    postId: sanitizeTemplateValue(context.postId, "unknown"),
+    maxEdge: context.maxEdge,
+    quality: String(LOCAL_CACHE_QUALITY),
+    ext: "webp",
+  };
+  const rendered = String(template || DEFAULT_LOCAL_CACHE_PATH_TEMPLATE).replace(/\{([a-zA-Z]+)\}/g, (_, key: string) => values[key] ?? "");
+  const safeRelative = rendered.split("/").map((segment) => sanitizeTemplateValue(segment, "cover")).join("/");
+  const filename = safeRelative.toLowerCase().endsWith(".webp") ? safeRelative : `${safeRelative}.webp`;
+  return `${normalizeLocalCacheRoot(root)}/${filename}`;
+}
+
+async function convertToWebp(blob: Blob, maxEdge: MoreBackgroundOptions["localCacheMaxEdge"]): Promise<Blob> {
+  if (typeof document === "undefined" || typeof createImageBitmap === "undefined") return blob;
+  const bitmap = await createImageBitmap(blob);
+  const edge = maxEdge === "none" ? 0 : Number(maxEdge);
+  const scale = edge > 0 ? Math.min(1, edge / Math.max(bitmap.width, bitmap.height)) : 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("Canvas 2D context is unavailable");
+  }
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (result && result.size > 0) resolve(result);
+      else reject(new Error("WebP conversion failed"));
+    }, "image/webp", LOCAL_CACHE_QUALITY / 100);
+  });
+}
+
+async function readLocalCache(path: string): Promise<Blob | null> {
+  try {
+    const response = await fetch("/api/file/getFile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    if (!response.ok || response.status === 202) return null;
+    const blob = await response.blob();
+    return blob.size > 0 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+
+interface LocalCacheIndexEntry {
+  path: string;
+  sourceUrl: string;
+  createdAt: string;
+  maxEdge: MoreBackgroundOptions["localCacheMaxEdge"];
+  quality: number;
+  site?: string;
+  postId?: string | number;
+  width?: number;
+  height?: number;
+  size?: number;
+}
+
+async function readTextFile(path: string): Promise<string> {
+  try {
+    const response = await fetch("/api/file/getFile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    if (!response.ok || response.status === 202) return "";
+    return await response.text();
+  } catch {
+    return "";
+  }
+}
+
+async function putTextFile(path: string, content: string): Promise<boolean> {
+  try {
+    const formData = new FormData();
+    formData.append("path", path);
+    formData.append("isDir", "false");
+    formData.append("file", new Blob([content], { type: "text/plain;charset=utf-8" }), path.split("/").pop() || "file.txt");
+    const response = await fetch("/api/file/putFile", { method: "POST", body: formData });
+    const data = await response.json();
+    return data.code === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureSyncIgnore(root: string): Promise<void> {
+  const relativeRoot = normalizeLocalCacheRoot(root).replace(/^\/data\//i, "");
+  if (!relativeRoot) return;
+  const current = await readTextFile(SYNCIGNORE_PATH);
+  const lines = current.replace(/\r\n/g, "\n").split("\n").map((line) => line.trim()).filter(Boolean);
+  const rule = `${relativeRoot}/**/*`;
+  if (!lines.includes(rule)) {
+    lines.push(rule);
+    await putTextFile(SYNCIGNORE_PATH, `${lines.join("\n")}\n`);
+  }
+}
+
+async function updateLocalCacheIndex(root: string, entry: LocalCacheIndexEntry): Promise<void> {
+  const cacheRoot = normalizeLocalCacheRoot(root);
+  const indexPath = `${cacheRoot}/${LOCAL_CACHE_INDEX_NAME}`;
+  const raw = await readTextFile(indexPath);
+  let entries: LocalCacheIndexEntry[] = [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) entries = parsed as LocalCacheIndexEntry[];
+  } catch {
+    entries = [];
+  }
+  const next = [entry, ...entries.filter((item) => item.path !== entry.path)].slice(0, 1000);
+  await putTextFile(indexPath, `${JSON.stringify(next, null, 2)}\n`);
+}
+
+function displayLocalCache(image: HTMLImageElement, blob: Blob): void {
+  const previous = objectUrls.get(image);
+  if (previous) URL.revokeObjectURL(previous);
+  const objectUrl = URL.createObjectURL(blob);
+  objectUrls.set(image, objectUrl);
+  image.src = objectUrl;
 }
 
 async function detectImageTypeAndName(blob: Blob): Promise<{ type: string; name: string }> {
@@ -356,6 +532,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     // 1. 初始化标题栏与题头图控制按钮
     const coverControlsCleanup = this.initTitleCoverControls(root);
     cleanups.push(coverControlsCleanup);
+    void this.hydrateLocalCache(root);
+    cleanups.push(() => this.releaseLocalCache(root));
 
     // 2. 初始化视频背景与题头图多合一位置调整 (Alt拖拽/长按/滚轮/直接拖)
     const background = root.querySelector<HTMLElement>(".protyle-background");
@@ -1022,7 +1200,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         }
       }
 
-      if (this.options.writeToAssets) {
+      if (this.options.writeToAssets || this.options.localCache) {
         let blob: Blob | null = await proxyFetchImageBlob(finalImageUrl);
         if (!blob || blob.size === 0) {
           try {
@@ -1034,7 +1212,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         }
 
         if (blob && blob.size > 0) {
-          await this.saveBlobAndSetBackground(blob, background, postInfo);
+          await this.saveBlobAndSetBackground(blob, background, postInfo, finalImageUrl);
         } else {
           if (attempt < effectiveMaxRetries && isBooruSource(url)) {
             log.info(`Image blob download failed (attempt ${attempt}/${effectiveMaxRetries}), retrying another post...`);
@@ -1064,7 +1242,44 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     blob: Blob,
     background: HTMLElement,
     postInfo?: BooruResolvedInfo | null,
+    sourceUrl?: string,
   ): Promise<void> {
+    if (this.options.localCache && sourceUrl) {
+      try {
+        const processed = await convertToWebp(blob, this.options.localCacheMaxEdge);
+        const cachePath = localCachePath(this.options.localCacheRoot, this.options.localCachePathTemplate, {
+          sourceUrl,
+          maxEdge: this.options.localCacheMaxEdge,
+          site: postInfo?.site,
+          postId: postInfo?.postId,
+        });
+        await ensureSyncIgnore(this.options.localCacheRoot);
+        if (await this.uploadToLocalCache(processed, cachePath)) {
+          await updateLocalCacheIndex(this.options.localCacheRoot, {
+            path: cachePath,
+            sourceUrl,
+            createdAt: new Date().toISOString(),
+            maxEdge: this.options.localCacheMaxEdge,
+            quality: LOCAL_CACHE_QUALITY,
+            site: postInfo?.site,
+            postId: postInfo?.postId,
+            width: postInfo?.width,
+            height: postInfo?.height,
+            size: processed.size,
+          });
+          await this.setBlockBackgroundImage(background, sourceUrl, postInfo, cachePath);
+          const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+          if (image) displayLocalCache(image, processed);
+          return;
+        }
+      } catch (error) {
+        log.warn("Failed to create local WebP cover cache:", error);
+      }
+    }
+    if (!this.options.writeToAssets) {
+      await this.setBlockBackgroundImage(background, sourceUrl || await this.blobToBase64(blob), postInfo);
+      return;
+    }
     const { name } = await detectImageTypeAndName(blob);
     const location = sanitizeAssetsPath(this.options.assetsLocation);
 
@@ -1074,6 +1289,20 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     } else {
       const base64 = await this.blobToBase64(blob);
       await this.setBlockBackgroundImage(background, base64, postInfo);
+    }
+  }
+
+  private async uploadToLocalCache(blob: Blob, path: string): Promise<boolean> {
+    try {
+      const formData = new FormData();
+      formData.append("path", path);
+      formData.append("file", blob, path.split("/").pop() || "cover.webp");
+      formData.append("isDir", "false");
+      const res = await fetch("/api/file/putFile", { method: "POST", body: formData });
+      const data = await res.json();
+      return data.code === 0;
+    } catch {
+      return false;
     }
   }
 
@@ -1116,6 +1345,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     background: HTMLElement,
     urlOrPath: string,
     postInfo?: BooruResolvedInfo | null,
+    cachePath?: string,
   ): Promise<void> {
     const blockId =
       background.getAttribute("data-node-id") ||
@@ -1135,6 +1365,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const attrs: Record<string, string> = {
       "title-img": `background-image:url("${finalVal}")`,
     };
+    if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+      attrs[COVER_SOURCE_ATTRIBUTE] = urlOrPath;
+    }
+    if (cachePath) attrs[COVER_CACHE_ATTRIBUTE] = cachePath;
 
     const tags = background.getAttribute("data-damophus-post-tags");
     if (tags) attrs["custom-damophus-post-tags"] = tags;
@@ -1181,6 +1415,78 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     } catch (histErr) {
       log.debug("Failed to record cover history:", histErr);
     }
+  }
+
+  private async hydrateLocalCache(root: HTMLElement): Promise<void> {
+    if (!this.options.localCache) return;
+    const background = root.querySelector<HTMLElement>(".protyle-background");
+    if (!background) return;
+    const blockId = background.getAttribute("data-node-id") || root.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
+    if (!blockId) return;
+    try {
+      const response = await fetch("/api/attr/getBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: blockId }),
+      });
+      const data = await response.json();
+      const attrs = data?.data as Record<string, string> | undefined;
+      const sourceUrl = attrs?.[COVER_SOURCE_ATTRIBUTE];
+      if (!sourceUrl) return;
+      const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+      if (!image) return;
+      const current = this.options.localCacheMaxEdge;
+      const expected = localCachePath(this.options.localCacheRoot, this.options.localCachePathTemplate, {
+        sourceUrl,
+        maxEdge: current,
+        site: attrs?.["custom-damophus-post-site"],
+        postId: attrs?.["custom-damophus-post-id"],
+      });
+      await ensureSyncIgnore(this.options.localCacheRoot);
+      const cached = await readLocalCache(expected);
+      if (cached) {
+        displayLocalCache(image, cached);
+        return;
+      }
+      let downloaded = await proxyFetchImageBlob(sourceUrl);
+      if (!downloaded || downloaded.size === 0) {
+        const fetched = await fetch(sourceUrl, { referrerPolicy: "no-referrer" });
+        if (fetched.ok) downloaded = await fetched.blob();
+      }
+      if (downloaded && downloaded.size > 0) {
+        const processed = await convertToWebp(downloaded, current);
+        await ensureSyncIgnore(this.options.localCacheRoot);
+        if (await this.uploadToLocalCache(processed, expected)) {
+          await updateLocalCacheIndex(this.options.localCacheRoot, {
+            path: expected,
+            sourceUrl,
+            createdAt: new Date().toISOString(),
+            maxEdge: current,
+            quality: LOCAL_CACHE_QUALITY,
+            site: attrs?.["custom-damophus-post-site"],
+            postId: attrs?.["custom-damophus-post-id"],
+            size: processed.size,
+          });
+          displayLocalCache(image, processed);
+          await fetch("/api/attr/setBlockAttrs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: blockId, attrs: { [COVER_CACHE_ATTRIBUTE]: expected } }),
+          });
+        }
+      }
+    } catch (error) {
+      log.debug("Failed to hydrate local cover cache:", error);
+    }
+  }
+
+  private releaseLocalCache(root: HTMLElement): void {
+    const image = root.querySelector<HTMLImageElement>(".protyle-background__img img");
+    if (!image) return;
+    const objectUrl = objectUrls.get(image);
+    if (!objectUrl) return;
+    URL.revokeObjectURL(objectUrl);
+    objectUrls.delete(image);
   }
 
   private async listImageFiles(path: string): Promise<string[] | null> {

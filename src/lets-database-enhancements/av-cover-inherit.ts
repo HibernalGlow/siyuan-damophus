@@ -49,6 +49,27 @@ export function buildCardCoverHTML(titleImg: string): string {
   )}" style="width: 100%; height: 100%; object-fit: cover; display: block;">`;
 }
 
+async function loadCachedCover(source: string, cachePath: string | null): Promise<string> {
+  if (!cachePath) return source;
+  try {
+    const response = await fetch("/api/file/getFile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: cachePath }),
+    });
+    if (!response.ok || response.status === 202) return source;
+    const blob = await response.blob();
+    if (!blob.size) return source;
+    const objectUrl = URL.createObjectURL(blob);
+    if (source.includes("url(")) {
+      return source.replace(/url\((?:"[^"]*"|'[^']*'|[^)]*)\)/, `url("${objectUrl}")`);
+    }
+    return objectUrl;
+  } catch {
+    return source;
+  }
+}
+
 export function extractCardBlockId(card: HTMLElement): string | null {
   const blockCellRef = card.querySelector<HTMLElement>(
     ".av__cell[data-dtype='block'] span[data-type='block-ref'][data-id], .av__cell[data-dtype='block'] [data-id]",
@@ -67,7 +88,7 @@ export function extractCardBlockId(card: HTMLElement): string | null {
 
 export class AvCoverInheritManager {
   private blockToRootCache = new Map<string, string>();
-  private rootToTitleImgCache = new Map<string, string | null>();
+  private rootToTitleImgCache = new Map<string, { titleImg: string; cachePath: string | null } | null>();
   private pendingBlockIds = new Set<string>();
   private fetchTimer: ReturnType<typeof setTimeout> | null = null;
   private watchedRoots = new Set<HTMLElement>();
@@ -157,9 +178,9 @@ export class AvCoverInheritManager {
       // 检查缓存
       if (this.blockToRootCache.has(blockId)) {
         const rootId = this.blockToRootCache.get(blockId)!;
-        const titleImg = this.rootToTitleImgCache.get(rootId);
-        if (titleImg) {
-          this.applyCoverToCard(card, titleImg);
+        const cover = this.rootToTitleImgCache.get(rootId);
+        if (cover) {
+          void loadCachedCover(cover.titleImg, cover.cachePath).then((value) => this.applyCoverToCard(card, value));
         }
       } else {
         neededBlockIds.push(blockId);
@@ -209,7 +230,8 @@ export class AvCoverInheritManager {
             this.blockToRootCache.set(row.id, row.root_id);
             if (!this.rootToTitleImgCache.has(row.root_id)) {
               const parsed = parseDocTitleImg(row.root_ial);
-              this.rootToTitleImgCache.set(row.root_id, parsed);
+              const cachePath = row.root_ial?.match(/\bcustom-damophus-cover-cache-path="([^"]+)"/)?.[1] || null;
+              this.rootToTitleImgCache.set(row.root_id, parsed ? { titleImg: parsed, cachePath } : null);
             }
           }
         }
@@ -224,9 +246,9 @@ export class AvCoverInheritManager {
           if (!blockId) return;
           const rootId = this.blockToRootCache.get(blockId);
           if (rootId) {
-            const titleImg = this.rootToTitleImgCache.get(rootId);
-            if (titleImg) {
-              this.applyCoverToCard(card, titleImg);
+            const cover = this.rootToTitleImgCache.get(rootId);
+            if (cover) {
+              void loadCachedCover(cover.titleImg, cover.cachePath).then((value) => this.applyCoverToCard(card, value));
             }
           }
         });

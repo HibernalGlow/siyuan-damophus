@@ -81,6 +81,10 @@
   export let assetsLocation = "/assets/more-background";
   export let readFromAssets = true;
   export let writeToAssets = false;
+  export let localCache = false;
+  export let localCacheRoot = "/storage/petal/siyuan-damophus/more-background/covers";
+  export let localCachePathTemplate = "{year}/{month}/{hash}.webp";
+  export let localCacheMaxEdge: "none" | "1280" | "1920" | "2560" = "1920";
   export let directDrag = false;
   export let toolbarPosition: "adaptive" | "belowTags" | "belowIcon" | "native" | "custom" = "adaptive";
   export let toolbarCustomX = 50;
@@ -1662,6 +1666,54 @@
             onCheckedChange={(val) => handleBasicChange("readFromAssets", val)}
           />
         </div>
+
+        <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-0.5">
+            <div class="font-medium text-foreground">{t("lets-more-background.localCacheTitle")}</div>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheDescription")}</p>
+          </div>
+          <Switch checked={localCache} onCheckedChange={(val) => handleBasicChange("localCache", val)} />
+        </div>
+
+        {#if localCache}
+          <div class="border-t border-border pt-3.5 sm:pt-4 space-y-1.5">
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCacheRootTitle")}</Label>
+            <Input
+              value={localCacheRoot}
+              oninput={(e) => handleBasicChange("localCacheRoot", (e.target as HTMLInputElement).value)}
+              class="h-8 text-xs font-mono bg-background"
+            />
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheRootDescription")}</p>
+          </div>
+
+          <div class="border-t border-border pt-3.5 sm:pt-4 space-y-1.5">
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCachePathTemplateTitle")}</Label>
+            <Input
+              value={localCachePathTemplate}
+              oninput={(e) => handleBasicChange("localCachePathTemplate", (e.target as HTMLInputElement).value)}
+              class="h-8 text-xs font-mono bg-background"
+            />
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCachePathTemplateDescription")}</p>
+          </div>
+
+          <div class="border-t border-border pt-3.5 sm:pt-4 space-y-1.5">
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCacheMaxEdgeTitle")}</Label>
+            <select
+              class="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground"
+              value={localCacheMaxEdge}
+              onchange={(event) => {
+                localCacheMaxEdge = (event.currentTarget as HTMLSelectElement).value as typeof localCacheMaxEdge;
+                void handleBasicChange("localCacheMaxEdge", localCacheMaxEdge);
+              }}
+            >
+              <option value="none">{t("lets-more-background.localCacheMaxEdgeOriginal")}</option>
+              <option value="1280">{t("lets-more-background.localCacheMaxEdge1280")}</option>
+              <option value="1920">{t("lets-more-background.localCacheMaxEdge1920")}</option>
+              <option value="2560">{t("lets-more-background.localCacheMaxEdge2560")}</option>
+            </select>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheMaxEdgeDescription")}</p>
+          </div>
+        {/if}
 
         <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
           <div class="space-y-0.5">
