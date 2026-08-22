@@ -58,7 +58,7 @@ SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-
 
 ## Verification log (2026-08-23)
 
-- `pnpm build` passed; focused flashcard suite passed: 4 files, 8 tests.
+- `pnpm build` passed; focused flashcard suite passed: 5 files, 10 tests.
 - `git diff --check` passed. Latest `dist/index.js` was deployed to
   `D:/1STUDY/SIYUAN/data/plugins/siyuan-damophus` and the two files have the
   same SHA-256.
@@ -71,3 +71,18 @@ SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-
   page-load, DOM, and screenshot calls timed out, so old mark/list, all
   renderer variants, rating-to-next-card, mobile review and unload recovery
   remain explicitly unverified release-gate items rather than passing claims.
+
+## Dynamic-list regression evidence (2026-08-23)
+
+- The live SFP-compatible `所有闪卡` query returned 3,977 rows through the
+  paginated SQL path.
+- SiYuan's SQL endpoint truncates an `IN (...)` query to roughly 64 rows when
+  `LIMIT` is omitted. Explicit per-batch limits now return all 3,977 rows;
+  the adapter test covers the 200-ID batching contract.
+- Root inspection now consumes the complete SQL rows directly and only loads
+  missing ancestors. This removes the second full-ID requery from dynamic
+  result windows and group cache refreshes.
+- The old embedded tab had already mounted the pre-fix component, so its stale
+  dialog continued to show `3,977 个 SQL 结果，0 个闪卡根块`; the fixed code is
+  covered by the new `inspectRows` test and was deployed after a full plugin
+  lifecycle reload. A clean 3.8.1+ browser run remains a release-gate item.

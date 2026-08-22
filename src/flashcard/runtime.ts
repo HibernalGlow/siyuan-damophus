@@ -175,10 +175,10 @@ export class FlashcardRuntime {
       return current?.blockIds ?? [];
     }
     const rawRows = await this.adapter.paginatedSql(group.sqlQuery);
-    const { rawBlockIds, roots } = await this.adapter.resolveCardRoots(
-      rawRows.map((row) => row.id).filter(Boolean),
-      { maxResolveDepth: this.settings.maxResolveDepth },
-    );
+    const rawBlockIds = rawRows.map((row) => row.id).filter(Boolean);
+    const roots = (await this.adapter.inspectRows(rawRows, {
+      maxResolveDepth: this.settings.maxResolveDepth,
+    })).map((root) => root.blockId);
     const next = { blockIds: roots, rawBlockIds, updatedAt: Date.now(), query: group.sqlQuery };
     this.cache.set(group.id, next);
     await this.saveCache();

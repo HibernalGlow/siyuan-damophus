@@ -507,6 +507,9 @@
     } else if (detail.key === "testBooruConnection") {
       const module = PluginRegistry.getInstance().getPlugin("moreBackground") as { testConnection?: () => Promise<void> } | undefined;
       await module?.testConnection?.();
+    } else if (detail.key === "openSettingsButton") {
+      const module = PluginRegistry.getInstance().getPlugin("flashcard") as { openSettings?: () => void } | undefined;
+      module?.openSettings?.();
     }
   }
 

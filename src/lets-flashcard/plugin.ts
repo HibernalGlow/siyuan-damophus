@@ -9,11 +9,20 @@ const pluginMetadata: PluginMetadata = {
   author: "HibernalGlow",
   enabled: true,
   icon: "layers",
-  settings: createEntrySettings({
-    menu: true,
-    command: true,
-    tab: true,
-  }, { central: true }),
+  settings: [
+    ...createEntrySettings({
+      menu: true,
+      command: true,
+      tab: true,
+    }, { central: true }),
+    {
+      type: "button",
+      title: "lets-flashcard.openSettings",
+      description: "lets-flashcard.openSettingsDescription",
+      key: "openSettingsButton",
+      value: "lets-flashcard.openSettings",
+    },
+  ],
 };
 
 export default pluginMetadata;

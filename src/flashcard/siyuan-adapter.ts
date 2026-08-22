@@ -104,9 +104,21 @@ export class FlashcardSiyuanAdapter {
   async loadBlocks(ids: readonly string[]): Promise<FlashcardBlockRow[]> {
     const valid = dedupeIds(ids);
     if (valid.length === 0) return [];
-    return this.sql<FlashcardBlockRow[]>(
-      `SELECT id, parent_id, root_id, type, content, ial FROM blocks WHERE id IN (${idsClause(valid)})`,
-    );
+    // Keep each IN clause below SiYuan/SQLite request limits. SFP's "all
+    // flashcards" query can return several thousand rows; sending them as one
+    // statement silently produced an empty result on the live workspace.
+    const rows: FlashcardBlockRow[] = [];
+    for (let offset = 0; offset < valid.length; offset += 200) {
+      const chunk = valid.slice(offset, offset + 200);
+      const batch = await this.sql<FlashcardBlockRow[]>(
+        // SiYuan's SQL endpoint applies a small implicit row cap when LIMIT
+        // is omitted. The explicit bound is required even for a chunked IN
+        // query, otherwise large dynamic groups silently lose most blocks.
+        `SELECT id, parent_id, root_id, type, content, ial FROM blocks WHERE id IN (${idsClause(chunk)}) LIMIT ${chunk.length}`,
+      );
+      if (Array.isArray(batch)) rows.push(...batch);
+    }
+    return rows;
   }
 
   async resolveCardRoots(blockIds: readonly string[], settings: Pick<FlashcardSettings, "maxResolveDepth">): Promise<{ rawBlockIds: string[]; roots: string[] }> {
@@ -130,6 +142,27 @@ export class FlashcardSiyuanAdapter {
     const { roots } = await this.resolveCardRoots(blockIds, settings);
     const rows = await this.loadBlocks(roots);
     return rows.map(toFlashcardRoot).filter((root): root is FlashcardRoot => Boolean(root));
+  }
+
+  async inspectRows(rows: readonly FlashcardBlockRow[], settings: Pick<FlashcardSettings, "maxResolveDepth">): Promise<FlashcardRoot[]> {
+    const initial = rows.map(normalizeBlockRow);
+    if (initial.length === 0) return [];
+    const allRows = new Map(initial.map((row) => [row.id, row]));
+    let frontier = initial.map((row) => row.parent_id).filter((id): id is string => Boolean(id));
+    for (let depth = 0; depth < settings.maxResolveDepth && frontier.length > 0; depth += 1) {
+      const missing = dedupeIds(frontier.filter((id) => !allRows.has(id)));
+      if (missing.length === 0) break;
+      const parents = (await this.loadBlocks(missing)).map(normalizeBlockRow);
+      if (parents.length === 0) break;
+      for (const parent of parents) allRows.set(parent.id, parent);
+      frontier = parents.map((row) => row.parent_id).filter((id): id is string => Boolean(id));
+    }
+    const roots = resolveCardRoots(initial, allRows, settings.maxResolveDepth);
+    return roots
+      .map((id) => allRows.get(id))
+      .filter((row): row is FlashcardBlockRow => Boolean(row))
+      .map(toFlashcardRoot)
+      .filter((root): root is FlashcardRoot => Boolean(root));
   }
 
   async getDueCards(deckId: string, reviewedCards: readonly RiffCardRecord[] = []): Promise<DueCardsData> {

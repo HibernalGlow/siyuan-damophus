@@ -179,7 +179,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private openSettings(): void {
+  openSettings(): void {
     void openTab({
       app: plugin.app,
       custom: {
@@ -212,7 +212,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     try {
       const rows = await this.runtime.adapter.paginatedSql(group.sqlQuery);
       const roots = filtered
-        ? await this.runtime.adapter.inspectRoots(rows.map((row) => row.id), this.runtime.getSettings())
+        ? await this.runtime.adapter.inspectRows(rows, this.runtime.getSettings())
         : [];
       const due = filtered
         ? await this.runtime.adapter.buildDueCardsData(this.runtime.getSettings().deckId, roots.map((root) => root.blockId), this.runtime.getSettings().maxReviewCards)
