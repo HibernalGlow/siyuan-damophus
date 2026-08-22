@@ -16,6 +16,7 @@ describe("lets-more-background plugin metadata", () => {
     expect(keys).toContain("readFromAssets");
     expect(keys).toContain("writeToAssets");
     expect(keys).toContain("localCache");
+    expect(keys).toContain("autoCacheLegacyCovers");
     expect(keys).toContain("localCacheRoot");
     expect(keys).toContain("localCachePathTemplate");
     expect(keys).toContain("localCacheMaxEdge");

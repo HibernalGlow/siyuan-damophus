@@ -17,6 +17,12 @@ import {
 } from "./sources";
 import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo, type BooruResolvedInfo } from "./booru";
 import { settings } from "@/settings";
+import {
+  cleanupLocalCoverCache,
+  extractBlockIdFromDocumentLink,
+  maintainDocumentTree,
+  type LegacyCoverMaintenanceResult,
+} from "./local-cover-cache-maintenance";
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
@@ -39,6 +45,7 @@ export interface MoreBackgroundOptions {
   readFromAssets: boolean;
   writeToAssets: boolean;
   localCache: boolean;
+  autoCacheLegacyCovers: boolean;
   localCacheRoot: string;
   localCachePathTemplate: string;
   localCacheMaxEdge: "none" | "1280" | "1920" | "2560";
@@ -61,6 +68,8 @@ export interface MoreBackgroundHandle {
   disposeRoot(root: HTMLElement): void;
   dispose(): void;
   updateOptions(options: MoreBackgroundOptions): void;
+  maintainLocalCache(documentLink: string): Promise<LegacyCoverMaintenanceResult>;
+  cleanupLocalCache(): Promise<{ removed: number; kept: number }>;
 }
 
 const coverLayoutCss = `
@@ -164,6 +173,15 @@ function normalizeLocalCacheRoot(root: string): string {
 function sanitizeTemplateValue(value: unknown, fallback = "unknown"): string {
   const text = String(value ?? "").trim().replace(/[\\/:*?"<>|\s]+/g, "-");
   return text || fallback;
+}
+
+function isRemoteImageUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
+
+export function inferCoverSourceFromImage(image: HTMLImageElement): string | null {
+  const candidate = image.currentSrc || image.src || "";
+  return isRemoteImageUrl(candidate) ? candidate.trim() : null;
 }
 
 export interface LocalCachePathContext {
@@ -519,6 +537,66 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
   updateOptions(options: MoreBackgroundOptions): void {
     this.options = options;
     for (const root of [...this.rootCleanups.keys()]) this.scanRoot(root);
+  }
+
+  async maintainLocalCache(documentLink: string): Promise<LegacyCoverMaintenanceResult> {
+    if (!this.options.localCache) throw new Error("Local cover cache is disabled");
+    const rootId = extractBlockIdFromDocumentLink(documentLink);
+    if (!rootId) throw new Error("A valid SiYuan document link or block ID is required");
+    return maintainDocumentTree(rootId, {
+      getAttrs: async (id) => {
+        const response = await fetch("/api/attr/getBlockAttrs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const data = await response.json();
+        return (data?.data || {}) as Record<string, string>;
+      },
+      cacheRemoteCover: async (_id, sourceUrl, attrs) => {
+        const cachePath = localCachePath(this.options.localCacheRoot, this.options.localCachePathTemplate, {
+          sourceUrl,
+          maxEdge: this.options.localCacheMaxEdge,
+          site: attrs["custom-damophus-post-site"],
+          postId: attrs["custom-damophus-post-id"],
+        });
+        await ensureSyncIgnore(this.options.localCacheRoot);
+        if (await readLocalCache(cachePath)) return cachePath;
+
+        let blob = await proxyFetchImageBlob(sourceUrl);
+        if (!blob || blob.size === 0) {
+          const response = await fetch(sourceUrl, { referrerPolicy: "no-referrer" });
+          if (response.ok) blob = await response.blob();
+        }
+        if (!blob || blob.size === 0) return null;
+        const processed = await convertToWebp(blob, this.options.localCacheMaxEdge);
+        await ensureSyncIgnore(this.options.localCacheRoot);
+        if (!await this.uploadToLocalCache(processed, cachePath)) return null;
+        await updateLocalCacheIndex(this.options.localCacheRoot, {
+          path: cachePath,
+          sourceUrl,
+          createdAt: new Date().toISOString(),
+          maxEdge: this.options.localCacheMaxEdge,
+          quality: LOCAL_CACHE_QUALITY,
+          site: attrs["custom-damophus-post-site"],
+          postId: attrs["custom-damophus-post-id"],
+          size: processed.size,
+        });
+        return cachePath;
+      },
+      setAttrs: async (id, attrs) => {
+        await fetch("/api/attr/setBlockAttrs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, attrs }),
+        });
+      },
+    });
+  }
+
+  async cleanupLocalCache(): Promise<{ removed: number; kept: number }> {
+    if (!this.options.localCache) throw new Error("Local cover cache is disabled");
+    return cleanupLocalCoverCache(this.options.localCacheRoot);
   }
 
   scanRoot(root: HTMLElement): void {
@@ -1431,10 +1509,12 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       });
       const data = await response.json();
       const attrs = data?.data as Record<string, string> | undefined;
-      const sourceUrl = attrs?.[COVER_SOURCE_ATTRIBUTE];
-      if (!sourceUrl) return;
       const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
       if (!image) return;
+      const explicitSourceUrl = attrs?.[COVER_SOURCE_ATTRIBUTE];
+      if (!explicitSourceUrl && !this.options.autoCacheLegacyCovers) return;
+      const sourceUrl = explicitSourceUrl || inferCoverSourceFromImage(image);
+      if (!sourceUrl) return;
       const current = this.options.localCacheMaxEdge;
       const expected = localCachePath(this.options.localCacheRoot, this.options.localCachePathTemplate, {
         sourceUrl,
@@ -1446,6 +1526,14 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       const cached = await readLocalCache(expected);
       if (cached) {
         displayLocalCache(image, cached);
+        await fetch("/api/attr/setBlockAttrs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: blockId,
+            attrs: { [COVER_SOURCE_ATTRIBUTE]: sourceUrl, [COVER_CACHE_ATTRIBUTE]: expected },
+          }),
+        });
         return;
       }
       let downloaded = await proxyFetchImageBlob(sourceUrl);
@@ -1471,7 +1559,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           await fetch("/api/attr/setBlockAttrs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: blockId, attrs: { [COVER_CACHE_ATTRIBUTE]: expected } }),
+            body: JSON.stringify({
+              id: blockId,
+              attrs: { [COVER_SOURCE_ATTRIBUTE]: sourceUrl, [COVER_CACHE_ATTRIBUTE]: expected },
+            }),
           });
         }
       }

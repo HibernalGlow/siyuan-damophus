@@ -16,6 +16,7 @@
     FileJson,
     Globe,
     GripVertical,
+    HardDrive,
     Image,
     Key,
     Layers,
@@ -82,6 +83,7 @@
   export let readFromAssets = true;
   export let writeToAssets = false;
   export let localCache = false;
+  export let autoCacheLegacyCovers = false;
   export let localCacheRoot = "/storage/petal/siyuan-damophus/more-background/covers";
   export let localCachePathTemplate = "{year}/{month}/{hash}.webp";
   export let localCacheMaxEdge: "none" | "1280" | "1920" | "2560" = "1920";
@@ -92,6 +94,11 @@
   export let coverBreadcrumb = false;
   export let coverDocumentMenu = false;
   export let mobile = false;
+  export let onMaintenance: ((detail: { action: "maintain" | "cleanup"; documentLink?: string }) => void | Promise<void>) | undefined;
+
+  let maintenanceDocumentLink = "";
+  let maintenanceBusy = false;
+  let cleanupBusy = false;
 
   const dispatch = createEventDispatcher();
 
@@ -836,7 +843,7 @@
 
   <!-- 现代 Shadcn 选项卡导航 (响应式：移动端显示图标+精简提示，桌面端显示图标+文字) -->
   <Tabs.Root bind:value={activeTab} class="w-full space-y-3.5 sm:space-y-4">
-    <Tabs.List class="damophus-tabs-list grid w-full grid-cols-4 max-w-3xl">
+    <Tabs.List class="damophus-tabs-list grid w-full grid-cols-5 max-w-4xl">
       <Tabs.Trigger
         value="templates"
         class="gap-1.5 py-1.5 sm:py-2 text-xs"
@@ -872,6 +879,15 @@
       >
         <SlidersHorizontal class="size-4 shrink-0" />
         <span class="hidden sm:inline truncate">{t("lets-more-background.basicTab", "基础与存储设置")}</span>
+      </Tabs.Trigger>
+      <Tabs.Trigger
+        value="cache"
+        class="gap-1.5 py-1.5 sm:py-2 text-xs"
+        title={t("lets-more-background.localCacheTab", "本地缓存")}
+        aria-label={t("lets-more-background.localCacheTab", "本地缓存")}
+      >
+        <HardDrive class="size-4 shrink-0" />
+        <span class="hidden sm:inline truncate">{t("lets-more-background.localCacheTab", "本地缓存")}</span>
       </Tabs.Trigger>
     </Tabs.List>
 
@@ -1669,54 +1685,6 @@
 
         <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
           <div class="space-y-0.5">
-            <div class="font-medium text-foreground">{t("lets-more-background.localCacheTitle")}</div>
-            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheDescription")}</p>
-          </div>
-          <Switch checked={localCache} onCheckedChange={(val) => handleBasicChange("localCache", val)} />
-        </div>
-
-        {#if localCache}
-          <div class="border-t border-border pt-3.5 sm:pt-4 space-y-1.5">
-            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCacheRootTitle")}</Label>
-            <Input
-              value={localCacheRoot}
-              oninput={(e) => handleBasicChange("localCacheRoot", (e.target as HTMLInputElement).value)}
-              class="h-8 text-xs font-mono bg-background"
-            />
-            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheRootDescription")}</p>
-          </div>
-
-          <div class="border-t border-border pt-3.5 sm:pt-4 space-y-1.5">
-            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCachePathTemplateTitle")}</Label>
-            <Input
-              value={localCachePathTemplate}
-              oninput={(e) => handleBasicChange("localCachePathTemplate", (e.target as HTMLInputElement).value)}
-              class="h-8 text-xs font-mono bg-background"
-            />
-            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCachePathTemplateDescription")}</p>
-          </div>
-
-          <div class="border-t border-border pt-3.5 sm:pt-4 space-y-1.5">
-            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCacheMaxEdgeTitle")}</Label>
-            <select
-              class="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground"
-              value={localCacheMaxEdge}
-              onchange={(event) => {
-                localCacheMaxEdge = (event.currentTarget as HTMLSelectElement).value as typeof localCacheMaxEdge;
-                void handleBasicChange("localCacheMaxEdge", localCacheMaxEdge);
-              }}
-            >
-              <option value="none">{t("lets-more-background.localCacheMaxEdgeOriginal")}</option>
-              <option value="1280">{t("lets-more-background.localCacheMaxEdge1280")}</option>
-              <option value="1920">{t("lets-more-background.localCacheMaxEdge1920")}</option>
-              <option value="2560">{t("lets-more-background.localCacheMaxEdge2560")}</option>
-            </select>
-            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheMaxEdgeDescription")}</p>
-          </div>
-        {/if}
-
-        <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
-          <div class="space-y-0.5">
             <div class="font-medium text-foreground">{t("lets-more-background.writeToAssetsTitle", "保存题头图到资源目录")}</div>
             <p class="text-[11px] text-muted-foreground">{t("lets-more-background.writeToAssetsDescription")}</p>
           </div>
@@ -1795,6 +1763,72 @@
             coverDocumentMenu = value;
             void handleBasicChange("coverDocumentMenu", value);
           }} />
+        </div>
+      </div>
+    </Tabs.Content>
+
+    <Tabs.Content value="cache" class="space-y-3.5 sm:space-y-4">
+      <div class="damophus-card p-4 sm:p-5 space-y-4 text-xs">
+        <div class="flex items-center justify-between gap-3">
+          <div class="space-y-0.5">
+            <div class="font-semibold text-sm text-foreground">{t("lets-more-background.localCacheTitle")}</div>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheDescription")}</p>
+          </div>
+          <Switch checked={localCache} onCheckedChange={(val) => handleBasicChange("localCache", val)} />
+        </div>
+
+        <div class="border-t border-border pt-3.5 space-y-3.5" class:opacity-50={!localCache}>
+          <div class="flex items-center justify-between gap-3">
+            <div class="space-y-0.5">
+              <div class="font-medium text-foreground">{t("lets-more-background.autoCacheLegacyCoversTitle")}</div>
+              <p class="text-[11px] text-muted-foreground">{t("lets-more-background.autoCacheLegacyCoversDescription")}</p>
+            </div>
+            <Switch disabled={!localCache} checked={autoCacheLegacyCovers} onCheckedChange={(val) => handleBasicChange("autoCacheLegacyCovers", val)} />
+          </div>
+
+          <div class="space-y-1.5">
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCacheRootTitle")}</Label>
+            <Input disabled={!localCache} value={localCacheRoot} oninput={(e) => handleBasicChange("localCacheRoot", (e.target as HTMLInputElement).value)} class="h-8 text-xs font-mono bg-background" />
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheRootDescription")}</p>
+          </div>
+
+          <div class="space-y-1.5">
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCachePathTemplateTitle")}</Label>
+            <Input disabled={!localCache} value={localCachePathTemplate} oninput={(e) => handleBasicChange("localCachePathTemplate", (e.target as HTMLInputElement).value)} class="h-8 text-xs font-mono bg-background" />
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCachePathTemplateDescription")}</p>
+          </div>
+
+          <div class="space-y-1.5">
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.localCacheMaxEdgeTitle")}</Label>
+            <select disabled={!localCache} class="h-8 w-full rounded border border-input bg-background px-2 text-xs text-foreground" value={localCacheMaxEdge} onchange={(event) => {
+              localCacheMaxEdge = (event.currentTarget as HTMLSelectElement).value as typeof localCacheMaxEdge;
+              void handleBasicChange("localCacheMaxEdge", localCacheMaxEdge);
+            }}>
+              <option value="none">{t("lets-more-background.localCacheMaxEdgeOriginal")}</option>
+              <option value="1280">{t("lets-more-background.localCacheMaxEdge1280")}</option>
+              <option value="1920">{t("lets-more-background.localCacheMaxEdge1920")}</option>
+              <option value="2560">{t("lets-more-background.localCacheMaxEdge2560")}</option>
+            </select>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.localCacheMaxEdgeDescription")}</p>
+          </div>
+        </div>
+
+        <div class="border-t border-border pt-3.5 space-y-3.5">
+          <div>
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.cacheMaintenanceTitle")}</Label>
+            <Input bind:value={maintenanceDocumentLink} placeholder={t("lets-more-background.cacheMaintenancePlaceholder")} class="h-8 text-xs font-mono bg-background" />
+            <p class="text-[11px] text-muted-foreground mt-1">{t("lets-more-background.cacheMaintenanceDescription")}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" disabled={!localCache || maintenanceBusy || !maintenanceDocumentLink.trim()} onclick={async () => {
+              maintenanceBusy = true;
+              try { await onMaintenance?.({ action: "maintain", documentLink: maintenanceDocumentLink.trim() }); } finally { maintenanceBusy = false; }
+            }}><RefreshCw class="size-3.5 mr-1" />{t("lets-more-background.cacheMaintenanceButton")}</Button>
+            <Button variant="outline" size="sm" disabled={!localCache || cleanupBusy} onclick={async () => {
+              cleanupBusy = true;
+              try { await onMaintenance?.({ action: "cleanup" }); } finally { cleanupBusy = false; }
+            }}><Trash2 class="size-3.5 mr-1" />{t("lets-more-background.cacheCleanupButton")}</Button>
+          </div>
         </div>
       </div>
     </Tabs.Content>

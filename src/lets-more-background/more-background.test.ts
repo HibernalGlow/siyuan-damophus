@@ -15,6 +15,7 @@ import {
   setLastUsedSource,
   updateAllLastUsedButtons,
   localCachePath,
+  inferCoverSourceFromImage,
 } from "./more-background";
 
 describe("more-background sources utilities", () => {
@@ -51,6 +52,12 @@ describe("more-background sources utilities", () => {
     expect(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{year}/{month}/{hash}.webp", context)).toMatch(/^\/data\/storage\/petal\/siyuan-damophus\/more-background\/covers\/2026\/08\/[a-f0-9]{8}\.webp$/);
     expect(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{year}/{month}/{hash}.webp", context)).toBe(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{year}/{month}/{hash}.webp", context));
     expect(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{hash}-{maxEdge}.{ext}", { ...context, maxEdge: "1280" })).not.toBe(localCachePath("/storage/petal/siyuan-damophus/more-background/covers", "{hash}-{maxEdge}.{ext}", context));
+  });
+
+  it("infers a remote legacy cover source from the rendered image", () => {
+    const image = { currentSrc: "https://safebooru.org/images/2062/faf35c8e747e9b6a5d167314db888e983c4c2cbd.jpg", src: "" } as HTMLImageElement;
+    expect(inferCoverSourceFromImage(image)).toBe(image.currentSrc);
+    expect(inferCoverSourceFromImage({ currentSrc: "assets/cover.webp", src: "assets/cover.webp" } as HTMLImageElement)).toBeNull();
   });
 
   it("converts CoverTemplateItem to booru url and back correctly", () => {

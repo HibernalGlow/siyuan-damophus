@@ -66,6 +66,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
             readFromAssets: opts.readFromAssets,
             writeToAssets: opts.writeToAssets,
             localCache: opts.localCache,
+            autoCacheLegacyCovers: opts.autoCacheLegacyCovers,
             localCacheRoot: opts.localCacheRoot,
             localCachePathTemplate: opts.localCachePathTemplate,
             localCacheMaxEdge: opts.localCacheMaxEdge,
@@ -75,6 +76,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
             toolbarCustomY: opts.toolbarCustomY ?? 15,
             coverBreadcrumb: opts.coverBreadcrumb === true,
             coverDocumentMenu: opts.coverDocumentMenu === true,
+            onMaintenance: (detail) => owner.handleMaintenance(detail),
           },
         });
 
@@ -132,6 +134,23 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       }
     } catch {
       showMessage(this.t("lets-more-background.testConnectionFailed" as any));
+    }
+  }
+
+  async handleMaintenance(detail: { action: "maintain" | "cleanup"; documentLink?: string }): Promise<void> {
+    try {
+      if (detail.action === "cleanup") {
+        const result = await this.controller?.cleanupLocalCache();
+        showMessage(this.t("lets-more-background.cacheCleanupSuccess" as any).replace("{count}", String(result?.removed ?? 0)));
+        return;
+      }
+      const result = await this.controller?.maintainLocalCache(detail.documentLink || "");
+      showMessage(this.t("lets-more-background.cacheMaintenanceSuccess" as any)
+        .replace("{cached}", String(result?.cached ?? 0))
+        .replace("{skipped}", String(result?.skipped ?? 0))
+        .replace("{failed}", String(result?.failed ?? 0)));
+    } catch (error) {
+      showMessage(`${this.t("lets-more-background.cacheMaintenanceFailed" as any)}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -231,6 +250,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       readFromAssets: this.getSetting("readFromAssets") !== false,
       writeToAssets: this.getSetting("writeToAssets") === true,
       localCache: this.getSetting("localCache") === true,
+      autoCacheLegacyCovers: this.getSetting("autoCacheLegacyCovers") === true,
       localCacheRoot: (this.getSetting("localCacheRoot") || "/storage/petal/siyuan-damophus/more-background/covers").toString(),
       localCachePathTemplate: (this.getSetting("localCachePathTemplate") || "{year}/{month}/{hash}.webp").toString(),
       localCacheMaxEdge: this.getSetting("localCacheMaxEdge") || "1920",

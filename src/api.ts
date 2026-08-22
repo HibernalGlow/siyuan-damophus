@@ -621,6 +621,20 @@ export async function listDocsByPath(notebook: NotebookId, path: string) {
     return request(url, payload);
 }
 
+export interface IResDocTreeItem {
+    id: DocumentId;
+    children?: IResDocTreeItem[];
+}
+
+export async function getPathByID(id: BlockId): Promise<{ path: string; notebook: NotebookId }> {
+    return requestStrict<{ path: string; notebook: NotebookId }>('/api/filetree/getPathByID', { id });
+}
+
+export async function listDocTree(notebook: NotebookId, path: string): Promise<IResDocTreeItem[]> {
+    const data = await requestStrict<{ tree?: IResDocTreeItem[] }>('/api/filetree/listDocTree', { notebook, path });
+    return data.tree ?? [];
+}
+
 export async function requestStrict<T>(url: string, data: unknown): Promise<T> {
     const response: IWebSocketData = await fetchSyncPost(url, data);
     if (response.code !== 0) {

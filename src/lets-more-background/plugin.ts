@@ -58,6 +58,13 @@ export const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "checkbox",
+      title: "lets-more-background.autoCacheLegacyCoversTitle",
+      description: "lets-more-background.autoCacheLegacyCoversDescription",
+      key: "autoCacheLegacyCovers",
+      value: false,
+    },
+    {
       type: "textinput",
       title: "lets-more-background.localCacheRootTitle",
       description: "lets-more-background.localCacheRootDescription",
