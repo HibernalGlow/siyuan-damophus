@@ -56,6 +56,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.replaceExistingTab",
+      description: "lets-question-bank.replaceExistingTabDescription",
+      key: "replaceExistingTab",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.autoSyncIndex",
       description: "lets-question-bank.autoSyncIndexDescription",
       key: "autoSyncIndex",

@@ -59,6 +59,7 @@
     index: ["autoSyncIndex", "questionIndexProjectionBlockId", "maintainIndex", "migrateTopicRelations", "autoScanDocument", "syncTopicProgress"],
     display: [
       "autoPinTab",
+      "replaceExistingTab",
       "showPracticeTitle",
       "showPracticeBreadcrumb",
       "hideEmptyAnswerBlocks",

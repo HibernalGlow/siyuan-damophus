@@ -6,6 +6,7 @@ import { settings } from "@/settings";
 import {
   Dialog,
   getActiveTab,
+  getAllTabs,
   getAllEditor,
   openMobileFileById,
   openTab,
@@ -22,6 +23,7 @@ import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
 import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
 import { BroadcastPracticeSessionLeaseCoordinator } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
+import { replaceQuestionBankTabs } from "./tab-replacement";
 import { loadSourceBlockIdentity } from "./source-identity";
 import { questionSourceOpenTarget } from "./source-navigation";
 import { createQuestionBankMenuItem, focusWindow, oppositeWindow, type QuestionBankOpenAction } from "./open-actions";
@@ -446,6 +448,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
       app = this.mountQuestionBank(target, blockId, closeDialog, closeDialog);
       return;
     }
+    let previousPinned: boolean | undefined;
+    if (this.getSetting("replaceExistingTab") === true) {
+      previousPinned = replaceQuestionBankTabs(getAllTabs(), questionBankTabType);
+    }
     const openedTab = await openTab({
       app: plugin.app,
       position,
@@ -455,7 +461,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         ...questionBankTabTarget(plugin.name, blockId),
       },
     });
-    if (this.getSetting("autoPinTab")) {
+    if (previousPinned === true || (previousPinned === undefined && this.getSetting("autoPinTab"))) {
       this.pinTabInstance(openedTab);
     }
   }
