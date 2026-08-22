@@ -1,6 +1,6 @@
 # Flashcard Contract
 
-Status: accepted design, implementation pending.
+Status: accepted contract; DAMO implementation baseline is in `src/flashcard/` and `src/lets-flashcard/`.
 
 本文定义 DAMO 闪卡与 Markdown、SiYuan Riff、题库考点之间的边界，并规定对 Specialized-Flashcard-Plugin 的功能等价迁移。字段名和语义是稳定协议；块 ID、数据库行 ID、Riff card ID 和运行时调度字段不是协议身份。
 

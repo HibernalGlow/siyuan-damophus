@@ -80,7 +80,9 @@ export class FlashcardRendererCompat {
         else currentValue = value;
       },
     });
-    this.originalFetch = window.fetch.bind(window);
+    // Keep the exact function object so unloading the sub-plugin restores the
+    // host's fetch hook rather than a newly-created bound wrapper.
+    this.originalFetch = window.fetch;
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
       if (url.endsWith("/api/block/getDocInfo") && init?.body && typeof init.body === "string") {
@@ -91,7 +93,7 @@ export class FlashcardRendererCompat {
           // Leave the native request untouched when its body is not JSON.
         }
       }
-      return owner.originalFetch!(input, init);
+      return Reflect.apply(owner.originalFetch!, window, [input, init]);
     };
     this.installed = true;
     return { installed: true };

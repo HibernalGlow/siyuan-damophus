@@ -10,6 +10,7 @@ describe("flashcard renderer compatibility", () => {
     const descriptor = Object.getOwnPropertyDescriptor(config, "flashcard");
     const host = { siyuan: { config }, fetch: vi.fn(async () => new Response("{}")) };
     vi.stubGlobal("window", host);
+    const originalFetch = window.fetch;
 
     const compat = new FlashcardRendererCompat();
     compat.preload("20260823000000-aaaaaaa", "heading");
@@ -19,5 +20,6 @@ describe("flashcard renderer compatibility", () => {
     expect(config.flashcard).toEqual(original);
     compat.uninstall();
     expect(Object.getOwnPropertyDescriptor(config, "flashcard")).toEqual(descriptor);
+    expect(window.fetch).toBe(originalFetch);
   });
 });

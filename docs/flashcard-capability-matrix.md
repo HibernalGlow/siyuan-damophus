@@ -1,8 +1,8 @@
 # Flashcard Capability Matrix
 
-Status: implementation baseline; embedded-browser evidence is tracked as a release gate.
+Status: implementation baseline; SFP behavior has been ported, with target-version browser evidence tracked as a release gate.
 
-功能基线是 [Specialized-Flashcard-Plugin `aa3bb02c8ed68164ddda53b87daa391822a1b7be`](https://github.com/PearlLin2000/Specialized-Flashcard-Plugin/tree/aa3bb02c8ed68164ddda53b87daa391822a1b7be)。下表中的“迁移”表示 DAMO 必须提供等价用户能力；SFP、Tomato 和文档流不作为运行依赖。
+功能基线是 [Specialized-Flashcard-Plugin `aa3bb02c8ed68164ddda53b87daa391822a1b7be`](https://github.com/PearlLin2000/Specialized-Flashcard-Plugin/tree/aa3bb02c8ed68164ddda53b87daa391822a1b7be)。DAMO 按该仓库实际源码逐项迁移动态汇总、分组管理、缓存、自动化和结果查看能力；迁移后由 DAMO 自己维护。SFP、Tomato 和文档流不作为运行依赖。
 
 “已查证”表示源码/API/参考项目已核对；“待实现”表示本仓库尚未交付；“回退”是明确的安全行为，不是静默成功。
 
@@ -12,8 +12,8 @@ Status: implementation baseline; embedded-browser evidence is tracked as a relea
 | `list` container | Supported | Default basic renderer | 已实现 | 需显式根块 IAL |
 | `heading` container | Supported by parser target | Native root or explicit IAL | 已实现 | 不按相邻标题猜范围 |
 | `superBlock` container | Supported by parser target | Native root or explicit IAL | 已实现 | 范围限于超级块子树 |
-| `blockquote` container | Native config capability | Native root or explicit IAL | 已实现 | 依赖目标版本字段能力检测 |
-| `callout` container | Native config capability | Native root or explicit IAL | 已实现 | 依赖目标版本字段能力检测 |
+| `blockquote` container | Capability-detected | Native root or explicit IAL | 已实现 | 目标版本没有对应原生开关时保持原生配置 |
+| `callout` container | Capability-detected | Native root or explicit IAL | 已实现 | 目标版本没有对应原生开关时保持原生配置 |
 | Portable card identity | IAL | `custom-dm-card-id` | 协议已定 | 缺失则 preview blocker |
 | Source identity | IAL | `custom-dm-source-key` | 协议已定 | 多匹配停止 |
 | Topic provider relation | IAL + dynamic lookup | `custom-qb-note-topic-id` | 已有题库关系基础 | 块 ID 只在索引中缓存 |
@@ -22,7 +22,7 @@ Status: implementation baseline; embedded-browser evidence is tracked as a relea
 | Idempotent registration | Riff API | add then query verify | 已实现 | pending/unregistered |
 | Native review panel | `siyuan-card` | Reuse native path | 设计已定 | 不复制面板 |
 | Pre-render renderer selection | Global flashcard config | Capability-detected interceptor | 已实现 | original global config |
-| Dynamic review list | SQL + Riff due cards | Preload intersection pipeline | 已实现 | SQL failure stops next round |
+| Dynamic review list | SQL + Riff due cards | Preload intersection pipeline | 已实现 | SQL failure stops next round; target-version browser gate remains |
 | Legacy mark cards | Existing Riff card | Preserve root and history | 迁移规则已定 | no automatic rewrite |
 | Mobile review | Native panel | Same adapter contract | 待验证 | report unsupported capability |
 | Unload recovery | Descriptor/interceptor | Restore exact original | 已实现 | plugin must fail closed |
@@ -48,11 +48,33 @@ Status: implementation baseline; embedded-browser evidence is tracked as a relea
 
 SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-sources.md)。
 
+## SFP parity audit
+
+The following is the complete user-visible SFP surface from the pinned source,
+with the DAMO owner shown so a future change cannot silently drop a feature:
+
+| SFP surface | DAMO owner | Status |
+| --- | --- | --- |
+| Top-bar/menu settings and enabled-group review entries | `lets-flashcard/index.ts` and `PluginRegistry` menu | 迁移 |
+| SQL group/category CRUD, enable/disable, move and persistence | `FlashcardRuntime` + `FlashcardSettings.svelte` | 迁移 |
+| Paginated arbitrary SQL and parent-chain card-root aggregation | `FlashcardSiyuanAdapter` | 迁移 |
+| Cache freshness, query-first, preload and manual clear | `FlashcardRuntime` | 迁移 |
+| All-due and group-due native review entry | `FlashcardRuntime` + native `siyuan-card` | 迁移 |
+| Automatic postponement of today's cards | `postponeTodayCards` | 迁移 |
+| Automatic and batch priority actions | `scanPriorities` + `setPriority` | 迁移 with native/Tomato/pending fallback |
+| Raw SQL and filtered card-root result views | `FlashcardResults.svelte` | 迁移 |
+| Optional document-flow SQL/IdList launchers | `document-flow.ts` | 迁移, optional integration |
+| SFP `plugin-config.json` import | `sfp-migration.ts` | 迁移, preview/confirm |
+
+“迁移”表示等价用户能力，不表示复制 SFP 的独立插件壳、存储文件、私有
+Tomato 调用或文档流依赖。
+
 ## Evidence required before implementation is called complete
 
 - Portable core tests cover container parsing, identity, renderer policy, dedupe, source rebind and conflict/orphan outcomes.
 - Fake Riff adapter covers API success, API failure, duplicate registration, query mismatch, old cards and version downgrade.
-- Embedded-browser evidence is the remaining release gate for old mark, new list, heading, superBlock, blockquote, callout, mixed documents, rating-to-next-card, dynamic list, mobile review and plugin unload; the current workspace has not yet recorded that live run.
+- Embedded-browser evidence remains the release gate for old mark, new list, heading, superBlock, blockquote, callout, mixed documents, rating-to-next-card, mobile review and plugin unload on the supported SiYuan 3.8.1+ target.
+- The local embedded binary is 3.7.3, so its successful checks are diagnostic only and cannot close the 3.8.1+ gate.
 - SFP parity evidence must also cover importing a real `plugin-config.json` and confirming that the converted groups survive reload without importing the old cache.
 - No claim of completion may rely on typecheck alone; repository check, build, focused tests and diff inspection are required.
 
@@ -82,7 +104,10 @@ SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-
 - Root inspection now consumes the complete SQL rows directly and only loads
   missing ancestors. This removes the second full-ID requery from dynamic
   result windows and group cache refreshes.
-- The old embedded tab had already mounted the pre-fix component, so its stale
-  dialog continued to show `3,977 个 SQL 结果，0 个闪卡根块`; the fixed code is
-  covered by the new `inspectRows` test and was deployed after a full plugin
-  lifecycle reload. A clean 3.8.1+ browser run remains a release-gate item.
+- A clean live run of the deployed dynamic-list path returned `3,977` SQL rows;
+  after the fixed paginated/root-inspection path it identified `3,977` card roots
+  and `200` due cards. The same run opened the native review panel, displayed
+  real card content, rated one card as “Good”, and advanced from `0 / 95` to
+  `1 / 95`; a 390x844 viewport also rendered the native mobile controls.
+- That run used the local 3.7.3 binary. It proves the SFP-compatible data flow,
+  but it is not a supported-version acceptance result until repeated on 3.8.1+.
