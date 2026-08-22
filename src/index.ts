@@ -123,6 +123,19 @@ export default class DamophusPlugin extends Plugin {
     return next;
   }
 
+  override async updateCards(cardsData: any): Promise<any> {
+    let next = cardsData;
+    for (const subPlugin of this.pluginRegistry.getAllPlugins()) {
+      if (!subPlugin.enabled || typeof subPlugin.updateCards !== "function") continue;
+      try {
+        next = await subPlugin.updateCards(next);
+      } catch (error) {
+        log.error(`Failed to filter native flashcards for plugin ${subPlugin.name}:`, error);
+      }
+    }
+    return next;
+  }
+
   private registerSettingsTab(): void {
     if (this.settingsTabRegistered) return;
     this.settingsTabRegistered = true;

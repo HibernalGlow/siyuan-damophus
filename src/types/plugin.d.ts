@@ -68,6 +68,8 @@ export interface SubPlugin {
   onunload(): void;
   onLayoutReady?(): void;
   onDataChanged?(): void;
+  /** Narrow hook used by native Siyuan card tabs before each review round. */
+  updateCards?(cardsData: any): any | Promise<any>;
 
   // Injected helpers
   t?(key: TranslationKey): string;

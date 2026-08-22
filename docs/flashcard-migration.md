@@ -1,6 +1,6 @@
 # Flashcard Migration Guide
 
-Status: design baseline, implementation pending.
+Status: implementation baseline; runtime/browser evidence remains tracked separately.
 
 本迁移只处理 DAMO 闪卡协议的识别、重新绑定和 Riff 登记，不迁移或重置用户的复习历史。所有批量动作都必须先 preview，再由用户 confirm。
 

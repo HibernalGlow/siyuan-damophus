@@ -1,0 +1,271 @@
+import { getLogger } from "@/libs/logger";
+import {
+  cacheIsFresh,
+  DEFAULT_FLASHCARD_SETTINGS,
+  type FlashcardGroup,
+  type FlashcardGroupCache,
+  type FlashcardSettings,
+} from "./types";
+import { FlashcardSiyuanAdapter, type DueCardsData } from "./siyuan-adapter";
+
+const log = getLogger("flashcard-runtime");
+
+function clone<T>(value: T): T {
+  return structuredClone(value);
+}
+
+function mergeSettings(value: unknown): FlashcardSettings {
+  const input = value && typeof value === "object" ? value as Partial<FlashcardSettings> : {};
+  const groups = Array.isArray(input.groups) ? input.groups : DEFAULT_FLASHCARD_SETTINGS.groups;
+  const categories = Array.isArray(input.categories) ? input.categories : DEFAULT_FLASHCARD_SETTINGS.categories;
+  return {
+    ...clone(DEFAULT_FLASHCARD_SETTINGS),
+    ...input,
+    groups: groups.map((group) => ({
+      ...DEFAULT_FLASHCARD_SETTINGS.groups[0],
+      ...group,
+      id: String(group.id ?? crypto.randomUUID()),
+      name: String(group.name ?? "新分组"),
+      sqlQuery: String(group.sqlQuery ?? "SELECT id FROM blocks LIMIT 1"),
+      categoryId: String(group.categoryId ?? "default"),
+    cacheMinutes: Number(group.cacheMinutes ?? input.cacheUpdateInterval ?? 30),
+      enabled: group.enabled !== false,
+      queryFirst: group.queryFirst === true,
+      priorityEnabled: group.priorityEnabled === true,
+    })),
+    categories: categories.map((category) => ({
+      id: String(category.id ?? crypto.randomUUID()),
+      name: String(category.name ?? "新分类"),
+    })),
+    scanInterval: Math.max(1, Number(input.scanInterval ?? 15)),
+  };
+}
+
+export class FlashcardRuntime {
+  readonly adapter = new FlashcardSiyuanAdapter();
+  private settings: FlashcardSettings = clone(DEFAULT_FLASHCARD_SETTINGS);
+  private cache = new Map<string, FlashcardGroupCache>();
+  private timer?: number;
+  private priorityTimer?: number;
+  private loaded = false;
+
+  constructor(
+    private readonly readSetting: (key: string) => unknown,
+    private readonly writeSetting: (key: string, value: unknown) => void | Promise<void>,
+  ) {}
+
+  load(): FlashcardSettings {
+    if (this.loaded) return clone(this.settings);
+    this.loaded = true;
+    this.settings = mergeSettings(this.readSetting("config"));
+    const storedCache = this.readSetting("cache");
+    if (storedCache && typeof storedCache === "object") {
+      for (const [key, value] of Object.entries(storedCache as Record<string, FlashcardGroupCache>)) {
+        if (value && Array.isArray(value.blockIds)) this.cache.set(key, value);
+      }
+    }
+    return clone(this.settings);
+  }
+
+  getSettings(): FlashcardSettings {
+    return clone(this.load());
+  }
+
+  async saveSettings(settings: FlashcardSettings): Promise<void> {
+    this.settings = mergeSettings(settings);
+    this.loaded = true;
+    await this.writeSetting("config", clone(this.settings));
+  }
+
+  getGroups(): FlashcardGroup[] {
+    return clone(this.load().groups);
+  }
+
+  getEnabledGroups(): FlashcardGroup[] {
+    return this.getGroups().filter((group) => group.enabled);
+  }
+
+  async saveGroup(group: FlashcardGroup): Promise<void> {
+    const settings = this.load();
+    const index = settings.groups.findIndex((candidate) => candidate.id === group.id);
+    if (index >= 0) settings.groups[index] = clone(group);
+    else settings.groups.push(clone(group));
+    await this.saveSettings(settings);
+  }
+
+  async deleteGroup(groupId: string): Promise<void> {
+    const settings = this.load();
+    settings.groups = settings.groups.filter((group) => group.id !== groupId);
+    this.cache.delete(groupId);
+    await this.saveSettings(settings);
+    await this.saveCache();
+  }
+
+  async saveCategory(category: { id: string; name: string }): Promise<void> {
+    const settings = this.load();
+    const index = settings.categories.findIndex((candidate) => candidate.id === category.id);
+    if (index >= 0) settings.categories[index] = clone(category);
+    else settings.categories.push(clone(category));
+    await this.saveSettings(settings);
+  }
+
+  async deleteCategory(categoryId: string): Promise<void> {
+    const settings = this.load();
+    settings.categories = settings.categories.filter((category) => category.id !== categoryId);
+    settings.groups = settings.groups.filter((group) => group.categoryId !== categoryId);
+    await this.saveSettings(settings);
+  }
+
+  async reorderGroups(categoryId: string, groupId: string, direction: "up" | "down"): Promise<void> {
+    const settings = this.load();
+    const indexes = settings.groups
+      .map((group, position) => ({ group, position }))
+      .filter(({ group }) => group.categoryId === categoryId)
+      .map(({ position }) => position);
+    const globalIndex = settings.groups.findIndex((group) => group.id === groupId);
+    const localIndex = indexes.indexOf(globalIndex);
+    const targetLocalIndex = direction === "up" ? localIndex - 1 : localIndex + 1;
+    if (localIndex < 0 || targetLocalIndex < 0 || targetLocalIndex >= indexes.length) return;
+    const target = indexes[targetLocalIndex];
+    [settings.groups[globalIndex], settings.groups[target]] = [settings.groups[target], settings.groups[globalIndex]];
+    await this.saveSettings(settings);
+  }
+
+  async moveGroup(groupId: string, categoryId: string): Promise<void> {
+    const settings = this.load();
+    const group = settings.groups.find((candidate) => candidate.id === groupId);
+    if (!group || !settings.categories.some((category) => category.id === categoryId)) return;
+    group.categoryId = categoryId;
+    await this.saveSettings(settings);
+  }
+
+  getCache(groupId: string): FlashcardGroupCache | undefined {
+    const value = this.cache.get(groupId);
+    return value ? clone(value) : undefined;
+  }
+
+  async saveCache(): Promise<void> {
+    await this.writeSetting("cache", Object.fromEntries([...this.cache.entries()].map(([key, value]) => [key, clone(value)])));
+  }
+
+  async clearCache(groupId?: string): Promise<void> {
+    if (groupId) this.cache.delete(groupId);
+    else this.cache.clear();
+    await this.saveCache();
+  }
+
+  async refreshEnabledGroups(forceUpdate = true): Promise<void> {
+    await Promise.all(this.getEnabledGroups().map((group) =>
+      this.provideGroupBlockIds(group, forceUpdate).catch((error) => {
+        log.warn("group-refresh-failed", { groupId: group.id, error });
+        throw error;
+      }),
+    ));
+  }
+
+  async provideGroupBlockIds(group: FlashcardGroup, forceUpdate = false): Promise<string[]> {
+    this.load();
+    const current = this.getCache(group.id);
+    if (!forceUpdate && !group.queryFirst && cacheIsFresh(current, Date.now(), group.cacheMinutes)) {
+      return current?.blockIds ?? [];
+    }
+    const rawRows = await this.adapter.paginatedSql(group.sqlQuery);
+    const { rawBlockIds, roots } = await this.adapter.resolveCardRoots(
+      rawRows.map((row) => row.id).filter(Boolean),
+      { maxResolveDepth: this.settings.maxResolveDepth },
+    );
+    const next = { blockIds: roots, rawBlockIds, updatedAt: Date.now(), query: group.sqlQuery };
+    this.cache.set(group.id, next);
+    await this.saveCache();
+    return roots;
+  }
+
+  async buildGroupDueCards(group: FlashcardGroup, forceUpdate = false): Promise<DueCardsData> {
+    const roots = await this.provideGroupBlockIds(group, forceUpdate);
+    return this.adapter.buildDueCardsData(this.load().deckId, roots, this.load().maxReviewCards);
+  }
+
+  async buildAllDueCards(): Promise<DueCardsData> {
+    return this.adapter.getDueCards(this.load().deckId);
+  }
+
+  async registerCards(blockIds: readonly string[]) {
+    return this.adapter.addAndVerify(this.load().deckId, blockIds);
+  }
+
+  async getAllDeckCards() {
+    return this.adapter.getAllCardsByDeckId(this.load().deckId);
+  }
+
+  async resetDeck(blockIds: readonly string[] = []): Promise<void> {
+    await this.adapter.resetDeck(this.load().deckId, blockIds);
+  }
+
+  async previewBatchPriority(group: FlashcardGroup): Promise<{ cards: Awaited<ReturnType<FlashcardSiyuanAdapter["getCardsByBlockIds"]>>; priority: number }> {
+    const roots = await this.provideGroupBlockIds(group);
+    const cards = await this.adapter.getCardsByBlockIds(roots);
+    return { cards, priority: Number(group.priority ?? 0) };
+  }
+
+  async applyBatchPriority(group: FlashcardGroup): Promise<{ status: "native" | "tomato" | "pending"; count: number }> {
+    const preview = await this.previewBatchPriority(group);
+    if (preview.cards.length === 0) return { status: "pending", count: 0 };
+    const status = await this.adapter.setPriority(preview.cards, preview.priority);
+    return { status, count: preview.cards.length };
+  }
+
+  async postponeTodayCards(): Promise<{status: "disabled" | "empty" | "completed" | "pending"; count: number}> {
+    const settings = this.load();
+    if (!settings.postponeEnabled || settings.postponeDays <= 0) return { status: "disabled", count: 0 };
+    const cards = (await this.adapter.getCardsByBlockIds(
+      (await Promise.all(this.getEnabledGroups().map((group) => this.provideGroupBlockIds(group)))).flat(),
+    )).filter((card) => FlashcardSiyuanAdapter.isTodayCard(card) && FlashcardSiyuanAdapter.isPostponable(card));
+    if (cards.length === 0) return { status: "empty", count: 0 };
+    try {
+      await this.adapter.postponeCards(cards, settings.postponeDays);
+      return { status: "completed", count: cards.length };
+    } catch (error) {
+      log.warn("postpone-today-cards-failed", error);
+      return { status: "pending", count: cards.length };
+    }
+  }
+
+  async scanPriorities(): Promise<{ groups: number; cards: number; pending: number }> {
+    this.load();
+    let groups = 0;
+    let cards = 0;
+    let pending = 0;
+    for (const group of this.getEnabledGroups().filter((candidate) => candidate.priorityEnabled && candidate.priority !== undefined)) {
+      groups += 1;
+      const roots = await this.provideGroupBlockIds(group);
+      const dueCards = (await this.adapter.getCardsByBlockIds(roots)).filter(FlashcardSiyuanAdapter.isTodayCard);
+      if (dueCards.length === 0) continue;
+      cards += dueCards.length;
+      const status = await this.adapter.setPriority(dueCards, Number(group.priority));
+      if (status === "pending") pending += dueCards.length;
+    }
+    return { groups, cards, pending };
+  }
+
+  startAutomation(): void {
+    this.stopAutomation();
+    const settings = this.load();
+    const interval = Math.max(1, settings.cacheUpdateInterval) * 60_000;
+    this.timer = window.setInterval(() => {
+      for (const group of this.getEnabledGroups()) void this.provideGroupBlockIds(group, true).catch((error) => log.warn("cache-refresh-failed", error));
+    }, interval);
+    void this.refreshEnabledGroups(true).catch((error) => log.warn("initial-group-refresh-failed", error));
+    if (settings.postponeEnabled) void this.postponeTodayCards().catch((error) => log.warn("initial-postpone-failed", error));
+    if (settings.priorityScanEnabled) {
+      this.priorityTimer = window.setInterval(() => void this.scanPriorities().catch((error) => log.warn("priority-scan-failed", error)), Math.max(1, settings.priorityScanInterval) * 60_000);
+      void this.scanPriorities().catch((error) => log.warn("initial-priority-scan-failed", error));
+    }
+  }
+
+  stopAutomation(): void {
+    if (this.timer !== undefined) window.clearInterval(this.timer);
+    if (this.priorityTimer !== undefined) window.clearInterval(this.priorityTimer);
+    this.timer = undefined;
+    this.priorityTimer = undefined;
+  }
+}

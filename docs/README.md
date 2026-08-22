@@ -13,6 +13,7 @@
 - [Exam mode](exam-mode.md)
 - [Migration guide](migration.md)
 - [Flashcard migration](flashcard-migration.md)
+- [SFP porting notes](sfp-porting-notes.md)
 - [Kramdown export](kramdown-export.md)
 - [Agent bridge](agent-bridge.md)
 - [Skill management](skill-management.md)
