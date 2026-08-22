@@ -39,7 +39,8 @@ export class MobileOutlineThemeCompatibility {
   }
 
   private isMobileFrontend(): boolean {
-    const frontend = document.documentElement.dataset.frontend;
+    if (typeof document === "undefined") return false;
+    const frontend = document.documentElement?.dataset?.frontend;
     return frontend === "mobile" || frontend === "browser-mobile";
   }
 }
