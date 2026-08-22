@@ -295,6 +295,14 @@ html[data-frontend="browser-mobile"] {
   --_damophus-mobile-toolbar-height: 42px;
 }
 
+/* The Android WebView already starts below the system status bar. SiYuan's
+   extra safe-area spacer therefore duplicates the top inset in the APK. */
+html[data-backend="android"] > body > .mobile-safe-area {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+}
+
 html[data-frontend="mobile"] > body > .toolbar,
 html[data-frontend="browser-mobile"] > body > .toolbar {
   pointer-events: none;
