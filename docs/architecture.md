@@ -63,10 +63,11 @@ src/lets-question-bank/ Svelte 5 plugin UI and lifecycle integration
 - `reviewDueQuestions`: 读取 Riff 到期状态并用 Damophus UI 复习。
 - `exportAttempts` / `importAttempts`: 版本化 JSON 备份与恢复。
 
-闪卡子模块遵循 [ADR 0012](adr/0012-damophus-flashcard-protocol.md) 和
-[Flashcard Contract](flashcard-contract.md)：内容身份与卡片元数据留在
-Markdown/IAL，Riff 只拥有调度和复习历史，复习仍走思源原生卡片面板。按卡片
-renderer 的预渲染适配和动态闪卡列表属于待实现的 SiYuan adapter 能力。
+闪卡子模块遵循 [ADR 0012](adr/0012-damophus-flashcard-protocol.md)、
+[Flashcard Contract](flashcard-contract.md) 和 [Glossary](flashcard-glossary.md)：
+内容身份与卡片元数据留在 Markdown/IAL，Riff 只拥有调度和复习历史，复习仍走
+思源原生卡片面板。renderer 预渲染适配和动态闪卡列表已经落在
+`src/flashcard/` 与 `src/lets-flashcard/`；嵌入浏览器实证仍是发布门槛。
 
 ## State Ownership
 

@@ -39,7 +39,7 @@ API 缺失、版本不匹配、响应结构无效或部分登记失败时，结�
 - 复习使用 SiYuan 原生 `siyuan-card` 面板；DAMO 不实现第三套复习 UI，也不复制整套面板。
 - DAMO 只提供窄范围的预渲染兼容层：在原生卡片加载/渲染前读取当前卡片的 `custom-dm-card-renderer`，选择 mark/list/heading/superBlock/blockquote/callout 对应的宿主配置，再交还原生渲染流程。
 - 兼容层必须先做 capability detection，保存原始 `flashcard` 属性描述符和用户配置；不调用持久化设置 API 反复修改全局设置，不替换整个 `window.siyuan.config`，卸载时完整恢复 descriptor/拦截器。
-- 卡片无法解析、没有 DAMO renderer 或预渲染拦截不可用时，使用用户原始全局配置。预渲染拦截和动态队列在实现前不得视为已交付能力。
+- 卡片无法解析、没有 DAMO renderer 或预渲染拦截不可用时，使用用户原始全局配置。预渲染拦截和动态队列已实现；嵌入浏览器验证仍是发布门槛。
 
 ### Dynamic review lists
 

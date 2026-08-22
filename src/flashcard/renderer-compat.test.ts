@@ -16,6 +16,7 @@ describe("flashcard renderer compatibility", () => {
     expect(compat.install().installed).toBe(true);
     await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-aaaaaaa" }) });
     expect(config.flashcard).toMatchObject({ mark: false, list: false, heading: true, superBlock: false });
+    expect(config.flashcard).toEqual(original);
     compat.uninstall();
     expect(Object.getOwnPropertyDescriptor(config, "flashcard")).toEqual(descriptor);
   });

@@ -60,7 +60,12 @@ export class FlashcardRendererCompat {
         const original = typeof descriptor.get === "function"
           ? descriptor.get.call(config)
           : currentValue as FlashcardConfig;
-        const renderer = owner.rendererByBlockId.get(owner.pendingBlockId ?? "");
+        const pendingBlockId = owner.pendingBlockId;
+        const renderer = owner.rendererByBlockId.get(pendingBlockId ?? "");
+        // The request identifies the card about to render. Consume it on the
+        // first config read so a later native read cannot inherit this card's
+        // renderer after the card has changed.
+        owner.pendingBlockId = undefined;
         if (!renderer) return original;
         const next = { ...original };
         for (const key of Object.values(rendererFlags)) {

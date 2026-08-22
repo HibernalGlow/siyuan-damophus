@@ -4,6 +4,7 @@
 - [Product scope](product-scope.md)
 - [Question-bank contract](question-bank-contract.md)
 - [Flashcard contract](flashcard-contract.md)
+- [Flashcard glossary](flashcard-glossary.md)
 - [Flashcard capability matrix](flashcard-capability-matrix.md)
 - [Architecture](architecture.md)
 - [Implementation plan](implementation-plan.md)

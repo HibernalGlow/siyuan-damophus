@@ -55,3 +55,19 @@ SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-
 - Embedded-browser evidence is the remaining release gate for old mark, new list, heading, superBlock, blockquote, callout, mixed documents, rating-to-next-card, dynamic list, mobile review and plugin unload; the current workspace has not yet recorded that live run.
 - SFP parity evidence must also cover importing a real `plugin-config.json` and confirming that the converted groups survive reload without importing the old cache.
 - No claim of completion may rely on typecheck alone; repository check, build, focused tests and diff inspection are required.
+
+## Verification log (2026-08-23)
+
+- `pnpm build` passed; focused flashcard suite passed: 4 files, 8 tests.
+- `git diff --check` passed. Latest `dist/index.js` was deployed to
+  `D:/1STUDY/SIYUAN/data/plugins/siyuan-damophus` and the two files have the
+  same SHA-256.
+- Local SiYuan API responded successfully to `/api/query/sql` (562,427 blocks),
+  `/api/riff/getRiffDueCards` and attribute queries; the workspace contains
+  existing `custom-riff-decks` cards and the SFP config file contains one
+  category and two enabled SQL groups.
+- The running local binary reports SiYuan 3.7.3, below DAMO's supported 3.8.1+
+  boundary. The embedded-browser tab reached `http://localhost:6806/` but its
+  page-load, DOM, and screenshot calls timed out, so old mark/list, all
+  renderer variants, rating-to-next-card, mobile review and unload recovery
+  remain explicitly unverified release-gate items rather than passing claims.
