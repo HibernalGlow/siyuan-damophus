@@ -22,66 +22,6 @@ const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
 const COVER_LAYOUT_STYLE_ID = "damophus-more-background-layout-style";
 
-// Keep the original URL in block attributes, but reuse a decoded, display-sized
-// copy in the page. Chromium's HTTP cache handles the source fetch; this map
-// also prevents duplicate concurrent requests when a document is refreshed.
-const displayImageCache = new Map<string, Promise<string>>();
-
-function displayImageWidth(background: HTMLElement): number {
-  const width = background.querySelector<HTMLElement>(".protyle-background__img")?.clientWidth
-    || background.clientWidth
-    || window.innerWidth;
-  return Math.max(640, Math.min(1920, Math.ceil(width * Math.max(1, window.devicePixelRatio || 1))));
-}
-
-async function createDisplayImage(url: string, maxWidth: number): Promise<string> {
-  const key = `${url}|${maxWidth}`;
-  const cached = displayImageCache.get(key);
-  if (cached) return cached;
-  const task = (async () => {
-    const response = await fetch(url, { cache: "force-cache", referrerPolicy: "no-referrer" });
-    if (!response.ok) throw new Error(`Image request failed: ${response.status}`);
-    const blob = await response.blob();
-    if (!blob.type.startsWith("image/")
-      || blob.type === "image/gif"
-      || blob.type === "image/svg+xml"
-      || typeof createImageBitmap !== "function") return url;
-    const bitmap = await createImageBitmap(blob);
-    if (bitmap.width <= maxWidth) {
-      bitmap.close();
-      return url;
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = maxWidth;
-    canvas.height = Math.max(1, Math.round(bitmap.height * maxWidth / bitmap.width));
-    const context = canvas.getContext("2d");
-    if (!context) {
-      bitmap.close();
-      return url;
-    }
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const resized = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.86));
-    return resized ? URL.createObjectURL(resized) : url;
-  })().catch(() => url);
-  displayImageCache.set(key, task);
-  return task;
-}
-
-async function optimizeBackgroundDisplay(background: HTMLElement, originalUrl: string): Promise<void> {
-  if (!originalUrl || originalUrl.startsWith("data:") || isVideoUrl(originalUrl)) return;
-  const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
-  if (!image) return;
-  image.dataset.damophusOriginalUrl = originalUrl;
-  const displayUrl = await createDisplayImage(originalUrl, displayImageWidth(background));
-  if (!image.isConnected || image.dataset.damophusOriginalUrl !== originalUrl) return;
-  if (displayUrl === originalUrl) return;
-  const previous = image.dataset.damophusDisplayUrl;
-  if (previous && previous !== displayUrl && previous.startsWith("blob:")) URL.revokeObjectURL(previous);
-  image.dataset.damophusDisplayUrl = displayUrl;
-  image.src = displayUrl;
-}
-
 export type CoverToolbarPosition = "adaptive" | "belowTags" | "belowIcon" | "native" | "custom";
 
 export interface MoreBackgroundOptions {
@@ -120,8 +60,6 @@ const coverLayoutCss = `
 .protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="doc"],
 .protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="more"],
 .protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="context"] { position: relative; z-index: 3; }
-.protyle-icons[data-damophus-cover-toolbar="belowIcon"] { position: static; width: max-content; max-width: 100%; margin: 0 0 8px; opacity: .86; }
-.protyle-icons[data-damophus-cover-toolbar="custom"] { position: absolute; right: auto; left: var(--damophus-cover-toolbar-x); top: var(--damophus-cover-toolbar-y); transform: translate(var(--damophus-cover-toolbar-offset-x), var(--damophus-cover-toolbar-offset-y)); opacity: .86; }
 .protyle-icons[data-damophus-cover-toolbar] { opacity: 0; pointer-events: none; transition: opacity .2s ease-in-out; }
 .protyle-top:hover .protyle-icons[data-damophus-cover-toolbar],
 .protyle-background:hover .protyle-icons[data-damophus-cover-toolbar] { opacity: 1; pointer-events: auto; }
@@ -424,23 +362,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     if (background) {
       const bgCleanup = this.initVideoBackground(background);
       cleanups.push(bgCleanup);
-      const existingImage = background.querySelector<HTMLImageElement>(".protyle-background__img img");
-      const existingSource = existingImage?.dataset.damophusOriginalUrl
-        || existingImage?.currentSrc
-        || existingImage?.src
-        || "";
-      if (existingSource && !background.querySelector(".protyle-background__video")) {
-        void optimizeBackgroundDisplay(background, existingSource);
-      }
-      if (existingImage) {
-        const imageObserver = new MutationObserver(() => {
-          if (background.querySelector(".protyle-background__video")) return;
-          const source = existingImage.dataset.damophusOriginalUrl || existingImage.currentSrc || existingImage.src;
-          if (source) void optimizeBackgroundDisplay(background, source);
-        });
-        imageObserver.observe(existingImage, { attributes: true, attributeFilter: ["src"] });
-        cleanups.push(() => imageObserver.disconnect());
-      }
       const posCleanup = this.initCoverPositionControls(background);
       cleanups.push(posCleanup);
       const tagOverlayCleanup = this.initCoverTagOverlay(root);
@@ -1236,13 +1157,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         attrs,
       }),
     });
-
-    // Keep the persisted attribute pointed at the original image while the
-    // visible image uses a viewport-sized cached derivative.
-    const displaySource = finalVal.startsWith("http://") || finalVal.startsWith("https://")
-      ? finalVal
-      : `/${finalVal.replace(/^\/+/, "")}`;
-    void optimizeBackgroundDisplay(background, displaySource);
 
     // 记录到历史记录
     try {
