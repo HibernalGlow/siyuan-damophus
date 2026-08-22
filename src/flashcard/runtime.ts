@@ -77,6 +77,11 @@ export class FlashcardRuntime {
     await this.writeSetting("config", clone(this.settings));
   }
 
+  async importSfpSettings(settings: FlashcardSettings): Promise<void> {
+    await this.saveSettings(settings);
+    await this.clearCache();
+  }
+
   getGroups(): FlashcardGroup[] {
     return clone(this.load().groups);
   }

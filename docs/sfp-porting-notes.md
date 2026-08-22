@@ -13,6 +13,7 @@
 | `apiSiyuanCard.ts` | `FlashcardSiyuanAdapter` | 到期查询、按块查询、登记后验证、评分、推迟、全量牌组查询、牌组重置/移除 |
 | `OpensydocFlow.ts` | `src/flashcard/document-flow.ts` | 原始 SQL 与过滤 IdList 为可选外部入口；未安装文档流时 DAMO Dialog 和复习仍可用 |
 | `GroupManager.svelte` | `FlashcardSettings.svelte` + `FlashcardResults.svelte` | 分类 CRUD、分组启用/禁用、排序、SQL 编辑、缓存/自动化、结果核验和登记 |
+| `plugin-config.json` | `src/flashcard/sfp-migration.ts` + 设置页“导入 SFP 设置” | 显式 preview/confirm 导入分类、SQL 分组、查询优先、缓存间隔和自动化设置 |
 
 ## 动态列表生命周期
 
@@ -26,3 +27,7 @@ SQL 结果如果直接命中原生可制卡容器（list、heading、superBlock�
 - Tomato 的私有优先级/停止 API 不作为核心依赖；能力缺失返回 `pending`。
 - 文档流仅是外部查看器；DAMO 自己提供原始/过滤结果 Dialog。
 - SFP 的旧块 ID、Riff card ID 和运行时调度字段不进入 DAMO Markdown 身份协议。
+
+## 配置迁移边界
+
+DAMO 以 `Specialized-Flashcard-Plugin@aa3bb02c8ed68164ddda53b87daa391822a1b7be` 的 `plugin-config.json` 作为可选导入来源。导入会转换 `groupCategories`、`groups`、`queryFirst`、优先级和全局自动化字段；SFP 的 `cache-data.json` 不导入，因为缓存只保存 SQL 派生块 ID，首次查询即可重建。导入必须先显示分类数、分组数和启用数并由用户确认，不删除 SFP 文件、不修改 Markdown、不触碰 Riff 复习历史。

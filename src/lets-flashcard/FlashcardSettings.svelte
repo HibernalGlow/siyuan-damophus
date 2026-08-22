@@ -9,6 +9,7 @@
   export let onOpenRaw: (group: FlashcardGroup) => void;
   export let onOpenFiltered: (group: FlashcardGroup) => void;
   export let onBatchPriority: (group: FlashcardGroup) => void;
+  export let onImportSfp: () => void | Promise<void>;
 
   let config: FlashcardSettings = runtime.getSettings();
   let message = "";
@@ -129,6 +130,7 @@
     <div class="header-actions">
       <button class="b3-button b3-button--outline" on:click={onReviewAll} title="打开全部到期卡">全部到期</button>
       <button class="b3-button b3-button--outline" on:click={clearCache} title="清除 SQL 缓存">刷新缓存</button>
+      <button class="b3-button b3-button--outline" on:click={onImportSfp} title="导入 Specialized Flashcard Plugin 的分组设置">导入 SFP 设置</button>
     </div>
   </header>
 

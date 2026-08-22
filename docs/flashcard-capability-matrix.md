@@ -44,6 +44,7 @@ Status: implementation baseline; embedded-browser evidence is tracked as a relea
 | 过滤后结果查看 | 显示向上传递、识别、去重后的卡根结果 | 已实现 | DAMO Dialog 显示卡根并可登记/复习 |
 | 文档流入口 | 可选调用文档流；DAMO 自有查看路径不依赖插件 | 已实现 | 原始 SQL、过滤后 IdList 均可选打开 |
 | 设置/菜单/生命周期 | DAMO 子插件注册、i18n、logger、unload 清理 | 已实现 | PluginRegistry、设置/命令/菜单和卸载清理 |
+| SFP 配置导入 | 从旧插件 `plugin-config.json` 导入分类、SQL 分组和自动化设置 | 已实现 | 设置页显式 preview/confirm；缓存丢弃并重建 |
 
 SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-sources.md)。
 
@@ -52,4 +53,5 @@ SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-
 - Portable core tests cover container parsing, identity, renderer policy, dedupe, source rebind and conflict/orphan outcomes.
 - Fake Riff adapter covers API success, API failure, duplicate registration, query mismatch, old cards and version downgrade.
 - Embedded-browser evidence is the remaining release gate for old mark, new list, heading, superBlock, blockquote, callout, mixed documents, rating-to-next-card, dynamic list, mobile review and plugin unload; the current workspace has not yet recorded that live run.
+- SFP parity evidence must also cover importing a real `plugin-config.json` and confirming that the converted groups survive reload without importing the old cache.
 - No claim of completion may rely on typecheck alone; repository check, build, focused tests and diff inspection are required.

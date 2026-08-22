@@ -111,3 +111,5 @@ priorityPolicy
 ## Result viewing contract
 
 每个分组提供两种结果查看：原始 SQL 结果，以及执行向上传递、卡根识别和去重后的过滤结果。过滤结果可以进入原生 `siyuan-card` 复习；原始结果只用于核验 SQL 和内容范围。文档流是可选外部打开器，未安装时 DAMO 的结果查看和复习能力仍必须可用。
+
+SFP `plugin-config.json` 是一次性的可选迁移输入，不是 DAMO 运行时依赖。导入必须 preview/confirm；只迁移分类、SQL 分组和自动化配置，丢弃旧缓存，保留 Markdown 和 Riff 状态。

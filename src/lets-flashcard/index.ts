@@ -10,6 +10,7 @@ import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
 import { FlashcardRuntime } from "@/flashcard/runtime";
 import { openDocumentFlow } from "@/flashcard/document-flow";
 import type { FlashcardGroup } from "@/flashcard/types";
+import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -153,8 +154,29 @@ export default class FlashcardPlugin extends SubPluginBase {
         onOpenRaw: (group: FlashcardGroup) => this.openRawFlow(group),
         onOpenFiltered: (group: FlashcardGroup) => void this.openFilteredFlow(group),
         onBatchPriority: (group: FlashcardGroup) => void this.batchPriority(group),
+        onImportSfp: () => this.importSfpConfig(),
       },
     });
+  }
+
+  private async importSfpConfig(): Promise<void> {
+    try {
+      const preview = convertSfpConfig(await fetchSfpConfig(), this.runtime.getSettings());
+      const approved = await new Promise<boolean>((resolve) => {
+        confirm(
+          "导入 SFP 配置",
+          `将导入 ${preview.categoryCount} 个分类、${preview.groupCount} 个 SQL 分组（${preview.enabledGroupCount} 个启用），覆盖当前闪卡分组设置。缓存不会导入，确认继续？`,
+          () => resolve(true),
+          () => resolve(false),
+        );
+      });
+      if (!approved) return;
+      await this.runtime.importSfpSettings(preview.settings);
+      this.runtime.startAutomation();
+      showMessage("SFP 配置已导入；缓存将按 DAMO 规则重新生成", 5000);
+    } catch (error) {
+      this.reportError("导入 SFP 配置失败", error);
+    }
   }
 
   private openSettings(): void {
