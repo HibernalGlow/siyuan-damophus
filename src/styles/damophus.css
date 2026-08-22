@@ -297,7 +297,7 @@ html[data-frontend="browser-mobile"] {
 
 /* The Android WebView already starts below the system status bar. SiYuan's
    extra safe-area spacer therefore duplicates the top inset in the APK. */
-html[data-backend="android"] > body > .mobile-safe-area {
+html[data-backend="android"][data-damophus-android-safe-area="true"] > body > .mobile-safe-area {
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;

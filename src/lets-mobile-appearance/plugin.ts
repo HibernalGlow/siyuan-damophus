@@ -32,6 +32,13 @@ export const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-mobile-appearance.androidSafeAreaTitle",
+      description: "lets-mobile-appearance.androidSafeAreaDescription",
+      key: "androidSafeArea",
+      value: true,
+    },
+    {
+      type: "checkbox",
       title: "lets-mobile-appearance.outlineThemeTitle",
       description: "lets-mobile-appearance.outlineThemeDescription",
       key: "outlineTheme",
