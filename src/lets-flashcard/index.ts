@@ -3,7 +3,7 @@ import { mount, unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { getLogger } from "@/libs/logger";
-import { isMobile, plugin } from "@/utils";
+import { plugin } from "@/utils";
 import FlashcardSettings from "./FlashcardSettings.svelte";
 import FlashcardResults from "./FlashcardResults.svelte";
 import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
@@ -31,6 +31,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   private entry?: UnifiedEntryPoint;
   private tabRegistered = false;
   private readonly mounted = new Map<HTMLElement, ReturnType<typeof mount>>();
+  private dockApp?: ReturnType<typeof mount>;
   private reviewScope?: { group: FlashcardGroup; ids: Set<string> };
   private readonly reviewCards = new Map<string, RiffCardRecord>();
   private currentReviewCard?: RiffCardRecord;
@@ -90,7 +91,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       id: "flashcard.open",
       title: this.t("lets-flashcard.open"),
       icon: "iconRiffCard",
-      execute: () => this.openSettings(),
+      execute: () => this.openConfiguredSurface(),
       command: { langKey: "lets-flashcard.open" },
       dock: {
         config: {
@@ -102,19 +103,14 @@ export default class FlashcardPlugin extends SubPluginBase {
         },
         data: {},
         type: "damophus-flashcard-dock",
-        activation: "action",
+        activation: "panel",
         init: (target) => {
-          if (!isMobile) return;
           target.replaceChildren();
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "b3-button b3-button--outline";
-          button.textContent = this.t("lets-flashcard.open");
-          button.addEventListener("click", this.handleDockLauncherClick);
-          target.append(button);
+          this.dockApp = this.mountSettings(target);
         },
         destroy: (target) => {
-          target.querySelector("button")?.removeEventListener("click", this.handleDockLauncherClick);
+          if (this.dockApp) void unmount(this.dockApp);
+          this.dockApp = undefined;
           target.replaceChildren();
         },
       },
@@ -124,10 +120,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.entry.setSurfaces(this.configuredSettingsEntrySurfaces());
     this.entry.setEnabled(true);
   }
-
-  private readonly handleDockLauncherClick = (): void => {
-    this.openSettings();
-  };
 
   private configuredSettingsEntrySurfaces() {
     const dock = this.isEntryEnabled("dock");
@@ -315,6 +307,14 @@ export default class FlashcardPlugin extends SubPluginBase {
         id: settingsTabId(),
       },
     });
+  }
+
+  private openConfiguredSurface(): void {
+    if (this.isEntryEnabled("tab")) {
+      this.openSettings();
+      return;
+    }
+    if (this.isEntryEnabled("dock")) this.entry?.openDock();
   }
 
   private async reviewAll(): Promise<void> {
