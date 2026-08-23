@@ -1,12 +1,4 @@
-import { getLogger } from "@/libs/logger";
 import type { FlashcardRenderer } from "./types";
-
-const log = getLogger("flashcard-renderer");
-
-type FlashcardConfig = Record<string, unknown>;
-type SiyuanWindow = Window & {
-  siyuan?: { config?: { flashcard?: FlashcardConfig } };
-};
 
 export interface RendererCompatStatus {
   installed: boolean;
@@ -24,10 +16,8 @@ const rendererFlags: Record<FlashcardRenderer, string> = {
 
 export class FlashcardRendererCompat {
   private readonly rendererByBlockId = new Map<string, FlashcardRenderer | "unknown">();
-  private originalConfigDescriptor?: PropertyDescriptor;
   private originalFetch?: typeof window.fetch;
   private installed = false;
-  private pendingBlockId?: string;
   private activeBlockId?: string;
   private domObserver?: MutationObserver;
 
@@ -45,46 +35,7 @@ export class FlashcardRendererCompat {
 
   install(): RendererCompatStatus {
     if (this.installed) return { installed: true };
-    const host = window as SiyuanWindow;
-    const config = host.siyuan?.config;
-    if (!config || !Object.prototype.hasOwnProperty.call(config, "flashcard")) {
-      return { installed: false, reason: "window.siyuan.config.flashcard is unavailable" };
-    }
-    const descriptor = Object.getOwnPropertyDescriptor(config, "flashcard");
-    if (!descriptor || descriptor.configurable !== true || (typeof descriptor.get !== "function" && !("value" in descriptor))) {
-      return { installed: false, reason: "flashcard descriptor is not configurable" };
-    }
-    this.originalConfigDescriptor = descriptor;
     const owner = this;
-    let currentValue = "value" in descriptor ? descriptor.value : undefined;
-    Object.defineProperty(config, "flashcard", {
-      configurable: descriptor.configurable,
-      enumerable: descriptor.enumerable,
-      get() {
-        const original = typeof descriptor.get === "function"
-          ? descriptor.get.call(config)
-          : currentValue as FlashcardConfig;
-        const blockId = owner.pendingBlockId ?? owner.activeBlockId;
-        const renderer = owner.rendererByBlockId.get(blockId ?? "");
-        if (blockId && renderer !== undefined) {
-          owner.activeBlockId = blockId;
-          owner.pendingBlockId = undefined;
-          owner.onCardRender?.(blockId);
-        }
-        if (!renderer || renderer === "unknown") return original;
-        const next = { ...original };
-        for (const key of Object.values(rendererFlags)) {
-          if (key in next) next[key] = false;
-        }
-        const target = rendererFlags[renderer];
-        if (target in next) next[target] = true;
-        return next;
-      },
-      set(value: FlashcardConfig) {
-        if (typeof descriptor.set === "function") descriptor.set.call(config, value);
-        else currentValue = value;
-      },
-    });
     // Keep the exact function object so unloading the sub-plugin restores the
     // host's fetch hook rather than a newly-created bound wrapper.
     this.originalFetch = window.fetch;
@@ -94,7 +45,6 @@ export class FlashcardRendererCompat {
         try {
           const payload = JSON.parse(init.body) as { id?: unknown };
           if (typeof payload.id === "string") {
-            owner.pendingBlockId = payload.id;
             owner.activeBlockId = undefined;
           }
         } catch {
@@ -114,21 +64,10 @@ export class FlashcardRendererCompat {
 
   uninstall(): void {
     if (!this.installed) return;
-    const host = window as SiyuanWindow;
-    const config = host.siyuan?.config;
-    if (config && this.originalConfigDescriptor) {
-      try {
-        Object.defineProperty(config, "flashcard", this.originalConfigDescriptor);
-      } catch (error) {
-        log.warn("flashcard-config-restore-failed", error);
-      }
-    }
     if (this.originalFetch) window.fetch = this.originalFetch;
     this.domObserver?.disconnect();
     this.domObserver = undefined;
-    this.originalConfigDescriptor = undefined;
     this.originalFetch = undefined;
-    this.pendingBlockId = undefined;
     this.activeBlockId = undefined;
     this.rendererByBlockId.clear();
     this.installed = false;
@@ -145,6 +84,10 @@ export class FlashcardRendererCompat {
     );
     for (const block of blocks) {
       const root = block.querySelector<HTMLElement>('[data-node-id][custom-dm-card-renderer]');
+      if (root?.dataset.nodeId && this.rendererByBlockId.has(root.dataset.nodeId)) {
+        this.activeBlockId = root.dataset.nodeId;
+        this.onCardRender?.(root.dataset.nodeId);
+      }
       const activeRoot = this.activeBlockId
         ? block.querySelector<HTMLElement>(`[data-node-id="${this.activeBlockId}"]`)
         : undefined;

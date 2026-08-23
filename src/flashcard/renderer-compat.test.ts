@@ -4,10 +4,9 @@ import { FlashcardRendererCompat } from "./renderer-compat";
 describe("flashcard renderer compatibility", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("intercepts a writable flashcard data property and restores it exactly", async () => {
+  it("installs without replacing the global flashcard configuration", async () => {
     const original = { mark: true, list: true, heading: false, superBlock: false };
     const config = { flashcard: original };
-    const descriptor = Object.getOwnPropertyDescriptor(config, "flashcard");
     const host = { siyuan: { config }, fetch: vi.fn(async () => new Response("{}")) };
     vi.stubGlobal("window", host);
     const originalFetch = window.fetch;
@@ -16,18 +15,15 @@ describe("flashcard renderer compatibility", () => {
     compat.preload("20260823000000-aaaaaaa", "heading");
     expect(compat.install().installed).toBe(true);
     await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-aaaaaaa" }) });
-    expect(config.flashcard).toMatchObject({ mark: false, list: false, heading: true, superBlock: false });
-    // Native review reads the setting more than once while loading a card;
-    // the card-specific renderer must remain active for all those reads.
-    expect(config.flashcard).toMatchObject({ mark: false, list: false, heading: true, superBlock: false });
+    expect(config.flashcard).toEqual(original);
     await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-legacy" }) });
     expect(config.flashcard).toEqual(original);
     compat.uninstall();
-    expect(Object.getOwnPropertyDescriptor(config, "flashcard")).toEqual(descriptor);
+    expect(config.flashcard).toEqual(original);
     expect(window.fetch).toBe(originalFetch);
   });
 
-  it("isolates a DAMO renderer read from ordinary cards using global settings", async () => {
+  it("keeps ordinary cards on the user's global configuration", async () => {
     const original = { mark: true, list: false, heading: false, superBlock: false };
     const config = { flashcard: original };
     const host = { siyuan: { config }, fetch: vi.fn(async () => new Response("{}")) };
@@ -36,7 +32,6 @@ describe("flashcard renderer compatibility", () => {
     compat.preload("20260823000000-bbbbbbb", "list");
     expect(compat.install().installed).toBe(true);
     await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-bbbbbbb" }) });
-    expect(config.flashcard).toMatchObject({ mark: false, list: true });
     // A normal/legacy card has no pending DAMO renderer and keeps the user's
     // global mark-only configuration on its next read.
     await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-legacy" }) });

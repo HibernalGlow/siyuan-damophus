@@ -265,6 +265,9 @@
       <button class="b3-button" on:click={updateGlobal} disabled={saving}>保存并应用自动化</button>
     </section>
     <section class="tool-settings">
+      <h3>卡片渲染</h3>
+      <label class="check"><input type="checkbox" bind:checked={config.rendererInterceptionEnabled} on:change={saveGlobalOnChange} /> 按卡片 renderer 直接覆盖原生隐藏规则</label>
+      <p class="settings-hint">关闭后不修改卡片显示，完全使用思源的全局闪卡设置。</p>
       <h3>复习顺序</h3>
       <label class="check"><input type="checkbox" bind:checked={config.randomInterleaveEnabled} on:change={saveGlobalOnChange} /> 随机模式：将约 5% 的较低优先级卡插入高优先级区段</label>
       <h3>原生复习工具栏</h3>
