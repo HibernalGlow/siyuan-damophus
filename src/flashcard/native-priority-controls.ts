@@ -78,14 +78,23 @@ export class NativePriorityControls {
     }
     const handler = () => {
       const value = Number(control.value);
-      control.value = "";
       if (!Number.isFinite(value)) return;
+      const previousValue = control.value;
+      control.disabled = true;
       const blockId = this.blockIdForRoot(root);
-      const cardPromise = (blockId && this.options.resolveCard)
+      const cardPromise = ((blockId && this.options.resolveCard)
         ? this.options.resolveCard(blockId)
-        : Promise.resolve(this.options.getCurrentCard());
+        : Promise.resolve(this.options.getCurrentCard()))
+        .catch(() => this.options.getCurrentCard());
       void cardPromise.then((card) => {
-        if (!card) return;
+        // The rendered card can expose a nested paragraph node instead of the
+        // Riff root. Keep the native event-selected card as a safe fallback.
+        return card ?? this.options.getCurrentCard();
+      }).then((card) => {
+        if (!card) {
+          showMessage("无法定位当前闪卡，请重新打开复习卡片", 4000, "error");
+          return undefined;
+        }
         return this.options.setPriority(card, value);
       }).then((status) => {
         if (!status) return;
@@ -97,7 +106,11 @@ export class NativePriorityControls {
           status === "pending" ? "error" : "info",
         );
       }).catch(() => {
-        showMessage("无法读取当前闪卡的 Riff 状态", 4000, "error");
+        showMessage("优先级保存失败，请检查闪卡标签", 4000, "error");
+      }).finally(() => {
+        control.disabled = false;
+        control.value = previousValue;
+        this.refresh();
       });
     };
     control.addEventListener("change", handler);
@@ -106,7 +119,9 @@ export class NativePriorityControls {
   }
 
   private blockIdForRoot(root: HTMLElement): string | undefined {
-    const node = root.querySelector<HTMLElement>("[data-node-id]");
+    const node = root.matches("[data-node-id]")
+      ? root
+      : root.querySelector<HTMLElement>("[data-node-id]");
     const blockId = node?.dataset.nodeId;
     return blockId && /^\d{14}-[a-z0-9]{7}$/u.test(blockId) ? blockId : undefined;
   }
