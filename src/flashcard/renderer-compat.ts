@@ -64,6 +64,7 @@ export class FlashcardRendererCompat {
 
   uninstall(): void {
     if (!this.installed) return;
+    this.clearNativeVisibilityFallback();
     if (this.originalFetch) window.fetch = this.originalFetch;
     this.domObserver?.disconnect();
     this.domObserver = undefined;
@@ -114,6 +115,18 @@ export class FlashcardRendererCompat {
           block.classList.toggle(className, shouldHave);
         }
       }
+    }
+  }
+
+  private clearNativeVisibilityFallback(): void {
+    if (typeof document === "undefined") return;
+    for (const block of document.querySelectorAll<HTMLElement>(".card__block")) {
+      block.classList.remove(
+        "card__block--hidemark",
+        "card__block--hideli",
+        "card__block--hideh",
+        "card__block--hidesb",
+      );
     }
   }
 }

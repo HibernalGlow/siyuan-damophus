@@ -8,6 +8,7 @@ export interface NativeReviewToolbarSettings {
   unregister: boolean;
   priority: boolean;
   workbench: boolean;
+  renderer: boolean;
 }
 
 export interface NativePriorityControlOptions {
@@ -19,6 +20,8 @@ export interface NativePriorityControlOptions {
   locate: (card: RiffCardRecord) => void | Promise<void>;
   unregister: (card: RiffCardRecord) => Promise<boolean>;
   openWorkbench: () => void;
+  isRendererOverrideEnabled: () => boolean;
+  toggleRendererOverride: () => void | Promise<void>;
 }
 
 const PRIORITIES = [
@@ -108,6 +111,15 @@ export class NativePriorityControls {
       const card = await this.resolveCard(root);
       if (card) this.openPriorityMenu(trigger, card);
     }));
+    if (settings.renderer) {
+      const enabled = this.options.isRendererOverrideEnabled();
+      elements.push(this.createAction(
+        toolbar,
+        enabled ? "iconEye" : "iconEyeoff",
+        enabled ? "关闭按卡片渲染" : "启用按卡片渲染",
+        () => this.options.toggleRendererOverride(),
+      ));
+    }
     if (settings.workbench) elements.push(this.createAction(toolbar, "iconSettings", "打开闪卡工作台", () => this.options.openWorkbench()));
     this.controls.set(toolbar, { root, elements, signature });
   }

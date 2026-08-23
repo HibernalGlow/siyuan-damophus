@@ -29,16 +29,18 @@ describe("native flashcard toolbar", () => {
     const openWorkbench = vi.fn();
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true }),
+      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true }),
       getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
       setPriority: vi.fn(async () => "native" as const),
       locate,
       unregister: vi.fn(async () => false),
       openWorkbench,
+      isRendererOverrideEnabled: () => true,
+      toggleRendererOverride: vi.fn(),
     });
 
     controls.install();
-    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(4));
+    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(5));
     document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconFocus"]')?.click();
     document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconSettings"]')?.click();
 
@@ -53,15 +55,17 @@ describe("native flashcard toolbar", () => {
     let enabled = true;
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled, locate: true, unregister: true, priority: true, workbench: true }),
+      getSettings: () => ({ enabled, locate: true, unregister: true, priority: true, workbench: true, renderer: true }),
       getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
       setPriority: vi.fn(async () => "native" as const),
       locate: vi.fn(),
       unregister: vi.fn(async () => false),
       openWorkbench: vi.fn(),
+      isRendererOverrideEnabled: () => true,
+      toggleRendererOverride: vi.fn(),
     });
     controls.install();
-    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(4));
+    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(5));
 
     enabled = false;
     controls.refresh();

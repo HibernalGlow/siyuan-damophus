@@ -46,6 +46,7 @@ export default class FlashcardPlugin extends SubPluginBase {
         unregister: settings.reviewToolbarUnregister,
         priority: settings.reviewToolbarPriority,
         workbench: settings.reviewToolbarWorkbench,
+        renderer: true,
       };
     },
     getCurrentCard: () => this.currentReviewCard,
@@ -65,6 +66,16 @@ export default class FlashcardPlugin extends SubPluginBase {
     locate: (card) => this.locateCard(card),
     unregister: (card) => this.unregisterCard(card),
     openWorkbench: () => this.openSettings(),
+    isRendererOverrideEnabled: () => this.runtime.getSettings().rendererInterceptionEnabled,
+    toggleRendererOverride: async () => {
+      const settings = this.runtime.getSettings();
+      const enabled = !settings.rendererInterceptionEnabled;
+      await this.runtime.saveSettings({ ...settings, rendererInterceptionEnabled: enabled });
+      if (enabled) this.compat.install();
+      else this.compat.uninstall();
+      this.priorityControls.refresh();
+      showMessage(enabled ? "已启用按卡片 renderer 渲染" : "已关闭按卡片 renderer 渲染", 3000, "info");
+    },
   });
 
   private readonly handleCardRender = (blockId: string): void => {
