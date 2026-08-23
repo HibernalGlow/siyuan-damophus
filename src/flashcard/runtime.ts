@@ -73,6 +73,7 @@ function mergeSettings(value: unknown): FlashcardSettings {
     reviewToolbarSkipBetween: input.reviewToolbarSkipBetween !== false,
     reviewToolbarShowExitFocus: input.reviewToolbarShowExitFocus === true,
     reviewToolbarShowBrand: input.reviewToolbarShowBrand !== false,
+    showBreadcrumbReviewButton: input.showBreadcrumbReviewButton !== false,
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],
       ...group,

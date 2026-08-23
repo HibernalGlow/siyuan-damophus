@@ -299,6 +299,9 @@
       <button class="b3-button" on:click={updateGlobal} disabled={saving}>保存并应用自动化</button>
     </section>
     <section class="tool-settings">
+      <h3>文档入口</h3>
+      <label class="check"><input type="checkbox" bind:checked={config.showBreadcrumbReviewButton} on:change={saveGlobalOnChange} /> 显示面包屑闪卡按钮</label>
+      <p class="settings-hint">在编辑器面包屑中显示“复习当前文档闪卡”按钮；关闭后立即隐藏。</p>
       <h3>卡片渲染</h3>
       <label class="check"><input type="checkbox" bind:checked={config.rendererInterceptionEnabled} on:change={saveGlobalOnChange} /> 按卡片 renderer 直接覆盖原生隐藏规则</label>
       <p class="settings-hint">关闭后不修改卡片显示，完全使用思源的全局闪卡设置。</p>

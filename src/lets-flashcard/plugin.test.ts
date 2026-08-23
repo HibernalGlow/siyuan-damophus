@@ -211,6 +211,7 @@ describe("flashcard plugin metadata", () => {
     const reviewFromEditor = vi.fn();
     const instance = {
       breadcrumbButtonRegistered: false,
+      runtime: { getSettings: () => ({ showBreadcrumbReviewButton: true }) },
       t: (key: string) => key === "lets-flashcard.reviewCurrentDocument" ? "复习当前文档闪卡" : key,
       reviewFromEditor,
     } as any;
@@ -237,6 +238,25 @@ describe("flashcard plugin metadata", () => {
       (FlashcardPlugin.prototype as any).syncBreadcrumbButton.call(instance);
       expect(removeBreadcrumbButton).toHaveBeenCalledWith("damophus-flashcard");
       expect(addBreadcrumbButton).toHaveBeenCalledTimes(2);
+    } finally {
+      setPlugin(previousPlugin as never);
+    }
+  });
+
+  it("removes the breadcrumb button when its setting is disabled", () => {
+    const previousPlugin = plugin;
+    const removeBreadcrumbButton = vi.fn();
+    const instance = {
+      breadcrumbButtonRegistered: true,
+      runtime: { getSettings: () => ({ showBreadcrumbReviewButton: false }) },
+      t: (key: string) => key,
+    } as any;
+
+    setPlugin({ removeBreadcrumbButton } as never);
+    try {
+      (FlashcardPlugin.prototype as any).syncBreadcrumbButton.call(instance);
+      expect(removeBreadcrumbButton).toHaveBeenCalledWith("damophus-flashcard");
+      expect(instance.breadcrumbButtonRegistered).toBe(false);
     } finally {
       setPlugin(previousPlugin as never);
     }

@@ -142,6 +142,7 @@ export interface FlashcardSettings {
   reviewToolbarSkipBetween: boolean;
   reviewToolbarShowExitFocus: boolean;
   reviewToolbarShowBrand: boolean;
+  showBreadcrumbReviewButton: boolean;
 }
 
 export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
@@ -176,6 +177,7 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   reviewToolbarSkipBetween: true,
   reviewToolbarShowExitFocus: false,
   reviewToolbarShowBrand: true,
+  showBreadcrumbReviewButton: true,
   categories: [{ id: "default", name: "默认分组" }],
   groups: [
     {

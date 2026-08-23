@@ -11,6 +11,16 @@ function todayCard(id: string, extra: Record<string, unknown> = {}) {
 describe("flashcard runtime SFP parity", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("defaults the document breadcrumb review button to enabled and preserves an explicit off state", () => {
+    const disabled = new FlashcardRuntime(
+      (key) => key === "config" ? { showBreadcrumbReviewButton: false } : undefined,
+      vi.fn(),
+    );
+    expect(disabled.getSettings().showBreadcrumbReviewButton).toBe(false);
+    const enabled = new FlashcardRuntime(() => ({}), vi.fn());
+    expect(enabled.getSettings().showBreadcrumbReviewButton).toBe(true);
+  });
+
   it("normalizes configurable review statistics for legacy settings", () => {
     const runtime = new FlashcardRuntime((key) => key === "config" ? {
       reviewStats: {

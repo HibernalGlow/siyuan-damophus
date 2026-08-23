@@ -232,6 +232,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.entry?.setSurfaces(this.configuredSettingsEntrySurfaces());
     this.reviewCounter.refresh();
     this.priorityControls.refresh();
+    this.syncBreadcrumbButton();
   }
 
   private syncBreadcrumbButton(): void {
@@ -244,6 +245,13 @@ export default class FlashcardPlugin extends SubPluginBase {
       }) => string;
       removeBreadcrumbButton?: (id: string) => void;
     };
+    if (this.runtime.getSettings().showBreadcrumbReviewButton === false) {
+      if (this.breadcrumbButtonRegistered) {
+        api.removeBreadcrumbButton?.(BREADCRUMB_BUTTON_ID);
+        this.breadcrumbButtonRegistered = false;
+      }
+      return;
+    }
     if (typeof api.addBreadcrumbButton !== "function") {
       log.warn("breadcrumb-api-unavailable");
       return;
@@ -719,6 +727,7 @@ export default class FlashcardPlugin extends SubPluginBase {
           } else {
             this.compat.uninstall();
           }
+          this.syncBreadcrumbButton();
         },
       },
     });
