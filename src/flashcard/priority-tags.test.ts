@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { priorityTag, replacePriorityTag } from "./priority-tags";
+import { priorityTag, readPriorityTags, replacePriorityTag } from "./priority-tags";
 
 describe("portable flashcard priority tags", () => {
   it("maps runtime priorities to P1-P4", () => {
@@ -16,5 +16,24 @@ describe("portable flashcard priority tags", () => {
     expect(result).not.toContain("P4");
     expect(result).toContain("#闪卡/优先级/P1#");
     expect(result).toContain("两个空格保留  ");
+  });
+
+  it("treats repeated shallow tags as one priority and nested tags as child scope", () => {
+    const result = readPriorityTags("- 问题 #闪卡/优先级/P1#\n    - 子卡 #闪卡/优先级/P4#\n#闪卡/优先级/P1#");
+    expect(result).toEqual({ tags: ["P1"], conflict: false });
+  });
+
+  it("reports conflicting priority tags at the same scope", () => {
+    expect(readPriorityTags("- 问题 #闪卡/优先级/P1# #闪卡/优先级/P3#")).toEqual({
+      tags: ["P1", "P3"],
+      conflict: true,
+    });
+  });
+
+  it("updates only the shallowest priority scope", () => {
+    const source = "- 问题 #闪卡/优先级/P1#\n    - 子卡 #闪卡/优先级/P4#";
+    const result = replacePriorityTag(source, 75);
+    expect(result).toContain("- 问题 #闪卡/优先级/P2#");
+    expect(result).toContain("子卡 #闪卡/优先级/P4#");
   });
 });

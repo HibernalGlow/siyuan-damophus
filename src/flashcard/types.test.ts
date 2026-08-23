@@ -33,6 +33,14 @@ describe("flashcard core", () => {
     expect(cardRenderer({ "custom-dm-card-renderer": "other" })).toBe("unknown");
   });
 
+  it("exposes same-scope priority conflicts for registration preview", () => {
+    expect(toFlashcardRoot({
+      id: "20260823000005-fffffff",
+      type: "l",
+      content: "问题 #闪卡/优先级/P1# #闪卡/优先级/P3#",
+    })).toMatchObject({ priorityConflict: true });
+  });
+
   it("resolves child SQL hits to the nearest explicit card root and deduplicates", () => {
     const child = { id: "20260823000001-bbbbbbb", parent_id: "20260823000002-ccccccc", type: "p" };
     const list = { id: "20260823000002-ccccccc", parent_id: "20260823000003-ddddddd", type: "l", ial: '{: custom-riff-decks="deck" custom-dm-card-renderer="list"}' };

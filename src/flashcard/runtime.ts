@@ -42,7 +42,6 @@ function mergeSettings(value: unknown): FlashcardSettings {
       id: String(category.id ?? crypto.randomUUID()),
       name: String(category.name ?? "新分类"),
     })),
-    scanInterval: Math.max(1, Number(input.scanInterval ?? 15)),
   };
 }
 

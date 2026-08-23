@@ -5,6 +5,7 @@ import { priorityTag } from "./priority-tags";
 export interface NativePriorityControlOptions {
   documentRef: Document;
   getCurrentCard: () => RiffCardRecord | undefined;
+  resolveCard?: (blockId: string) => Promise<RiffCardRecord | undefined>;
   setPriority: (card: RiffCardRecord, priority: number) => Promise<"native" | "pending">;
 }
 
@@ -18,7 +19,7 @@ const PRIORITIES = [
 /** Adds a small menu to the native card toolbar without replacing siyuan-card. */
 export class NativePriorityControls {
   private observer?: MutationObserver;
-  private readonly controls = new Map<HTMLSelectElement, () => void>();
+  private readonly controls = new Map<HTMLSelectElement, { root: HTMLElement; handler: () => void }>();
 
   constructor(private readonly options: NativePriorityControlOptions) {}
 
@@ -31,8 +32,8 @@ export class NativePriorityControls {
   }
 
   refresh(): void {
-    const enabled = Boolean(this.options.getCurrentCard());
-    for (const control of this.controls.keys()) {
+    for (const [control, entry] of this.controls) {
+      const enabled = Boolean(this.options.getCurrentCard() || this.blockIdForRoot(entry.root));
       control.disabled = !enabled;
       control.setAttribute("aria-disabled", String(!enabled));
     }
@@ -41,8 +42,8 @@ export class NativePriorityControls {
   uninstall(): void {
     this.observer?.disconnect();
     this.observer = undefined;
-    for (const [control, handler] of this.controls) {
-      control.removeEventListener("change", handler);
+    for (const [control, entry] of this.controls) {
+      control.removeEventListener("change", entry.handler);
       control.remove();
     }
     this.controls.clear();
@@ -76,11 +77,18 @@ export class NativePriorityControls {
       control.append(item);
     }
     const handler = () => {
-      const card = this.options.getCurrentCard();
       const value = Number(control.value);
       control.value = "";
-      if (!card || !Number.isFinite(value)) return;
-      void this.options.setPriority(card, value).then((status) => {
+      if (!Number.isFinite(value)) return;
+      const blockId = this.blockIdForRoot(root);
+      const cardPromise = (blockId && this.options.resolveCard)
+        ? this.options.resolveCard(blockId)
+        : Promise.resolve(this.options.getCurrentCard());
+      void cardPromise.then((card) => {
+        if (!card) return;
+        return this.options.setPriority(card, value);
+      }).then((status) => {
+        if (!status) return;
         showMessage(
           status === "pending"
             ? `当前卡片已写入 ${priorityTag(value)} 标签，运行时优先级待同步`
@@ -88,11 +96,19 @@ export class NativePriorityControls {
           4000,
           status === "pending" ? "error" : "info",
         );
+      }).catch(() => {
+        showMessage("无法读取当前闪卡的 Riff 状态", 4000, "error");
       });
     };
     control.addEventListener("change", handler);
     toolbar.append(control);
-    this.controls.set(control, handler);
+    this.controls.set(control, { root, handler });
+  }
+
+  private blockIdForRoot(root: HTMLElement): string | undefined {
+    const node = root.querySelector<HTMLElement>("[data-node-id]");
+    const blockId = node?.dataset.nodeId;
+    return blockId && /^\d{14}-[a-z0-9]{7}$/u.test(blockId) ? blockId : undefined;
   }
 }
 

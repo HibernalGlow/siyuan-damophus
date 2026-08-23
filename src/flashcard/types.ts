@@ -1,3 +1,5 @@
+import { readPriorityTags } from "./priority-tags";
+
 export const FLASHCARD_RENDERERS = [
   "mark",
   "list",
@@ -41,6 +43,8 @@ export interface FlashcardRoot {
   cardId?: string;
   content?: string;
   attributes: FlashcardAttributes;
+  priority?: "P1" | "P2" | "P3" | "P4";
+  priorityConflict?: boolean;
 }
 
 export interface FlashcardGroup {
@@ -169,6 +173,7 @@ export function toFlashcardRoot(row: FlashcardBlockRow): FlashcardRoot | undefin
   const kind = declaredKind !== "unknown"
     ? declaredKind
     : renderer === "mark" ? "cloze" : renderer === "unknown" ? "unknown" : "basic";
+  const priorityInfo = readPriorityTags(normalized.content ?? "");
   return {
     blockId: normalized.id,
     renderer,
@@ -176,6 +181,8 @@ export function toFlashcardRoot(row: FlashcardBlockRow): FlashcardRoot | undefin
     cardId: normalized.attributes?.["custom-dm-card-id"],
     content: normalized.content,
     attributes: normalized.attributes ?? {},
+    priority: priorityInfo.tags[0],
+    priorityConflict: priorityInfo.conflict,
   };
 }
 

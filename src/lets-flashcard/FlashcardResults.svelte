@@ -39,7 +39,7 @@
         <span>{row.content || row.type || "block"}</span>
         {#if rootIds.has(row.id)}
           {@const root = rootById.get(row.id)}
-          <b>{root?.renderer ?? "unknown"} · {root?.kind ?? "unknown"}</b>
+          <b>{root?.renderer ?? "unknown"} · {root?.kind ?? "unknown"}{root?.priorityConflict ? " · 优先级冲突" : root?.priority ? ` · ${root.priority}` : ""}</b>
         {/if}
       </div>
     {/each}

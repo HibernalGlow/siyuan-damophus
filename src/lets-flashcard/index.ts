@@ -38,6 +38,13 @@ export default class FlashcardPlugin extends SubPluginBase {
   private readonly priorityControls = new NativePriorityControls({
     documentRef: document,
     getCurrentCard: () => this.currentReviewCard,
+    resolveCard: async (blockId) => {
+      const cached = this.reviewCards.get(blockId);
+      if (cached) return cached;
+      const card = (await this.runtime.adapter.getCardsByBlockIds([blockId]))[0];
+      if (card) this.reviewCards.set(blockId, card);
+      return card;
+    },
     setPriority: (card, priority) => this.runtime.adapter.setPriority([card], priority),
   });
 
@@ -388,6 +395,11 @@ export default class FlashcardPlugin extends SubPluginBase {
           },
           onRegister: async () => {
             const ids = roots.map((root) => root.blockId);
+            const conflicts = roots.filter((root) => root.priorityConflict);
+            if (conflicts.length > 0) {
+              showMessage(`有 ${conflicts.length} 张卡存在同层互相冲突的优先级标签，请先整理为一个 P1-P4 标签后再制卡`, 7000, "error");
+              return;
+            }
             const approved = await new Promise<boolean>((resolve) => {
               confirm(
                 "登记闪卡",
