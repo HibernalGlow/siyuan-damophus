@@ -1,9 +1,9 @@
-import { Dialog, Menu, confirm, openTab, showMessage } from "siyuan";
+import { Dialog, Menu, confirm, openTab, showMessage, type IEventBusMap } from "siyuan";
 import { mount, unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { getLogger } from "@/libs/logger";
-import { plugin } from "@/utils";
+import { isMobile, plugin } from "@/utils";
 import FlashcardSettings from "./FlashcardSettings.svelte";
 import FlashcardResults from "./FlashcardResults.svelte";
 import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
@@ -12,6 +12,8 @@ import { openDocumentFlow } from "@/flashcard/document-flow";
 import type { FlashcardGroup } from "@/flashcard/types";
 import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 import { priorityTag } from "@/flashcard/priority-tags";
+import { NativePriorityControls } from "@/flashcard/native-priority-controls";
+import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -27,9 +29,33 @@ export default class FlashcardPlugin extends SubPluginBase {
     (key, value) => this.setSetting(key, value),
   );
   private entry?: UnifiedEntryPoint;
+  private reviewEntry?: UnifiedEntryPoint;
   private tabRegistered = false;
   private readonly mounted = new Map<HTMLElement, ReturnType<typeof mount>>();
   private reviewScope?: { group: FlashcardGroup; ids: Set<string> };
+  private readonly reviewCards = new Map<string, RiffCardRecord>();
+  private currentReviewCard?: RiffCardRecord;
+  private readonly priorityControls = new NativePriorityControls({
+    documentRef: document,
+    getCurrentCard: () => this.currentReviewCard,
+    setPriority: (card, priority) => this.runtime.adapter.setPriority([card], priority),
+  });
+
+  private readonly handleCardRender = (blockId: string): void => {
+    const card = this.reviewCards.get(blockId);
+    if (!card) return;
+    this.currentReviewCard = card;
+    this.priorityControls.refresh();
+  };
+
+  private readonly handleFlashcardAction = (
+    event: CustomEvent<IEventBusMap["click-flashcard-action"]>,
+  ): void => {
+    const card = event.detail?.card as unknown as RiffCardRecord | undefined;
+    if (!card?.blockID) return;
+    this.reviewCards.set(card.blockID, card);
+    this.priorityControls.refresh();
+  };
 
   override registerModels(): void {
     if (this.tabRegistered) return;
@@ -52,6 +78,9 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onload(): void {
+    this.compat.onCardRender = this.handleCardRender;
+    plugin.eventBus.on("click-flashcard-action", this.handleFlashcardAction);
+    this.priorityControls.install();
     this.runtime.load();
     if (this.getSetting("rendererInterceptionEnabled") !== false) {
       const status = this.compat.install();
@@ -65,21 +94,109 @@ export default class FlashcardPlugin extends SubPluginBase {
       execute: () => this.openSettings(),
       command: { langKey: "lets-flashcard.open" },
     }, plugin);
-    this.entry.setSurfaces({ menu: false, dock: false, command: true });
+    this.entry.registerCommand();
+    this.entry.setSurfaces(this.configuredSettingsEntrySurfaces());
     this.entry.setEnabled(true);
+
+    this.reviewEntry ??= new UnifiedEntryPoint({
+      id: "flashcard.review",
+      title: this.t("lets-flashcard.reviewAll"),
+      icon: "iconRiffCard",
+      execute: () => this.reviewAllFromSettings(),
+      dock: {
+        config: {
+          position: "LeftTop",
+          size: { width: 420, height: 0 },
+          icon: "iconRiffCard",
+          title: this.t("lets-flashcard.displayName"),
+          show: false,
+        },
+        data: {},
+        type: "damophus-flashcard-dock",
+        activation: "action",
+        init: (target) => {
+          if (!isMobile) return;
+          target.replaceChildren();
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "b3-button b3-button--outline";
+          button.textContent = this.t("lets-flashcard.reviewAll");
+          button.addEventListener("click", this.handleDockLauncherClick);
+          target.append(button);
+        },
+        destroy: (target) => {
+          target.querySelector("button")?.removeEventListener("click", this.handleDockLauncherClick);
+          target.replaceChildren();
+        },
+      },
+    }, plugin);
+    this.reviewEntry.registerDock();
+    this.reviewEntry.setSurfaces({ dock: this.isEntryEnabled("dock") });
+    this.reviewEntry.setEnabled(true);
+  }
+
+  private readonly handleDockLauncherClick = (): void => {
+    this.reviewAllFromSettings();
+  }
+
+  private configuredSettingsEntrySurfaces() {
+    const tab = this.isEntryEnabled("tab");
+    return {
+      menu: tab && this.isEntryEnabled("menu"),
+      command: tab && this.isEntryEnabled("command"),
+      dock: false,
+    };
   }
 
   onDataChanged(): void {
     this.runtime.stopAutomation();
     this.runtime.startAutomation();
+    this.entry?.setSurfaces(this.configuredSettingsEntrySurfaces());
+    this.reviewEntry?.setSurfaces({ dock: this.isEntryEnabled("dock") });
+  }
+
+  /** Shared settings surface used by the central DAMO settings page. */
+  getSettingsRuntime(): FlashcardRuntime {
+    return this.runtime;
+  }
+
+  reviewAllFromSettings(): void {
+    void this.reviewAll();
+  }
+
+  reviewGroupFromSettings(group: FlashcardGroup): void {
+    void this.reviewGroup(group);
+  }
+
+  viewResultsFromSettings(group: FlashcardGroup, filtered: boolean): void {
+    void this.viewResults(group, filtered);
+  }
+
+  openRawFromSettings(group: FlashcardGroup): void {
+    this.openRawFlow(group);
+  }
+
+  openFilteredFromSettings(group: FlashcardGroup): void {
+    void this.openFilteredFlow(group);
+  }
+
+  batchPriorityFromSettings(group: FlashcardGroup): void {
+    void this.batchPriority(group);
+  }
+
+  importSfpFromSettings(): void {
+    void this.importSfpConfig();
   }
 
   async updateCards(cardsData: {
-    cards: Array<{ blockID: string; state?: number }>;
+    cards: RiffCardRecord[];
     unreviewedCount: number;
     unreviewedNewCardCount: number;
     unreviewedOldCardCount: number;
   }): Promise<typeof cardsData> {
+    for (const card of cardsData.cards ?? []) {
+      if (card?.blockID) this.reviewCards.set(card.blockID, card);
+    }
     const scope = this.reviewScope;
     if (!scope || !Array.isArray(cardsData?.cards)) return cardsData;
     // Native Siyuan invokes updateCards again after a review round. The next
@@ -113,20 +230,31 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onunload(): void {
+    plugin.eventBus.off("click-flashcard-action", this.handleFlashcardAction);
+    this.priorityControls.uninstall();
+    this.compat.onCardRender = undefined;
     this.entry?.setEnabled(false);
+    this.reviewEntry?.setEnabled(false);
+    this.reviewEntry?.destroyDockContent();
+    this.entry?.destroyDockContent();
     this.runtime.stopAutomation();
     this.compat.uninstall();
     this.reviewScope = undefined;
+    this.currentReviewCard = undefined;
+    this.reviewCards.clear();
     for (const app of this.mounted.values()) void unmount(app);
     this.mounted.clear();
   }
 
   addMenuItem(menu: Menu): void {
-    menu.addItem({
-      icon: "iconRiffCard",
-      label: this.t("lets-flashcard.openSettings"),
-      click: () => this.openSettings(),
-    });
+    if (!this.isEntryEnabled("menu") || (!this.isEntryEnabled("tab") && !this.isEntryEnabled("dock"))) return;
+    if (this.isEntryEnabled("tab")) {
+      menu.addItem({
+        icon: "iconRiffCard",
+        label: this.t("lets-flashcard.openSettings"),
+        click: () => this.openSettings(),
+      });
+    }
     menu.addItem({
       icon: "iconRiffCard",
       label: this.t("lets-flashcard.reviewAll"),
@@ -301,7 +429,10 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private async openNativeReview(title: string, due: { cards: Array<{ blockID: string }>; unreviewedCount: number; unreviewedNewCardCount: number; unreviewedOldCardCount: number }, group?: FlashcardGroup): Promise<void> {
+  private async openNativeReview(title: string, due: DueCardsData, group?: FlashcardGroup): Promise<void> {
+    for (const card of due.cards) this.reviewCards.set(card.blockID, card);
+    this.currentReviewCard = due.cards[0];
+    this.priorityControls.refresh();
     const roots = await this.runtime.adapter.inspectRoots(due.cards.map((card) => card.blockID), this.runtime.getSettings());
     this.compat.preloadMany(roots as Array<{ blockId: string; renderer: any }>);
     this.reviewScope = group ? { group, ids: new Set(due.cards.map((card) => card.blockID)) } : undefined;

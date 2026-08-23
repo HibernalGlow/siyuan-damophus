@@ -13,15 +13,10 @@ const pluginMetadata: PluginMetadata = {
     ...createEntrySettings({
       menu: true,
       command: true,
+      desktopDock: true,
+      mobileDock: true,
       tab: true,
     }, { central: true }),
-    {
-      type: "button",
-      title: "lets-flashcard.openSettings",
-      description: "lets-flashcard.openSettingsDescription",
-      key: "openSettingsButton",
-      value: "lets-flashcard.openSettings",
-    },
   ],
 };
 

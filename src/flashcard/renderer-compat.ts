@@ -23,11 +23,13 @@ const rendererFlags: Record<FlashcardRenderer, string> = {
 };
 
 export class FlashcardRendererCompat {
-  private readonly rendererByBlockId = new Map<string, FlashcardRenderer>();
+  private readonly rendererByBlockId = new Map<string, FlashcardRenderer | "unknown">();
   private originalConfigDescriptor?: PropertyDescriptor;
   private originalFetch?: typeof window.fetch;
   private installed = false;
   private pendingBlockId?: string;
+
+  onCardRender?: (blockId: string) => void;
 
   preload(blockId: string, renderer: FlashcardRenderer): void {
     this.rendererByBlockId.set(blockId, renderer);
@@ -35,7 +37,7 @@ export class FlashcardRendererCompat {
 
   preloadMany(entries: readonly { blockId: string; renderer: FlashcardRenderer | "unknown" }[]): void {
     for (const entry of entries) {
-      if (entry.renderer !== "unknown") this.preload(entry.blockId, entry.renderer);
+      this.rendererByBlockId.set(entry.blockId, entry.renderer);
     }
   }
 
@@ -62,11 +64,12 @@ export class FlashcardRendererCompat {
           : currentValue as FlashcardConfig;
         const pendingBlockId = owner.pendingBlockId;
         const renderer = owner.rendererByBlockId.get(pendingBlockId ?? "");
+        if (pendingBlockId && renderer !== undefined) owner.onCardRender?.(pendingBlockId);
         // The request identifies the card about to render. Consume it on the
         // first config read so a later native read cannot inherit this card's
         // renderer after the card has changed.
         owner.pendingBlockId = undefined;
-        if (!renderer) return original;
+        if (!renderer || renderer === "unknown") return original;
         const next = { ...original };
         for (const key of Object.values(rendererFlags)) {
           if (key in next) next[key] = false;

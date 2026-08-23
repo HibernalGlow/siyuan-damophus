@@ -27,6 +27,7 @@
   import SettingPanel from "./libs/setting-panel.svelte";
   import BlockAttributeSettings from "./lets-block-attr/BlockAttributeSettings.svelte";
   import QuestionBankSettings from "./lets-question-bank/QuestionBankSettings.svelte";
+  import FlashcardSettings from "./lets-flashcard/FlashcardSettings.svelte";
   import LayoutActionsSettings from "./lets-layout-actions/LayoutActionsSettings.svelte";
   import CalloutAppearanceSettings from "./lets-callout-appearance/CalloutAppearanceSettings.svelte";
   import ExpandedPluginMenuSettings from "./lets-expanded-plugin-menu/ExpandedPluginMenuSettings.svelte";
@@ -57,6 +58,7 @@
   const GENERAL_GROUP = "设置";
   const BLOCK_ATTRIBUTE_PLUGIN = "quickAttr";
   const QUESTION_BANK_PLUGIN = "questionBank";
+  const FLASHCARD_PLUGIN = "flashcard";
   const COMPACT_LAYOUT_MAX_WIDTH = 720;
   const LAYOUT_ACTIONS_PLUGIN = "layoutActions";
   const CALLOUT_APPEARANCE_PLUGIN = "calloutAppearance";
@@ -198,6 +200,18 @@
   );
   $: showBlockAttributeSettings = focusedPlugin?.name === BLOCK_ATTRIBUTE_PLUGIN;
   $: showQuestionBankSettings = focusedPlugin?.name === QUESTION_BANK_PLUGIN;
+  $: showFlashcardSettings = focusedPlugin?.name === FLASHCARD_PLUGIN;
+  $: flashcardModule = PluginRegistry.getInstance().getPlugin(FLASHCARD_PLUGIN) as {
+    getSettingsRuntime?: () => import("./flashcard/runtime").FlashcardRuntime;
+    reviewAllFromSettings?: () => void;
+    reviewGroupFromSettings?: (group: import("./flashcard/types").FlashcardGroup) => void;
+    viewResultsFromSettings?: (group: import("./flashcard/types").FlashcardGroup, filtered: boolean) => void;
+    openRawFromSettings?: (group: import("./flashcard/types").FlashcardGroup) => void;
+    openFilteredFromSettings?: (group: import("./flashcard/types").FlashcardGroup) => void;
+    batchPriorityFromSettings?: (group: import("./flashcard/types").FlashcardGroup) => void;
+    importSfpFromSettings?: () => void;
+  } | undefined;
+  $: flashcardRuntime = flashcardModule?.getSettingsRuntime?.();
   $: showLayoutActionsSettings = focusedPlugin?.name === LAYOUT_ACTIONS_PLUGIN;
   $: showCalloutAppearanceSettings = focusedPlugin?.name === CALLOUT_APPEARANCE_PLUGIN;
   $: showExpandedPluginMenuSettings = focusedPlugin?.name === EXPANDED_PLUGIN_MENU_PLUGIN;
@@ -507,9 +521,6 @@
     } else if (detail.key === "testBooruConnection") {
       const module = PluginRegistry.getInstance().getPlugin("moreBackground") as { testConnection?: () => Promise<void> } | undefined;
       await module?.testConnection?.();
-    } else if (detail.key === "openSettingsButton") {
-      const module = PluginRegistry.getInstance().getPlugin("flashcard") as { openSettings?: () => void } | undefined;
-      module?.openSettings?.();
     }
   }
 
@@ -738,7 +749,7 @@
       />
     {/if}
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
-      {#if !compactLayout && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
+      {#if !compactLayout && !showQuestionBankSettings && !showFlashcardSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
         <header class="border-b border-border pb-4">
           <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
         </header>
@@ -755,7 +766,7 @@
           on:bulkChanged={onBulkSwitchChanged}
           on:expandedChanged={onSwitchesExpandedChanged}
         />
-      {:else if focusedPlugin && !showQuestionBankSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
+      {:else if focusedPlugin && !showQuestionBankSettings && !showFlashcardSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
         <!--
           Module enable controls are managed from the settings overview.
           Uncomment this panel to restore the enable switch inside plugin details.
@@ -818,6 +829,17 @@
           on:changed={onChanged}
           on:click={onClick}
           on:preview={onPreview}
+        />
+      {:else if showFlashcardSettings && flashcardRuntime}
+        <FlashcardSettings
+          runtime={flashcardRuntime}
+          onReviewGroup={(group) => flashcardModule?.reviewGroupFromSettings?.(group)}
+          onReviewAll={() => flashcardModule?.reviewAllFromSettings?.()}
+          onViewResults={(group, filtered) => flashcardModule?.viewResultsFromSettings?.(group, filtered)}
+          onOpenRaw={(group) => flashcardModule?.openRawFromSettings?.(group)}
+          onOpenFiltered={(group) => flashcardModule?.openFilteredFromSettings?.(group)}
+          onBatchPriority={(group) => flashcardModule?.batchPriorityFromSettings?.(group)}
+          onImportSfp={() => flashcardModule?.importSfpFromSettings?.()}
         />
       {:else if showLayoutActionsSettings}
         <LayoutActionsSettings
@@ -921,7 +943,7 @@
         />
       {/if}
 
-      {#if !showBlockAttributeSettings && !showQuestionBankSettings}
+      {#if !showBlockAttributeSettings && !showQuestionBankSettings && !showFlashcardSettings}
         <div class="flex items-center justify-between gap-3 border-y border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <span class="flex items-center gap-2"><Info class="size-4" />{t("settings.restartWarning", "Some changes require a plugin restart.")}</span>
           <Button variant="ghost" size="sm" onclick={() => location.reload()}>{t("settings.reloadNow", "Reload now")}</Button>
