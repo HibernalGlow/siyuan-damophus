@@ -107,6 +107,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     const card = this.reviewCards.get(blockId);
     if (!card) return;
     this.currentReviewCard = card;
+    this.compat.refresh();
     this.reviewCounter.refresh();
     this.priorityControls.refresh();
   };
@@ -118,6 +119,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!card?.blockID) return;
     this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = card;
+    this.compat.refresh();
     this.reviewCounter.markReviewed(card.cardID, event.detail?.type ?? "");
     this.reviewCounter.refresh();
     this.priorityControls.refresh();
@@ -679,6 +681,9 @@ export default class FlashcardPlugin extends SubPluginBase {
         },
       },
     });
+    for (const delay of [0, 80, 250]) {
+      window.setTimeout(() => this.compat.refresh(), delay);
+    }
   }
 
   private async locateCard(card: RiffCardRecord): Promise<void> {

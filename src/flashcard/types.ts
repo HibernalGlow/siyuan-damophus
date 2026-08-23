@@ -110,6 +110,9 @@ export interface FlashcardSettings {
     list: boolean;
     heading: boolean;
     superBlock: boolean;
+    blockquote: boolean;
+    callout: boolean;
+    tag: boolean;
   };
   randomInterleaveEnabled: boolean;
   reviewToolbarEnabled: boolean;
@@ -129,7 +132,7 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   postponeEnabled: false,
   postponeDays: 2,
   rendererInterceptionEnabled: true,
-  rendererVisibility: { mark: true, list: true, heading: true, superBlock: true },
+  rendererVisibility: { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false },
   randomInterleaveEnabled: false,
   reviewToolbarEnabled: true,
   reviewToolbarLocate: true,

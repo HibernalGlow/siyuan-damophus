@@ -12,7 +12,7 @@ export interface NativeReviewToolbarSettings {
   more: boolean;
 }
 
-export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock";
+export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock" | "blockquote" | "callout" | "tag";
 export type ReviewToolbarKey = "locate" | "unregister" | "priority" | "workbench" | "renderer";
 
 export interface NativePriorityControlOptions {
@@ -151,8 +151,11 @@ export class NativePriorityControls {
     const renderers: Array<[RendererVisibilityKey, string]> = [
       ["mark", "高亮 / 挖空"],
       ["list", "列表答案"],
+      ["blockquote", "引述块答案"],
+      ["callout", "提示块内容"],
       ["heading", "标题后续内容"],
       ["superBlock", "超级块内容"],
+      ["tag", "标签"],
     ];
     menu.addItem({ type: "submenu", label: "隐藏规则", submenu: renderers.map(([key, label]) => ({
       label: `${visibility[key] ? "✓ " : "  "}${label}`,

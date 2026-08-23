@@ -10,6 +10,9 @@ export type RendererVisibility = {
   list: boolean;
   heading: boolean;
   superBlock: boolean;
+  blockquote: boolean;
+  callout: boolean;
+  tag: boolean;
 };
 
 const rendererFlags: Record<FlashcardRenderer, string> = {
@@ -27,12 +30,17 @@ export class FlashcardRendererCompat {
   private installed = false;
   private activeBlockId?: string;
   private domObserver?: MutationObserver;
-  private visibility: RendererVisibility = { mark: true, list: true, heading: true, superBlock: true };
+  private visibility: RendererVisibility = { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false };
+  private styleElement?: HTMLStyleElement;
 
   onCardRender?: (blockId: string) => void;
 
   setVisibility(visibility: RendererVisibility): void {
     this.visibility = { ...this.visibility, ...visibility };
+    this.applyNativeVisibilityFallback();
+  }
+
+  refresh(): void {
     this.applyNativeVisibilityFallback();
   }
 
@@ -67,6 +75,7 @@ export class FlashcardRendererCompat {
       return Reflect.apply(owner.originalFetch!, window, [input, init]);
     };
     if (typeof document !== "undefined" && document.body && typeof MutationObserver !== "undefined") {
+      this.ensureVisibilityStyle();
       this.domObserver = new MutationObserver(() => this.applyNativeVisibilityFallback());
       this.domObserver.observe(document.body, { childList: true, subtree: true });
       this.applyNativeVisibilityFallback();
@@ -81,6 +90,8 @@ export class FlashcardRendererCompat {
     if (this.originalFetch) window.fetch = this.originalFetch;
     this.domObserver?.disconnect();
     this.domObserver = undefined;
+    this.styleElement?.remove();
+    this.styleElement = undefined;
     this.originalFetch = undefined;
     this.activeBlockId = undefined;
     this.rendererByBlockId.clear();
@@ -97,7 +108,9 @@ export class FlashcardRendererCompat {
       '[data-key="dialog-opencard"] .card__block, .card__block',
     );
     for (const block of blocks) {
-      const root = block.querySelector<HTMLElement>('[data-node-id][custom-dm-card-renderer]');
+      const root = block.matches('[data-node-id][custom-dm-card-renderer]')
+        ? block
+        : block.querySelector<HTMLElement>('[data-node-id][custom-dm-card-renderer]');
       if (root?.dataset.nodeId && this.rendererByBlockId.has(root.dataset.nodeId)) {
         this.activeBlockId = root.dataset.nodeId;
         this.onCardRender?.(root.dataset.nodeId);
@@ -121,6 +134,9 @@ export class FlashcardRendererCompat {
       if (this.visibility.list) enabledClasses.add("card__block--hideli");
       if (this.visibility.heading) enabledClasses.add("card__block--hideh");
       if (this.visibility.superBlock) enabledClasses.add("card__block--hidesb");
+      block.classList.toggle("damophus-card--hideblockquote", !answerShown && this.visibility.blockquote);
+      block.classList.toggle("damophus-card--hidecallout", !answerShown && this.visibility.callout);
+      block.classList.toggle("damophus-card--hidetag", !answerShown && this.visibility.tag);
       for (const className of hideClasses) {
         const shouldHave = !answerShown && enabledClasses.has(className);
         if (block.classList.contains(className) !== shouldHave) {
@@ -139,6 +155,25 @@ export class FlashcardRendererCompat {
         "card__block--hideh",
         "card__block--hidesb",
       );
+      block.classList.remove(
+        "damophus-card--hideblockquote",
+        "damophus-card--hidecallout",
+        "damophus-card--hidetag",
+      );
     }
+  }
+
+  private ensureVisibilityStyle(): void {
+    if (this.styleElement || typeof document === "undefined") return;
+    const style = document.createElement("style");
+    style.dataset.damophusFlashcardVisibility = "true";
+    style.textContent = `
+      .damophus-card--hidetag span[data-type~="tag"] { display: none !important; }
+      .damophus-card--hideblockquote .bq > :not(:first-child),
+      .damophus-card--hideblockquote blockquote > :not(:first-child) { display: none !important; }
+      .damophus-card--hidecallout .callout-content { display: none !important; }
+    `;
+    document.head?.append(style);
+    this.styleElement = style;
   }
 }

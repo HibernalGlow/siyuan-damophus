@@ -37,7 +37,7 @@ describe("native flashcard toolbar", () => {
       openWorkbench,
       isRendererOverrideEnabled: () => true,
       toggleRendererOverride: vi.fn(),
-      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true }),
+      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false }),
       toggleRendererVisibility: vi.fn(),
       toggleToolVisibility: vi.fn(),
     });
@@ -66,7 +66,7 @@ describe("native flashcard toolbar", () => {
       openWorkbench: vi.fn(),
       isRendererOverrideEnabled: () => true,
       toggleRendererOverride: vi.fn(),
-      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true }),
+      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false }),
       toggleRendererVisibility: vi.fn(),
       toggleToolVisibility: vi.fn(),
     });
