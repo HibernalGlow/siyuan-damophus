@@ -135,8 +135,12 @@ describe("native review priority counter", () => {
     expect(count.closest(".card__main")?.querySelector('[data-testid="damophus-review-stats"]')).toBeNull();
   });
 
-  it("keeps mobile priority labels in the toolbar and moves details into a separate row", async () => {
+  it("moves the complete mobile counter into a right-aligned second row", async () => {
     const { root, count, toolbar } = mountMobileCounter();
+    Object.defineProperties(toolbar, {
+      clientWidth: { configurable: true, get: () => 385 },
+      scrollWidth: { configurable: true, get: () => 900 },
+    });
     counter = new NativeReviewCounter({ documentRef: document });
     counter.setQueue([{ cardID: "mobile-a", priority: "P1" }]);
     counter.install();
@@ -144,9 +148,12 @@ describe("native review priority counter", () => {
     const row = root.querySelector<HTMLElement>(".damophus-mobile-counter-row");
     expect(row).not.toBeNull();
     expect(row?.previousElementSibling).toBe(toolbar);
-    expect(row?.querySelector(".damophus-counter-details-copy")).not.toBeNull();
-    expect(count.parentElement).toBe(toolbar);
-    expect(toolbar.querySelector('[data-type="count"]')).toBe(count);
+    expect(row?.querySelector<HTMLElement>(".damophus-priority-segment")).not.toBeNull();
+    expect(row?.querySelector<HTMLElement>(".damophus-counter-details-copy")).toBeNull();
+    expect(row?.children).toHaveLength(1);
+    expect(count.parentElement).toBe(row);
+    expect(toolbar.querySelector('[data-type="count"]')).toBeNull();
+    expect(getComputedStyle(row!).justifyContent).toBe("flex-end");
 
     counter.uninstall();
     expect(root.querySelector(".damophus-mobile-counter-row")).toBeNull();

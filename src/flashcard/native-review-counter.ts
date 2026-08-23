@@ -54,6 +54,17 @@ const COUNTER_STYLE = `
   border-bottom: .5px solid var(--b3-theme-background-light);
   overflow: hidden;
 }
+.damophus-mobile-counter-row {
+  justify-content: flex-end;
+  padding-inline: 0;
+}
+.damophus-mobile-counter-row > .damophus-priority-counter {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  justify-content: flex-end;
+}
 .damophus-counter-row > .damophus-priority-counter {
   flex: 1 1 auto;
   width: 100%;
@@ -61,7 +72,7 @@ const COUNTER_STYLE = `
   min-width: 0;
   justify-content: flex-start;
   flex-wrap: nowrap;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   white-space: nowrap;
   gap: 7px;
@@ -122,11 +133,24 @@ const COUNTER_STYLE = `
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   justify-content: flex-start;
   padding: 0 2px;
 }
+.damophus-mobile-counter-row > .damophus-counter-details {
+  padding-inline: 0;
+}
+.damophus-counter-row,
+.damophus-counter-row > .damophus-priority-counter,
+.damophus-counter-row > .damophus-counter-details,
+.damophus-counter-details-copy {
+  scrollbar-width: none;
+}
+.damophus-counter-row::-webkit-scrollbar,
+.damophus-counter-row > .damophus-priority-counter::-webkit-scrollbar,
+.damophus-counter-row > .damophus-counter-details::-webkit-scrollbar,
+.damophus-counter-details-copy::-webkit-scrollbar { display: none; }
 .damophus-priority-chip {
   display: inline-flex;
   align-items: center;
@@ -402,13 +426,20 @@ export class NativeReviewCounter {
       state.inlineRequiredWidth = toolbar.scrollWidth;
     }
     const fullFits = width <= 0 || (state.inlineRequiredWidth ?? toolbar.scrollWidth) <= width + 1;
+    if (isMobile) {
+      details.classList.remove("fn__none");
+      row ??= this.createCounterRow(toolbar);
+      row.querySelector(".damophus-counter-details-copy")?.remove();
+      if (element.parentElement !== row) row.append(element);
+      return;
+    }
     const detailsInRow = isMobile || !fullFits;
     if (detailsInRow) {
       details.classList.add("fn__none");
       if (element.parentElement !== row) {
         state.priorityRequiredWidth = toolbar.scrollWidth;
       }
-      const priorityFits = width <= 0 || (state.priorityRequiredWidth ?? Number.POSITIVE_INFINITY) <= width + 1;
+      const priorityFits = isMobile || width <= 0 || (state.priorityRequiredWidth ?? Number.POSITIVE_INFINITY) <= width + 1;
       if (!priorityFits && !row) {
         row = this.createCounterRow(toolbar);
       } else if (detailsInRow && !row) {
@@ -432,7 +463,9 @@ export class NativeReviewCounter {
 
   private createCounterRow(toolbar: HTMLElement): HTMLElement {
     const row = this.options.documentRef.createElement("div");
-    row.className = "damophus-counter-row damophus-mobile-counter-row";
+    row.className = toolbar.classList.contains("toolbar")
+      ? "damophus-counter-row damophus-mobile-counter-row"
+      : "damophus-counter-row";
     toolbar.insertAdjacentElement("afterend", row);
     return row;
   }
