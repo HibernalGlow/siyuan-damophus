@@ -10,6 +10,7 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
   private listening = false;
   private layoutReady = false;
   private readonly watchedRoots = new Map<HTMLElement, () => void>();
+  private documentCleanup: (() => void) | null = null;
 
   override onload(): void {
     this.relationManager.updateOptions({
@@ -55,6 +56,7 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
 
   private startServices(): void {
     this.relationManager.start();
+    this.documentCleanup = this.coverManager.observeDocument();
     this.rescanAllEditors();
   }
 
@@ -63,6 +65,8 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
       cleanup();
     }
     this.watchedRoots.clear();
+    this.documentCleanup?.();
+    this.documentCleanup = null;
     this.coverManager.clearCache();
     this.relationManager.destroy();
   }

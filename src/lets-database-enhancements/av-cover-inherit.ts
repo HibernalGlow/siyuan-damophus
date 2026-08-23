@@ -110,6 +110,7 @@ export class AvCoverInheritManager {
   private fetchTimer: ReturnType<typeof setTimeout> | null = null;
   private watchedRoots = new Set<HTMLElement>();
   private cachedObjectUrls = new Map<HTMLImageElement, string>();
+  private documentObserver: MutationObserver | null = null;
 
   clearCache(): void {
     this.blockToRootCache.clear();
@@ -117,6 +118,25 @@ export class AvCoverInheritManager {
     this.pendingBlockIds.clear();
     for (const url of this.cachedObjectUrls.values()) URL.revokeObjectURL(url);
     this.cachedObjectUrls.clear();
+  }
+
+  observeDocument(): () => void {
+    if (typeof document === "undefined") return () => undefined;
+    this.documentObserver?.disconnect();
+    this.scanWysiwyg(document);
+    this.documentObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+          this.scanWysiwyg(document);
+          break;
+        }
+      }
+    });
+    this.documentObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    return () => {
+      this.documentObserver?.disconnect();
+      this.documentObserver = null;
+    };
   }
 
   observe(wysiwyg: HTMLElement): () => void {
@@ -168,7 +188,7 @@ export class AvCoverInheritManager {
     };
   }
 
-  scanWysiwyg(wysiwyg: HTMLElement): void {
+  scanWysiwyg(wysiwyg: ParentNode): void {
     const cards = wysiwyg.querySelectorAll<HTMLElement>(
       ".av__gallery-item, .av__card",
     );
@@ -234,7 +254,7 @@ export class AvCoverInheritManager {
         const chunk = ids.slice(i, i + chunkSize);
         const quotedIds = chunk.map((id) => `'${id.replace(/'/g, "")}'`).join(",");
         const querySql = `
-          SELECT b.id as id, b.root_id as root_id, r.ial as root_ial
+          SELECT b.id as id, b.root_id as root_id, b.ial as block_ial, r.ial as root_ial
           FROM blocks b
           JOIN blocks r ON b.root_id = r.id
           WHERE b.id IN (${quotedIds})
@@ -242,6 +262,7 @@ export class AvCoverInheritManager {
         const rows = (await sql(querySql)) as Array<{
           id: string;
           root_id: string;
+          block_ial: string;
           root_ial: string;
         }>;
 
@@ -251,7 +272,9 @@ export class AvCoverInheritManager {
             if (!this.rootToTitleImgCache.has(row.root_id)) {
               const parsed = parseDocTitleImg(row.root_ial);
               const cachePath = row.root_ial?.match(/\bcustom-damophus-cover-cache-path="([^"]+)"/)?.[1] || null;
-              this.rootToTitleImgCache.set(row.root_id, parsed ? { titleImg: parsed, cachePath } : null);
+              const blockParsed = parseDocTitleImg(row.block_ial);
+              const blockCachePath = row.block_ial?.match(/\bcustom-damophus-cover-cache-path="([^"]+)"/)?.[1] || null;
+              this.rootToTitleImgCache.set(row.root_id, parsed ? { titleImg: parsed, cachePath } : blockParsed ? { titleImg: blockParsed, cachePath: blockCachePath } : null);
             }
           }
         }
@@ -272,6 +295,9 @@ export class AvCoverInheritManager {
             }
           }
         });
+      }
+      if (this.documentObserver) {
+        this.scanWysiwyg(document);
       }
     } catch (e) {
       log.warn("Failed to fetch database inherited covers:", e);
@@ -306,8 +332,9 @@ export class AvCoverInheritManager {
       `img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
     );
     const source = extractTitleImgSource(cover.titleImg);
-    const nativeSource = nativeGalleryImg?.getAttribute("src") || "";
-    if (nativeGalleryImg && source && /^https?:\/\//i.test(nativeSource) && nativeSource === source && cover.cachePath) {
+    const nativeSource = nativeGalleryImg?.getAttribute("src") || coverContainer.getAttribute("data-cover-url") || "";
+    const normalizeSource = (value: string) => value.replace(/&amp;/g, "&").trim();
+    if (nativeGalleryImg && source && /^https?:\/\//i.test(nativeSource) && normalizeSource(nativeSource) === normalizeSource(source) && cover.cachePath) {
       const objectUrl = await readCachedObjectUrl(cover.cachePath);
       if (!objectUrl) return;
       const original = nativeGalleryImg.getAttribute("data-damophus-original-cover-src");

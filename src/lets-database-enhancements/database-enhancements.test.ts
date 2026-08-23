@@ -102,6 +102,11 @@ describe("Database Enhancements: Card Cover Inherit", () => {
     expect(classList.has("fn__none")).toBe(false);
     expect(coverEl.innerHTML).toContain("assets/cover.png");
   });
+
+  it("can observe database cards outside an editor root", () => {
+    const manager = new AvCoverInheritManager();
+    expect(typeof manager.observeDocument()).toBe("function");
+  });
 });
 
 describe("Database Enhancements: Smart Relation Relevance Ranking", () => {
