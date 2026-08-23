@@ -406,7 +406,15 @@ export default class FlashcardPlugin extends SubPluginBase {
         onLocateCard: (card: RiffCardRecord) => void this.locateCard(card),
         onUnregisterCard: (card: RiffCardRecord) => void this.unregisterCard(card),
         onSetCardPriority: (card: RiffCardRecord, priority: number) => void this.runtime.adapter.setPriority([card], priority),
-        onSettingsChanged: () => this.priorityControls.refresh(),
+        onSettingsChanged: () => {
+          this.priorityControls.refresh();
+          if (this.runtime.getSettings().rendererInterceptionEnabled) {
+            const status = this.compat.install();
+            if (!status.installed) log.warn("renderer-compat-unavailable", status.reason);
+          } else {
+            this.compat.uninstall();
+          }
+        },
       },
     });
   }
