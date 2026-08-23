@@ -38,11 +38,16 @@ export default class FlashcardPlugin extends SubPluginBase {
   private readonly priorityControls = new NativePriorityControls({
     documentRef: document,
     getCurrentCard: () => this.currentReviewCard,
-    resolveCard: async (blockId) => {
+    resolveCard: async (blockId, root) => {
       const cached = this.reviewCards.get(blockId);
       if (cached) return cached;
-      const card = (await this.runtime.adapter.getCardsByBlockIds([blockId]))[0];
-      if (card) this.reviewCards.set(blockId, card);
+      const ids = [
+        blockId,
+        ...(root ? [...root.querySelectorAll<HTMLElement>("[data-node-id]")].map((node) => node.dataset.nodeId ?? "") : []),
+      ].filter(Boolean);
+      const cards = await this.runtime.adapter.getCardsByBlockIds(ids);
+      const card = cards.find((candidate) => ids.includes(candidate.blockID));
+      if (card) this.reviewCards.set(card.blockID, card);
       return card;
     },
     setPriority: (card, priority) => this.runtime.adapter.setPriority([card], priority),

@@ -5,7 +5,7 @@ import { priorityTag } from "./priority-tags";
 export interface NativePriorityControlOptions {
   documentRef: Document;
   getCurrentCard: () => RiffCardRecord | undefined;
-  resolveCard?: (blockId: string) => Promise<RiffCardRecord | undefined>;
+  resolveCard?: (blockId: string, root?: HTMLElement) => Promise<RiffCardRecord | undefined>;
   setPriority: (card: RiffCardRecord, priority: number) => Promise<"native" | "pending">;
 }
 
@@ -83,7 +83,7 @@ export class NativePriorityControls {
       control.disabled = true;
       const blockId = this.blockIdForRoot(root);
       const cardPromise = ((blockId && this.options.resolveCard)
-        ? this.options.resolveCard(blockId)
+        ? this.options.resolveCard(blockId, root)
         : Promise.resolve(this.options.getCurrentCard()))
         .catch(() => this.options.getCurrentCard());
       void cardPromise.then((card) => {
