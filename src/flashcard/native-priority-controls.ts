@@ -9,7 +9,11 @@ export interface NativeReviewToolbarSettings {
   priority: boolean;
   workbench: boolean;
   renderer: boolean;
+  more: boolean;
 }
+
+export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock";
+export type ReviewToolbarKey = "locate" | "unregister" | "priority" | "workbench" | "renderer";
 
 export interface NativePriorityControlOptions {
   documentRef: Document;
@@ -22,6 +26,9 @@ export interface NativePriorityControlOptions {
   openWorkbench: () => void;
   isRendererOverrideEnabled: () => boolean;
   toggleRendererOverride: () => void | Promise<void>;
+  getRendererVisibility: () => Record<RendererVisibilityKey, boolean>;
+  toggleRendererVisibility: (key: RendererVisibilityKey) => void | Promise<void>;
+  toggleToolVisibility: (key: ReviewToolbarKey) => void | Promise<void>;
 }
 
 const PRIORITIES = [
@@ -120,8 +127,39 @@ export class NativePriorityControls {
         () => this.options.toggleRendererOverride(),
       ));
     }
+    if (settings.more) elements.push(this.createAction(toolbar, "iconMore", "闪卡工具与显示设置", (trigger) => {
+      this.openMoreMenu(trigger);
+    }));
     if (settings.workbench) elements.push(this.createAction(toolbar, "iconSettings", "打开闪卡工作台", () => this.options.openWorkbench()));
     this.controls.set(toolbar, { root, elements, signature });
+  }
+
+  private openMoreMenu(trigger: HTMLElement): void {
+    const menu = new Menu("damophus-flashcard-more-menu");
+    const tools: Array<[ReviewToolbarKey, string]> = [
+      ["locate", "定位原块"],
+      ["unregister", "取消登记"],
+      ["priority", "优先级"],
+      ["renderer", "按卡片 renderer"],
+      ["workbench", "打开工作台"],
+    ];
+    menu.addItem({ type: "submenu", label: "工具栏按钮", submenu: tools.map(([key, label]) => ({
+      label,
+      click: () => void this.options.toggleToolVisibility(key),
+    })) });
+    const visibility = this.options.getRendererVisibility();
+    const renderers: Array<[RendererVisibilityKey, string]> = [
+      ["mark", "高亮 / 挖空"],
+      ["list", "列表答案"],
+      ["heading", "标题后续内容"],
+      ["superBlock", "超级块内容"],
+    ];
+    menu.addItem({ type: "submenu", label: "隐藏规则", submenu: renderers.map(([key, label]) => ({
+      label: `${visibility[key] ? "✓ " : "  "}${label}`,
+      click: () => void this.options.toggleRendererVisibility(key),
+    })) });
+    const rect = trigger.getBoundingClientRect();
+    menu.open({ x: rect.left, y: rect.bottom, isLeft: false });
   }
 
   private createAction(

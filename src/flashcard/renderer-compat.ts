@@ -5,6 +5,13 @@ export interface RendererCompatStatus {
   reason?: string;
 }
 
+export type RendererVisibility = {
+  mark: boolean;
+  list: boolean;
+  heading: boolean;
+  superBlock: boolean;
+};
+
 const rendererFlags: Record<FlashcardRenderer, string> = {
   mark: "mark",
   list: "list",
@@ -20,8 +27,14 @@ export class FlashcardRendererCompat {
   private installed = false;
   private activeBlockId?: string;
   private domObserver?: MutationObserver;
+  private visibility: RendererVisibility = { mark: true, list: true, heading: true, superBlock: true };
 
   onCardRender?: (blockId: string) => void;
+
+  setVisibility(visibility: RendererVisibility): void {
+    this.visibility = { ...this.visibility, ...visibility };
+    this.applyNativeVisibilityFallback();
+  }
 
   preload(blockId: string, renderer: FlashcardRenderer): void {
     this.rendererByBlockId.set(blockId, renderer);
@@ -109,8 +122,12 @@ export class FlashcardRendererCompat {
         heading: "card__block--hideh",
         superBlock: "card__block--hidesb",
       }[renderer];
+      const visible = renderer === "mark" ? this.visibility.mark
+        : renderer === "list" ? this.visibility.list
+          : renderer === "heading" ? this.visibility.heading
+            : renderer === "superBlock" ? this.visibility.superBlock : false;
       for (const className of hideClasses) {
-        const shouldHave = !answerShown && className === activeClass;
+        const shouldHave = !answerShown && visible && className === activeClass;
         if (block.classList.contains(className) !== shouldHave) {
           block.classList.toggle(className, shouldHave);
         }

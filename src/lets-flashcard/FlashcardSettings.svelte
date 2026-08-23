@@ -277,6 +277,7 @@
         <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarUnregister} on:change={saveGlobalOnChange} /> 取消登记</label>
         <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarPriority} on:change={saveGlobalOnChange} /> P1-P4</label>
         <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarWorkbench} on:change={saveGlobalOnChange} /> 打开工作台</label>
+        <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarRenderer} on:change={saveGlobalOnChange} /> 渲染开关</label>
       </div>
     </section>
   {:else}

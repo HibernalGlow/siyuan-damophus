@@ -30,12 +30,17 @@ function mergeSettings(value: unknown): FlashcardSettings {
     postponeEnabled: input.postponeEnabled === true,
     postponeDays: Math.max(0, Number(input.postponeDays ?? DEFAULT_FLASHCARD_SETTINGS.postponeDays)),
     rendererInterceptionEnabled: input.rendererInterceptionEnabled !== false,
+    rendererVisibility: {
+      ...DEFAULT_FLASHCARD_SETTINGS.rendererVisibility,
+      ...(input.rendererVisibility && typeof input.rendererVisibility === "object" ? input.rendererVisibility : {}),
+    },
     randomInterleaveEnabled: input.randomInterleaveEnabled === true,
     reviewToolbarEnabled: input.reviewToolbarEnabled !== false,
     reviewToolbarLocate: input.reviewToolbarLocate !== false,
     reviewToolbarUnregister: input.reviewToolbarUnregister !== false,
     reviewToolbarPriority: input.reviewToolbarPriority !== false,
     reviewToolbarWorkbench: input.reviewToolbarWorkbench !== false,
+    reviewToolbarRenderer: input.reviewToolbarRenderer !== false,
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],
       ...group,

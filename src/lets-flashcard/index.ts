@@ -9,10 +9,11 @@ import FlashcardResults from "./FlashcardResults.svelte";
 import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
 import { FlashcardRuntime } from "@/flashcard/runtime";
 import { openDocumentFlow } from "@/flashcard/document-flow";
-import type { FlashcardGroup, FlashcardReviewScope } from "@/flashcard/types";
+import type { FlashcardGroup, FlashcardReviewScope, FlashcardSettings as FlashcardSettingsConfig } from "@/flashcard/types";
 import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 import { priorityTag } from "@/flashcard/priority-tags";
-import { NativePriorityControls } from "@/flashcard/native-priority-controls";
+import { NativePriorityControls, type ReviewToolbarKey } from "@/flashcard/native-priority-controls";
+import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/native-review-counter";
 import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
 
@@ -36,6 +37,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
   private readonly reviewCards = new Map<string, RiffCardRecord>();
   private currentReviewCard?: RiffCardRecord;
+  private readonly reviewCounter = new NativeReviewCounter({ documentRef: document });
   private readonly priorityControls = new NativePriorityControls({
     documentRef: document,
     getSettings: () => {
@@ -46,7 +48,8 @@ export default class FlashcardPlugin extends SubPluginBase {
         unregister: settings.reviewToolbarUnregister,
         priority: settings.reviewToolbarPriority,
         workbench: settings.reviewToolbarWorkbench,
-        renderer: true,
+        renderer: settings.reviewToolbarRenderer,
+        more: true,
       };
     },
     getCurrentCard: () => this.currentReviewCard,
@@ -76,12 +79,35 @@ export default class FlashcardPlugin extends SubPluginBase {
       this.priorityControls.refresh();
       showMessage(enabled ? "已启用按卡片 renderer 渲染" : "已关闭按卡片 renderer 渲染", 3000, "info");
     },
+    getRendererVisibility: () => this.runtime.getSettings().rendererVisibility,
+    toggleRendererVisibility: async (key) => {
+      const settings = this.runtime.getSettings();
+      const rendererVisibility = { ...settings.rendererVisibility, [key]: !settings.rendererVisibility[key] };
+      await this.runtime.saveSettings({ ...settings, rendererVisibility });
+      this.compat.setVisibility(rendererVisibility);
+      this.priorityControls.refresh();
+      showMessage(`${key} 隐藏规则已${rendererVisibility[key] ? "启用" : "关闭"}`, 2500, "info");
+    },
+    toggleToolVisibility: async (key: ReviewToolbarKey) => {
+      const settings = this.runtime.getSettings();
+      const settingKeys: Record<ReviewToolbarKey, keyof FlashcardSettingsConfig> = {
+        locate: "reviewToolbarLocate",
+        unregister: "reviewToolbarUnregister",
+        priority: "reviewToolbarPriority",
+        renderer: "reviewToolbarRenderer",
+        workbench: "reviewToolbarWorkbench",
+      };
+      const settingKey = settingKeys[key];
+      await this.runtime.saveSettings({ ...settings, [settingKey]: !Boolean(settings[settingKey]) });
+      this.priorityControls.refresh();
+    },
   });
 
   private readonly handleCardRender = (blockId: string): void => {
     const card = this.reviewCards.get(blockId);
     if (!card) return;
     this.currentReviewCard = card;
+    this.reviewCounter.refresh();
     this.priorityControls.refresh();
   };
 
@@ -92,6 +118,8 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!card?.blockID) return;
     this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = card;
+    this.reviewCounter.markReviewed(card.cardID, event.detail?.type ?? "");
+    this.reviewCounter.refresh();
     this.priorityControls.refresh();
   };
 
@@ -118,8 +146,10 @@ export default class FlashcardPlugin extends SubPluginBase {
   override onload(): void {
     this.compat.onCardRender = this.handleCardRender;
     plugin.eventBus.on("click-flashcard-action", this.handleFlashcardAction);
+    this.reviewCounter.install();
     this.priorityControls.install();
     this.runtime.load();
+    this.compat.setVisibility(this.runtime.getSettings().rendererVisibility);
     if (this.getSetting("rendererInterceptionEnabled") !== false) {
       const status = this.compat.install();
       if (!status.installed) log.warn("renderer-compat-unavailable", status.reason);
@@ -295,14 +325,22 @@ export default class FlashcardPlugin extends SubPluginBase {
   private async orderCards(cards: readonly RiffCardRecord[]): Promise<RiffCardRecord[]> {
     const roots = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
     this.compat.preloadMany(roots);
-    return orderCardsByPriority(cards, roots, {
+    const ordered = orderCardsByPriority(cards, roots, {
       randomInterleave: this.runtime.getSettings().randomInterleaveEnabled,
     });
+    const rootsById = new Map(roots.map((root) => [root.blockId, root]));
+    this.reviewCounter.setQueue(ordered.map((card) => {
+      const root = rootsById.get(card.blockID);
+      const priority: ReviewPriorityBucket = root?.priority && !root.priorityConflict ? root.priority : "other";
+      return { cardID: card.cardID, priority };
+    }));
+    return ordered;
   }
 
   override onunload(): void {
     plugin.eventBus.off("click-flashcard-action", this.handleFlashcardAction);
     this.priorityControls.uninstall();
+    this.reviewCounter.uninstall();
     this.compat.onCardRender = undefined;
     this.entry?.setEnabled(false);
     this.entry?.destroyDockContent();
@@ -420,6 +458,7 @@ export default class FlashcardPlugin extends SubPluginBase {
         onSettingsChanged: () => {
           this.priorityControls.refresh();
           if (this.runtime.getSettings().rendererInterceptionEnabled) {
+            this.compat.setVisibility(this.runtime.getSettings().rendererVisibility);
             const status = this.compat.install();
             if (!status.installed) log.warn("renderer-compat-unavailable", status.reason);
           } else {

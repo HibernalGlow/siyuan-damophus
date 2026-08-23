@@ -105,12 +105,19 @@ export interface FlashcardSettings {
   groups: FlashcardGroup[];
   categories: FlashcardCategory[];
   rendererInterceptionEnabled: boolean;
+  rendererVisibility: {
+    mark: boolean;
+    list: boolean;
+    heading: boolean;
+    superBlock: boolean;
+  };
   randomInterleaveEnabled: boolean;
   reviewToolbarEnabled: boolean;
   reviewToolbarLocate: boolean;
   reviewToolbarUnregister: boolean;
   reviewToolbarPriority: boolean;
   reviewToolbarWorkbench: boolean;
+  reviewToolbarRenderer: boolean;
 }
 
 export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
@@ -122,12 +129,14 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   postponeEnabled: false,
   postponeDays: 2,
   rendererInterceptionEnabled: true,
+  rendererVisibility: { mark: true, list: true, heading: true, superBlock: true },
   randomInterleaveEnabled: false,
   reviewToolbarEnabled: true,
   reviewToolbarLocate: true,
   reviewToolbarUnregister: true,
   reviewToolbarPriority: true,
   reviewToolbarWorkbench: true,
+  reviewToolbarRenderer: true,
   categories: [{ id: "default", name: "默认分组" }],
   groups: [
     {

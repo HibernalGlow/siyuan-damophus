@@ -29,7 +29,7 @@ describe("native flashcard toolbar", () => {
     const openWorkbench = vi.fn();
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true }),
+      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true, more: true }),
       getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
       setPriority: vi.fn(async () => "native" as const),
       locate,
@@ -37,10 +37,13 @@ describe("native flashcard toolbar", () => {
       openWorkbench,
       isRendererOverrideEnabled: () => true,
       toggleRendererOverride: vi.fn(),
+      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true }),
+      toggleRendererVisibility: vi.fn(),
+      toggleToolVisibility: vi.fn(),
     });
 
     controls.install();
-    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(5));
+    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(6));
     document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconFocus"]')?.click();
     document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconSettings"]')?.click();
 
@@ -55,7 +58,7 @@ describe("native flashcard toolbar", () => {
     let enabled = true;
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled, locate: true, unregister: true, priority: true, workbench: true, renderer: true }),
+      getSettings: () => ({ enabled, locate: true, unregister: true, priority: true, workbench: true, renderer: true, more: true }),
       getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
       setPriority: vi.fn(async () => "native" as const),
       locate: vi.fn(),
@@ -63,9 +66,12 @@ describe("native flashcard toolbar", () => {
       openWorkbench: vi.fn(),
       isRendererOverrideEnabled: () => true,
       toggleRendererOverride: vi.fn(),
+      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true }),
+      toggleRendererVisibility: vi.fn(),
+      toggleToolVisibility: vi.fn(),
     });
     controls.install();
-    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(5));
+    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(6));
 
     enabled = false;
     controls.refresh();
