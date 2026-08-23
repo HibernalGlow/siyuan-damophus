@@ -46,6 +46,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   private currentReviewCard?: RiffCardRecord;
   private menuEventsBound = false;
   private mobileNativeEntryBound = false;
+  private mobileReviewButtonObserver?: MutationObserver;
   private breadcrumbButtonRegistered = false;
   private readonly reviewCounter = new NativeReviewCounter({
     documentRef: document,
@@ -172,6 +173,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
     this.menuEventsBound = true;
     this.bindMobileNativeReviewEntry();
+    this.bindMobileReviewButtonLabel();
     this.reviewCounter.install();
     this.priorityControls.install();
     this.runtime.load();
@@ -431,6 +433,8 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   override onunload(): void {
     this.unbindMobileNativeReviewEntry();
+    this.mobileReviewButtonObserver?.disconnect();
+    this.mobileReviewButtonObserver = undefined;
     if (this.breadcrumbButtonRegistered) {
       (plugin as unknown as { removeBreadcrumbButton?: (id: string) => void }).removeBreadcrumbButton?.(BREADCRUMB_BUTTON_ID);
       this.breadcrumbButtonRegistered = false;
@@ -469,6 +473,21 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.mobileNativeEntryBound = true;
   }
 
+  private bindMobileReviewButtonLabel(): void {
+    if (!isMobileEntryFrontend() || typeof document === "undefined") return;
+    const update = (): void => {
+      const button = document.querySelector<HTMLElement>("#mobileBottomBarSpacedRepetition");
+      if (!button) return;
+      button.setAttribute("aria-label", "打开本文档");
+      button.setAttribute("title", "打开本文档");
+      const label = button.querySelector<HTMLElement>(".mobile-bottom-bar__label");
+      if (label && label.textContent !== "打开本文档") label.textContent = "打开本文档";
+    };
+    update();
+    this.mobileReviewButtonObserver = new MutationObserver(update);
+    this.mobileReviewButtonObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
   private unbindMobileNativeReviewEntry(): void {
     if (!this.mobileNativeEntryBound || typeof document === "undefined") return;
     document.removeEventListener("click", this.handleMobileNativeReviewEntry, true);
@@ -486,9 +505,12 @@ export default class FlashcardPlugin extends SubPluginBase {
       return;
     }
     const context = this.currentReviewContext();
-    if (!context) return;
     event.preventDefault();
     event.stopImmediatePropagation();
+    if (!context) {
+      showMessage("当前没有可识别的文档，未打开全局闪卡", 4000, "info");
+      return;
+    }
     this.reviewDocumentScope(context.documentId, context.documentName);
   };
 

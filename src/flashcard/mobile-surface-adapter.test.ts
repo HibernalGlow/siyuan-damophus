@@ -6,20 +6,25 @@ describe("SiyuanMobileFlashcardSurfaceAdapter", () => {
     vi.useFakeTimers();
     const titleButton = { click: vi.fn() };
     const reviewItem = { click: vi.fn() };
+    const menu = { style: { visibility: "visible" } };
     let reviewReady = false;
     vi.stubGlobal("document", {
-      querySelector: vi.fn((selector: string) => selector.includes('button[data-type="doc"]')
-        ? titleButton
-        : reviewReady ? reviewItem : null),
+      querySelector: vi.fn((selector: string) => {
+        if (selector.includes('button[data-type="doc"]')) return titleButton;
+        if (selector === "#commonMenu") return menu;
+        return reviewReady ? reviewItem : null;
+      }),
     });
     vi.stubGlobal("window", { setTimeout });
     const adapter = new SiyuanMobileFlashcardSurfaceAdapter(vi.fn() as never);
 
     expect(adapter.openReview({ type: "document" })).toBe(true);
     expect(titleButton.click).toHaveBeenCalledTimes(1);
+    expect(menu.style.visibility).toBe("hidden");
     setTimeout(() => { reviewReady = true; }, 25);
     vi.advanceTimersByTime(100);
     expect(reviewItem.click).toHaveBeenCalledTimes(1);
+    expect(menu.style.visibility).toBe("visible");
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -34,14 +39,11 @@ describe("SiyuanMobileFlashcardSurfaceAdapter", () => {
     vi.unstubAllGlobals();
   });
 
-  it("marks the bottom-bar fallback so DAMO does not reroute it to the document", () => {
-    const globalEntry = { id: "mobileBottomBarSpacedRepetition", click: vi.fn(), dataset: {} as Record<string, string> };
-    vi.stubGlobal("document", { querySelector: vi.fn((selector: string) => selector === "#mobileBottomBarSpacedRepetition" ? globalEntry : null) });
+  it("does not use the current-document bottom bar as a global fallback", () => {
+    vi.stubGlobal("document", { querySelector: vi.fn(() => null) });
     const adapter = new SiyuanMobileFlashcardSurfaceAdapter(vi.fn() as never);
 
-    expect(adapter.openReview()).toBe(true);
-    expect(globalEntry.dataset.damophusGlobalReviewBypass).toBe("true");
-    expect(globalEntry.click).toHaveBeenCalledTimes(1);
+    expect(adapter.openReview()).toBe(false);
     vi.unstubAllGlobals();
   });
 });

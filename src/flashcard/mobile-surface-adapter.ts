@@ -50,25 +50,35 @@ export class SiyuanMobileFlashcardSurfaceAdapter implements MobileFlashcardSurfa
       const titleButton = document.querySelector<HTMLElement>('button[data-type="doc"]');
       if (!titleButton) return false;
       titleButton.click();
+      const menu = document.querySelector<HTMLElement>("#commonMenu");
+      const previousVisibility = menu?.style.visibility;
+      if (menu) menu.style.visibility = "hidden";
       const startedAt = Date.now();
+      let completed = false;
+      const restoreMenu = (): void => {
+        if (completed) return;
+        completed = true;
+        if (menu) menu.style.visibility = previousVisibility ?? "";
+      };
       const findReviewItem = (): void => {
         const reviewItem = document.querySelector<HTMLElement>('.b3-menu__item[data-id="spaceRepetition"]');
         if (reviewItem) {
+          restoreMenu();
           reviewItem.click();
           return;
         }
-        if (Date.now() - startedAt < 3000) globalThis.setTimeout(findReviewItem, 50);
+        if (Date.now() - startedAt < 3000) {
+          globalThis.setTimeout(findReviewItem, 50);
+        } else {
+          restoreMenu();
+        }
       };
       globalThis.setTimeout(findReviewItem, 0);
       return true;
     }
     if (!scope) {
-      const globalEntry = document.querySelector<HTMLElement>("#menuCard")
-        ?? document.querySelector<HTMLElement>("#mobileBottomBarSpacedRepetition");
+      const globalEntry = document.querySelector<HTMLElement>("#menuCard");
       if (!globalEntry) return false;
-      if (globalEntry.id === "mobileBottomBarSpacedRepetition") {
-        globalEntry.dataset.damophusGlobalReviewBypass = "true";
-      }
       globalEntry.click();
       return true;
     }
