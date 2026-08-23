@@ -28,6 +28,7 @@ export class FlashcardRendererCompat {
   private originalFetch?: typeof window.fetch;
   private installed = false;
   private pendingBlockId?: string;
+  private activeBlockId?: string;
 
   onCardRender?: (blockId: string) => void;
 
@@ -62,13 +63,13 @@ export class FlashcardRendererCompat {
         const original = typeof descriptor.get === "function"
           ? descriptor.get.call(config)
           : currentValue as FlashcardConfig;
-        const pendingBlockId = owner.pendingBlockId;
-        const renderer = owner.rendererByBlockId.get(pendingBlockId ?? "");
-        if (pendingBlockId && renderer !== undefined) owner.onCardRender?.(pendingBlockId);
-        // The request identifies the card about to render. Consume it on the
-        // first config read so a later native read cannot inherit this card's
-        // renderer after the card has changed.
-        owner.pendingBlockId = undefined;
+        const blockId = owner.pendingBlockId ?? owner.activeBlockId;
+        const renderer = owner.rendererByBlockId.get(blockId ?? "");
+        if (blockId && renderer !== undefined) {
+          owner.activeBlockId = blockId;
+          owner.pendingBlockId = undefined;
+          owner.onCardRender?.(blockId);
+        }
         if (!renderer || renderer === "unknown") return original;
         const next = { ...original };
         for (const key of Object.values(rendererFlags)) {
@@ -91,7 +92,10 @@ export class FlashcardRendererCompat {
       if (url.endsWith("/api/block/getDocInfo") && init?.body && typeof init.body === "string") {
         try {
           const payload = JSON.parse(init.body) as { id?: unknown };
-          if (typeof payload.id === "string") owner.pendingBlockId = payload.id;
+          if (typeof payload.id === "string") {
+            owner.pendingBlockId = payload.id;
+            owner.activeBlockId = undefined;
+          }
         } catch {
           // Leave the native request untouched when its body is not JSON.
         }
@@ -117,6 +121,7 @@ export class FlashcardRendererCompat {
     this.originalConfigDescriptor = undefined;
     this.originalFetch = undefined;
     this.pendingBlockId = undefined;
+    this.activeBlockId = undefined;
     this.rendererByBlockId.clear();
     this.installed = false;
   }

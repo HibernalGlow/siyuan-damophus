@@ -17,6 +17,10 @@ describe("flashcard renderer compatibility", () => {
     expect(compat.install().installed).toBe(true);
     await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-aaaaaaa" }) });
     expect(config.flashcard).toMatchObject({ mark: false, list: false, heading: true, superBlock: false });
+    // Native review reads the setting more than once while loading a card;
+    // the card-specific renderer must remain active for all those reads.
+    expect(config.flashcard).toMatchObject({ mark: false, list: false, heading: true, superBlock: false });
+    await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-legacy" }) });
     expect(config.flashcard).toEqual(original);
     compat.uninstall();
     expect(Object.getOwnPropertyDescriptor(config, "flashcard")).toEqual(descriptor);
@@ -33,9 +37,9 @@ describe("flashcard renderer compatibility", () => {
     expect(compat.install().installed).toBe(true);
     await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-bbbbbbb" }) });
     expect(config.flashcard).toMatchObject({ mark: false, list: true });
-    expect(config.flashcard).toEqual(original);
     // A normal/legacy card has no pending DAMO renderer and keeps the user's
     // global mark-only configuration on its next read.
+    await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-legacy" }) });
     expect(config.flashcard).toEqual(original);
     compat.uninstall();
   });
