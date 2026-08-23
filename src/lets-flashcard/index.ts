@@ -18,6 +18,7 @@ import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/nati
 import { readReviewCardStats } from "@/flashcard/review-stats";
 import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
+import { SiyuanMobileFlashcardSurfaceAdapter } from "@/flashcard/mobile-surface-adapter";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -38,6 +39,8 @@ export default class FlashcardPlugin extends SubPluginBase {
   private tabRegistered = false;
   private readonly mounted = new Map<HTMLElement, ReturnType<typeof mount>>();
   private dockApp?: ReturnType<typeof mount>;
+  private mobileSettingsApp?: ReturnType<typeof mount>;
+  private readonly mobileSurface = new SiyuanMobileFlashcardSurfaceAdapter(Dialog);
   private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
   private readonly reviewCards = new Map<string, RiffCardRecord>();
   private currentReviewCard?: RiffCardRecord;
@@ -449,6 +452,8 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewScope = undefined;
     this.currentReviewCard = undefined;
     this.reviewCards.clear();
+    if (this.mobileSettingsApp) void unmount(this.mobileSettingsApp);
+    this.mobileSettingsApp = undefined;
     for (const app of this.mounted.values()) void unmount(app);
     this.mounted.clear();
   }
@@ -476,6 +481,10 @@ export default class FlashcardPlugin extends SubPluginBase {
       ? event.target.closest<HTMLElement>("#mobileBottomBarSpacedRepetition")
       : null;
     if (!target) return;
+    if (target.dataset.damophusGlobalReviewBypass === "true") {
+      delete target.dataset.damophusGlobalReviewBypass;
+      return;
+    }
     const context = this.currentReviewContext();
     if (!context) return;
     event.preventDefault();
@@ -549,49 +558,89 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!this.isEntryEnabled("contextMenu")) return;
     const documentId = event.detail.data.id;
     if (!documentId) return;
-    event.detail.menu.addItem(this.scopeMenuItem(
-      "复习本文档闪卡",
+    event.detail.menu.addItem(this.contextScopeMenuItem(
       "document",
-      documentId,
+      [documentId],
       event.detail.data.name ?? documentId,
     ));
-    event.detail.menu.addItem({
-      icon: "iconCloseRound",
-      label: "取消本文档下所有闪卡登记",
-      click: () => void this.unregisterContainers([documentId], `文档“${event.detail.data.name ?? documentId}”`),
-    });
   };
 
   private readonly handleDocumentTreeMenu = (
     event: CustomEvent<IEventBusMap["open-menu-doctree"]>,
   ): void => {
     if (!this.isEntryEnabled("contextMenu")) return;
+    const isNotebook = event.detail.type === "notebook";
     const ids = [...event.detail.elements]
-      .map((element) => element.dataset.nodeId ?? "")
+      .map((element) => isNotebook
+        ? element.dataset.nodeId ?? element.dataset.url ?? element.parentElement?.dataset.url ?? ""
+        : element.dataset.nodeId ?? "")
       .filter(Boolean);
     if (ids.length === 0) return;
-    const isNotebook = event.detail.type === "notebook";
     const targetName = ids.length > 1
       ? (isNotebook ? "所选笔记本" : "所选文档")
-      : (event.detail.elements[0]?.dataset.name ?? ids[0]);
-    event.detail.menu.addItem(ids.length === 1
-      ? this.scopeMenuItem(
-        isNotebook ? "复习此笔记本闪卡" : "复习此文档闪卡",
-        isNotebook ? "notebook" : "document",
-        ids[0],
-        targetName,
-      )
-      : {
-        icon: "iconRiffCard",
-        label: isNotebook ? "复习所选笔记本闪卡" : "复习所选文档闪卡",
-        click: () => void this.reviewDocumentTree(ids, isNotebook, targetName),
-      });
-    event.detail.menu.addItem({
-      icon: "iconCloseRound",
-      label: isNotebook ? "取消所选笔记本下所有闪卡登记" : "取消所选文档下所有闪卡登记",
-      click: () => void this.unregisterDocumentTree(ids, isNotebook),
-    });
+      : (isNotebook
+        ? window.siyuan?.notebooks?.find((notebook) => notebook.id === ids[0])?.name
+        : event.detail.elements[0]?.dataset.name) ?? ids[0];
+    event.detail.menu.addItem(this.contextScopeMenuItem(
+      isNotebook ? "notebook" : "document",
+      ids,
+      targetName,
+    ));
   };
+
+  private contextScopeMenuItem(
+    type: "document" | "notebook",
+    targetIds: readonly string[],
+    targetName: string,
+  ): IMenu {
+    const singleTarget = targetIds.length === 1;
+    const scopeLabel = type === "notebook"
+      ? (singleTarget ? "当前笔记本专项复习" : "所选笔记本专项复习")
+      : (singleTarget ? "当前文档专项复习" : "所选文档专项复习");
+    const submenu: IMenu[] = [];
+    if (this.isEntryEnabled("tab")) {
+      submenu.push({
+        icon: "iconRiffCard",
+        label: this.t("lets-flashcard.openSettings"),
+        click: () => this.openSettings(),
+      });
+    }
+    submenu.push({
+      icon: "iconRiffCard",
+      label: this.t("lets-flashcard.reviewAll"),
+      click: () => void this.reviewAll(),
+    });
+    submenu.push({ type: "separator" });
+    submenu.push(singleTarget
+      ? this.scopeMenuItem(scopeLabel, type, targetIds[0], targetName)
+      : {
+        icon: type === "notebook" ? "iconNotebook" : "iconFile",
+        label: scopeLabel,
+        click: () => void this.reviewDocumentTree(targetIds, type === "notebook", targetName),
+      });
+    submenu.push({
+      icon: "iconCloseRound",
+      label: type === "notebook"
+        ? `取消${singleTarget ? "当前" : "所选"}笔记本下所有闪卡登记`
+        : `取消${singleTarget ? "当前" : "所选"}文档下所有闪卡登记`,
+      click: () => void this.unregisterDocumentTree(targetIds, type === "notebook"),
+    });
+    const groups = this.runtime.getEnabledGroups();
+    if (groups.length > 0) submenu.push({ type: "separator" });
+    for (const group of groups) {
+      submenu.push({
+        icon: "iconRiffCard",
+        label: `复习：${group.name}`,
+        click: () => void this.reviewGroup(group),
+      });
+    }
+    return {
+      icon: "iconRiffCard",
+      label: this.t("lets-flashcard.displayName"),
+      type: "submenu",
+      submenu,
+    };
+  }
 
   private batchUnregisterScopeMenuItem(
     label: string,
@@ -702,7 +751,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   private mountSettings(target: HTMLElement): ReturnType<typeof mount> {
-    target.classList.add("damophus-theme-root", "h-full", "min-h-0");
+    target.classList.add("damophus-theme-root", "damophus-flashcard-settings-host", "h-full", "min-h-0");
     return mount(FlashcardSettings, {
       target,
       props: {
@@ -754,6 +803,10 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   openSettings(): void {
+    if (isMobileEntryFrontend()) {
+      this.openMobileSettings();
+      return;
+    }
     void openTab({
       app: plugin.app,
       custom: {
@@ -762,6 +815,17 @@ export default class FlashcardPlugin extends SubPluginBase {
         id: settingsTabId(),
       },
     });
+  }
+
+  private openMobileSettings(): void {
+    this.mobileSurface.openSettings(
+      this.t("lets-flashcard.openSettings"),
+      (target) => { this.mobileSettingsApp = this.mountSettings(target); },
+      () => {
+        if (this.mobileSettingsApp) void unmount(this.mobileSettingsApp);
+        this.mobileSettingsApp = undefined;
+      },
+    );
   }
 
   private openConfiguredSurface(): void {
@@ -1010,6 +1074,10 @@ export default class FlashcardPlugin extends SubPluginBase {
       ? { scope, ids: new Set(orderedDue.cards.map((card) => card.blockID)) }
       : undefined;
     const nativeScope = scope && !scope.groupId && scope.type !== "group" ? scope : undefined;
+    if (isMobileEntryFrontend()) {
+      this.openMobileNativeReview(nativeScope);
+      return;
+    }
     await openTab({
       app: plugin.app,
       custom: {
@@ -1027,6 +1095,15 @@ export default class FlashcardPlugin extends SubPluginBase {
     for (const delay of [0, 80, 250]) {
       window.setTimeout(() => this.compat.refresh(), delay);
     }
+  }
+
+  private openMobileNativeReview(scope?: FlashcardReviewScope): void {
+    if (scope?.groupId || scope?.type === "group" || scope?.type === "notebook") {
+      showMessage("移动端暂不支持按分组或笔记本打开自定义卡片队列，请先从当前文档复习", 5000, "info");
+      return;
+    }
+    if (this.mobileSurface.openReview(scope)) return;
+    showMessage(scope ? "移动端暂不支持按分组打开自定义卡片队列，请先从当前文档复习" : "未找到移动端闪卡入口", 5000, "info");
   }
 
   private async locateCard(card: RiffCardRecord): Promise<void> {

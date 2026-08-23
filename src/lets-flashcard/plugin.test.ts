@@ -73,14 +73,21 @@ describe("flashcard plugin metadata", () => {
     expect(item.submenu?.map((child) => child.label)).not.toContain("取消当前笔记本下所有闪卡登记");
   });
 
-  it("adds bulk unregister actions for blocks, documents, and document trees", () => {
+  it("adds scoped flashcard submenus for documents and notebooks", () => {
     vi.stubGlobal("document", {});
     const addItem = vi.fn();
     const unregisterContainers = vi.fn();
     const unregisterDocumentTree = vi.fn();
+    const reviewAll = vi.fn();
+    const reviewGroup = vi.fn();
     const instance = new FlashcardPlugin() as any;
     Object.assign(instance, {
       isEntryEnabled: () => true,
+      t: (key: string) => key,
+      runtime: { getEnabledGroups: () => [{ id: "group-1", name: "含指定标签" }] },
+      openSettings: vi.fn(),
+      reviewAll,
+      reviewGroup,
       unregisterContainers,
       unregisterDocumentTree,
       scopeMenuItem: vi.fn((label: string) => ({ label })),
@@ -101,14 +108,31 @@ describe("flashcard plugin metadata", () => {
     instance.handleDocumentTitleMenu({
       detail: { menu: blockMenu, data: { id: "20260823112002-aaaaaaa", name: "测试文档" } },
     });
-    addItem.mock.calls.map(([item]) => item).find((item) => item.label === "取消本文档下所有闪卡登记")?.click();
-    expect(unregisterContainers).toHaveBeenCalledWith(["20260823112002-aaaaaaa"], "文档“测试文档”");
+    expect(addItem).toHaveBeenCalledTimes(1);
+    const documentMenu = addItem.mock.calls[0][0];
+    expect(documentMenu.label).toBe("lets-flashcard.displayName");
+    expect(documentMenu.type).toBe("submenu");
+    expect(documentMenu.submenu.map((item: { type?: string; label?: string }) => item.type ?? item.label)).toEqual([
+      "lets-flashcard.openSettings",
+      "lets-flashcard.reviewAll",
+      "separator",
+      "当前文档专项复习",
+      "取消当前文档下所有闪卡登记",
+      "separator",
+      "复习：含指定标签",
+    ]);
+    documentMenu.submenu.find((item: { label?: string }) => item.label === "取消当前文档下所有闪卡登记")?.click();
+    expect(unregisterDocumentTree).toHaveBeenCalledWith(["20260823112002-aaaaaaa"], false);
 
     addItem.mockClear();
+    vi.stubGlobal("window", { siyuan: { notebooks: [{ id: "notebook-1", name: "测试笔记本" }] } });
     instance.handleDocumentTreeMenu({
-      detail: { menu: blockMenu, type: "notebook", elements: [{ dataset: { nodeId: "notebook-1" } }] },
+      detail: { menu: blockMenu, type: "notebook", elements: [{ dataset: {}, parentElement: { dataset: { url: "notebook-1" } } }] },
     });
-    addItem.mock.calls.map(([item]) => item).find((item) => item.label === "取消所选笔记本下所有闪卡登记")?.click();
+    expect(addItem).toHaveBeenCalledTimes(1);
+    const notebookMenu = addItem.mock.calls[0][0];
+    expect(notebookMenu.submenu.map((item: { type?: string; label?: string }) => item.type ?? item.label)).toContain("当前笔记本专项复习");
+    notebookMenu.submenu.find((item: { label?: string }) => item.label === "取消当前笔记本下所有闪卡登记")?.click();
     expect(unregisterDocumentTree).toHaveBeenCalledWith(["notebook-1"], true);
   });
 
