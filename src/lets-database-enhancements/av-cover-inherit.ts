@@ -103,6 +103,23 @@ export function extractCardBlockId(card: HTMLElement): string | null {
   return card.getAttribute("data-id");
 }
 
+function extractCardRemoteCoverSource(card: HTMLElement): string | null {
+  const cover = card.querySelector<HTMLElement>(".av__gallery-cover");
+  const value = cover?.getAttribute("data-cover-url") || cover?.querySelector<HTMLImageElement>("img")?.getAttribute("src") || "";
+  return /^https?:\/\//i.test(value) ? value.trim() : null;
+}
+
+function comparableUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return value.split("?")[0].split("#")[0];
+  }
+}
+
 export class AvCoverInheritManager {
   private blockToRootCache = new Map<string, string>();
   private rootToTitleImgCache = new Map<string, { titleImg: string; cachePath: string | null } | null>();
@@ -111,11 +128,13 @@ export class AvCoverInheritManager {
   private watchedRoots = new Set<HTMLElement>();
   private cachedObjectUrls = new Map<HTMLImageElement, string>();
   private documentObserver: MutationObserver | null = null;
+  private sourceToCoverCache = new Map<string, { titleImg: string; cachePath: string }>();
 
   clearCache(): void {
     this.blockToRootCache.clear();
     this.rootToTitleImgCache.clear();
     this.pendingBlockIds.clear();
+    this.sourceToCoverCache.clear();
     for (const url of this.cachedObjectUrls.values()) URL.revokeObjectURL(url);
     this.cachedObjectUrls.clear();
   }
@@ -195,14 +214,17 @@ export class AvCoverInheritManager {
     if (cards.length === 0) return;
 
     const neededBlockIds: string[] = [];
+    let hasUnresolvedRemoteCover = false;
 
     cards.forEach((card) => {
       // 只有当卡片本身具有封面槽位（未被用户设置为“卡片封面：无”）时才处理
       const coverContainer = card.querySelector<HTMLElement>(".av__gallery-cover");
       if (!coverContainer) return;
 
+      const renderedSource = extractCardRemoteCoverSource(card);
+      if (renderedSource && !this.sourceToCoverCache.has(comparableUrl(renderedSource))) hasUnresolvedRemoteCover = true;
+
       const blockId = extractCardBlockId(card);
-      if (!blockId) return;
 
       // 已有本地/数据 URL 的原生封面不需要继承；远程题头图仍需查询缓存属性。
       const nativeGalleryImg = coverContainer.querySelector<HTMLImageElement>(
@@ -214,6 +236,12 @@ export class AvCoverInheritManager {
           return;
         }
       }
+
+      const directCover = renderedSource ? this.sourceToCoverCache.get(comparableUrl(renderedSource)) : null;
+      if (directCover) {
+        void this.applyResolvedCover(card, directCover);
+      }
+      if (!blockId) return;
 
       // 检查缓存
       if (this.blockToRootCache.has(blockId)) {
@@ -227,7 +255,7 @@ export class AvCoverInheritManager {
       }
     });
 
-    if (neededBlockIds.length > 0) {
+    if (neededBlockIds.length > 0 || hasUnresolvedRemoteCover) {
       for (const id of neededBlockIds) {
         this.pendingBlockIds.add(id);
       }
@@ -246,9 +274,27 @@ export class AvCoverInheritManager {
   private async executeFetch(): Promise<void> {
     const ids = Array.from(this.pendingBlockIds);
     this.pendingBlockIds.clear();
-    if (ids.length === 0) return;
+    const hasRenderedRemoteCards = typeof document !== "undefined" && Boolean(document.querySelector(".av__gallery-cover[data-cover-url^='http'], .av__gallery-cover img[src^='http']"));
+    if (ids.length === 0 && !hasRenderedRemoteCards) return;
 
     try {
+      const renderedCards = Array.from(document.querySelectorAll<HTMLElement>(".av__gallery-item, .av__card"));
+      const sourceUrls = [...new Set(renderedCards.map(extractCardRemoteCoverSource).filter((value): value is string => Boolean(value)))];
+      if (sourceUrls.length > 0) {
+        const quotedSources = sourceUrls.map((value) => `'${value.replace(/'/g, "''")}'`).join(",");
+        const sourceRows = (await sql(`
+          SELECT source.value as source_url, cache.value as cache_path
+          FROM attributes source
+          JOIN attributes cache ON source.block_id = cache.block_id
+          WHERE source.name = 'custom-damophus-cover-source-url'
+            AND cache.name = 'custom-damophus-cover-cache-path'
+            AND source.value IN (${quotedSources})
+        `)) as Array<{ source_url: string; cache_path: string }>;
+        for (const row of sourceRows || []) {
+          if (row.source_url && row.cache_path) this.sourceToCoverCache.set(comparableUrl(row.source_url), { titleImg: row.source_url, cachePath: row.cache_path });
+        }
+      }
+
       const chunkSize = 100;
       for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
@@ -288,11 +334,11 @@ export class AvCoverInheritManager {
           const blockId = extractCardBlockId(card);
           if (!blockId) return;
           const rootId = this.blockToRootCache.get(blockId);
-          if (rootId) {
-            const cover = this.rootToTitleImgCache.get(rootId);
-            if (cover) {
-              void this.applyResolvedCover(card, cover);
-            }
+          const cover = rootId ? this.rootToTitleImgCache.get(rootId) : null;
+          const directSource = extractCardRemoteCoverSource(card);
+          const directCover = directSource ? this.sourceToCoverCache.get(comparableUrl(directSource)) : null;
+          if (cover || directCover) {
+            void this.applyResolvedCover(card, cover || directCover!);
           }
         });
       }
