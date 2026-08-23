@@ -92,6 +92,15 @@
   --ring: var(--b3-theme-primary);
 }
 
+.damophus-flashcard-settings-host {
+  overflow: hidden !important;
+  scrollbar-width: none;
+}
+
+.damophus-flashcard-settings-host::-webkit-scrollbar {
+  display: none;
+}
+
 .damophus-question-bank-host .siyuan-floating-toc-plugin-container,
 .damophus-question-bank-dialog .siyuan-floating-toc-plugin-container {
   display: none !important;

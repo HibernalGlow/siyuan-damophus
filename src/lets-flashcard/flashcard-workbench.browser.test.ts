@@ -15,6 +15,9 @@ afterEach(async () => {
 
 async function render() {
   const runtime = new FlashcardRuntime(() => undefined, vi.fn());
+  vi.spyOn(runtime, "getReadablePath").mockImplementation(async (id) => `/法考/闪卡/${id === "20260823120000-aaaaaaa" ? "债权人代位权" : "复习文档"}`);
+  vi.spyOn(Date, "now").mockReturnValue(new Date("2026-08-23T12:00:00+08:00").getTime());
+  await runtime.recordScope({ id: "document:20260823115900-bbbbbbb", type: "document", targetId: "20260823115900-bbbbbbb", targetName: "20260823115900-bbbbbbb" });
   await runtime.recordScope({ id: "group:law", type: "group", targetName: "法考重点", groupId: "law", groupName: "法考重点" });
   vi.spyOn(runtime, "buildDiagnostics").mockResolvedValue([{
     blockId: "20260823120000-aaaaaaa",
@@ -43,34 +46,52 @@ async function render() {
   return target;
 }
 
+function clickTab(target: HTMLElement, label: string): void {
+  [...target.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')]
+    .find((button) => button.getAttribute("aria-label") === label)?.click();
+}
+
 describe("flashcard workbench", () => {
   it("shows recent scopes and opens the diagnostic browser", async () => {
     await page.viewport(1000, 760);
     const target = await render();
 
     expect(target.textContent).toContain("法考重点");
-    [...target.querySelectorAll<HTMLButtonElement>("nav.tabs button")]
-      .find((button) => button.textContent === "闪卡浏览器")?.click();
+    expect(target.querySelector('[role="tree"]')).not.toBeNull();
+    expect(target.textContent).toContain("文档范围 (1)");
+    expect(target.textContent).toContain("应用分组 (1)");
+    expect(target.textContent).toContain("刚刚 · 1 次");
+    await vi.waitFor(() => expect(target.textContent).toContain("/法考/闪卡/复习文档"));
+    const branch = target.querySelector<HTMLElement>(".tree-branch")!;
+    const leafLabel = target.querySelector<HTMLElement>(".tree-leaf span")!;
+    expect(getComputedStyle(branch).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(getComputedStyle(branch).borderTopWidth).toBe("0px");
+    expect(getComputedStyle(leafLabel).whiteSpace).toBe("normal");
+    clickTab(target, "闪卡浏览器");
     await vi.waitFor(() => expect(target.textContent).toContain("债权人代位权的成立要件"));
 
     expect(target.textContent).toContain("P1 · list · 已到期");
+    await vi.waitFor(() => expect(target.textContent).toContain("/法考/闪卡/债权人代位权"));
     expect(target.querySelector('[title="定位原块"]')).not.toBeNull();
     expect(target.querySelector('[title="取消闪卡登记"]')).not.toBeNull();
   });
 
   it("keeps workbench controls inside a mobile viewport", async () => {
     await page.viewport(390, 760);
-    await render();
+    const target = await render();
 
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
-    expect(document.querySelector("nav.tabs")?.scrollWidth).toBeLessThanOrEqual(document.querySelector("nav.tabs")?.clientWidth ?? 0);
+    const tabs = target.querySelector<HTMLElement>('[data-slot="tabs-list"]');
+    expect(tabs?.scrollWidth).toBeLessThanOrEqual(tabs?.clientWidth ?? 0);
+    const labels = [...target.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"] span')];
+    expect(labels).toHaveLength(5);
+    expect(labels.every((label) => getComputedStyle(label).display === "none")).toBe(true);
   });
 
   it("exposes configurable current-card statistics in the global settings", async () => {
     const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
     const target = await render();
-    [...target.querySelectorAll<HTMLButtonElement>("nav.tabs button")]
-      .find((button) => button.textContent === "总体配置")?.click();
+    clickTab(target, "总体配置");
 
     await vi.waitFor(() => expect(target.textContent).toContain("当前卡片信息"));
     expect(target.querySelector('[aria-label="距上次复习上移"]')).not.toBeNull();
@@ -84,8 +105,7 @@ describe("flashcard workbench", () => {
   it("edits a category name inline instead of relying on a prompt", async () => {
     const saveCategory = vi.spyOn(FlashcardRuntime.prototype, "saveCategory").mockResolvedValue();
     const target = await render();
-    [...target.querySelectorAll<HTMLButtonElement>("nav.tabs button")]
-      .find((button) => button.textContent === "SQL 分组")?.click();
+    clickTab(target, "SQL 分组");
 
     await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('[title="重命名分类"]')).not.toBeNull());
     target.querySelector<HTMLButtonElement>('[title="重命名分类"]')?.click();
@@ -97,6 +117,32 @@ describe("flashcard workbench", () => {
     target.querySelector<HTMLButtonElement>('[title="保存分类名称"]')?.click();
 
     await vi.waitFor(() => expect(saveCategory).toHaveBeenCalledWith({ id: "default", name: "重点复习" }));
+  });
+
+  it("orders icon tabs by workflow and keeps instructions last", async () => {
+    const target = await render();
+    const tabs = [...target.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')];
+    expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
+      "最近范围", "SQL 分组", "闪卡浏览器", "总体配置", "使用说明",
+    ]);
+    expect(tabs.every((tab) => tab.querySelector("svg"))).toBe(true);
+  });
+
+  it("uses semantic switches and collapses renderer options with its master setting", async () => {
+    await page.viewport(520, 760);
+    const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
+    const target = await render();
+    clickTab(target, "总体配置");
+
+    await vi.waitFor(() => expect(target.querySelector('[aria-label="启用卡片渲染适配"]')).not.toBeNull());
+    expect(target.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    expect(target.querySelector('[data-testid="renderer-options"]')).not.toBeNull();
+    const rendererRows = [...target.querySelectorAll<HTMLElement>('[data-testid="renderer-options"] .option-row')];
+    expect(rendererRows.every((row) => row.querySelector("svg"))).toBe(true);
+    expect(Math.round(rendererRows[0].getBoundingClientRect().top)).toBe(Math.round(rendererRows[1].getBoundingClientRect().top));
+    target.querySelector<HTMLButtonElement>('[aria-label="启用卡片渲染适配"]')?.click();
+    await vi.waitFor(() => expect(target.querySelector('[data-testid="renderer-options"]')).toBeNull());
+    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalled());
   });
 
 });

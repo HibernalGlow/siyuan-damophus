@@ -12,6 +12,7 @@ import {
   type FlashcardSettings,
 } from "./types";
 import { FlashcardSiyuanAdapter, type DueCardsData } from "./siyuan-adapter";
+import { getHPathByID } from "@/api";
 
 const log = getLogger("flashcard-runtime");
 
@@ -100,6 +101,7 @@ export class FlashcardRuntime {
   private loaded = false;
   private historyLoaded = false;
   private history: FlashcardReviewHistoryItem[] = [];
+  private readablePathCache = new Map<string, string>();
 
   constructor(
     private readonly readSetting: (key: string) => unknown,
@@ -121,6 +123,14 @@ export class FlashcardRuntime {
 
   getSettings(): FlashcardSettings {
     return clone(this.load());
+  }
+
+  async getReadablePath(blockId: string): Promise<string> {
+    const cached = this.readablePathCache.get(blockId);
+    if (cached) return cached;
+    const path = await getHPathByID(blockId);
+    this.readablePathCache.set(blockId, path);
+    return path;
   }
 
   async saveSettings(settings: FlashcardSettings): Promise<void> {
