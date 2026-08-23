@@ -4,7 +4,8 @@ import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { plugin } from "@/utils";
 import type { IalExportMode, IalExportOptions } from "@hibernalglow/damophus-agent-contract";
 import { Dialog, getAllEditor, showMessage, type IEventBusMap, type Menu } from "siyuan";
-import { copyMarkdown, selectedBlockIds } from "./interaction";
+import { createMarkdownArchive, type BatchExportScope } from "./batch";
+import { copyMarkdown, downloadBytes, selectedBlockIds } from "./interaction";
 
 const log = getLogger("lets-kramdown-export");
 
@@ -19,6 +20,12 @@ function escapeHtml(value: string): string {
 
 function commaSeparated(value: string): string[] {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+type ExportScope = "selection" | "document" | BatchExportScope;
+
+function isZipScope(scope: ExportScope): scope is BatchExportScope {
+  return scope === "documentTreeZip" || scope === "notebookZip";
 }
 
 export default class KramdownExportPlugin extends SubPluginBase {
@@ -121,6 +128,8 @@ export default class KramdownExportPlugin extends SubPluginBase {
             <select class="b3-select fn__block" data-field="scope">
               ${hasSelection ? `<option value="selection">${escapeHtml(this.t("lets-kramdown-export.scopeSelection").replace("{count}", String(blockIds.length)))}</option>` : ""}
               <option value="document"${hasSelection ? "" : " selected"}>${escapeHtml(this.t("lets-kramdown-export.scopeDocument"))}</option>
+              <option value="documentTreeZip">${escapeHtml(this.t("lets-kramdown-export.scopeDocumentTreeZip"))}</option>
+              <option value="notebookZip">${escapeHtml(this.t("lets-kramdown-export.scopeNotebookZip"))}</option>
             </select>
           </label>
           <label class="fn__flex-column fn__space--top">
@@ -152,11 +161,21 @@ export default class KramdownExportPlugin extends SubPluginBase {
     const exclude = dialog.element.querySelector<HTMLInputElement>('[data-field="exclude"]');
     const exportButton = dialog.element.querySelector<HTMLButtonElement>('[data-action="export"]');
     dialog.element.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
+    const updateExportLabel = (): void => {
+      if (!scope || !exportButton) return;
+      exportButton.textContent = isZipScope(scope.value as ExportScope)
+        ? this.t("lets-kramdown-export.downloadZip")
+        : this.t("lets-kramdown-export.export");
+    };
+    scope?.addEventListener("change", updateExportLabel);
+    updateExportLabel();
     exportButton?.addEventListener("click", () => {
       if (!scope || !mode || !include || !exclude || !exportButton) return;
       exportButton.disabled = true;
-      void this.exportAndCopy({
-        blockIds: scope.value === "selection" ? blockIds : [documentId],
+      void this.exportByScope({
+        documentId,
+        blockIds,
+        scope: scope.value as ExportScope,
         options: {
           mode: mode.value as IalExportMode,
           include: commaSeparated(include.value),
@@ -165,22 +184,40 @@ export default class KramdownExportPlugin extends SubPluginBase {
       }).then(() => dialog.destroy()).catch((error) => {
         exportButton.disabled = false;
         log.error("export failed", error);
-        showMessage(this.t("lets-kramdown-export.failure"), 7000, "error");
+        showMessage(
+          this.t(isZipScope(scope.value as ExportScope)
+            ? "lets-kramdown-export.zipFailure"
+            : "lets-kramdown-export.failure"),
+          7000,
+          "error",
+        );
       });
     });
   }
 
-  private async exportAndCopy(input: {
+  private async exportByScope(input: {
+    documentId: string;
     blockIds: string[];
+    scope: ExportScope;
     options: IalExportOptions;
   }): Promise<void> {
     this.setSetting("ialMode", input.options.mode);
     this.setSetting("ialInclude", input.options.include.join(", "));
     this.setSetting("ialExclude", input.options.exclude.join(", "));
-    const markdown = await exportBlocksKramdown(input.blockIds, input.options);
+    if (isZipScope(input.scope)) {
+      const archive = await createMarkdownArchive(input.documentId, input.scope, input.options);
+      downloadBytes(archive.bytes, archive.filename);
+      showMessage(
+        this.t("lets-kramdown-export.zipSuccess").replace("{count}", String(archive.count)),
+        5000,
+      );
+      return;
+    }
+    const targetIds = input.scope === "selection" ? input.blockIds : [input.documentId];
+    const markdown = await exportBlocksKramdown(targetIds, input.options);
     await copyMarkdown(markdown);
     showMessage(
-      this.t("lets-kramdown-export.success").replace("{count}", String(input.blockIds.length)),
+      this.t("lets-kramdown-export.success").replace("{count}", String(targetIds.length)),
       5000,
     );
   }

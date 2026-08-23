@@ -1,4 +1,4 @@
-import { getBlockKramdown, getHPathByID, getIDsByHPath } from "@/api";
+import { getBlockKramdownsStrict, getHPathByID, getIDsByHPath } from "@/api";
 import type {
   DocumentLocator,
   IalExportOptions,
@@ -25,11 +25,8 @@ export function assertMarkdownTables(kramdown: string): void {
   }
 }
 
-async function readFilteredKramdown(blockId: string, options: IalExportOptions): Promise<string> {
-  const response = await getBlockKramdown(blockId);
-  const kramdown = typeof response?.kramdown === "string" ? response.kramdown : "";
-  if (!kramdown) throw new KramdownExportError("EXPORT_FAILED", `SiYuan returned no Kramdown for ${blockId}`);
-  const markdown = convertHtmlTablesToMarkdown(kramdown);
+export function prepareKramdown(kramdown: string, options: IalExportOptions): string {
+  const markdown = containsHtmlTable(kramdown) ? convertHtmlTablesToMarkdown(kramdown) : kramdown;
   assertMarkdownTables(markdown);
   return filterKramdownIal(markdown, options);
 }
@@ -37,8 +34,13 @@ async function readFilteredKramdown(blockId: string, options: IalExportOptions):
 export async function exportBlocksKramdown(blockIds: readonly string[], options: IalExportOptions): Promise<string> {
   const uniqueIds = [...new Set(blockIds.filter(Boolean))];
   if (uniqueIds.length === 0) throw new KramdownExportError("TARGET_NOT_FOUND", "No blocks were selected for export");
+  const kramdowns = await getBlockKramdownsStrict(uniqueIds);
   const parts: string[] = [];
-  for (const blockId of uniqueIds) parts.push((await readFilteredKramdown(blockId, options)).trimEnd());
+  for (const blockId of uniqueIds) {
+    const kramdown = kramdowns[blockId];
+    if (!kramdown) throw new KramdownExportError("EXPORT_FAILED", `SiYuan returned no Kramdown for ${blockId}`);
+    parts.push(prepareKramdown(kramdown, options).trimEnd());
+  }
   return `${parts.join("\n\n")}\n`;
 }
 

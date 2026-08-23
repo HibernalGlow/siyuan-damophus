@@ -53,6 +53,9 @@ importers:
       diff:
         specifier: ^8.0.4
         version: 8.0.4
+      jszip:
+        specifier: 3.10.1
+        version: 3.10.1
       lucide-svelte:
         specifier: 0.545.0
         version: 0.545.0(svelte@5.56.8)

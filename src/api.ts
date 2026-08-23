@@ -296,6 +296,10 @@ export async function getBlockKramdownStrict(id: BlockId): Promise<IResGetBlockK
     return requestStrict<IResGetBlockKramdown>('/api/block/getBlockKramdown', { id, mode: 'md' });
 }
 
+export async function getBlockKramdownsStrict(ids: readonly BlockId[]): Promise<Record<string, string>> {
+    return requestStrict<Record<string, string>>('/api/block/getBlockKramdowns', { ids, mode: 'md' });
+}
+
 export interface DocHistoryPage {
     histories: string[];
     pageCount: number;

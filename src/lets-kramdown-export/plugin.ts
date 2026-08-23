@@ -5,7 +5,7 @@ const pluginMetadata: PluginMetadata = {
   name: "kramdownExport",
   displayName: "lets-kramdown-export.displayName",
   description: "lets-kramdown-export.description",
-  version: "1.0.0",
+  version: "1.1.0",
   enabled: false,
   icon: "fileOutput",
   settings: [

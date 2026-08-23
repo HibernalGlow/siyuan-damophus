@@ -76,6 +76,7 @@
     "consola": "^3.4.2",
     "diff": "^8.0.4",
     "lucide-svelte": "0.545.0",
+    "jszip": "3.10.1",
     "mdast-util-to-string": "^4.0.0",
     "rehype-sanitize": "^6.0.0",
     "rehype-stringify": "^10.0.1",
