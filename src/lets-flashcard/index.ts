@@ -382,7 +382,9 @@ export default class FlashcardPlugin extends SubPluginBase {
           filtered,
           onReview: () => {
             dialog.destroy();
-            if (due) void this.openNativeReview(`复习：${group.name}`, due, group);
+            // Re-query after registration; the due snapshot was captured
+            // before the user clicked "一键制卡并登记".
+            void this.reviewGroup(group);
           },
           onRegister: async () => {
             const ids = roots.map((root) => root.blockId);

@@ -29,7 +29,7 @@
     </div>
     <div class="actions">
       {#if roots.length > 0}<button class="b3-button" on:click={onRegister}>一键制卡并登记</button>{/if}
-      {#if due && due.cards.length > 0}<button class="b3-button" on:click={onReview}>复习过滤结果</button>{/if}
+      {#if filtered && roots.length > 0}<button class="b3-button" on:click={onReview}>复习过滤结果</button>{/if}
     </div>
   </header>
   <div class="result-list">
