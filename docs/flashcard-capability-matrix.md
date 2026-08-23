@@ -24,6 +24,7 @@ Status: implementation baseline; SFP behavior has been ported, with target-versi
 | Document/notebook + SQL scope | Native due API + group intersection | Temporary menu scope | 已实现 | 仅当前上下文；SQL 失败关闭范围 |
 | Flashcard browser | Workbench diagnostics | renderer/priority/due/groups | 已实现 | 单次最多渲染 300 行 |
 | Native review tools | Native toolbar | locate/unregister/P1-P4/workbench | 已实现 | 原生 skip 保留；不删除块 |
+| Context-menu bulk unregister | Block, heading, document, notebook | Preview then `/api/riff/removeRiffCards` | 已实现 | 仅取消 Riff 登记；保留正文、IAL、标签和复习内容 |
 | Idempotent registration | Riff API | add then query verify | 已实现 | pending/unregistered |
 | Native review panel | `siyuan-card` | Reuse native path | 设计已定 | 不复制面板 |
 | Pre-render renderer selection | Global flashcard config | Capability-detected interceptor | 已实现 | original global config |

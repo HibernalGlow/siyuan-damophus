@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { FlashcardDiagnosticRow, FlashcardGroup, FlashcardReviewScope, FlashcardSettings } from "@/flashcard/types";
+  import { type FlashcardDiagnosticRow, type FlashcardGroup, type FlashcardReviewScope, type FlashcardReviewStatKey, type FlashcardSettings } from "@/flashcard/types";
   import type { RiffCardRecord } from "@/flashcard/siyuan-adapter";
   import type { FlashcardRuntime } from "@/flashcard/runtime";
 
@@ -22,6 +22,8 @@
   let saving = false;
   let activeTab: "instructions" | "recent" | "groups" | "browser" | "global" = "recent";
   let activeCategoryId = config.categories[0]?.id ?? "default";
+  let editingCategoryId: string | undefined;
+  let editingCategoryName = "";
   let visibleGroups: FlashcardGroup[] = [];
   let history = runtime.getHistory();
   let diagnosticRows: FlashcardDiagnosticRow[] = [];
@@ -31,6 +33,13 @@
   let browserRenderer = "all";
   let browserDueOnly = false;
   let visibleDiagnostics: FlashcardDiagnosticRow[] = [];
+  const REVIEW_STAT_LABELS: Record<FlashcardReviewStatKey, string> = {
+    reviews: "复习次数",
+    lastReview: "距上次复习",
+    lapses: "遗忘次数",
+    lapseRate: "遗忘率",
+    interval: "复习间隔",
+  };
 
   $: activeCategoryId = config.categories.some((category) => category.id === activeCategoryId)
     ? activeCategoryId
@@ -158,14 +167,39 @@
     runtime.startAutomation();
   }
 
+  function moveReviewStat(key: FlashcardReviewStatKey, direction: "up" | "down"): void {
+    const order = [...config.reviewStats.order];
+    const index = order.indexOf(key);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    config = { ...config, reviewStats: { ...config.reviewStats, order } };
+    saveGlobalOnChange();
+  }
+
   async function clearCache(): Promise<void> {
     await runtime.clearCache();
     message = "已清除 SQL 缓存";
   }
 
-  function renameCategoryWithPrompt(category: { id: string; name: string }): void {
-    const name = window.prompt("分类名称", category.name)?.trim();
-    if (name && name !== category.name) void renameCategory({ ...category, name });
+  function startCategoryRename(category: { id: string; name: string }): void {
+    editingCategoryId = category.id;
+    editingCategoryName = category.name;
+  }
+
+  function cancelCategoryRename(): void {
+    editingCategoryId = undefined;
+    editingCategoryName = "";
+  }
+
+  async function commitCategoryRename(category: { id: string; name: string }): Promise<void> {
+    const name = editingCategoryName.trim();
+    if (!name) {
+      message = "分类名称不能为空";
+      return;
+    }
+    if (name !== category.name) await renameCategory({ ...category, name });
+    cancelCategoryRename();
   }
 </script>
 
@@ -280,6 +314,17 @@
       <h3>复习顺序</h3>
       <label class="check"><input type="checkbox" bind:checked={config.randomInterleaveEnabled} on:change={saveGlobalOnChange} /> 随机模式：将约 5% 的较低优先级卡插入高优先级区段</label>
       <label class="check"><input type="checkbox" bind:checked={config.samePriorityShuffleEnabled} on:change={saveGlobalOnChange} /> 同级随机：每轮复习打乱同一优先级内的卡片顺序</label>
+      <h3>当前卡片信息</h3>
+      <label class="check"><input type="checkbox" bind:checked={config.reviewStats.enabled} on:change={saveGlobalOnChange} /> 显示当前卡片统计</label>
+      <div class="review-stat-options">
+        {#each config.reviewStats.order as statKey, index (statKey)}
+          <div class="review-stat-option">
+            <label class="check"><input type="checkbox" bind:checked={config.reviewStats.visible[statKey]} on:change={saveGlobalOnChange} /> {REVIEW_STAT_LABELS[statKey]}</label>
+            <button class="icon-button" title="上移" aria-label={`${REVIEW_STAT_LABELS[statKey]}上移`} disabled={index === 0} on:click={() => moveReviewStat(statKey, "up")}><svg><use href="#iconUp"></use></svg></button>
+            <button class="icon-button" title="下移" aria-label={`${REVIEW_STAT_LABELS[statKey]}下移`} disabled={index === config.reviewStats.order.length - 1} on:click={() => moveReviewStat(statKey, "down")}><svg><use href="#iconDown"></use></svg></button>
+          </div>
+        {/each}
+      </div>
       <h3>原生复习工具栏</h3>
       <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarEnabled} on:change={saveGlobalOnChange} /> 启用工具栏增强</label>
       <div class="toolbar-options">
@@ -288,6 +333,9 @@
         <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarPriority} on:change={saveGlobalOnChange} /> P1-P4</label>
         <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarWorkbench} on:change={saveGlobalOnChange} /> 打开工作台</label>
         <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarRenderer} on:change={saveGlobalOnChange} /> 渲染开关</label>
+        <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarSkipBetween} on:change={saveGlobalOnChange} /> 跳过置于 PQ 与显示答案之间</label>
+        <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarShowExitFocus} on:change={saveGlobalOnChange} /> 显示退出聚焦</label>
+        <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarShowBrand} on:change={saveGlobalOnChange} /> 显示闪卡标题</label>
       </div>
     </section>
   {:else}
@@ -302,8 +350,22 @@
     <div class="categories" data-testid="flashcard-categories">
       {#each config.categories as category}
         <div class:active-category={activeCategoryId === category.id} class="category" data-category-id={category.id}>
-          <button class="category-select" on:click={() => activeCategoryId = category.id}>{category.name} ({config.groups.filter((group) => group.categoryId === category.id).length})</button>
-          <button class="icon-button" title="重命名分类" on:click={() => renameCategoryWithPrompt(category)}>编辑</button>
+          {#if editingCategoryId === category.id}
+            <input
+              class="category-name-input"
+              aria-label="分类名称"
+              bind:value={editingCategoryName}
+              on:keydown={(event) => {
+                if (event.key === "Enter") void commitCategoryRename(category);
+                if (event.key === "Escape") cancelCategoryRename();
+              }}
+            />
+            <button class="icon-button" title="保存分类名称" on:click={() => void commitCategoryRename(category)}>保存</button>
+            <button class="icon-button" title="取消编辑" on:click={cancelCategoryRename}>取消</button>
+          {:else}
+            <button class="category-select" on:click={() => activeCategoryId = category.id}>{category.name} ({config.groups.filter((group) => group.categoryId === category.id).length})</button>
+            <button class="icon-button" title="重命名分类" on:click={() => startCategoryRename(category)}>编辑</button>
+          {/if}
           {#if config.categories.length > 1}<button class="icon-button" title="删除分类" on:click={() => deleteCategory(category.id)}>删除</button>{/if}
         </div>
       {/each}
@@ -364,6 +426,7 @@
   .category { display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--b3-border-color); border-radius: 4px; }
   .category.active-category { border-color: var(--b3-theme-primary); }
   .category-select { border: 0; color: inherit; background: transparent; cursor: pointer; }
+  .category-name-input { min-width: 160px; font-weight: 600; }
   select { min-width: 100px; }
   .icon-button { min-width: 32px; padding-inline: 8px; }
   .group-row { flex-wrap: wrap; }
@@ -382,5 +445,8 @@
   .diagnostic-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
   .tool-settings h3 { grid-column: 1 / -1; }
   .toolbar-options { grid-column: 1 / -1; flex-wrap: wrap; }
+  .review-stat-options { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+  .review-stat-option { display: flex; align-items: center; gap: 4px; }
+  .review-stat-option .check { flex: 1; }
   @media (max-width: 700px) { .flashcard-settings { padding: 12px; } .group-row .b3-button { flex: 1 1 auto; } }
 </style>

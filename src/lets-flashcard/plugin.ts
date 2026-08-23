@@ -12,6 +12,7 @@ const pluginMetadata: PluginMetadata = {
   settings: [
     ...createEntrySettings({
       menu: true,
+      contextMenu: true,
       command: true,
       desktopDock: true,
       mobileDock: true,

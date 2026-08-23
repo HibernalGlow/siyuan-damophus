@@ -10,6 +10,7 @@ afterEach(async () => {
   if (app) await unmount(app);
   app = undefined;
   document.body.innerHTML = "";
+  vi.restoreAllMocks();
 });
 
 async function render() {
@@ -64,4 +65,38 @@ describe("flashcard workbench", () => {
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
     expect(document.querySelector("nav.tabs")?.scrollWidth).toBeLessThanOrEqual(document.querySelector("nav.tabs")?.clientWidth ?? 0);
   });
+
+  it("exposes configurable current-card statistics in the global settings", async () => {
+    const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
+    const target = await render();
+    [...target.querySelectorAll<HTMLButtonElement>("nav.tabs button")]
+      .find((button) => button.textContent === "总体配置")?.click();
+
+    await vi.waitFor(() => expect(target.textContent).toContain("当前卡片信息"));
+    expect(target.querySelector('[aria-label="距上次复习上移"]')).not.toBeNull();
+    target.querySelector<HTMLButtonElement>('[aria-label="距上次复习上移"]')?.click();
+    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalled());
+    expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({
+      reviewStats: { order: ["lastReview", "reviews", "lapses", "lapseRate", "interval"] },
+    });
+  });
+
+  it("edits a category name inline instead of relying on a prompt", async () => {
+    const saveCategory = vi.spyOn(FlashcardRuntime.prototype, "saveCategory").mockResolvedValue();
+    const target = await render();
+    [...target.querySelectorAll<HTMLButtonElement>("nav.tabs button")]
+      .find((button) => button.textContent === "SQL 分组")?.click();
+
+    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('[title="重命名分类"]')).not.toBeNull());
+    target.querySelector<HTMLButtonElement>('[title="重命名分类"]')?.click();
+    await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('[aria-label="分类名称"]')).not.toBeNull());
+    const input = target.querySelector<HTMLInputElement>('[aria-label="分类名称"]')!;
+    input!.value = "重点复习";
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('[title="保存分类名称"]')).not.toBeNull());
+    target.querySelector<HTMLButtonElement>('[title="保存分类名称"]')?.click();
+
+    await vi.waitFor(() => expect(saveCategory).toHaveBeenCalledWith({ id: "default", name: "重点复习" }));
+  });
+
 });

@@ -8,6 +8,7 @@ describe("flashcard plugin metadata", () => {
 
     expect(entrySettings?.map((setting) => [setting.entrySurface, setting.value])).toEqual([
       ["menu", true],
+      ["contextMenu", true],
       ["command", true],
       ["desktopDock", true],
       ["mobileDock", true],
@@ -26,6 +27,8 @@ describe("flashcard plugin metadata", () => {
       reviewAll: vi.fn(),
       reviewGroup: vi.fn(),
       currentReviewContext: () => undefined,
+      scopeMenuItem: vi.fn((label: string) => ({ label })),
+      batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
     };
 
     FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
@@ -40,4 +43,140 @@ describe("flashcard plugin metadata", () => {
       "复习：含指定标签",
     ]);
   });
+
+  it("keeps notebook actions out of the plugin menu", () => {
+    const addItem = vi.fn();
+    const fakePlugin = {
+      isEntryEnabled: () => true,
+      t: (key: string) => key,
+      runtime: { getEnabledGroups: () => [] },
+      openSettings: vi.fn(),
+      reviewAll: vi.fn(),
+      reviewGroup: vi.fn(),
+      currentReviewContext: () => ({
+        documentId: "doc-1",
+        documentName: "测试文档",
+        notebookId: "box-1",
+        notebookName: "测试笔记本",
+      }),
+      scopeMenuItem: vi.fn((label: string) => ({ label })),
+      batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
+    };
+
+    FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
+
+    const item = addItem.mock.calls[0][0] as { submenu?: Array<{ label?: string }> };
+    expect(item.submenu?.map((child) => child.label)).not.toContain("当前笔记本专项复习");
+    expect(item.submenu?.map((child) => child.label)).not.toContain("取消当前笔记本下所有闪卡登记");
+  });
+
+  it("adds bulk unregister actions for blocks, documents, and document trees", () => {
+    vi.stubGlobal("document", {});
+    const addItem = vi.fn();
+    const unregisterContainers = vi.fn();
+    const unregisterDocumentTree = vi.fn();
+    const instance = new FlashcardPlugin() as any;
+    Object.assign(instance, {
+      isEntryEnabled: () => true,
+      unregisterContainers,
+      unregisterDocumentTree,
+      scopeMenuItem: vi.fn((label: string) => ({ label })),
+      batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
+    });
+    const blockMenu = { addItem };
+
+    instance.handleBlockMenu({
+      detail: { menu: blockMenu, blockElements: [{ dataset: { nodeId: "20260823112001-stts5qv" } }] },
+    });
+    const action = addItem.mock.calls.map(([item]) => item).find((item) => item.label === "取消此容器内所有闪卡登记");
+    expect(action).toBeDefined();
+    expect(action.label).toBe("取消此容器内所有闪卡登记");
+    action.click();
+    expect(unregisterContainers).toHaveBeenCalledWith(["20260823112001-stts5qv"], "所选容器");
+
+    addItem.mockClear();
+    instance.handleDocumentTitleMenu({
+      detail: { menu: blockMenu, data: { id: "20260823112002-aaaaaaa", name: "测试文档" } },
+    });
+    addItem.mock.calls.map(([item]) => item).find((item) => item.label === "取消本文档下所有闪卡登记")?.click();
+    expect(unregisterContainers).toHaveBeenCalledWith(["20260823112002-aaaaaaa"], "文档“测试文档”");
+
+    addItem.mockClear();
+    instance.handleDocumentTreeMenu({
+      detail: { menu: blockMenu, type: "notebook", elements: [{ dataset: { nodeId: "notebook-1" } }] },
+    });
+    addItem.mock.calls.map(([item]) => item).find((item) => item.label === "取消所选笔记本下所有闪卡登记")?.click();
+    expect(unregisterDocumentTree).toHaveBeenCalledWith(["notebook-1"], true);
+  });
+
+  it("prefers the official mobile pop editor over desktop tabs and DOM", () => {
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    const previousCss = globalThis.CSS;
+    vi.stubGlobal("window", {
+      siyuan: {
+        mobile: {
+          popEditor: { protyle: { block: { rootID: "mobile-doc" }, notebookId: "mobile-book" } },
+          editor: { protyle: { block: { rootID: "other-mobile-doc" }, notebookId: "other-book" } },
+        },
+        notebooks: [{ id: "mobile-book", name: "移动笔记本" }],
+      },
+    });
+    vi.stubGlobal("document", {
+      querySelector: vi.fn(() => ({ dataset: { nodeId: "desktop-doc" } })),
+      querySelectorAll: vi.fn(() => []),
+    });
+    vi.stubGlobal("CSS", { escape: (value: string) => value });
+    const context = (FlashcardPlugin.prototype as any).currentReviewContext.call({});
+    expect(context).toEqual({
+      documentId: "mobile-doc",
+      documentName: "mobile-doc",
+      notebookId: "mobile-book",
+      notebookName: "移动笔记本",
+    });
+    vi.stubGlobal("window", previousWindow);
+    vi.stubGlobal("document", previousDocument);
+    vi.stubGlobal("CSS", previousCss);
+  });
+
+  it("falls back to the provided editor when mobile context is unavailable", () => {
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    const previousCss = globalThis.CSS;
+    vi.stubGlobal("window", { siyuan: { notebooks: [] } });
+    vi.stubGlobal("document", {
+      querySelector: vi.fn(() => undefined),
+      querySelectorAll: vi.fn(() => []),
+    });
+    vi.stubGlobal("CSS", { escape: (value: string) => value });
+    const context = (FlashcardPlugin.prototype as any).currentReviewContext.call({}, {
+      block: { rootID: "editor-doc" },
+      notebookId: "editor-book",
+    });
+    expect(context?.documentId).toBe("editor-doc");
+    expect(context?.notebookId).toBe("editor-book");
+    vi.stubGlobal("window", previousWindow);
+    vi.stubGlobal("document", previousDocument);
+    vi.stubGlobal("CSS", previousCss);
+  });
+
+  it("uses the visible mobile protyle when official mobile editors are absent", () => {
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    const previousCss = globalThis.CSS;
+    vi.stubGlobal("window", { siyuan: { notebooks: [] } });
+    vi.stubGlobal("document", {
+      querySelector: vi.fn((selector: string) => selector.includes(".protyle.fn__flex-1")
+        ? { dataset: { nodeId: "mobile-dom-doc" } }
+        : undefined),
+      querySelectorAll: vi.fn(() => []),
+    });
+    vi.stubGlobal("CSS", { escape: (value: string) => value });
+    const context = (FlashcardPlugin.prototype as any).currentReviewContext.call({});
+    expect(context?.documentId).toBe("mobile-dom-doc");
+    vi.stubGlobal("window", previousWindow);
+    vi.stubGlobal("document", previousDocument);
+    vi.stubGlobal("CSS", previousCss);
+  });
+
 });

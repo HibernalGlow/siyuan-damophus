@@ -1,4 +1,4 @@
-import { Dialog, Menu, confirm, getActiveTab, getAllEditor, openMobileFileById, openTab, showMessage, type IEventBusMap, type IMenu } from "siyuan";
+import { Dialog, Menu, confirm, getActiveTab, getAllEditor, openMobileFileById, openTab, showMessage, type IEventBusMap, type IMenu, type IProtyle } from "siyuan";
 import { mount, unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
@@ -9,11 +9,12 @@ import FlashcardResults from "./FlashcardResults.svelte";
 import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
 import { FlashcardRuntime } from "@/flashcard/runtime";
 import { openDocumentFlow } from "@/flashcard/document-flow";
-import type { FlashcardGroup, FlashcardReviewScope, FlashcardSettings as FlashcardSettingsConfig } from "@/flashcard/types";
+import type { FlashcardBlockRow, FlashcardGroup, FlashcardReviewScope, FlashcardRoot, FlashcardSettings as FlashcardSettingsConfig } from "@/flashcard/types";
 import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 import { priorityTag } from "@/flashcard/priority-tags";
 import { NativePriorityControls, type ReviewToolbarKey } from "@/flashcard/native-priority-controls";
 import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/native-review-counter";
+import { readReviewCardStats } from "@/flashcard/review-stats";
 import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
 
@@ -37,7 +38,11 @@ export default class FlashcardPlugin extends SubPluginBase {
   private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
   private readonly reviewCards = new Map<string, RiffCardRecord>();
   private currentReviewCard?: RiffCardRecord;
-  private readonly reviewCounter = new NativeReviewCounter({ documentRef: document });
+  private menuEventsBound = false;
+  private readonly reviewCounter = new NativeReviewCounter({
+    documentRef: document,
+    getStatsSettings: () => this.runtime.getSettings().reviewStats,
+  });
   private readonly priorityControls = new NativePriorityControls({
     documentRef: document,
     getSettings: () => {
@@ -49,7 +54,9 @@ export default class FlashcardPlugin extends SubPluginBase {
         priority: settings.reviewToolbarPriority,
         workbench: settings.reviewToolbarWorkbench,
         renderer: settings.reviewToolbarRenderer,
-        more: true,
+        skipBetween: settings.reviewToolbarSkipBetween,
+        showExitFocus: settings.reviewToolbarShowExitFocus,
+        showBrand: settings.reviewToolbarShowBrand,
       };
     },
     getCurrentCard: () => this.currentReviewCard,
@@ -108,6 +115,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!card) return;
     this.currentReviewCard = card;
     this.reviewCounter.setActiveCard(card.cardID);
+    this.reviewCounter.updateCardStats(card.cardID, readReviewCardStats(card));
     this.compat.refresh();
     this.reviewCounter.refresh();
     this.priorityControls.refresh();
@@ -121,6 +129,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = card;
     this.reviewCounter.setActiveCard(card.cardID);
+    this.reviewCounter.updateCardStats(card.cardID, readReviewCardStats(card));
     this.compat.refresh();
     this.reviewCounter.markReviewed(card.cardID, event.detail?.type ?? "");
     this.reviewCounter.refresh();
@@ -150,6 +159,10 @@ export default class FlashcardPlugin extends SubPluginBase {
   override onload(): void {
     this.compat.onCardRender = this.handleCardRender;
     plugin.eventBus.on("click-flashcard-action", this.handleFlashcardAction);
+    plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
+    plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
+    plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
+    this.menuEventsBound = true;
     this.reviewCounter.install();
     this.priorityControls.install();
     this.runtime.load();
@@ -164,6 +177,8 @@ export default class FlashcardPlugin extends SubPluginBase {
       title: this.t("lets-flashcard.open"),
       icon: "iconRiffCard",
       execute: () => this.openConfiguredSurface(),
+      executeFromActiveEditor: () => this.reviewFromActiveEditor(),
+      executeWithEditor: (protyle) => this.reviewFromEditor(protyle),
       command: { langKey: "lets-flashcard.open" },
       dock: {
         config: {
@@ -208,6 +223,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.runtime.stopAutomation();
     this.runtime.startAutomation();
     this.entry?.setSurfaces(this.configuredSettingsEntrySurfaces());
+    this.reviewCounter.refresh();
     this.priorityControls.refresh();
   }
 
@@ -218,6 +234,33 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   reviewAllFromSettings(): void {
     void this.reviewAll();
+  }
+
+  private reviewFromActiveEditor(): void {
+    const context = this.currentReviewContext();
+    if (!context) {
+      void this.reviewAll();
+      return;
+    }
+    this.reviewDocumentScope(context.documentId, context.documentName);
+  }
+
+  private reviewFromEditor(protyle: IProtyle): void {
+    const context = this.currentReviewContext(protyle);
+    if (!context) {
+      void this.reviewAll();
+      return;
+    }
+    this.reviewDocumentScope(context.documentId, context.documentName);
+  }
+
+  private reviewDocumentScope(documentId: string, targetName: string): void {
+    void this.reviewScopeCards({
+      id: `document:${documentId}`,
+      type: "document",
+      targetId: documentId,
+      targetName,
+    });
   }
 
   reviewGroupFromSettings(group: FlashcardGroup): void {
@@ -337,12 +380,18 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewCounter.setQueue(ordered.map((card) => {
       const root = rootsById.get(card.blockID);
       const priority: ReviewPriorityBucket = root?.priority && !root.priorityConflict ? root.priority : "other";
-      return { cardID: card.cardID, priority };
+      return { cardID: card.cardID, priority, stats: readReviewCardStats(card) };
     }));
     return ordered;
   }
 
   override onunload(): void {
+    if (this.menuEventsBound) {
+      plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
+      plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
+      plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
+      this.menuEventsBound = false;
+    }
     plugin.eventBus.off("click-flashcard-action", this.handleFlashcardAction);
     this.priorityControls.uninstall();
     this.reviewCounter.uninstall();
@@ -377,9 +426,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (context) {
       submenu.push({ type: "separator" });
       submenu.push(this.scopeMenuItem("当前文档专项复习", "document", context.documentId, context.documentName));
-      if (context.notebookId) {
-        submenu.push(this.scopeMenuItem("当前笔记本专项复习", "notebook", context.notebookId, context.notebookName ?? context.notebookId));
-      }
+      submenu.push(this.batchUnregisterScopeMenuItem("取消当前文档下所有闪卡登记", "document", context.documentId));
     }
     const groups = this.runtime.getEnabledGroups();
     if (groups.length > 0) submenu.push({ type: "separator" });
@@ -398,6 +445,129 @@ export default class FlashcardPlugin extends SubPluginBase {
       click: () => this.openSettings(),
       submenu,
     });
+  }
+
+  private readonly handleBlockMenu = (
+    event: CustomEvent<IEventBusMap["click-blockicon"]>,
+  ): void => {
+    if (!this.isEntryEnabled("contextMenu")) return;
+    const ids = event.detail.blockElements
+      .map((element) => element.dataset.nodeId ?? "")
+      .filter(Boolean);
+    if (ids.length === 0) return;
+    event.detail.menu.addItem({
+      icon: "iconRiffCard",
+      label: ids.length > 1 ? "复习所选容器内闪卡" : "复习此容器内闪卡",
+      click: () => void this.reviewContainerSelection(ids, ids.length > 1 ? "所选容器" : "当前容器"),
+    });
+    event.detail.menu.addItem({
+      icon: "iconCloseRound",
+      label: ids.length > 1 ? "取消所选容器内所有闪卡登记" : "取消此容器内所有闪卡登记",
+      click: () => void this.unregisterContainers(ids, "所选容器"),
+    });
+  };
+
+  private readonly handleDocumentTitleMenu = (
+    event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
+  ): void => {
+    if (!this.isEntryEnabled("contextMenu")) return;
+    const documentId = event.detail.data.id;
+    if (!documentId) return;
+    event.detail.menu.addItem(this.scopeMenuItem(
+      "复习本文档闪卡",
+      "document",
+      documentId,
+      event.detail.data.name ?? documentId,
+    ));
+    event.detail.menu.addItem({
+      icon: "iconCloseRound",
+      label: "取消本文档下所有闪卡登记",
+      click: () => void this.unregisterContainers([documentId], `文档“${event.detail.data.name ?? documentId}”`),
+    });
+  };
+
+  private readonly handleDocumentTreeMenu = (
+    event: CustomEvent<IEventBusMap["open-menu-doctree"]>,
+  ): void => {
+    if (!this.isEntryEnabled("contextMenu")) return;
+    const ids = [...event.detail.elements]
+      .map((element) => element.dataset.nodeId ?? "")
+      .filter(Boolean);
+    if (ids.length === 0) return;
+    const isNotebook = event.detail.type === "notebook";
+    const targetName = ids.length > 1
+      ? (isNotebook ? "所选笔记本" : "所选文档")
+      : (event.detail.elements[0]?.dataset.name ?? ids[0]);
+    event.detail.menu.addItem(ids.length === 1
+      ? this.scopeMenuItem(
+        isNotebook ? "复习此笔记本闪卡" : "复习此文档闪卡",
+        isNotebook ? "notebook" : "document",
+        ids[0],
+        targetName,
+      )
+      : {
+        icon: "iconRiffCard",
+        label: isNotebook ? "复习所选笔记本闪卡" : "复习所选文档闪卡",
+        click: () => void this.reviewDocumentTree(ids, isNotebook, targetName),
+      });
+    event.detail.menu.addItem({
+      icon: "iconCloseRound",
+      label: isNotebook ? "取消所选笔记本下所有闪卡登记" : "取消所选文档下所有闪卡登记",
+      click: () => void this.unregisterDocumentTree(ids, isNotebook),
+    });
+  };
+
+  private batchUnregisterScopeMenuItem(
+    label: string,
+    type: "document" | "notebook",
+    targetId: string,
+  ): IMenu {
+    return {
+      icon: "iconCloseRound",
+      label,
+      click: () => void this.unregisterDocumentTree([targetId], type === "notebook"),
+    };
+  }
+
+  private async reviewContainerSelection(ids: readonly string[], label: string): Promise<void> {
+    try {
+      const blockIds = await this.runtime.adapter.getContainerBlockIds(ids);
+      const due = await this.runtime.adapter.buildDueCardsData(
+        this.runtime.getSettings().deckId,
+        blockIds,
+        this.runtime.getSettings().maxReviewCards,
+      );
+      if (due.cards.length === 0) {
+        showMessage(`${label}没有可复习的已登记闪卡`, 5000, "info");
+        return;
+      }
+      await this.openNativeReview(`复习：${label}`, due);
+    } catch (error) {
+      this.reportError("获取容器闪卡失败", error);
+    }
+  }
+
+  private async reviewDocumentTree(ids: readonly string[], notebook: boolean, label: string): Promise<void> {
+    try {
+      const dueList = notebook
+        ? await Promise.all(ids.map((id) => this.runtime.adapter.getNotebookDueCards(id)))
+        : await Promise.all(ids.map((id) => this.runtime.adapter.getTreeDueCards(id)));
+      const cards = [...new Map(dueList.flatMap((due) => due.cards).map((card) => [card.blockID, card])).values()]
+        .slice(0, Math.max(1, this.runtime.getSettings().maxReviewCards));
+      if (cards.length === 0) {
+        showMessage(`${label}没有可复习的已登记闪卡`, 5000, "info");
+        return;
+      }
+      const due: DueCardsData = {
+        cards,
+        unreviewedCount: cards.length,
+        unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
+        unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
+      };
+      await this.openNativeReview(`复习：${label}`, due);
+    } catch (error) {
+      this.reportError("获取文档范围闪卡失败", error);
+    }
   }
 
   private scopeMenuItem(label: string, type: "document" | "notebook", targetId: string, targetName: string): IMenu {
@@ -427,18 +597,30 @@ export default class FlashcardPlugin extends SubPluginBase {
     };
   }
 
-  private currentReviewContext(): { documentId: string; documentName: string; notebookId?: string; notebookName?: string } | undefined {
+  private currentReviewContext(protyle?: IProtyle): { documentId: string; documentName: string; notebookId?: string; notebookName?: string } | undefined {
+    const mobileEditor = window.siyuan?.mobile?.popEditor ?? window.siyuan?.mobile?.editor;
+    const mobileProtyle = mobileEditor?.protyle;
+    const mobileDocumentId = mobileProtyle?.block?.rootID;
     const activeId = document.querySelector<HTMLElement>(
       ".layout__wnd--active .protyle.fn__flex-1:not(.fn__none) .protyle-background",
-    )?.dataset.nodeId;
-    const activeModel = getActiveTab()?.model as { editor?: { protyle?: { block?: { rootID?: string } } } } | undefined;
-    const editors = getAllEditor();
-    const documentId = activeId ?? activeModel?.editor?.protyle?.block?.rootID ?? editors[0]?.protyle.block.rootID;
+    )?.dataset.nodeId
+      ?? document.querySelector<HTMLElement>(
+        ".protyle.fn__flex-1:not(.fn__none) .protyle-background",
+      )?.dataset.nodeId;
+    // The published `siyuan` package only ships declarations; the host injects
+    // these helpers at runtime. Keep the fallback optional for tests and for
+    // mobile shells where the desktop tab helpers are absent.
+    const activeModel = (typeof getActiveTab === "function" ? getActiveTab()?.model : undefined) as { editor?: { protyle?: { block?: { rootID?: string } } } } | undefined;
+    const editors = typeof getAllEditor === "function" ? getAllEditor() : [];
+    const documentId = mobileDocumentId ?? protyle?.block?.rootID ?? activeId ?? activeModel?.editor?.protyle?.block?.rootID ?? editors[0]?.protyle.block.rootID;
     if (!documentId) return undefined;
     const documentName = document.querySelector<HTMLInputElement>(
       `.protyle-background[data-node-id="${CSS.escape(documentId)}"] + .protyle-title input`,
     )?.value || documentId;
-    const notebookId = editors.find((editor) => editor.protyle.block.rootID === documentId)?.protyle.notebookId;
+    const notebookId = mobileDocumentId
+      ? mobileProtyle?.notebookId
+      : protyle?.notebookId
+      ?? editors.find((editor) => editor.protyle.block.rootID === documentId)?.protyle.notebookId;
     const notebook = window.siyuan?.notebooks?.find((item) => item.id === notebookId);
     return { documentId, documentName, notebookId, notebookName: notebook?.name };
   }
@@ -540,6 +722,10 @@ export default class FlashcardPlugin extends SubPluginBase {
         : scope.groupName ?? scope.targetName;
       if (due.cards.length === 0 && (due.candidateCount ?? 0) > 0) {
         const registered = due.registeredCount;
+        if (registered === 0) {
+          await this.openScopeRegistration(scope, label, due);
+          return;
+        }
         showMessage(
           registered === undefined
             ? `范围“${label}”找到 ${due.candidateCount} 个闪卡根块，但无法确认 Riff 登记状态`
@@ -559,6 +745,83 @@ export default class FlashcardPlugin extends SubPluginBase {
     } catch (error) {
       this.reportError(`获取复习范围“${scope.targetName}”失败`, error);
     }
+  }
+
+  private async openScopeRegistration(scope: FlashcardReviewScope, label: string, due: DueCardsData): Promise<void> {
+    const ids = await this.runtime.provideScopeBlockIds(scope, true);
+    const roots = await this.runtime.adapter.inspectRoots(ids, this.runtime.getSettings());
+    const rows: FlashcardBlockRow[] = roots.map((root) => ({
+      id: root.blockId,
+      content: root.content,
+      type: root.renderer,
+      attributes: root.attributes,
+    }));
+    await this.openRegistrationResults({
+      title: `${label} · 待登记闪卡`,
+      rows,
+      roots,
+      due,
+      onRegistered: async () => {
+        await this.runtime.recordScope(scope);
+        await this.reviewScopeCards(scope);
+      },
+    });
+  }
+
+  private async openRegistrationResults(options: {
+    title: string;
+    rows: FlashcardBlockRow[];
+    roots: FlashcardRoot[];
+    due?: DueCardsData;
+    onRegistered: () => void | Promise<void>;
+  }): Promise<void> {
+    let app: ReturnType<typeof mount> | undefined;
+    const dialog = new Dialog({
+      title: options.title,
+      content: '<div class="damophus-flashcard-results-host"></div>',
+      width: "min(1000px, 94vw)",
+      height: "min(760px, 84vh)",
+      destroyCallback: () => { if (app) void unmount(app); },
+    });
+    const target = dialog.element.querySelector<HTMLElement>(".damophus-flashcard-results-host");
+    if (!target) return;
+    app = mount(FlashcardResults, {
+      target,
+      props: {
+        title: options.title,
+        rows: options.rows,
+        roots: options.roots,
+        due: options.due,
+        filtered: true,
+        canReview: false,
+        onReview: () => undefined,
+        onRegister: async () => {
+          try {
+            const ids = options.roots.map((root) => root.blockId);
+            const approved = await new Promise<boolean>((resolve) => {
+              confirm(
+                "登记并开始复习",
+                `预览包含 ${ids.length} 个卡片根块。登记并验证成功后将直接打开原生闪卡复习，确认继续？`,
+                () => resolve(true),
+                () => resolve(false),
+              );
+            });
+            if (!approved) return;
+            const result = await this.runtime.registerCards(ids);
+            const pending = result.filter((entry) => entry.status === "pending").length;
+            if (pending > 0) {
+              showMessage(`${pending} 张闪卡登记或验证失败，请保留此窗口后重试`, 6000, "error");
+              return;
+            }
+            showMessage(`已登记并验证 ${ids.length} 张闪卡，正在打开复习`, 4000, "info");
+            dialog.destroy();
+            await options.onRegistered();
+          } catch (error) {
+            this.reportError("登记闪卡并打开复习失败", error);
+          }
+        },
+      },
+    });
   }
 
   private async viewResults(group: FlashcardGroup, filtered: boolean): Promise<void> {
@@ -705,19 +968,74 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   private async unregisterCard(card: RiffCardRecord): Promise<boolean> {
-    const approved = await new Promise<boolean>((resolve) => {
-      confirm(
-        "取消闪卡登记",
-        "只从当前牌组移除这张闪卡，保留原笔记块和 DAMO 元数据。确认继续？",
-        () => resolve(true),
-        () => resolve(false),
-      );
-    });
+    const approved = await this.confirmUnregister(
+      "取消闪卡登记",
+      "只从当前牌组移除这张闪卡，原笔记块和 DAMO 元数据会保留。是否继续查看最终确认？",
+      "这会从当前牌组移除 1 张闪卡，但不会删除正文、IAL、优先级标签或复习内容。确认执行取消登记吗？",
+    );
     if (!approved) return false;
     await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, [card.blockID]);
     this.reviewCards.delete(card.blockID);
     showMessage("已取消闪卡登记，原笔记块保持不变", 4000, "info");
     return true;
+  }
+
+  private async unregisterContainers(containerIds: readonly string[], label: string): Promise<void> {
+    try {
+      const candidates = await this.runtime.adapter.getContainerBlockIds(containerIds);
+      const cards = await this.runtime.adapter.getCardsByBlockIds(candidates);
+      await this.confirmAndUnregister(cards, label);
+    } catch (error) {
+      this.reportError("查询容器内闪卡失败", error);
+    }
+  }
+
+  private async unregisterDocumentTree(ids: readonly string[], notebook: boolean): Promise<void> {
+    try {
+      const cards = notebook
+        ? (await Promise.all(ids.map((id) => this.runtime.adapter.getNotebookCards(id))).then((all) => all.flat()))
+        : (await Promise.all(ids.map((id) => this.runtime.adapter.getTreeCards(id))).then((all) => all.flat()));
+      await this.confirmAndUnregister(cards, notebook ? "所选笔记本" : "所选文档");
+    } catch (error) {
+      this.reportError("查询文档范围闪卡失败", error);
+    }
+  }
+
+  private async confirmAndUnregister(cards: readonly RiffCardRecord[], label: string): Promise<void> {
+    const byBlockId = new Map(cards.map((card) => [card.blockID, card]));
+    const selected = [...byBlockId.values()];
+    if (selected.length === 0) {
+      showMessage(`${label}中没有已登记的闪卡`, 4000, "info");
+      return;
+    }
+    const approved = await this.confirmUnregister(
+      "批量取消闪卡登记",
+      `${label}中发现 ${selected.length} 张已登记闪卡。是否继续查看最终确认？`,
+      `即将从思源原生牌组移除 ${selected.length} 张闪卡。正文、IAL、优先级标签和复习内容都会保留。确认执行批量取消登记吗？`,
+    );
+    if (!approved) return;
+    await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, selected.map((card) => card.blockID));
+    for (const card of selected) this.reviewCards.delete(card.blockID);
+    if (selected.some((card) => card.blockID === this.currentReviewCard?.blockID)) {
+      this.currentReviewCard = undefined;
+    }
+    this.priorityControls.refresh();
+    showMessage(`已取消登记 ${selected.length} 张闪卡，原笔记块保持不变`, 5000, "info");
+  }
+
+  private async confirmUnregister(
+    title: string,
+    previewMessage: string,
+    finalMessage: string,
+  ): Promise<boolean> {
+    const previewApproved = await new Promise<boolean>((resolve) => {
+      confirm(title, previewMessage, () => resolve(true), () => resolve(false));
+    });
+    if (!previewApproved) return false;
+
+    return new Promise<boolean>((resolve) => {
+      confirm("最终确认取消登记", finalMessage, () => resolve(true), () => resolve(false));
+    });
   }
 
   private reportError(message: string, error: unknown): void {

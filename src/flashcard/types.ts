@@ -72,6 +72,22 @@ export interface FlashcardGroupCache {
 
 export type FlashcardReviewScopeType = "group" | "document" | "notebook";
 
+export const FLASHCARD_REVIEW_STAT_KEYS = [
+  "reviews",
+  "lastReview",
+  "lapses",
+  "lapseRate",
+  "interval",
+] as const;
+
+export type FlashcardReviewStatKey = (typeof FLASHCARD_REVIEW_STAT_KEYS)[number];
+
+export interface FlashcardReviewStatsSettings {
+  enabled: boolean;
+  order: FlashcardReviewStatKey[];
+  visible: Record<FlashcardReviewStatKey, boolean>;
+}
+
 export interface FlashcardReviewScope {
   id: string;
   type: FlashcardReviewScopeType;
@@ -116,12 +132,16 @@ export interface FlashcardSettings {
   };
   randomInterleaveEnabled: boolean;
   samePriorityShuffleEnabled: boolean;
+  reviewStats: FlashcardReviewStatsSettings;
   reviewToolbarEnabled: boolean;
   reviewToolbarLocate: boolean;
   reviewToolbarUnregister: boolean;
   reviewToolbarPriority: boolean;
   reviewToolbarWorkbench: boolean;
   reviewToolbarRenderer: boolean;
+  reviewToolbarSkipBetween: boolean;
+  reviewToolbarShowExitFocus: boolean;
+  reviewToolbarShowBrand: boolean;
 }
 
 export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
@@ -136,12 +156,26 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   rendererVisibility: { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false },
   randomInterleaveEnabled: false,
   samePriorityShuffleEnabled: false,
+  reviewStats: {
+    enabled: true,
+    order: [...FLASHCARD_REVIEW_STAT_KEYS],
+    visible: {
+      reviews: true,
+      lastReview: true,
+      lapses: true,
+      lapseRate: true,
+      interval: true,
+    },
+  },
   reviewToolbarEnabled: true,
   reviewToolbarLocate: true,
   reviewToolbarUnregister: true,
   reviewToolbarPriority: true,
   reviewToolbarWorkbench: true,
   reviewToolbarRenderer: true,
+  reviewToolbarSkipBetween: true,
+  reviewToolbarShowExitFocus: false,
+  reviewToolbarShowBrand: true,
   categories: [{ id: "default", name: "默认分组" }],
   groups: [
     {

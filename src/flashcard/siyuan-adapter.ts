@@ -1,4 +1,4 @@
-import { getBlockKramdownStrict, requestStrict, updateBlockStrict } from "@/api";
+import { getBlockKramdownStrict, getChildBlocksStrict, requestStrict, updateBlockStrict } from "@/api";
 import { getLogger } from "@/libs/logger";
 import type {
   FlashcardBlockRow,
@@ -200,6 +200,51 @@ export class FlashcardSiyuanAdapter {
 
   async getNotebookDueCards(notebookId: string): Promise<DueCardsData> {
     return this.normalizeDueCards(await requestStrict<unknown>("/api/riff/getNotebookRiffDueCards", { notebook: notebookId }));
+  }
+
+  async getTreeCards(rootId: string, pageSize = 1000): Promise<RiffCardRecord[]> {
+    return this.getScopedCards("/api/riff/getTreeRiffCards", rootId, pageSize);
+  }
+
+  async getNotebookCards(notebookId: string, pageSize = 1000): Promise<RiffCardRecord[]> {
+    return this.getScopedCards("/api/riff/getNotebookRiffCards", notebookId, pageSize);
+  }
+
+  private async getScopedCards(url: string, id: string, pageSize: number): Promise<RiffCardRecord[]> {
+    const cards: RiffCardRecord[] = [];
+    for (let page = 1; page <= 100; page += 1) {
+      const value = await requestStrict<unknown>(url, { id, page, pageSize });
+      const batch = responseCards(value);
+      if (batch.length === 0) break;
+      cards.push(...batch);
+      const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
+      const pageCount = Number(record.pageCount ?? page);
+      if (page >= pageCount || batch.length < pageSize) break;
+    }
+    return cards;
+  }
+
+  /** Returns a selected container and all registered-card candidates below it. */
+  async getContainerBlockIds(rootIds: readonly string[], maxDepth = 32): Promise<string[]> {
+    const roots = dedupeIds(rootIds);
+    const result = new Set(roots);
+    const queue = roots.map((id) => ({ id, depth: 0 }));
+    const visited = new Set<string>();
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || visited.has(current.id) || current.depth >= maxDepth) continue;
+      visited.add(current.id);
+      const children = await getChildBlocksStrict(current.id);
+      for (const child of children) {
+        if (!nodeId.test(child.id)) continue;
+        result.add(child.id);
+        // SiYuan's official child-block API already expands a heading to all
+        // blocks under that heading. Other containers expose one level, so
+        // continue walking those children recursively.
+        if (child.type !== "h") queue.push({ id: child.id, depth: current.depth + 1 });
+      }
+    }
+    return [...result];
   }
 
   private normalizeDueCards(value: unknown): DueCardsData {

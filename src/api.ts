@@ -280,6 +280,18 @@ export async function getChildBlocks(id: BlockId): Promise<IResGetChildBlock[]> 
     return request(url, data);
 }
 
+export interface ChildBlockStrict {
+  id: string;
+  type?: string;
+  subType?: string;
+  content?: string;
+  markdown?: string;
+}
+
+export async function getChildBlocksStrict(id: BlockId): Promise<ChildBlockStrict[]> {
+  return requestStrict<ChildBlockStrict[]>('/api/block/getChildBlocks', { id });
+}
+
 export async function getBlockKramdownStrict(id: BlockId): Promise<IResGetBlockKramdown> {
     return requestStrict<IResGetBlockKramdown>('/api/block/getBlockKramdown', { id, mode: 'md' });
 }

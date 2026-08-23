@@ -11,6 +11,21 @@ function todayCard(id: string, extra: Record<string, unknown> = {}) {
 describe("flashcard runtime SFP parity", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("normalizes configurable review statistics for legacy settings", () => {
+    const runtime = new FlashcardRuntime((key) => key === "config" ? {
+      reviewStats: {
+        order: ["interval", "unknown", "interval"],
+        visible: { lapseRate: false },
+      },
+    } : undefined, vi.fn());
+
+    expect(runtime.getSettings().reviewStats).toEqual({
+      enabled: true,
+      order: ["interval", "reviews", "lastReview", "lapses", "lapseRate"],
+      visible: { reviews: true, lastReview: true, lapses: true, lapseRate: false, interval: true },
+    });
+  });
+
   it("postpones today's cards across the whole deck, not only enabled groups", async () => {
     const stored = {
       ...structuredClone(DEFAULT_FLASHCARD_SETTINGS),

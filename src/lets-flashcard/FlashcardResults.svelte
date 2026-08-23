@@ -7,8 +7,20 @@
   export let roots: FlashcardRoot[];
   export let due: DueCardsData | undefined;
   export let filtered = false;
+  export let canReview = true;
   export let onReview: () => void;
   export let onRegister: () => void | Promise<void>;
+  let registering = false;
+
+  async function register(): Promise<void> {
+    if (registering) return;
+    registering = true;
+    try {
+      await onRegister();
+    } finally {
+      registering = false;
+    }
+  }
 
   const rootIds = new Set(roots.map((root) => root.blockId));
   const rootById = new Map(roots.map((root) => [root.blockId, root]));
@@ -28,8 +40,8 @@
       <p>{filtered ? `${rows.length} 个 SQL 命中，${displayRows.length} 个去重后闪卡根块` : `${rows.length} 个 SQL 结果，${roots.length} 个闪卡根块`}{due ? `，${due.cards.length} 个到期卡` : ""}{#if due && due.candidateCount && due.registeredCount !== undefined && due.registeredCount < due.candidateCount}，{due.candidateCount - due.registeredCount} 个待制卡{/if}</p>
     </div>
     <div class="actions">
-      {#if roots.length > 0}<button class="b3-button" on:click={onRegister}>一键制卡并登记</button>{/if}
-      {#if filtered && roots.length > 0}<button class="b3-button" on:click={onReview}>复习过滤结果</button>{/if}
+      {#if roots.length > 0}<button class="b3-button" disabled={registering} on:click={register}>{registering ? "正在登记并验证…" : "一键制卡并登记"}</button>{/if}
+      {#if filtered && roots.length > 0 && canReview}<button class="b3-button" on:click={onReview}>复习过滤结果</button>{/if}
     </div>
   </header>
   <div class="result-list">

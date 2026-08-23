@@ -2,8 +2,10 @@ import { getLogger } from "@/libs/logger";
 import {
   cacheIsFresh,
   DEFAULT_FLASHCARD_SETTINGS,
+  FLASHCARD_REVIEW_STAT_KEYS,
   type FlashcardGroup,
   type FlashcardGroupCache,
+  type FlashcardReviewStatKey,
   type FlashcardReviewHistoryItem,
   type FlashcardReviewScope,
   type FlashcardDiagnosticRow,
@@ -21,6 +23,27 @@ function mergeSettings(value: unknown): FlashcardSettings {
   const input = value && typeof value === "object" ? value as Partial<FlashcardSettings> : {};
   const groups = Array.isArray(input.groups) ? input.groups : DEFAULT_FLASHCARD_SETTINGS.groups;
   const categories = Array.isArray(input.categories) ? input.categories : DEFAULT_FLASHCARD_SETTINGS.categories;
+  const rawReviewStats = input.reviewStats && typeof input.reviewStats === "object"
+    ? input.reviewStats as Partial<FlashcardSettings["reviewStats"]>
+    : {} as Partial<FlashcardSettings["reviewStats"]>;
+  const rawOrder = Array.isArray(rawReviewStats.order) ? rawReviewStats.order : [];
+  const order: FlashcardReviewStatKey[] = [];
+  for (const value of rawOrder) {
+    if ((FLASHCARD_REVIEW_STAT_KEYS as readonly string[]).includes(String(value))) {
+      const key = value as FlashcardReviewStatKey;
+      if (!order.includes(key)) order.push(key);
+    }
+  }
+  for (const key of FLASHCARD_REVIEW_STAT_KEYS) {
+    if (!order.includes(key)) order.push(key);
+  }
+  const visible = rawReviewStats.visible && typeof rawReviewStats.visible === "object"
+    ? rawReviewStats.visible as Record<string, boolean>
+    : {};
+  const normalizedVisible = Object.fromEntries(FLASHCARD_REVIEW_STAT_KEYS.map((key) => [
+    key,
+    typeof visible[key] === "boolean" ? visible[key] : DEFAULT_FLASHCARD_SETTINGS.reviewStats.visible[key],
+  ])) as FlashcardSettings["reviewStats"]["visible"];
   return {
     deckId: String(input.deckId ?? DEFAULT_FLASHCARD_SETTINGS.deckId),
     maxReviewCards: Math.max(1, Number(input.maxReviewCards ?? DEFAULT_FLASHCARD_SETTINGS.maxReviewCards)),
@@ -36,12 +59,20 @@ function mergeSettings(value: unknown): FlashcardSettings {
     },
     randomInterleaveEnabled: input.randomInterleaveEnabled === true,
     samePriorityShuffleEnabled: input.samePriorityShuffleEnabled === true,
+    reviewStats: {
+      enabled: rawReviewStats.enabled !== false,
+      order,
+      visible: normalizedVisible,
+    },
     reviewToolbarEnabled: input.reviewToolbarEnabled !== false,
     reviewToolbarLocate: input.reviewToolbarLocate !== false,
     reviewToolbarUnregister: input.reviewToolbarUnregister !== false,
     reviewToolbarPriority: input.reviewToolbarPriority !== false,
     reviewToolbarWorkbench: input.reviewToolbarWorkbench !== false,
     reviewToolbarRenderer: input.reviewToolbarRenderer !== false,
+    reviewToolbarSkipBetween: input.reviewToolbarSkipBetween !== false,
+    reviewToolbarShowExitFocus: input.reviewToolbarShowExitFocus === true,
+    reviewToolbarShowBrand: input.reviewToolbarShowBrand !== false,
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],
       ...group,

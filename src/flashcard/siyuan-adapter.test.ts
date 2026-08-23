@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { FlashcardSiyuanAdapter } from "./siyuan-adapter";
 
-const { requestStrict, getBlockKramdownStrict, updateBlockStrict } = vi.hoisted(() => ({
+const { requestStrict, getBlockKramdownStrict, getChildBlocksStrict, updateBlockStrict } = vi.hoisted(() => ({
   requestStrict: vi.fn(async () => []),
   getBlockKramdownStrict: vi.fn(async () => ({ kramdown: "" })),
+  getChildBlocksStrict: vi.fn(async () => []),
   updateBlockStrict: vi.fn(async () => []),
 }));
 
-vi.mock("@/api", () => ({ requestStrict, getBlockKramdownStrict, updateBlockStrict }));
+vi.mock("@/api", () => ({ requestStrict, getBlockKramdownStrict, getChildBlocksStrict, updateBlockStrict }));
 
 describe("flashcard SiYuan adapter", () => {
   it("batches large block loads for SFP dynamic groups", async () => {
@@ -143,5 +144,52 @@ describe("flashcard SiYuan adapter", () => {
 
     expect(requestStrict).toHaveBeenNthCalledWith(1, "/api/riff/getTreeRiffDueCards", { rootID: "20260823112000-docaaaa" });
     expect(requestStrict).toHaveBeenNthCalledWith(2, "/api/riff/getNotebookRiffDueCards", { notebook: "notebook-1" });
+  });
+
+  it("uses native tree and notebook card queries for bulk unregister previews", async () => {
+    requestStrict.mockClear();
+    requestStrict.mockResolvedValue({
+      blocks: [{ id: "20260823112001-stts5qv", riffCardID: "card-1", state: 0 }],
+      pageCount: 1,
+    } as never);
+    const adapter = new FlashcardSiyuanAdapter();
+
+    await adapter.getTreeCards("20260823112000-docaaaa");
+    await adapter.getNotebookCards("notebook-1");
+
+    expect(requestStrict).toHaveBeenNthCalledWith(1, "/api/riff/getTreeRiffCards", {
+      id: "20260823112000-docaaaa", page: 1, pageSize: 1000,
+    });
+    expect(requestStrict).toHaveBeenNthCalledWith(2, "/api/riff/getNotebookRiffCards", {
+      id: "notebook-1", page: 1, pageSize: 1000,
+    });
+  });
+
+  it("expands arbitrary containers through SiYuan's child-block API", async () => {
+    getChildBlocksStrict.mockReset();
+    getChildBlocksStrict
+      .mockResolvedValueOnce([{ id: "20260823112002-aaaaaaa", type: "l" }])
+      .mockResolvedValueOnce([{ id: "20260823112003-bbbbbbb", type: "p" }])
+      .mockResolvedValueOnce([]);
+
+    await expect(new FlashcardSiyuanAdapter().getContainerBlockIds(["20260823112001-stts5qv"])).resolves.toEqual([
+      "20260823112001-stts5qv",
+      "20260823112002-aaaaaaa",
+      "20260823112003-bbbbbbb",
+    ]);
+  });
+
+  it("removes a deduplicated batch through SiYuan's official Riff endpoint", async () => {
+    requestStrict.mockClear();
+    await new FlashcardSiyuanAdapter().removeCards("20230218211946-2kw8jgx", [
+      "20260823112001-stts5qv",
+      "20260823112001-stts5qv",
+      "not-a-block-id",
+    ]);
+
+    expect(requestStrict).toHaveBeenCalledWith("/api/riff/removeRiffCards", {
+      deckID: "20230218211946-2kw8jgx",
+      blockIDs: ["20260823112001-stts5qv"],
+    });
   });
 });
