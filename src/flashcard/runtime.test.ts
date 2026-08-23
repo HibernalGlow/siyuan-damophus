@@ -92,4 +92,42 @@ describe("flashcard runtime SFP parity", () => {
 
     expect(paginated).toHaveBeenCalledTimes(2);
   });
+
+  it("persists and orders pinned recent review scopes", async () => {
+    const writes = vi.fn();
+    const runtime = new FlashcardRuntime(() => undefined, writes);
+    const older = vi.spyOn(Date, "now").mockReturnValueOnce(100).mockReturnValueOnce(200);
+
+    await runtime.recordScope({ id: "group:a", type: "group", targetName: "A", groupId: "a", groupName: "A" });
+    await runtime.recordScope({ id: "group:b", type: "group", targetName: "B", groupId: "b", groupName: "B" });
+    await runtime.setScopePinned("group:a", true);
+
+    expect(runtime.getHistory().map((item) => [item.id, item.pinned, item.useCount])).toEqual([
+      ["group:a", true, 1],
+      ["group:b", false, 1],
+    ]);
+    expect(writes).toHaveBeenCalledWith("history", expect.any(Array));
+    older.mockRestore();
+  });
+
+  it("intersects a document scope with an SQL group", async () => {
+    const stored = structuredClone(DEFAULT_FLASHCARD_SETTINGS);
+    const runtime = new FlashcardRuntime((key) => key === "config" ? stored : undefined, vi.fn());
+    vi.spyOn(runtime, "provideGroupBlockIds").mockResolvedValue([
+      "20260823000000-aaaaaaa",
+      "20260823000001-bbbbbbb",
+    ]);
+    vi.spyOn(runtime.adapter, "loadBlocks").mockResolvedValue([
+      { id: "20260823000000-aaaaaaa", root_id: "20260823000009-docaaaa" },
+      { id: "20260823000001-bbbbbbb", root_id: "20260823000008-docbbbb" },
+    ]);
+
+    await expect(runtime.provideScopeBlockIds({
+      id: "document:doc:group",
+      type: "document",
+      targetId: "20260823000009-docaaaa",
+      targetName: "Current document",
+      groupId: stored.groups[0].id,
+    }, true)).resolves.toEqual(["20260823000000-aaaaaaa"]);
+  });
 });

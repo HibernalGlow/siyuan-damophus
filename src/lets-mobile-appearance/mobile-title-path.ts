@@ -6,11 +6,11 @@ const MOBILE_TITLE_PATH_CSS = `
 html[data-frontend="mobile"] .damophus-mobile-title-path,
 html[data-frontend="browser-mobile"] .damophus-mobile-title-path { flex: 1 1 auto; min-width: 1px; height: 58px; min-height: 58px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; box-sizing: border-box; }
 html[data-frontend="mobile"] .damophus-mobile-title-path { height: 42px; min-height: 42px; }
-html[data-frontend="mobile"] > body > .toolbar:has(.damophus-mobile-title-path),
-html[data-frontend="browser-mobile"] > body > .toolbar:has(.damophus-mobile-title-path) { min-height: 58px !important; height: 58px !important; overflow: visible; }
-html[data-frontend="mobile"] > body > .toolbar:has(.damophus-mobile-title-path) { min-height: 42px !important; height: 42px !important; }
-html[data-frontend="mobile"] > body > .toolbar:not(:has(.damophus-mobile-title-path)) > #toolbarName,
-html[data-frontend="browser-mobile"] > body > .toolbar:not(:has(.damophus-mobile-title-path)) > #toolbarName { flex: 0 1 auto !important; width: auto !important; max-width: calc(100% - 160px); margin-inline-end: 0 !important; }
+html[data-frontend="mobile"] > body > .toolbar.damophus-mobile-title-path-host,
+html[data-frontend="browser-mobile"] > body > .toolbar.damophus-mobile-title-path-host { min-height: 58px !important; height: 58px !important; overflow: visible; }
+html[data-frontend="mobile"] > body > .toolbar.damophus-mobile-title-path-host { min-height: 42px !important; height: 42px !important; }
+html[data-frontend="mobile"] > body > .toolbar:not(.damophus-mobile-title-path-host) > #toolbarName,
+html[data-frontend="browser-mobile"] > body > .toolbar:not(.damophus-mobile-title-path-host) > #toolbarName { flex: 0 1 auto !important; width: auto !important; max-width: calc(100% - 160px); margin-inline-end: 0 !important; }
 html[data-frontend="mobile"] .damophus-mobile-title-path > #toolbarName,
 html[data-frontend="browser-mobile"] .damophus-mobile-title-path > #toolbarName { flex: 0 1 auto; width: auto; max-width: 100%; height: 24px; min-height: 24px; box-sizing: border-box; line-height: 24px; font-size: 16px; }
 html[data-frontend="mobile"] .damophus-mobile-title-path > #toolbarName { height: 20px; min-height: 20px; line-height: 20px; font-size: 16px; }
@@ -41,6 +41,7 @@ export interface MobileTitlePathOptions {
 
 export class MobileTitlePath {
   private wrapper?: HTMLDivElement;
+  private toolbar?: HTMLElement;
   private location?: HTMLElement;
   private mountObserver?: MutationObserver;
   private cardObserver?: MutationObserver;
@@ -125,6 +126,8 @@ export class MobileTitlePath {
     this.mountObserver = undefined;
     const input = this.wrapper?.querySelector<HTMLInputElement>("#toolbarName");
     if (input && this.wrapper) this.wrapper.replaceWith(input);
+    this.toolbar?.classList.remove("damophus-mobile-title-path-host");
+    this.toolbar = undefined;
     this.wrapper = undefined;
     this.location = undefined;
   }
@@ -147,6 +150,8 @@ export class MobileTitlePath {
     location.setAttribute("aria-label", "Document location");
     input.before(wrapper);
     wrapper.append(input, location);
+    this.toolbar = input.closest<HTMLElement>(".toolbar") ?? undefined;
+    this.toolbar?.classList.add("damophus-mobile-title-path-host");
     this.wrapper = wrapper;
     this.location = location;
     return true;

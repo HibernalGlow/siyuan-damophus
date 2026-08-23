@@ -18,14 +18,19 @@ Status: implementation baseline; SFP behavior has been ported, with target-versi
 | Source identity | IAL | `custom-dm-source-key` | 协议已定 | 多匹配停止 |
 | Topic provider relation | IAL + dynamic lookup | `custom-qb-note-topic-id` | 已有题库关系基础 | 块 ID 只在索引中缓存 |
 | Question topic relation | IAL | `custom-qb-question-topic-ids` | 已有题库字段 | 不能以双链替代 |
-| Priority | Markdown tag | `#闪卡/优先级/P1-P4#` | 已实现 | preview/confirm 同步 Riff 优先级与 DAMO 标签；失败返回 pending |
+| Priority | Markdown tag + native queue hook | `#闪卡/优先级/P1-P4#` | 已实现 | 不调用不存在的 Riff priority API；同级保持 Riff 顺序 |
+| Random priority interleave | Native queue hook | Optional 5% lower-priority mix | 已实现 | 不修改 Riff 调度状态 |
+| Recent and pinned scopes | Plugin data | Group/document/notebook scope history | 已实现 | 可删除导航历史，不是业务身份 |
+| Document/notebook + SQL scope | Native due API + group intersection | Temporary menu scope | 已实现 | 仅当前上下文；SQL 失败关闭范围 |
+| Flashcard browser | Workbench diagnostics | renderer/priority/due/groups | 已实现 | 单次最多渲染 300 行 |
+| Native review tools | Native toolbar | locate/unregister/P1-P4/workbench | 已实现 | 原生 skip 保留；不删除块 |
 | Idempotent registration | Riff API | add then query verify | 已实现 | pending/unregistered |
 | Native review panel | `siyuan-card` | Reuse native path | 设计已定 | 不复制面板 |
 | Pre-render renderer selection | Global flashcard config | Capability-detected interceptor | 已实现 | original global config |
 | Dynamic review list | SQL + Riff due cards | Preload intersection pipeline | 已实现 | SQL failure stops next round; target-version browser gate remains |
 | Nested tag aggregation | SQL tag matches may include descendants | Filtered results and review inputs use deduped card roots | 已实现 | Raw SQL view intentionally keeps every matching row |
 | Legacy mark cards | Existing Riff card | Preserve root and history | 迁移规则已定 | no automatic rewrite |
-| Mobile review | Native panel | Same adapter contract | 待验证 | report unsupported capability |
+| Mobile review | Native panel | Same adapter contract | Browser Mode 已覆盖工具栏布局 | 真实 3.8.1+ 复习仍是发布门槛 |
 | Unload recovery | Descriptor/interceptor | Restore exact original | 已实现 | plugin must fail closed |
 | Future Riff/card-deck changes | Adapter boundary | V1/V2 profiles | 设计已定 | read-only/native fallback |
 
@@ -40,7 +45,7 @@ Status: implementation baseline; SFP behavior has been ported, with target-versi
 | 向上传递识别 | 任意子块命中时解析最近显式卡根、去重、循环/深度保护 | 已定 | list/superBlock/heading 混合树 |
 | 自动推迟今日新卡 | 可开关、天数配置、只处理今日创建且可推迟卡 | 已实现 | 原生 due 写入；不可用时返回 pending 并记录原因 |
 | 自动优先级扫描 | 已移除；不再按分组或定时统一覆盖优先级 | 已移除 | 优先级只由 Markdown P1-P4 标签决定 |
-| 批量优先级调整 | 选择 P1-P4 后对当前 SQL 分组执行 preview/confirm | 已实现 | 只调用 Riff 原生 API，并同步 Markdown 标签 |
+| 批量优先级调整 | 选择 P1-P4 后对当前 SQL 分组执行 preview/confirm | 已实现 | 更新 Markdown 标签；原生队列钩子消费标签 |
 | 原始 SQL 结果查看 | 显示不做卡片过滤的原始块结果 | 已实现 | DAMO Dialog 显示原始 SQL 行 |
 | 过滤后结果查看 | 显示向上传递、识别、去重后的卡根结果 | 已实现 | DAMO Dialog 显示卡根并可登记/复习 |
 | 文档流入口 | 可选调用文档流；DAMO 自有查看路径不依赖插件 | 已实现 | 原始 SQL、过滤后 IdList 均可选打开 |
@@ -81,7 +86,7 @@ Tomato 调用或文档流依赖。
 
 ## Verification log (2026-08-23)
 
-- `pnpm build` passed; focused flashcard suite passed: 7 files, 18 tests.
+- `pnpm build` passed; focused flashcard suite passed: 8 files, 31 tests.
 - `git diff --check` passed. Latest `dist/index.js` was deployed to
   `D:/1STUDY/SIYUAN/data/plugins/siyuan-damophus` and the two files have the
   same SHA-256.
@@ -144,3 +149,22 @@ Tomato 调用或文档流依赖。
   distinguishes unregistered roots from registered-but-not-due cards.
 - Legacy SFP priority automation fields are discarded during import; DAMO no
   longer calls Tomato or runs periodic group-wide priority scans.
+
+## Priority queue, scope and toolbar evidence (2026-08-23)
+
+- `priority-queue.test.ts` covers stable P1-P4 ordering, conflict fallback and
+  optional cross-priority insertion without changing card membership.
+- Runtime tests cover pinned/MRU scope persistence and document + SQL group
+  intersection. Adapter tests cover native document and notebook due endpoints.
+- Browser Mode covers desktop and mobile native toolbar icon attachment,
+  disabling through workbench settings, recent scopes, diagnostics and 390px
+  workbench overflow. A real supported-version embedded review remains required.
+
+## Live workbench evidence (2026-08-23)
+
+- The embedded browser resource at `http://localhost:52370` opened the DAMO
+  workbench successfully. Recent scopes, SQL groups, and the flashcard browser
+  all rendered without console warnings or errors.
+- Refreshing the flashcard index exposed 4,161 cards; the P1 filter reduced the
+  view to the isolated list-card regression card. A 390x844 viewport rendered
+  the workbench without horizontal overflow (`scrollWidth === 390`).

@@ -210,6 +210,11 @@
     openFilteredFromSettings?: (group: import("./flashcard/types").FlashcardGroup) => void;
     batchPriorityFromSettings?: (group: import("./flashcard/types").FlashcardGroup) => void;
     importSfpFromSettings?: () => void;
+    reviewScopeFromSettings?: (scope: import("./flashcard/types").FlashcardReviewScope) => void;
+    locateCardFromSettings?: (card: import("./flashcard/siyuan-adapter").RiffCardRecord) => void;
+    unregisterCardFromSettings?: (card: import("./flashcard/siyuan-adapter").RiffCardRecord) => void;
+    setCardPriorityFromSettings?: (card: import("./flashcard/siyuan-adapter").RiffCardRecord, priority: number) => void;
+    onDataChanged?: () => void;
   } | undefined;
   $: flashcardRuntime = flashcardModule?.getSettingsRuntime?.();
   $: showLayoutActionsSettings = focusedPlugin?.name === LAYOUT_ACTIONS_PLUGIN;
@@ -840,6 +845,11 @@
           onOpenFiltered={(group) => flashcardModule?.openFilteredFromSettings?.(group)}
           onBatchPriority={(group) => flashcardModule?.batchPriorityFromSettings?.(group)}
           onImportSfp={() => flashcardModule?.importSfpFromSettings?.()}
+          onReviewScope={(scope) => flashcardModule?.reviewScopeFromSettings?.(scope)}
+          onLocateCard={(card) => flashcardModule?.locateCardFromSettings?.(card)}
+          onUnregisterCard={(card) => flashcardModule?.unregisterCardFromSettings?.(card)}
+          onSetCardPriority={(card, priority) => flashcardModule?.setCardPriorityFromSettings?.(card, priority)}
+          onSettingsChanged={() => flashcardModule?.onDataChanged?.()}
         />
       {:else if showLayoutActionsSettings}
         <LayoutActionsSettings

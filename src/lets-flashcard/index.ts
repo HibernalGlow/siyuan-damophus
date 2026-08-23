@@ -1,19 +1,20 @@
-import { Dialog, Menu, confirm, openTab, showMessage, type IEventBusMap, type IMenu } from "siyuan";
+import { Dialog, Menu, confirm, getActiveTab, getAllEditor, openMobileFileById, openTab, showMessage, type IEventBusMap, type IMenu } from "siyuan";
 import { mount, unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { getLogger } from "@/libs/logger";
-import { plugin } from "@/utils";
+import { isMobile, plugin } from "@/utils";
 import FlashcardSettings from "./FlashcardSettings.svelte";
 import FlashcardResults from "./FlashcardResults.svelte";
 import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
 import { FlashcardRuntime } from "@/flashcard/runtime";
 import { openDocumentFlow } from "@/flashcard/document-flow";
-import type { FlashcardGroup } from "@/flashcard/types";
+import type { FlashcardGroup, FlashcardReviewScope } from "@/flashcard/types";
 import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 import { priorityTag } from "@/flashcard/priority-tags";
 import { NativePriorityControls } from "@/flashcard/native-priority-controls";
 import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
+import { orderCardsByPriority } from "@/flashcard/priority-queue";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -32,11 +33,21 @@ export default class FlashcardPlugin extends SubPluginBase {
   private tabRegistered = false;
   private readonly mounted = new Map<HTMLElement, ReturnType<typeof mount>>();
   private dockApp?: ReturnType<typeof mount>;
-  private reviewScope?: { group: FlashcardGroup; ids: Set<string> };
+  private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
   private readonly reviewCards = new Map<string, RiffCardRecord>();
   private currentReviewCard?: RiffCardRecord;
   private readonly priorityControls = new NativePriorityControls({
     documentRef: document,
+    getSettings: () => {
+      const settings = this.runtime.getSettings();
+      return {
+        enabled: settings.reviewToolbarEnabled,
+        locate: settings.reviewToolbarLocate,
+        unregister: settings.reviewToolbarUnregister,
+        priority: settings.reviewToolbarPriority,
+        workbench: settings.reviewToolbarWorkbench,
+      };
+    },
     getCurrentCard: () => this.currentReviewCard,
     resolveCard: async (blockId, root) => {
       const cached = this.reviewCards.get(blockId);
@@ -51,6 +62,9 @@ export default class FlashcardPlugin extends SubPluginBase {
       return card;
     },
     setPriority: (card, priority) => this.runtime.adapter.setPriority([card], priority),
+    locate: (card) => this.locateCard(card),
+    unregister: (card) => this.unregisterCard(card),
+    openWorkbench: () => this.openSettings(),
   });
 
   private readonly handleCardRender = (blockId: string): void => {
@@ -66,6 +80,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     const card = event.detail?.card as unknown as RiffCardRecord | undefined;
     if (!card?.blockID) return;
     this.reviewCards.set(card.blockID, card);
+    this.currentReviewCard = card;
     this.priorityControls.refresh();
   };
 
@@ -148,6 +163,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.runtime.stopAutomation();
     this.runtime.startAutomation();
     this.entry?.setSurfaces(this.configuredSettingsEntrySurfaces());
+    this.priorityControls.refresh();
   }
 
   /** Shared settings surface used by the central DAMO settings page. */
@@ -161,6 +177,30 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   reviewGroupFromSettings(group: FlashcardGroup): void {
     void this.reviewGroup(group);
+  }
+
+  reviewScopeFromSettings(scope: FlashcardReviewScope): void {
+    void this.reviewScopeCards(scope);
+  }
+
+  async setScopePinnedFromSettings(scopeId: string, pinned: boolean): Promise<void> {
+    await this.runtime.setScopePinned(scopeId, pinned);
+  }
+
+  async removeScopeHistoryFromSettings(scopeId: string): Promise<void> {
+    await this.runtime.removeScopeHistory(scopeId);
+  }
+
+  locateCardFromSettings(card: RiffCardRecord): void {
+    void this.locateCard(card);
+  }
+
+  unregisterCardFromSettings(card: RiffCardRecord): void {
+    void this.unregisterCard(card);
+  }
+
+  setCardPriorityFromSettings(card: RiffCardRecord, priority: number): void {
+    void this.runtime.adapter.setPriority([card], priority);
   }
 
   viewResultsFromSettings(group: FlashcardGroup, filtered: boolean): void {
@@ -192,36 +232,61 @@ export default class FlashcardPlugin extends SubPluginBase {
     for (const card of cardsData.cards ?? []) {
       if (card?.blockID) this.reviewCards.set(card.blockID, card);
     }
+    if (!Array.isArray(cardsData?.cards)) return cardsData;
     const scope = this.reviewScope;
-    if (!scope || !Array.isArray(cardsData?.cards)) return cardsData;
     // Native Siyuan invokes updateCards again after a review round. The next
     // round may contain only newly-due cards, so none of their IDs need to be
     // present in the initial snapshot. Refresh the SQL boundary before
     // deciding whether this is a continuation; an unrelated native review
     // with no matching candidate releases the scope instead of showing blank.
     try {
-      const roots = await this.runtime.provideGroupBlockIds(scope.group, true);
-      const allowed = new Set(roots);
-      const cards = cardsData.cards.filter((card) => allowed.has(card.blockID));
-      const overlapsInitial = cardsData.cards.some((card) => scope.ids.has(card.blockID));
-      if (!overlapsInitial && cards.length === 0) {
-        this.reviewScope = undefined;
-        return cardsData;
+      let cards = cardsData.cards;
+      if (scope) {
+        const rootIds = await this.runtime.provideScopeBlockIds(scope.scope, true);
+        const allowed = new Set(rootIds);
+        cards = cards.filter((card) => allowed.has(card.blockID));
+        const overlapsInitial = cardsData.cards.some((card) => scope.ids.has(card.blockID));
+        if (!overlapsInitial && cards.length === 0) {
+          this.reviewScope = undefined;
+          return this.orderCardsData(cardsData);
+        }
       }
-      const renderers = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
-      this.compat.preloadMany(renderers);
+      const ordered = await this.orderCards(cards);
       return {
-        cards,
-        unreviewedCount: cards.length,
-        unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
-        unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
+        cards: ordered,
+        unreviewedCount: ordered.length,
+        unreviewedNewCardCount: ordered.filter((card) => card.state === 0).length,
+        unreviewedOldCardCount: ordered.filter((card) => card.state !== 0).length,
       };
     } catch (error) {
+      if (!scope) {
+        log.warn("priority-ordering-failed", error);
+        return cardsData;
+      }
       // A failed dynamic query must fail closed. Returning the native input
       // here would silently widen a scoped review to the whole deck.
       log.error("dynamic-review-query-failed", error);
       return { cards: [], unreviewedCount: 0, unreviewedNewCardCount: 0, unreviewedOldCardCount: 0 };
     }
+  }
+
+  private async orderCardsData(cardsData: DueCardsData): Promise<DueCardsData> {
+    const cards = await this.orderCards(cardsData.cards);
+    return {
+      ...cardsData,
+      cards,
+      unreviewedCount: cards.length,
+      unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
+      unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
+    };
+  }
+
+  private async orderCards(cards: readonly RiffCardRecord[]): Promise<RiffCardRecord[]> {
+    const roots = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
+    this.compat.preloadMany(roots);
+    return orderCardsByPriority(cards, roots, {
+      randomInterleave: this.runtime.getSettings().randomInterleaveEnabled,
+    });
   }
 
   override onunload(): void {
@@ -254,6 +319,14 @@ export default class FlashcardPlugin extends SubPluginBase {
       label: this.t("lets-flashcard.reviewAll"),
       click: () => void this.reviewAll(),
     });
+    const context = this.currentReviewContext();
+    if (context) {
+      submenu.push({ type: "separator" });
+      submenu.push(this.scopeMenuItem("当前文档专项复习", "document", context.documentId, context.documentName));
+      if (context.notebookId) {
+        submenu.push(this.scopeMenuItem("当前笔记本专项复习", "notebook", context.notebookId, context.notebookName ?? context.notebookId));
+      }
+    }
     const groups = this.runtime.getEnabledGroups();
     if (groups.length > 0) submenu.push({ type: "separator" });
     for (const group of groups) {
@@ -273,6 +346,49 @@ export default class FlashcardPlugin extends SubPluginBase {
     });
   }
 
+  private scopeMenuItem(label: string, type: "document" | "notebook", targetId: string, targetName: string): IMenu {
+    const scopes = [
+      this.makeScope(type, targetId, targetName),
+      ...this.runtime.getEnabledGroups().map((group) => this.makeScope(type, targetId, targetName, group)),
+    ];
+    return {
+      icon: type === "document" ? "iconFile" : "iconNotebook",
+      label,
+      submenu: scopes.map((scope) => ({
+        icon: "iconRiffCard",
+        label: scope.groupName ? `应用分组：${scope.groupName}` : "全部到期卡",
+        click: () => void this.reviewScopeCards(scope),
+      })),
+    };
+  }
+
+  private makeScope(type: "document" | "notebook", targetId: string, targetName: string, group?: FlashcardGroup): FlashcardReviewScope {
+    return {
+      id: `${type}:${targetId}:${group?.id ?? "all"}`,
+      type,
+      targetId,
+      targetName,
+      groupId: group?.id,
+      groupName: group?.name,
+    };
+  }
+
+  private currentReviewContext(): { documentId: string; documentName: string; notebookId?: string; notebookName?: string } | undefined {
+    const activeId = document.querySelector<HTMLElement>(
+      ".layout__wnd--active .protyle.fn__flex-1:not(.fn__none) .protyle-background",
+    )?.dataset.nodeId;
+    const activeModel = getActiveTab()?.model as { editor?: { protyle?: { block?: { rootID?: string } } } } | undefined;
+    const editors = getAllEditor();
+    const documentId = activeId ?? activeModel?.editor?.protyle?.block?.rootID ?? editors[0]?.protyle.block.rootID;
+    if (!documentId) return undefined;
+    const documentName = document.querySelector<HTMLInputElement>(
+      `.protyle-background[data-node-id="${CSS.escape(documentId)}"] + .protyle-title input`,
+    )?.value || documentId;
+    const notebookId = editors.find((editor) => editor.protyle.block.rootID === documentId)?.protyle.notebookId;
+    const notebook = window.siyuan?.notebooks?.find((item) => item.id === notebookId);
+    return { documentId, documentName, notebookId, notebookName: notebook?.name };
+  }
+
   private mountSettings(target: HTMLElement): ReturnType<typeof mount> {
     target.classList.add("damophus-theme-root", "h-full", "min-h-0");
     return mount(FlashcardSettings, {
@@ -286,6 +402,11 @@ export default class FlashcardPlugin extends SubPluginBase {
         onOpenFiltered: (group: FlashcardGroup) => void this.openFilteredFlow(group),
         onBatchPriority: (group: FlashcardGroup) => void this.batchPriority(group),
         onImportSfp: () => this.importSfpConfig(),
+        onReviewScope: (scope: FlashcardReviewScope) => void this.reviewScopeCards(scope),
+        onLocateCard: (card: RiffCardRecord) => void this.locateCard(card),
+        onUnregisterCard: (card: RiffCardRecord) => void this.unregisterCard(card),
+        onSetCardPriority: (card: RiffCardRecord, priority: number) => void this.runtime.adapter.setPriority([card], priority),
+        onSettingsChanged: () => this.priorityControls.refresh(),
       },
     });
   }
@@ -339,29 +460,41 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   private async reviewGroup(group: FlashcardGroup): Promise<void> {
+    await this.reviewScopeCards({
+      id: `group:${group.id}`,
+      type: "group",
+      targetName: group.name,
+      groupId: group.id,
+      groupName: group.name,
+    });
+  }
+
+  private async reviewScopeCards(scope: FlashcardReviewScope): Promise<void> {
     try {
-      // A tag group is user-edited content; always refresh it at the moment of
-      // review so restoring a Markdown document cannot be hidden by stale cache.
-      const due = await this.runtime.buildGroupDueCards(group, true);
+      const due = await this.runtime.buildScopeDueCards(scope, true);
+      const label = scope.groupName && scope.type !== "group"
+        ? `${scope.targetName} · ${scope.groupName}`
+        : scope.groupName ?? scope.targetName;
       if (due.cards.length === 0 && (due.candidateCount ?? 0) > 0) {
         const registered = due.registeredCount;
         showMessage(
           registered === undefined
-            ? `分组“${group.name}”找到 ${due.candidateCount} 个闪卡根块，但无法确认 Riff 登记状态`
+            ? `范围“${label}”找到 ${due.candidateCount} 个闪卡根块，但无法确认 Riff 登记状态`
             : registered === 0
-            ? `分组“${group.name}”找到 ${due.candidateCount} 个闪卡根块，但尚未登记到 Riff，请先在过滤结果中一键制卡并登记`
-            : `分组“${group.name}”已登记 ${registered} 张卡，但当前没有到期卡`,
+            ? `范围“${label}”找到 ${due.candidateCount} 个闪卡根块，但尚未登记到 Riff`
+            : `范围“${label}”已登记 ${registered} 张卡，但当前没有到期卡`,
           7000,
           "info",
         );
       }
       if (due.cards.length === 0 && (due.candidateCount ?? 0) === 0) {
-        showMessage(`分组“${group.name}”未找到符合条件的闪卡根块`, 5000, "info");
+        showMessage(`范围“${label}”未找到符合条件的到期闪卡`, 5000, "info");
       }
       if (due.cards.length === 0) return;
-      await this.openNativeReview(`复习：${group.name}`, due, group);
+      await this.runtime.recordScope(scope);
+      await this.openNativeReview(`复习：${label}`, due, scope);
     } catch (error) {
-      this.reportError(`获取分组“${group.name}”失败`, error);
+      this.reportError(`获取复习范围“${scope.targetName}”失败`, error);
     }
   }
 
@@ -463,13 +596,17 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private async openNativeReview(title: string, due: DueCardsData, group?: FlashcardGroup): Promise<void> {
-    for (const card of due.cards) this.reviewCards.set(card.blockID, card);
-    this.currentReviewCard = due.cards[0];
+  private async openNativeReview(title: string, due: DueCardsData, scope?: FlashcardReviewScope): Promise<void> {
+    const orderedDue = await this.orderCardsData(due);
+    for (const card of orderedDue.cards) this.reviewCards.set(card.blockID, card);
+    this.currentReviewCard = orderedDue.cards[0];
     this.priorityControls.refresh();
-    const roots = await this.runtime.adapter.inspectRoots(due.cards.map((card) => card.blockID), this.runtime.getSettings());
+    const roots = await this.runtime.adapter.inspectRoots(orderedDue.cards.map((card) => card.blockID), this.runtime.getSettings());
     this.compat.preloadMany(roots as Array<{ blockId: string; renderer: any }>);
-    this.reviewScope = group ? { group, ids: new Set(due.cards.map((card) => card.blockID)) } : undefined;
+    this.reviewScope = scope?.groupId
+      ? { scope, ids: new Set(orderedDue.cards.map((card) => card.blockID)) }
+      : undefined;
+    const nativeScope = scope && !scope.groupId && scope.type !== "group" ? scope : undefined;
     await openTab({
       app: plugin.app,
       custom: {
@@ -477,13 +614,44 @@ export default class FlashcardPlugin extends SubPluginBase {
         icon: "iconRiffCard",
         id: "siyuan-card",
         data: {
-          cardType: "all",
-          id: "",
+          cardType: nativeScope?.type === "document" ? "doc" : nativeScope?.type ?? "all",
+          id: nativeScope?.targetId ?? "",
           title,
-          cardsData: due,
+          cardsData: orderedDue,
         },
       },
     });
+  }
+
+  private async locateCard(card: RiffCardRecord): Promise<void> {
+    if (isMobile) {
+      openMobileFileById(plugin.app, card.blockID, ["cb-get-focus", "cb-get-scroll"]);
+      return;
+    }
+    await openTab({
+      app: plugin.app,
+      doc: {
+        id: card.blockID,
+        zoomIn: true,
+        action: ["cb-get-focus", "cb-get-scroll"],
+      },
+    });
+  }
+
+  private async unregisterCard(card: RiffCardRecord): Promise<boolean> {
+    const approved = await new Promise<boolean>((resolve) => {
+      confirm(
+        "取消闪卡登记",
+        "只从当前牌组移除这张闪卡，保留原笔记块和 DAMO 元数据。确认继续？",
+        () => resolve(true),
+        () => resolve(false),
+      );
+    });
+    if (!approved) return false;
+    await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, [card.blockID]);
+    this.reviewCards.delete(card.blockID);
+    showMessage("已取消闪卡登记，原笔记块保持不变", 4000, "info");
+    return true;
   }
 
   private reportError(message: string, error: unknown): void {

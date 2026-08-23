@@ -1,12 +1,24 @@
-import { showMessage } from "siyuan";
+import { Menu, showMessage } from "siyuan";
 import type { RiffCardRecord } from "./siyuan-adapter";
 import { priorityTag } from "./priority-tags";
 
+export interface NativeReviewToolbarSettings {
+  enabled: boolean;
+  locate: boolean;
+  unregister: boolean;
+  priority: boolean;
+  workbench: boolean;
+}
+
 export interface NativePriorityControlOptions {
   documentRef: Document;
+  getSettings: () => NativeReviewToolbarSettings;
   getCurrentCard: () => RiffCardRecord | undefined;
   resolveCard?: (blockId: string, root?: HTMLElement) => Promise<RiffCardRecord | undefined>;
   setPriority: (card: RiffCardRecord, priority: number) => Promise<"native" | "pending">;
+  locate: (card: RiffCardRecord) => void | Promise<void>;
+  unregister: (card: RiffCardRecord) => Promise<boolean>;
+  openWorkbench: () => void;
 }
 
 const PRIORITIES = [
@@ -16,10 +28,16 @@ const PRIORITIES = [
   { value: 25, label: "P4" },
 ] as const;
 
-/** Adds a small menu to the native card toolbar without replacing siyuan-card. */
+interface AttachedControl {
+  root: HTMLElement;
+  elements: HTMLElement[];
+  signature: string;
+}
+
+/** Adds narrow actions to SiYuan's native review toolbar on desktop and mobile. */
 export class NativePriorityControls {
   private observer?: MutationObserver;
-  private readonly controls = new Map<HTMLSelectElement, { root: HTMLElement; handler: () => void }>();
+  private readonly controls = new Map<HTMLElement, AttachedControl>();
 
   constructor(private readonly options: NativePriorityControlOptions) {}
 
@@ -32,96 +50,131 @@ export class NativePriorityControls {
   }
 
   refresh(): void {
-    for (const [control, entry] of this.controls) {
+    const settings = this.options.getSettings();
+    for (const [toolbar, entry] of this.controls) {
+      if (!toolbar.isConnected || !settings.enabled) {
+        for (const element of entry.elements) element.remove();
+        this.controls.delete(toolbar);
+        continue;
+      }
       const enabled = Boolean(this.options.getCurrentCard() || this.blockIdForRoot(entry.root));
-      control.disabled = !enabled;
-      control.setAttribute("aria-disabled", String(!enabled));
+      for (const element of entry.elements) {
+        if (element instanceof HTMLButtonElement) element.disabled = !enabled;
+        element.setAttribute("aria-disabled", String(!enabled));
+      }
     }
+    this.scan();
   }
 
   uninstall(): void {
     this.observer?.disconnect();
     this.observer = undefined;
-    for (const [control, entry] of this.controls) {
-      control.removeEventListener("change", entry.handler);
-      control.remove();
+    for (const entry of this.controls.values()) {
+      for (const element of entry.elements) element.remove();
     }
     this.controls.clear();
   }
 
   private scan(): void {
-    const roots = this.options.documentRef.querySelectorAll<HTMLElement>(
-      '[data-key="dialog-opencard"] .card__main',
-    );
-    for (const root of roots) this.attach(root);
-    this.refresh();
+    const settings = this.options.getSettings();
+    if (!settings.enabled) return;
+    const signature = JSON.stringify(settings);
+    for (const root of this.options.documentRef.querySelectorAll<HTMLElement>(".card__main")) {
+      const toolbar = root.querySelector<HTMLElement>(":scope > .block__icons, :scope > .toolbar");
+      if (!toolbar) continue;
+      const current = this.controls.get(toolbar);
+      if (current?.signature === signature) continue;
+      if (current) {
+        for (const element of current.elements) element.remove();
+        this.controls.delete(toolbar);
+      }
+      this.attach(root, toolbar, settings, signature);
+    }
   }
 
-  private attach(root: HTMLElement): void {
-    if (root.querySelector("[data-damophus-priority-control]")) return;
-    const toolbar = root.querySelector<HTMLElement>(".block__icons, .toolbar");
-    if (!toolbar) return;
-    const control = this.options.documentRef.createElement("select");
-    control.className = "block__icon block__icon--show damophus-flashcard-priority";
-    control.setAttribute("data-damophus-priority-control", "true");
-    control.setAttribute("aria-label", "设置闪卡优先级");
-    control.title = "设置闪卡优先级";
-    const placeholder = this.options.documentRef.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "P";
-    control.append(placeholder);
-    for (const option of PRIORITIES) {
-      const item = this.options.documentRef.createElement("option");
-      item.value = String(option.value);
-      item.textContent = option.label;
-      control.append(item);
+  private attach(root: HTMLElement, toolbar: HTMLElement, settings: NativeReviewToolbarSettings, signature: string): void {
+    const elements: HTMLElement[] = [];
+    if (settings.locate) elements.push(this.createAction(toolbar, "iconFocus", "定位闪卡原块", async () => {
+      const card = await this.resolveCard(root);
+      if (card) await this.options.locate(card);
+    }));
+    if (settings.unregister) elements.push(this.createAction(toolbar, "iconCloseRound", "取消闪卡登记", async () => {
+      const card = await this.resolveCard(root);
+      if (card && await this.options.unregister(card)) {
+        root.querySelector<HTMLButtonElement>('.card__action:not(.fn__none) button[data-type="-3"]')?.click();
+      }
+    }));
+    if (settings.priority) elements.push(this.createAction(toolbar, "iconSort", "设置闪卡优先级", async (trigger) => {
+      const card = await this.resolveCard(root);
+      if (card) this.openPriorityMenu(trigger, card);
+    }));
+    if (settings.workbench) elements.push(this.createAction(toolbar, "iconSettings", "打开闪卡工作台", () => this.options.openWorkbench()));
+    this.controls.set(toolbar, { root, elements, signature });
+  }
+
+  private createAction(
+    toolbar: HTMLElement,
+    icon: string,
+    label: string,
+    action: (trigger: HTMLElement) => void | Promise<void>,
+  ): HTMLElement {
+    const mobile = toolbar.classList.contains("toolbar");
+    const element = this.options.documentRef.createElement(mobile ? "svg" : "button");
+    element.className = mobile ? "toolbar__icon" : "block__icon block__icon--show";
+    element.setAttribute("data-damophus-flashcard-tool", icon);
+    element.setAttribute("aria-label", label);
+    element.setAttribute("title", label);
+    if (mobile) {
+      const use = this.options.documentRef.createElementNS("http://www.w3.org/2000/svg", "use");
+      use.setAttribute("href", `#${icon}`);
+      element.append(use);
+    } else {
+      element.innerHTML = `<svg><use href="#${icon}"></use></svg>`;
     }
-    const handler = () => {
-      const value = Number(control.value);
-      if (!Number.isFinite(value)) return;
-      const previousValue = control.value;
-      control.disabled = true;
-      const blockId = this.blockIdForRoot(root);
-      const cardPromise = ((blockId && this.options.resolveCard)
-        ? this.options.resolveCard(blockId, root)
-        : Promise.resolve(this.options.getCurrentCard()))
-        .catch(() => this.options.getCurrentCard());
-      void cardPromise.then((card) => {
-        // The rendered card can expose a nested paragraph node instead of the
-        // Riff root. Keep the native event-selected card as a safe fallback.
-        return card ?? this.options.getCurrentCard();
-      }).then((card) => {
-        if (!card) {
-          showMessage("无法定位当前闪卡，请重新打开复习卡片", 4000, "error");
-          return undefined;
-        }
-        return this.options.setPriority(card, value);
-      }).then((status) => {
-        if (!status) return;
-        showMessage(
-          status === "pending"
-            ? `当前卡片已写入 ${priorityTag(value)} 标签，运行时优先级待同步`
-            : `当前卡片优先级已调整为 ${priorityTag(value)}`,
-          4000,
-          status === "pending" ? "error" : "info",
-        );
-      }).catch(() => {
-        showMessage("优先级保存失败，请检查闪卡标签", 4000, "error");
-      }).finally(() => {
-        control.disabled = false;
-        control.value = previousValue;
-        this.refresh();
+    element.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void action(element);
+    });
+    const filter = toolbar.querySelector('[data-type="filter"]');
+    toolbar.insertBefore(element, filter ?? null);
+    return element;
+  }
+
+  private openPriorityMenu(trigger: HTMLElement, card: RiffCardRecord): void {
+    const menu = new Menu("damophus-flashcard-priority-menu");
+    for (const option of PRIORITIES) {
+      menu.addItem({
+        icon: "iconSort",
+        label: option.label,
+        click: () => void this.options.setPriority(card, option.value).then((status) => {
+          showMessage(
+            status === "pending"
+              ? `当前卡片的 ${priorityTag(option.value)} 标签保存失败`
+              : `当前卡片优先级已调整为 ${priorityTag(option.value)}`,
+            4000,
+            status === "pending" ? "error" : "info",
+          );
+        }),
       });
-    };
-    control.addEventListener("change", handler);
-    toolbar.append(control);
-    this.controls.set(control, { root, handler });
+    }
+    const rect = trigger.getBoundingClientRect();
+    menu.open({ x: rect.left, y: rect.bottom, isLeft: false });
+  }
+
+  private async resolveCard(root: HTMLElement): Promise<RiffCardRecord | undefined> {
+    const blockId = this.blockIdForRoot(root);
+    const card = await ((blockId && this.options.resolveCard)
+      ? this.options.resolveCard(blockId, root)
+      : Promise.resolve(this.options.getCurrentCard()))
+      .catch(() => this.options.getCurrentCard());
+    const resolved = card ?? this.options.getCurrentCard();
+    if (!resolved) showMessage("无法定位当前闪卡，请重新打开复习卡片", 4000, "error");
+    return resolved;
   }
 
   private blockIdForRoot(root: HTMLElement): string | undefined {
-    const node = root.matches("[data-node-id]")
-      ? root
-      : root.querySelector<HTMLElement>("[data-node-id]");
+    const node = root.querySelector<HTMLElement>("[data-node-id]");
     const blockId = node?.dataset.nodeId;
     return blockId && /^\d{14}-[a-z0-9]{7}$/u.test(blockId) ? blockId : undefined;
   }

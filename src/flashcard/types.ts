@@ -28,6 +28,7 @@ export interface FlashcardAttributes {
 
 export interface FlashcardBlockRow {
   id: string;
+  box?: string;
   parent_id?: string | null;
   root_id?: string | null;
   type?: string;
@@ -69,6 +70,29 @@ export interface FlashcardGroupCache {
   query: string;
 }
 
+export type FlashcardReviewScopeType = "group" | "document" | "notebook";
+
+export interface FlashcardReviewScope {
+  id: string;
+  type: FlashcardReviewScopeType;
+  targetId?: string;
+  targetName: string;
+  groupId?: string;
+  groupName?: string;
+}
+
+export interface FlashcardReviewHistoryItem extends FlashcardReviewScope {
+  useCount: number;
+  lastUsedAt: number;
+  pinned: boolean;
+}
+
+export interface FlashcardDiagnosticRow extends FlashcardRoot {
+  card: import("./siyuan-adapter").RiffCardRecord;
+  due: boolean;
+  groupNames: string[];
+}
+
 export interface FlashcardSettings {
   deckId: string;
   maxReviewCards: number;
@@ -81,6 +105,12 @@ export interface FlashcardSettings {
   groups: FlashcardGroup[];
   categories: FlashcardCategory[];
   rendererInterceptionEnabled: boolean;
+  randomInterleaveEnabled: boolean;
+  reviewToolbarEnabled: boolean;
+  reviewToolbarLocate: boolean;
+  reviewToolbarUnregister: boolean;
+  reviewToolbarPriority: boolean;
+  reviewToolbarWorkbench: boolean;
 }
 
 export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
@@ -92,6 +122,12 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   postponeEnabled: false,
   postponeDays: 2,
   rendererInterceptionEnabled: true,
+  randomInterleaveEnabled: false,
+  reviewToolbarEnabled: true,
+  reviewToolbarLocate: true,
+  reviewToolbarUnregister: true,
+  reviewToolbarPriority: true,
+  reviewToolbarWorkbench: true,
   categories: [{ id: "default", name: "默认分组" }],
   groups: [
     {

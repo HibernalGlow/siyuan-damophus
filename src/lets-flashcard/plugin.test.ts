@@ -25,6 +25,7 @@ describe("flashcard plugin metadata", () => {
       openSettings: vi.fn(),
       reviewAll: vi.fn(),
       reviewGroup: vi.fn(),
+      currentReviewContext: () => undefined,
     };
 
     FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);

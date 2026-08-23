@@ -4,6 +4,9 @@ import {
   DEFAULT_FLASHCARD_SETTINGS,
   type FlashcardGroup,
   type FlashcardGroupCache,
+  type FlashcardReviewHistoryItem,
+  type FlashcardReviewScope,
+  type FlashcardDiagnosticRow,
   type FlashcardSettings,
 } from "./types";
 import { FlashcardSiyuanAdapter, type DueCardsData } from "./siyuan-adapter";
@@ -27,6 +30,12 @@ function mergeSettings(value: unknown): FlashcardSettings {
     postponeEnabled: input.postponeEnabled === true,
     postponeDays: Math.max(0, Number(input.postponeDays ?? DEFAULT_FLASHCARD_SETTINGS.postponeDays)),
     rendererInterceptionEnabled: input.rendererInterceptionEnabled !== false,
+    randomInterleaveEnabled: input.randomInterleaveEnabled === true,
+    reviewToolbarEnabled: input.reviewToolbarEnabled !== false,
+    reviewToolbarLocate: input.reviewToolbarLocate !== false,
+    reviewToolbarUnregister: input.reviewToolbarUnregister !== false,
+    reviewToolbarPriority: input.reviewToolbarPriority !== false,
+    reviewToolbarWorkbench: input.reviewToolbarWorkbench !== false,
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],
       ...group,
@@ -51,6 +60,8 @@ export class FlashcardRuntime {
   private cache = new Map<string, FlashcardGroupCache>();
   private timer?: number;
   private loaded = false;
+  private historyLoaded = false;
+  private history: FlashcardReviewHistoryItem[] = [];
 
   constructor(
     private readonly readSetting: (key: string) => unknown,
@@ -91,6 +102,49 @@ export class FlashcardRuntime {
 
   getEnabledGroups(): FlashcardGroup[] {
     return this.getGroups().filter((group) => group.enabled);
+  }
+
+  getHistory(): FlashcardReviewHistoryItem[] {
+    if (!this.historyLoaded) {
+      const stored = this.readSetting("history");
+      this.history = Array.isArray(stored)
+        ? stored.filter((item): item is FlashcardReviewHistoryItem => Boolean(
+          item && typeof item === "object" && typeof (item as FlashcardReviewHistoryItem).id === "string",
+        ))
+        : [];
+      this.historyLoaded = true;
+    }
+    return clone(this.history).sort((left, right) =>
+      Number(right.pinned) - Number(left.pinned)
+        || right.useCount - left.useCount
+        || right.lastUsedAt - left.lastUsedAt,
+    );
+  }
+
+  async recordScope(scope: FlashcardReviewScope): Promise<void> {
+    this.getHistory();
+    const current = this.history.find((item) => item.id === scope.id);
+    if (current) {
+      Object.assign(current, scope, { useCount: current.useCount + 1, lastUsedAt: Date.now() });
+    } else {
+      this.history.push({ ...scope, useCount: 1, lastUsedAt: Date.now(), pinned: false });
+    }
+    this.history = this.getHistory().slice(0, 50);
+    await this.writeSetting("history", clone(this.history));
+  }
+
+  async setScopePinned(scopeId: string, pinned: boolean): Promise<void> {
+    this.getHistory();
+    const current = this.history.find((item) => item.id === scopeId);
+    if (!current) return;
+    current.pinned = pinned;
+    await this.writeSetting("history", clone(this.history));
+  }
+
+  async removeScopeHistory(scopeId: string): Promise<void> {
+    this.getHistory();
+    this.history = this.history.filter((item) => item.id !== scopeId);
+    await this.writeSetting("history", clone(this.history));
   }
 
   async saveGroup(group: FlashcardGroup): Promise<void> {
@@ -191,6 +245,60 @@ export class FlashcardRuntime {
   async buildGroupDueCards(group: FlashcardGroup, forceUpdate = false): Promise<DueCardsData> {
     const roots = await this.provideGroupBlockIds(group, forceUpdate);
     return this.adapter.buildDueCardsData(this.load().deckId, roots, this.load().maxReviewCards);
+  }
+
+  async provideScopeBlockIds(scope: FlashcardReviewScope, forceUpdate = false): Promise<string[]> {
+    const group = scope.groupId ? this.getGroups().find((candidate) => candidate.id === scope.groupId) : undefined;
+    if (scope.type === "group") {
+      if (!group) throw new Error(`Unknown flashcard group: ${scope.groupId ?? scope.id}`);
+      return this.provideGroupBlockIds(group, forceUpdate);
+    }
+    if (!scope.targetId) return [];
+    const candidates = group
+      ? await this.provideGroupBlockIds(group, forceUpdate)
+      : (await this.getAllDeckCards()).map((card) => card.blockID);
+    const rows = await this.adapter.loadBlocks(candidates);
+    return rows.filter((row) => scope.type === "document"
+      ? row.id === scope.targetId || row.root_id === scope.targetId
+      : (row as { box?: string }).box === scope.targetId,
+    ).map((row) => row.id);
+  }
+
+  async buildScopeDueCards(scope: FlashcardReviewScope, forceUpdate = false): Promise<DueCardsData> {
+    const settings = this.load();
+    if (!scope.groupId && scope.type === "document" && scope.targetId) {
+      return this.adapter.getTreeDueCards(scope.targetId);
+    }
+    if (!scope.groupId && scope.type === "notebook" && scope.targetId) {
+      return this.adapter.getNotebookDueCards(scope.targetId);
+    }
+    const roots = await this.provideScopeBlockIds(scope, forceUpdate);
+    return this.adapter.buildDueCardsData(settings.deckId, roots, settings.maxReviewCards);
+  }
+
+  async buildDiagnostics(): Promise<FlashcardDiagnosticRow[]> {
+    const settings = this.load();
+    const cards = await this.getAllDeckCards();
+    const roots = await this.adapter.inspectRoots(cards.map((card) => card.blockID), settings);
+    const rootsById = new Map(roots.map((root) => [root.blockId, root]));
+    const dueIds = new Set((await this.adapter.getDueCards(settings.deckId)).cards.map((card) => card.blockID));
+    const groupIds = new Map<string, string[]>();
+    for (const group of this.getEnabledGroups()) {
+      for (const blockId of await this.provideGroupBlockIds(group)) {
+        const names = groupIds.get(blockId) ?? [];
+        names.push(group.name);
+        groupIds.set(blockId, names);
+      }
+    }
+    return cards.map((card) => {
+      const root = rootsById.get(card.blockID) ?? {
+        blockId: card.blockID,
+        renderer: "unknown" as const,
+        kind: "unknown" as const,
+        attributes: {},
+      };
+      return { ...root, card, due: dueIds.has(card.blockID), groupNames: groupIds.get(card.blockID) ?? [] };
+    });
   }
 
   async buildAllDueCards(): Promise<DueCardsData> {

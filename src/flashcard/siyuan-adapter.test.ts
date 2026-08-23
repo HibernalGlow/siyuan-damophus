@@ -78,13 +78,14 @@ describe("flashcard SiYuan adapter", () => {
     expect(roots.map((root) => root.blockId)).toEqual([rootId]);
   });
 
-  it("syncs the portable priority tag after runtime priority succeeds", async () => {
+  it("uses the portable priority tag without calling a nonexistent Riff priority API", async () => {
     requestStrict.mockClear();
     getBlockKramdownStrict.mockResolvedValue({ kramdown: "- 问题\n#闪卡/优先级/P4#" });
     updateBlockStrict.mockClear();
     const adapter = new FlashcardSiyuanAdapter();
     const status = await adapter.setPriority([{ blockID: "20260823031431-rql6ii7", cardID: "card-1" }], 90);
     expect(status).toBe("native");
+    expect(requestStrict).not.toHaveBeenCalled();
     expect(updateBlockStrict).toHaveBeenCalledWith("markdown", "- 问题\n#闪卡/优先级/P1#", "20260823031431-rql6ii7");
   });
 
@@ -125,5 +126,22 @@ describe("flashcard SiYuan adapter", () => {
 
     expect(result.cards).toEqual([card]);
     expect(result.registeredCount).toBe(1);
+  });
+
+  it("uses SiYuan's native document and notebook due-card endpoints", async () => {
+    requestStrict.mockClear();
+    requestStrict.mockResolvedValue({
+      cards: [{ blockID: "20260823112001-stts5qv", cardID: "card-1", state: 1 }],
+      unreviewedCount: 1,
+      unreviewedNewCardCount: 0,
+      unreviewedOldCardCount: 1,
+    } as never);
+    const adapter = new FlashcardSiyuanAdapter();
+
+    await adapter.getTreeDueCards("20260823112000-docaaaa");
+    await adapter.getNotebookDueCards("notebook-1");
+
+    expect(requestStrict).toHaveBeenNthCalledWith(1, "/api/riff/getTreeRiffDueCards", { rootID: "20260823112000-docaaaa" });
+    expect(requestStrict).toHaveBeenNthCalledWith(2, "/api/riff/getNotebookRiffDueCards", { notebook: "notebook-1" });
   });
 });

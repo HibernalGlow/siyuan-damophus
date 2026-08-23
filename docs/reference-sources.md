@@ -17,6 +17,11 @@ Reference snapshot date: 2026-08-23.
 | `PearlLin2000/Specialized-Flashcard-Plugin` | `aa3bb02c8ed68164ddda53b87daa391822a1b7be` | DAMO 闪卡功能等价迁移基线；MIT；不复制其独立插件壳 |
 | `Samuelxiaozhuofeng/orca-srs-plugin` | `55529a99352bf26ee817a636f84c5750c44327bc` | SRS 数据模型、牌组/调度边界参考；只读研究，不作为依赖 |
 | `hqweay/orca-hqweay-go` | `ac4814e12d9d08663e05ff0138ffd73198b0fb03` | Orca 宿主与复习集成参考；只读研究，不作为依赖 |
+| `IAliceBobI/sy-tomato-plugin` | `74e990bedec44fb14cd5297d7840a835793f7080` | 原生 `updateCards` 队列优先级和复习工具交互；MIT；仅迁移窄范围机制 |
+| `zongqir/siyuan-flashcard-assistant` | `292c89d881de373fd580ccd35e163b82c19875fa` | 最近使用、置顶和频次排序；MIT；不迁移 DOM 拦截 |
+| `kx1356/siyuan-flashcard-zy` | `6c9a6573f0848923202fa2b345354603021490ff` | 文档/笔记本范围、数量和诊断交互；只有编译包，不复制实现 |
+| `Dammyxy/siyuan-plugin-siyuanmemo` | `4c92866bf5cb0aa44e474d48732816bb2a315e4e` | 块范围复习和卡片浏览器产品参考；自定义禁止修改/逆向许可证，不复制源码 |
+| `suka233/siyuan-knote` | `edad2b76ea112df34fd49ff8b0a76d9753fc0d5d` | 工作台筛选、列表和块定位参考；许可证信号冲突，仅 clean-room 模仿 |
 
 ### Additional UI Sources
 
@@ -36,6 +41,7 @@ Reference snapshot date: 2026-08-23.
 4. 复制代码前确认其边界、依赖和许可证；即使个人使用，也保留来源说明。
 5. 实际 API 行为与文档不一致时，以固定版本源码和本地思源验证结果为准，并在本仓库补充测试或 ADR。
 6. SFP 的功能可以迁移，SFP 的 Tomato 和文档流私有调用不能直接成为 DAMO 核心依赖；迁移前先记录行为，再在 DAMO adapter 中实现等价能力和降级状态。
+7. Tomato 的优先级实现只用于证明原生 `updateCards` 队列可排序；DAMO 不复制默认 50、自动统一、评分改优先级、私有全局对象和 DOM selector 注入。
 
 ## Expected Layout
 

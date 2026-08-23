@@ -128,7 +128,7 @@ export class FlashcardSiyuanAdapter {
         // SiYuan's SQL endpoint applies a small implicit row cap when LIMIT
         // is omitted. The explicit bound is required even for a chunked IN
         // query, otherwise large dynamic groups silently lose most blocks.
-        `SELECT id, parent_id, root_id, type, content, ial FROM blocks WHERE id IN (${idsClause(chunk)}) LIMIT ${chunk.length}`,
+        `SELECT id, parent_id, root_id, box, type, content, ial FROM blocks WHERE id IN (${idsClause(chunk)}) LIMIT ${chunk.length}`,
       );
       if (Array.isArray(batch)) rows.push(...batch);
     }
@@ -184,6 +184,25 @@ export class FlashcardSiyuanAdapter {
       deckID: deckId,
       reviewedCards: reviewedCards.map((card) => ({ cardID: card.cardID })),
     });
+    const cards = responseCards(value);
+    const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    return {
+      cards,
+      unreviewedCount: Number(record.unreviewedCount ?? cards.length),
+      unreviewedNewCardCount: Number(record.unreviewedNewCardCount ?? cards.filter((card) => card.state === 0).length),
+      unreviewedOldCardCount: Number(record.unreviewedOldCardCount ?? cards.filter((card) => card.state !== 0).length),
+    };
+  }
+
+  async getTreeDueCards(rootId: string): Promise<DueCardsData> {
+    return this.normalizeDueCards(await requestStrict<unknown>("/api/riff/getTreeRiffDueCards", { rootID: rootId }));
+  }
+
+  async getNotebookDueCards(notebookId: string): Promise<DueCardsData> {
+    return this.normalizeDueCards(await requestStrict<unknown>("/api/riff/getNotebookRiffDueCards", { notebook: notebookId }));
+  }
+
+  private normalizeDueCards(value: unknown): DueCardsData {
     const cards = responseCards(value);
     const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
     return {
@@ -315,18 +334,8 @@ export class FlashcardSiyuanAdapter {
 
   async setPriority(cards: readonly RiffCardRecord[], priority: number): Promise<"native" | "pending"> {
     if (cards.length === 0) return "pending";
-    let status: "native" | "pending" = "pending";
-    try {
-      await requestStrict<unknown>("/api/riff/setRiffCardsPriority", {
-        cardIDs: cards.map((card) => card.cardID),
-        priority,
-      });
-      status = "native";
-    } catch (error) {
-      log.warn("riff.priority-unavailable", error);
-    }
     if (!(await this.syncPriorityTags(cards, priority))) return "pending";
-    return status;
+    return "native";
   }
 
   static isTodayCard(card: RiffCardRecord): boolean {
