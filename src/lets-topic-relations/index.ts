@@ -28,6 +28,7 @@ import {
   getQuestionProgressLoader,
   questionProgressFromAggregate,
   setQuestionProgressLoader,
+  type QuestionProgress,
   type QuestionProgressLoader,
 } from "./topic-relations";
 import {
@@ -49,7 +50,10 @@ import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
 
 const log = getLogger("lets-topic-relations");
 const STYLE_ID = "damophus-topic-relations-style";
-const QUERY_CHUNK_SIZE = 24;
+// Keep statements comfortably below SQLite's SQL-text limits while avoiding
+// dozens of network round trips for cards carrying many topic IDs.
+const QUERY_CHUNK_SIZE = 512;
+const PROGRESS_BLOCK_CHUNK_SIZE = 256;
 
 function currentDeviceId(): string {
   const id = (window as Window & { siyuan?: {config?: {system?: {id?: unknown}}} }).siyuan?.config?.system?.id;
@@ -128,10 +132,17 @@ export default class TopicRelationsPlugin extends SubPluginBase {
   );
   private progressRuntime?: TinyBaseRuntime;
   private progressLoader?: QuestionProgressLoader;
+  private fallbackProgressCache = new Map<string, QuestionProgress | null>();
+  private fallbackProgressLoad?: Promise<void>;
+  private fallbackProgressThreshold?: number;
   private readonly handleEditorLoaded = (): void => this.scheduleRefresh();
   private readonly handleSyncEnd = (): void => this.invalidateAndRefresh();
   private readonly handleDictionaryUpdated = (): void => this.invalidateAndRefresh();
-  private readonly handleProgressUpdated = (): void => this.invalidateAndRefresh(80);
+  private readonly handleProgressUpdated = (): void => {
+    this.fallbackProgressCache.clear();
+    this.fallbackProgressThreshold = undefined;
+    this.invalidateAndRefresh(80);
+  };
   private readonly handleWsMain = (event: CustomEvent<IEventBusMap["ws-main"]>): void => {
     if (transactionTouchesTrackedBlock(event.detail, this.trackedBlockIds)) this.invalidateAndRefresh(180);
   };
@@ -140,24 +151,17 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     this.onunload();
     if (!getQuestionProgressLoader()) {
       this.progressLoader = async (blockIds) => {
-        if (blockIds.length === 0) return new Map();
-        const validBlockIds = blockIds.filter((id) => /^\d{14}-[a-z0-9]{7}$/u.test(id));
+        const validBlockIds = [...new Set(blockIds.filter((id) => /^\d{14}-[a-z0-9]{7}$/u.test(id)))];
         if (validBlockIds.length === 0) return new Map();
-        this.progressRuntime ??= new TinyBaseRuntime(new TinyBaseWarehouse(
-          new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
-          currentDeviceId(),
-        ));
-        await this.progressRuntime.mergeAfterSync().catch(() => undefined);
-        const rows = await requestStrict<Array<{block_id: string; attribute_value: string}>>(
-          "/api/query/sql",
-          {stmt: `SELECT block_id, value AS attribute_value FROM attributes WHERE name = 'custom-qb-id' AND block_id IN (${validBlockIds
-            .map((id) => `'${id}'`).join(", ")})`},
-        );
-        const aggregates = await this.progressRuntime.loadAggregates();
         const threshold = Number(this.getSetting("reviewThreshold")) || 2;
-        return new Map(rows.flatMap((row) => {
-          const aggregate = aggregates.get(row.attribute_value);
-          return aggregate ? [[row.block_id, questionProgressFromAggregate(aggregate, threshold)] as const] : [];
+        if (this.fallbackProgressThreshold !== undefined && this.fallbackProgressThreshold !== threshold) {
+          this.fallbackProgressCache.clear();
+        }
+        this.fallbackProgressThreshold = threshold;
+        await this.ensureFallbackProgress(validBlockIds);
+        return new Map(validBlockIds.flatMap((blockId) => {
+          const aggregate = this.fallbackProgressCache.get(blockId);
+          return aggregate ? [[blockId, aggregate] as const] : [];
         }));
       };
       setQuestionProgressLoader(this.progressLoader);
@@ -204,6 +208,9 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     this.styleElement = undefined;
     this.invalidateCache();
     this.progressRuntime = undefined;
+    this.fallbackProgressCache.clear();
+    this.fallbackProgressLoad = undefined;
+    this.fallbackProgressThreshold = undefined;
     if (this.progressLoader && getQuestionProgressLoader() === this.progressLoader) {
       setQuestionProgressLoader(undefined);
     }
@@ -284,6 +291,53 @@ export default class TopicRelationsPlugin extends SubPluginBase {
   private invalidateCache(): void {
     this.cacheKey = "";
     this.cache = undefined;
+  }
+
+  private async ensureFallbackProgress(blockIds: readonly string[]): Promise<void> {
+    const missing = blockIds.filter((blockId) => !this.fallbackProgressCache.has(blockId));
+    if (missing.length === 0) return;
+    if (this.fallbackProgressLoad) {
+      await this.fallbackProgressLoad;
+      return this.ensureFallbackProgress(blockIds);
+    }
+    const load = (async () => {
+      this.progressRuntime ??= new TinyBaseRuntime(new TinyBaseWarehouse(
+        new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
+        currentDeviceId(),
+      ));
+      await this.progressRuntime.mergeAfterSync().catch(() => undefined);
+      const chunks: string[][] = [];
+      for (let offset = 0; offset < missing.length; offset += PROGRESS_BLOCK_CHUNK_SIZE) {
+        chunks.push(missing.slice(offset, offset + PROGRESS_BLOCK_CHUNK_SIZE));
+      }
+      const [rows, aggregates] = await Promise.all([
+        (await Promise.all(chunks.map((chunk) => requestStrict<Array<{
+          block_id: string;
+          attribute_value: string;
+        }>>(
+          "/api/query/sql",
+          {stmt: `SELECT block_id, value AS attribute_value FROM attributes WHERE name = 'custom-qb-id' AND block_id IN (${chunk
+            .map((id) => `'${id}'`).join(", ")})`},
+        )))).flat(),
+        this.progressRuntime.loadAggregates(),
+      ]);
+      const questionIds = new Map(rows.map((row) => [row.block_id, row.attribute_value]));
+      const threshold = this.fallbackProgressThreshold ?? 2;
+      missing.forEach((blockId) => {
+        const questionId = questionIds.get(blockId);
+        const aggregate = questionId ? aggregates.get(questionId) : undefined;
+        this.fallbackProgressCache.set(
+          blockId,
+          aggregate ? questionProgressFromAggregate(aggregate, threshold) : null,
+        );
+      });
+    })();
+    this.fallbackProgressLoad = load;
+    try {
+      await load;
+    } finally {
+      if (this.fallbackProgressLoad === load) this.fallbackProgressLoad = undefined;
+    }
   }
 
   private labels(): TopicRelationLabels {
@@ -392,7 +446,7 @@ export default class TopicRelationsPlugin extends SubPluginBase {
         const loader = getQuestionProgressLoader();
         if (!loader) return groups;
         const entries = Array.from(groups.values()).flatMap((group) => group.questions);
-        const progress = await loader(entries.map((entry) => entry.blockId));
+        const progress = await loader([...new Set(entries.map((entry) => entry.blockId))]);
         for (const entry of entries) entry.progress = progress.get(entry.blockId);
         return groups;
       })
@@ -404,9 +458,10 @@ export default class TopicRelationsPlugin extends SubPluginBase {
   }
 
   private async queryRows(topicIds: readonly string[]): Promise<TopicRelationSqlRow[]> {
+    const normalized = [...new Set(topicIds)];
     const chunks: string[][] = [];
-    for (let offset = 0; offset < topicIds.length; offset += QUERY_CHUNK_SIZE) {
-      chunks.push(topicIds.slice(offset, offset + QUERY_CHUNK_SIZE));
+    for (let offset = 0; offset < normalized.length; offset += QUERY_CHUNK_SIZE) {
+      chunks.push(normalized.slice(offset, offset + QUERY_CHUNK_SIZE));
     }
     const results = await Promise.all(chunks.map((chunk) => requestStrict<TopicRelationSqlRow[]>(
       "/api/query/sql",
@@ -419,10 +474,15 @@ export default class TopicRelationsPlugin extends SubPluginBase {
     candidates: readonly TopicRelationSurfaceCandidate[],
   ) {
     if (candidates.length === 0) return [];
-    const rows = await requestStrict<TopicRelationAttributeRow[]>(
+    const blockIds = [...new Set(candidates.map((candidate) => candidate.blockId))];
+    const chunks: string[][] = [];
+    for (let offset = 0; offset < blockIds.length; offset += PROGRESS_BLOCK_CHUNK_SIZE) {
+      chunks.push(blockIds.slice(offset, offset + PROGRESS_BLOCK_CHUNK_SIZE));
+    }
+    const rows = (await Promise.all(chunks.map((chunk) => requestStrict<TopicRelationAttributeRow[]>(
       "/api/query/sql",
-      { stmt: buildTopicRelationAttributeSql(candidates.map((candidate) => candidate.blockId)) },
-    );
+      { stmt: buildTopicRelationAttributeSql(chunk) },
+    )))).flat();
     return buildSurfaceTopicRelationTargets(candidates, rows);
   }
 }

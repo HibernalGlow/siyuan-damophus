@@ -117,16 +117,22 @@ function createCountButton(
   return button;
 }
 
-function entriesForScope(
+function countEntriesForScope(
   entries: readonly TopicRelationEntry[],
   target: TopicRelationTarget,
   scope: TopicRelationScope,
-): TopicRelationEntry[] {
-  if (scope === "all") return [...entries];
-  if (!target.documentId) return [];
-  return entries.filter((entry) => scope === "document"
-    ? entry.rootId === target.documentId
-    : entry.rootId !== target.documentId);
+  excludedBlockId?: string,
+): number {
+  if (scope === "all" && !excludedBlockId) return entries.length;
+  if (scope !== "all" && !target.documentId) return 0;
+  let count = 0;
+  for (const entry of entries) {
+    if (excludedBlockId && entry.blockId === excludedBlockId) continue;
+    if (scope === "document" && entry.rootId !== target.documentId) continue;
+    if (scope === "external" && entry.rootId === target.documentId) continue;
+    count += 1;
+  }
+  return count;
 }
 
 function appendScopedCountButtons(
@@ -140,22 +146,23 @@ function appendScopedCountButtons(
   group: TopicRelationGroup,
   hostBlockId: string,
   preferredGroup: TopicRelationPanelGroup,
+  excludedBlockId?: string,
 ): void {
   const availableScopes: Array<{ scope: TopicRelationScope; icon: string; label: string }> = [
     { scope: "all", icon: "iconList", label: labels.all },
     { scope: "document", icon: "iconFile", label: labels.currentDocument },
     { scope: "external", icon: "iconFiles", label: labels.outsideDocument },
   ];
-  const documentEntries = entriesForScope(entries, target, "document");
-  const externalEntries = entriesForScope(entries, target, "external");
+  const documentCount = countEntriesForScope(entries, target, "document", excludedBlockId);
+  const externalCount = countEntriesForScope(entries, target, "external", excludedBlockId);
   const scopes = !target.documentId
     ? availableScopes.filter(({ scope }) => scope === "all")
-    : documentEntries.length > 0 && externalEntries.length > 0
+    : documentCount > 0 && externalCount > 0
       ? availableScopes
       : availableScopes.filter(({ scope }) => (
-        documentEntries.length > 0 ? scope === "document" : scope === "external"
+        documentCount > 0 ? scope === "document" : scope === "external"
       ));
-  if (entries.length === 0) return;
+  if (countEntriesForScope(entries, target, "all", excludedBlockId) === 0) return;
   const countGroup = document.createElement("span");
   countGroup.className = "damophus-topic-relations__count-group";
   countGroup.dataset.relationGroup = preferredGroup;
@@ -166,12 +173,12 @@ function appendScopedCountButtons(
   kind.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${relationIcon}"></use></svg>`;
   countGroup.append(kind);
   scopes.forEach(({ scope, icon, label }) => {
-    const scopedEntries = entriesForScope(entries, target, scope);
-    if (scopedEntries.length === 0) return;
-    const tooltip = `${relationLabel} · ${label} ${scopedEntries.length}`;
+    const count = countEntriesForScope(entries, target, scope, excludedBlockId);
+    if (count === 0) return;
+    const tooltip = `${relationLabel} · ${label} ${count}`;
     const button = createCountButton(
       `${label} {count}`,
-      scopedEntries.length,
+      count,
       tooltip,
       (clicked) => onOpen(clicked, group, hostBlockId, preferredGroup, scope),
     );
@@ -180,7 +187,7 @@ function appendScopedCountButtons(
     button.setAttribute("aria-label", tooltip);
     button.dataset.topicScope = scope;
     button.dataset.topicIcon = icon;
-    button.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${icon}"></use></svg><span class="damophus-topic-relations__count-number">${scopedEntries.length}</span>`;
+    button.innerHTML = `<svg aria-hidden="true"><use xlink:href="#${icon}"></use></svg><span class="damophus-topic-relations__count-number">${count}</span>`;
     countGroup.append(button);
   });
   if (countGroup.childElementCount <= 1) return;
@@ -232,22 +239,25 @@ function createExpandedGroup(
   return group;
 }
 
+function compactSignature(value: string): string {
+  let first = 2166136261;
+  let second = 16777619;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    first = Math.imul(first ^ code, 16777619);
+    second = Math.imul(second ^ code, 2246822519);
+  }
+  return `${(first >>> 0).toString(36)}-${(second >>> 0).toString(36)}`;
+}
+
 function markerSignature(
   target: TopicRelationTarget,
-  index: ReadonlyMap<string, TopicRelationGroup>,
+  relationSignatures: ReadonlyMap<string, string>,
   options: TopicRelationRenderOptions,
 ): string {
   const relations = [...target.questionTopicIds, ...(target.noteTopicId ? [target.noteTopicId] : [])]
-    .map((topicId) => {
-      const group = index.get(topicId);
-      return [
-        topicId,
-        group?.label,
-        group?.notes.map((entry) => entry.blockId).join(","),
-        group?.questions.map((entry) => entry.blockId).join(","),
-      ].join(":");
-    }).join("|");
-  return [
+    .map((topicId) => `${topicId}:${relationSignatures.get(topicId) ?? ""}`).join("|");
+  return compactSignature([
     target.blockId,
     target.documentId,
     target.noteTopicId,
@@ -256,7 +266,7 @@ function markerSignature(
     options.nativeHover,
     options.error,
     relations,
-  ].join(";");
+  ].join(";"));
 }
 
 function isEditorBlockTarget(target: HTMLElement): boolean {
@@ -299,14 +309,16 @@ function appendQuestionTopic(
   options: TopicRelationRenderOptions,
 ): void {
   appendSeparator(row);
-  const notes = group.notes.filter((entry) => entry.blockId !== target.blockId);
-  const questions = group.questions.filter((entry) => entry.blockId !== target.blockId);
-  if (notes.length === 1) {
-    row.append(createNativeBlockRef(notes[0], options.nativeHover));
+  const noteCount = countEntriesForScope(group.notes, target, "all", target.blockId);
+  const note = noteCount === 1
+    ? group.notes.find((entry) => entry.blockId !== target.blockId)
+    : undefined;
+  if (note) {
+    row.append(createNativeBlockRef(note, options.nativeHover));
   } else {
     row.append(createTopicButton(
       group.label,
-      notes.length === 0 ? options.labels.unresolved : options.labels.openRelations,
+      noteCount === 0 ? options.labels.unresolved : options.labels.openRelations,
       (button) => options.onOpen(button, group, target.blockId, "notes"),
     ));
   }
@@ -314,7 +326,7 @@ function appendQuestionTopic(
   if (options.displayMode === "summary") {
     appendScopedCountButtons(
       row,
-      notes,
+      group.notes,
       target,
       options.labels,
       options.labels.topicNotes,
@@ -323,11 +335,12 @@ function appendQuestionTopic(
       group,
       target.blockId,
       "notes",
+      target.blockId,
     );
   } else if (options.displayMode === "compact") {
     appendScopedCountButtons(
       row,
-      notes,
+      group.notes,
       target,
       options.labels,
       options.labels.topicNotes,
@@ -336,11 +349,12 @@ function appendQuestionTopic(
       group,
       target.blockId,
       "notes",
+      target.blockId,
     );
   }
   appendScopedCountButtons(
     row,
-    questions,
+    group.questions,
     target,
     options.labels,
     options.labels.relatedQuestions,
@@ -349,7 +363,9 @@ function appendQuestionTopic(
     group,
     target.blockId,
     "questions",
+    target.blockId,
   );
+
 }
 
 function renderMarker(
@@ -384,11 +400,9 @@ function renderMarker(
     label.className = "damophus-topic-relations__label";
     label.textContent = options.labels.topicNote;
     row.append(label);
-    const otherNotes = group.notes.filter((entry) => entry.blockId !== target.blockId);
-    const questions = group.questions.filter((entry) => entry.blockId !== target.blockId);
     appendScopedCountButtons(
       row,
-      otherNotes,
+      group.notes,
       target,
       options.labels,
       options.labels.otherTopicNotes,
@@ -397,10 +411,11 @@ function renderMarker(
       group,
       target.blockId,
       "notes",
+      target.blockId,
     );
     appendScopedCountButtons(
       row,
-      questions,
+      group.questions,
       target,
       options.labels,
       options.labels.relatedQuestions,
@@ -409,10 +424,13 @@ function renderMarker(
       group,
       target.blockId,
       "questions",
+      target.blockId,
     );
     marker.append(row);
 
     if (options.displayMode === "expanded") {
+      const otherNotes = group.notes.filter((entry) => entry.blockId !== target.blockId);
+      const questions = group.questions.filter((entry) => entry.blockId !== target.blockId);
       const notesGroup = createExpandedGroup(options.labels.otherTopicNotes, otherNotes, options.nativeHover);
       const questionsGroup = createExpandedGroup(options.labels.relatedQuestions, questions, options.nativeHover);
       if (notesGroup) marker.append(notesGroup);
@@ -460,14 +478,26 @@ export function syncTopicRelationMarkers(
   index: ReadonlyMap<string, TopicRelationGroup>,
   options: TopicRelationRenderOptions,
 ): void {
+  const relationSignatures = new Map<string, string>();
+  index.forEach((group, topicId) => relationSignatures.set(topicId, [
+    group.label,
+    group.notes.map((entry) => entry.blockId).join(","),
+    group.questions.map((entry) => entry.blockId).join(","),
+  ].map(compactSignature).join(":")));
+  const targetIds = new Set(targets.map((target) => target.blockId));
+  const existingMarkers = new Map<string, HTMLElement>();
   root.querySelectorAll<HTMLElement>(`.${TOPIC_RELATION_MARKER_CLASS}`).forEach((marker) => {
-    if (!targets.some((target) => markerBelongsToTarget(marker, target))) marker.remove();
+    const targetId = markerTargetId(marker);
+    if (!targetId || !targetIds.has(targetId) || existingMarkers.has(targetId)) {
+      marker.remove();
+      return;
+    }
+    existingMarkers.set(targetId, marker);
   });
   for (const target of targets) {
-    const signature = markerSignature(target, index, options);
-    const existing = Array.from(root.querySelectorAll<HTMLElement>(
-      `.${TOPIC_RELATION_MARKER_CLASS}`,
-    )).find((marker) => markerBelongsToTarget(marker, target));
+    const signature = markerSignature(target, relationSignatures, options);
+    const existing = existingMarkers.get(target.blockId);
+    if (existing && !markerBelongsToTarget(existing, target)) existing.remove();
     if (
       existing?.dataset.signature === signature
       && markerHasSafePlacement(existing, target.element)

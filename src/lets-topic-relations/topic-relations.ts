@@ -292,11 +292,9 @@ export function buildTopicRelationSql(topicIds: readonly string[]): string {
   if (normalized.length === 0) {
     return "SELECT 'note' AS relation_kind, '' AS topic_value, '' AS block_id, '' AS root_id, '' AS type, '' AS subtype, '' AS content, '' AS markdown, '' AS hpath WHERE 0";
   }
-  const inList = normalized.map(sqlString).join(", ");
-  const exactQuestionMatches = normalized.map((topicId) => (
-    `(',' || REPLACE(REPLACE(REPLACE(LOWER(a.value), ' ', ''), CHAR(10), ''), CHAR(13), '') || ',') LIKE '%,${topicId},%'`
-  )).join(" OR ");
-  return `SELECT
+  const requestedValues = normalized.map((topicId) => `(${sqlString(topicId)})`).join(", ");
+  return `WITH requested(topic_id) AS (VALUES ${requestedValues})
+SELECT
   'note' AS relation_kind,
   LOWER(a.value) AS topic_value,
   a.block_id,
@@ -309,8 +307,9 @@ export function buildTopicRelationSql(topicIds: readonly string[]): string {
   b.updated
 FROM attributes a
 JOIN blocks b ON b.id = a.block_id
+JOIN requested r ON LOWER(a.value) = r.topic_id
 WHERE a.name = '${NOTE_TOPIC_ATTRIBUTE}'
-  AND LOWER(a.value) IN (${inList})
+
 UNION ALL
 SELECT
   'question' AS relation_kind,
@@ -326,7 +325,8 @@ SELECT
 FROM attributes a
 JOIN blocks b ON b.id = a.block_id
 WHERE a.name = '${QUESTION_TOPICS_ATTRIBUTE}'
-  AND (${exactQuestionMatches})
+  AND EXISTS (SELECT 1 FROM requested r WHERE (',' || REPLACE(REPLACE(REPLACE(LOWER(a.value), ' ', ''), CHAR(10), ''), CHAR(13), '') || ',')
+    LIKE '%,' || r.topic_id || ',%')
 LIMIT 5000`;
 }
 

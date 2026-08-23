@@ -70,9 +70,20 @@ describe("topic relation model", () => {
 
     expect(sql).toContain("custom-qb-note-topic-id");
     expect(sql).toContain("custom-qb-question-topic-ids");
-    expect(sql).toContain("LOWER(a.value) IN ('civil-topic-a', 'civil-topic-b')");
-    expect(sql).toContain("LIKE '%,civil-topic-a,%'");
+    expect(sql).toContain("WITH requested(topic_id) AS (VALUES ('civil-topic-a'), ('civil-topic-b'))");
+    expect(sql).toContain("JOIN requested r ON LOWER(a.value) = r.topic_id");
+    expect(sql).toContain("AND EXISTS (SELECT 1 FROM requested r");
+    expect(sql).toContain("LIKE '%,' || r.topic_id || ',%'");
     expect(sql).toContain("LIMIT 5000");
+    expect(sql).not.toMatch(/OR\s+\(/u);
+  });
+
+  it("keeps large topic batches in one set-based SQL statement", () => {
+    const ids = Array.from({length: 512}, (_, index) => `topic-${index}`);
+    const sql = buildTopicRelationSql(ids);
+    expect(sql.match(/WITH requested\(topic_id\)/gu)).toHaveLength(1);
+    expect(sql).toContain("('topic-511')");
+    expect(sql.length).toBeLessThan(120_000);
   });
 
   it("queries only valid SiYuan block IDs for zoomed editor roots", () => {

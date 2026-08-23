@@ -63,10 +63,15 @@ import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 import { bindMenuIdentity } from "@/libs/menu-identity";
-import { questionProgressFromAggregate, setQuestionProgressLoader } from "@/lets-topic-relations/topic-relations";
+import {
+  questionProgressFromAggregate,
+  setQuestionProgressLoader,
+  type QuestionProgress,
+} from "@/lets-topic-relations/topic-relations";
 
 type PracticeCommand = "previous" | "next" | "pause";
 const log = getLogger("lets-question-bank");
+const PROGRESS_BLOCK_CHUNK_SIZE = 256;
 
 function currentDeviceId(): string {
   const id = (window as Window & {
@@ -91,6 +96,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private tinybaseRuntime?: TinyBaseRuntime;
   private tinybaseCatalogRuntime?: TinyBaseSiyuanCatalogRuntime;
+  private questionProgressCache = new Map<string, QuestionProgress | null>();
+  private questionProgressLoad?: Promise<void>;
+  private questionProgressThreshold?: number;
+  private progressReadViewReady = false;
   private storeSyncCoordinator?: StoreSyncCoordinator;
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
   private stopSourceAnswerMask?: () => void;
@@ -115,6 +124,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
   };
   private readonly handleVisibilityChange = (): void => {
     if (document.visibilityState === "visible") void this.storeSyncCoordinator?.request();
+  };
+  private readonly handleProgressReadViewUpdated = (): void => {
+    this.questionProgressCache.clear();
+    this.questionProgressThreshold = undefined;
+    this.progressReadViewReady = false;
   };
 
   override registerModels(): void {
@@ -141,41 +155,12 @@ export default class QuestionBankPlugin extends SubPluginBase {
   }
 
   override onload(): void {
-    setQuestionProgressLoader(async (blockIds) => {
-      const requested = new Set(blockIds);
-      // Topic relations can be opened before SiYuan emits sync-end. Refresh the
-      // read view here so historical events from other device shards are visible.
-      await this.getTinyBaseRuntime().mergeAfterSync().catch(() => undefined);
-      const [catalog, aggregates, attributeRows] = await Promise.all([
-        this.getTinyBaseCatalogRuntime().loadCatalog().catch(() => []),
-        this.getTinyBaseRuntime().loadAggregates(),
-        blockIds.length === 0 ? Promise.resolve([]) : siyuanKernelClient.request<Array<{
-          block_id: string;
-          attribute_value: string;
-        }>>("/api/query/sql", {
-          stmt: `SELECT block_id, value AS attribute_value FROM attributes WHERE name = 'custom-qb-id' AND block_id IN (${blockIds
-            .filter((id) => /^\d{14}-[a-z0-9]{7}$/u.test(id))
-            .map((id) => `'${id}'`).join(", ")})`,
-        }),
-      ]);
-      const threshold = Number(this.getSetting("reviewThreshold")) || 2;
-      const questionIdByBlockId = new Map<string, string>([
-        ...catalog
-          .filter((question) => requested.has(question.blockId))
-          .map((question) => [question.blockId, question.questionId] as const),
-        ...attributeRows
-          .filter((row) => requested.has(row.block_id) && row.attribute_value)
-          .map((row) => [row.block_id, row.attribute_value] as const),
-      ]);
-      return new Map([...questionIdByBlockId.entries()].flatMap(([blockId, questionId]) => {
-        const aggregate = aggregates.get(questionId);
-        return aggregate ? [[blockId, questionProgressFromAggregate(aggregate, threshold)] as const] : [];
-      }));
-    });
+    setQuestionProgressLoader((blockIds) => this.loadQuestionProgress(blockIds));
     this.storeSyncCoordinator ??= new StoreSyncCoordinator(
       {run: () => this.getTinyBaseRuntime().mergeAfterSync()},
       {
         onSuccess: (result) => {
+          this.handleProgressReadViewUpdated();
           log.info("tinybase.post-sync-merge-completed", result);
           window.dispatchEvent(new CustomEvent(TINYBASE_READ_VIEW_UPDATED_EVENT, {detail: result}));
         },
@@ -200,6 +185,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
     plugin.eventBus.on("sync-end", this.handleSyncEnd);
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    window.addEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, this.handleProgressReadViewUpdated);
   }
 
   onDataChanged(): void {
@@ -208,6 +194,69 @@ export default class QuestionBankPlugin extends SubPluginBase {
 
   addMenuItem(menu: Menu): void {
     this.openEntry?.addMenuItem(menu);
+  }
+
+  private async loadQuestionProgress(
+    blockIds: readonly string[],
+  ): Promise<ReadonlyMap<string, QuestionProgress>> {
+    const validBlockIds = [...new Set(blockIds.filter((id) => /^\d{14}-[a-z0-9]{7}$/u.test(id)))];
+    if (validBlockIds.length === 0) return new Map();
+    const threshold = Number(this.getSetting("reviewThreshold")) || 2;
+    if (this.questionProgressThreshold !== undefined && this.questionProgressThreshold !== threshold) {
+      this.questionProgressCache.clear();
+    }
+    this.questionProgressThreshold = threshold;
+    await this.ensureQuestionProgress(validBlockIds);
+    return new Map(validBlockIds.flatMap((blockId) => {
+      const progress = this.questionProgressCache.get(blockId);
+      return progress ? [[blockId, progress] as const] : [];
+    }));
+  }
+
+  private async ensureQuestionProgress(blockIds: readonly string[]): Promise<void> {
+    const missing = blockIds.filter((blockId) => !this.questionProgressCache.has(blockId));
+    if (missing.length === 0) return;
+    if (this.questionProgressLoad) {
+      await this.questionProgressLoad;
+      return this.ensureQuestionProgress(blockIds);
+    }
+    const load = (async () => {
+      // Merge once before the first badge request, then reuse the in-memory view.
+      if (!this.progressReadViewReady) {
+        await this.getTinyBaseRuntime().mergeAfterSync().catch(() => undefined);
+        this.progressReadViewReady = true;
+      }
+      const chunks: string[][] = [];
+      for (let offset = 0; offset < missing.length; offset += PROGRESS_BLOCK_CHUNK_SIZE) {
+        chunks.push(missing.slice(offset, offset + PROGRESS_BLOCK_CHUNK_SIZE));
+      }
+      const [attributeRows, aggregates] = await Promise.all([
+        (await Promise.all(chunks.map((chunk) => siyuanKernelClient.request<Array<{
+          block_id: string;
+          attribute_value: string;
+        }>>("/api/query/sql", {
+          stmt: `SELECT block_id, value AS attribute_value FROM attributes WHERE name = 'custom-qb-id' AND block_id IN (${chunk
+            .map((id) => `'${id}'`).join(", ")})`,
+        })))).flat(),
+        this.getTinyBaseRuntime().loadAggregates(),
+      ]);
+      const questionIdByBlockId = new Map(attributeRows.map((row) => [row.block_id, row.attribute_value]));
+      const threshold = this.questionProgressThreshold ?? 2;
+      missing.forEach((blockId) => {
+        const questionId = questionIdByBlockId.get(blockId);
+        const aggregate = questionId ? aggregates.get(questionId) : undefined;
+        this.questionProgressCache.set(
+          blockId,
+          aggregate ? questionProgressFromAggregate(aggregate, threshold) : null,
+        );
+      });
+    })();
+    this.questionProgressLoad = load;
+    try {
+      await load;
+    } finally {
+      if (this.questionProgressLoad === load) this.questionProgressLoad = undefined;
+    }
   }
 
   private applySourceAnswerMaskSetting(): void {
@@ -294,6 +343,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
     plugin.eventBus.off("sync-end", this.handleSyncEnd);
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    window.removeEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, this.handleProgressReadViewUpdated);
+    this.questionProgressCache.clear();
+    this.questionProgressLoad = undefined;
+    this.questionProgressThreshold = undefined;
+    this.progressReadViewReady = false;
     this.listening = false;
     for (const app of this.mountedTabs.values()) void unmount(app);
     this.mountedTabs.clear();
