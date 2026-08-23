@@ -47,8 +47,6 @@ export function convertSfpConfig(value: unknown, base: FlashcardSettings): SfpIm
       enabled: item.enabled !== false,
       queryFirst: item.queryFirst === true,
       cacheMinutes,
-      priority: finiteNumber(item.priority, 50, 0, 100),
-      priorityEnabled: item.priorityEnabled === true,
     };
   });
   const settings: FlashcardSettings = {
@@ -59,15 +57,13 @@ export function convertSfpConfig(value: unknown, base: FlashcardSettings): SfpIm
     scanInterval: finiteNumber(input.scanInterval, base.scanInterval, 1, 1440),
     postponeDays: finiteNumber(input.postponeDays, base.postponeDays, 0, 30),
     postponeEnabled: input.postponeEnabled === true,
-    priorityScanEnabled: input.priorityScanEnabled === true,
-    priorityScanInterval: finiteNumber(input.priorityScanInterval, base.priorityScanInterval, 1, 1440),
   };
   return {
     settings,
     categoryCount: categories.length,
     groupCount: groups.length,
     enabledGroupCount: groups.filter((group) => group.enabled).length,
-    hasAutomation: settings.postponeEnabled || settings.priorityScanEnabled,
+    hasAutomation: settings.postponeEnabled,
   };
 }
 

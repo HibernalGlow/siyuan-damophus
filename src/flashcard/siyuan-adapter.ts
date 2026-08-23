@@ -34,6 +34,8 @@ export interface DueCardsData {
   unreviewedCount: number;
   unreviewedNewCardCount: number;
   unreviewedOldCardCount: number;
+  candidateCount?: number;
+  registeredCount?: number;
 }
 
 export interface CardRegistrationResult {
@@ -53,8 +55,10 @@ function idsClause(ids: readonly string[]): string {
 function normalizeRiffCard(value: unknown): RiffCardRecord | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
+  // The block endpoint returns a placeholder when the block is not registered.
+  if ("riffCardID" in record && !String(record.riffCardID ?? "")) return undefined;
   const blockID = String(record.blockID ?? record.block_id ?? record.id ?? "");
-  const cardID = String(record.cardID ?? record.riffCardID ?? record.card_id ?? record.id ?? "");
+  const cardID = String(record.cardID ?? record.riffCardID ?? record.card_id ?? "");
   if (!blockID || !cardID) return undefined;
   return { ...record, blockID, cardID } as RiffCardRecord;
 }
@@ -204,6 +208,13 @@ export class FlashcardSiyuanAdapter {
 
   async buildDueCardsData(deckId: string, blockIds: readonly string[], limit: number): Promise<DueCardsData> {
     const allowed = new Set(dedupeIds(blockIds));
+    let registeredCount: number | undefined;
+    try {
+      registeredCount = (await this.getCardsByBlockIds([...allowed])).length;
+    } catch (error) {
+      // Registration diagnostics must not make the native due-card path fail.
+      log.warn("riff.registration-diagnostic-unavailable", error);
+    }
     const due = await this.getDueCards(deckId);
     const cards = due.cards.filter((card) => allowed.has(card.blockID)).slice(0, Math.max(1, limit));
     return {
@@ -211,6 +222,8 @@ export class FlashcardSiyuanAdapter {
       unreviewedCount: cards.length,
       unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
       unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
+      candidateCount: allowed.size,
+      registeredCount,
     };
   }
 
@@ -281,27 +294,17 @@ export class FlashcardSiyuanAdapter {
     return !failed;
   }
 
-  async setPriority(cards: readonly RiffCardRecord[], priority: number): Promise<"native" | "tomato" | "pending"> {
+  async setPriority(cards: readonly RiffCardRecord[], priority: number): Promise<"native" | "pending"> {
     if (cards.length === 0) return "pending";
-    let status: "native" | "tomato" | "pending" = "pending";
-    const tomato = (globalThis as typeof globalThis & { tomato_zZmqus5PtYRi?: any }).tomato_zZmqus5PtYRi;
-    if (tomato?.cardPriorityBox?.updateDocPriorityBatchDialog) {
-      try {
-        await tomato.cardPriorityBox.updateDocPriorityBatchDialog(cards, priority, false);
-        status = "tomato";
-      } catch (error) {
-        log.warn("tomato.priority-unavailable", error);
-      }
-    } else {
-      try {
-        await requestStrict<unknown>("/api/riff/setRiffCardsPriority", {
-          cardIDs: cards.map((card) => card.cardID),
-          priority,
-        });
-        status = "native";
-      } catch (error) {
-        log.warn("riff.priority-unavailable", error);
-      }
+    let status: "native" | "pending" = "pending";
+    try {
+      await requestStrict<unknown>("/api/riff/setRiffCardsPriority", {
+        cardIDs: cards.map((card) => card.cardID),
+        priority,
+      });
+      status = "native";
+    } catch (error) {
+      log.warn("riff.priority-unavailable", error);
     }
     if (!(await this.syncPriorityTags(cards, priority))) return "pending";
     return status;

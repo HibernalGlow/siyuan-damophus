@@ -98,4 +98,11 @@ describe("flashcard SiYuan adapter", () => {
     );
     expect(status).toBe("pending");
   });
+
+  it("does not treat an unregistered block placeholder as a Riff card", async () => {
+    requestStrict.mockResolvedValueOnce({
+      blocks: [{ id: "20260823112001-stts5qv", riffCardID: "", content: "不存在符合条件的内容块" }],
+    } as never);
+    await expect(new FlashcardSiyuanAdapter().getCardsByBlockIds(["20260823112001-stts5qv"])).resolves.toEqual([]);
+  });
 });

@@ -39,15 +39,15 @@ Status: implementation baseline; SFP behavior has been ported, with target-versi
 | 到期卡入口 | 全部到期与指定分组到期入口，限制首轮候选量 | 已定 | 原生 `siyuan-card` 数据契约 |
 | 向上传递识别 | 任意子块命中时解析最近显式卡根、去重、循环/深度保护 | 已定 | list/superBlock/heading 混合树 |
 | 自动推迟今日新卡 | 可开关、天数配置、只处理今日创建且可推迟卡 | 已实现 | 原生 due 写入；不可用时返回 pending 并记录原因 |
-| 自动优先级扫描 | 按启用分组和扫描间隔批量同步优先级 | 已实现 | 立即执行 + 定时执行；优先级 API capability fallback |
-| 批量优先级调整 | 对当前 SQL 分组全部匹配卡执行 preview/confirm 后调整 | 已实现 | 设置页按钮先显示卡量与目标值，再确认写入 |
+| 自动优先级扫描 | 已移除；不再按分组或定时统一覆盖优先级 | 已移除 | 优先级只由 Markdown P1-P4 标签决定 |
+| 批量优先级调整 | 选择 P1-P4 后对当前 SQL 分组执行 preview/confirm | 已实现 | 只调用 Riff 原生 API，并同步 Markdown 标签 |
 | 原始 SQL 结果查看 | 显示不做卡片过滤的原始块结果 | 已实现 | DAMO Dialog 显示原始 SQL 行 |
 | 过滤后结果查看 | 显示向上传递、识别、去重后的卡根结果 | 已实现 | DAMO Dialog 显示卡根并可登记/复习 |
 | 文档流入口 | 可选调用文档流；DAMO 自有查看路径不依赖插件 | 已实现 | 原始 SQL、过滤后 IdList 均可选打开 |
 | 设置/菜单/生命周期 | DAMO 子插件注册、i18n、logger、unload 清理 | 已实现 | PluginRegistry、设置/命令/菜单和卸载清理 |
 | SFP 配置导入 | 从旧插件 `plugin-config.json` 导入分类、SQL 分组和自动化设置 | 已实现 | 设置页显式 preview/confirm；缓存丢弃并重建 |
 
-SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-sources.md)。
+SFP 的固定实现事实、依赖和许可证见 [Reference Sources](reference-sources.md)。旧 Tomato 适配和自动统一优先级不属于 DAMO 运行时。
 
 ## SFP parity audit
 
@@ -62,7 +62,7 @@ with the DAMO owner shown so a future change cannot silently drop a feature:
 | Cache freshness, query-first, preload and manual clear | `FlashcardRuntime` | 迁移 |
 | All-due and group-due native review entry | `FlashcardRuntime` + native `siyuan-card` | 迁移 |
 | Automatic postponement of today's cards | `postponeTodayCards` | 迁移 |
-| Automatic and batch priority actions | `scanPriorities` + `setPriority` | 迁移 with native/Tomato/pending fallback; Markdown P1-P4 tag sync |
+| Batch priority action | `setPriority` + Markdown P1-P4 tag sync | 迁移 with native/pending fallback |
 | Raw SQL and filtered card-root result views | `FlashcardResults.svelte` | 迁移 |
 | Optional document-flow SQL/IdList launchers | `document-flow.ts` | 迁移, optional integration |
 | SFP `plugin-config.json` import | `sfp-migration.ts` | 迁移, preview/confirm |
@@ -139,4 +139,8 @@ Tomato 调用或文档流依赖。
   SQL results retain every matching row. A nested tag-match regression test
   covers one root with multiple tagged descendants.
 - `pnpm vitest run src/flashcard src/lets-flashcard/plugin.test.ts` passed with
-  18 tests; the deployed build was refreshed after this change.
+  20 tests; the deployed build was refreshed after this change.
+- Tag-group review now refreshes SQL candidates before opening native review and
+  distinguishes unregistered roots from registered-but-not-due cards.
+- Legacy SFP priority automation fields are discarded during import; DAMO no
+  longer calls Tomato or runs periodic group-wide priority scans.

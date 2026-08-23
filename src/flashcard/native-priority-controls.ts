@@ -5,7 +5,7 @@ import { priorityTag } from "./priority-tags";
 export interface NativePriorityControlOptions {
   documentRef: Document;
   getCurrentCard: () => RiffCardRecord | undefined;
-  setPriority: (card: RiffCardRecord, priority: number) => Promise<"native" | "tomato" | "pending">;
+  setPriority: (card: RiffCardRecord, priority: number) => Promise<"native" | "pending">;
 }
 
 const PRIORITIES = [

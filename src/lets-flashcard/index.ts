@@ -328,7 +328,25 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   private async reviewGroup(group: FlashcardGroup): Promise<void> {
     try {
-      const due = await this.runtime.buildGroupDueCards(group);
+      // A tag group is user-edited content; always refresh it at the moment of
+      // review so restoring a Markdown document cannot be hidden by stale cache.
+      const due = await this.runtime.buildGroupDueCards(group, true);
+      if (due.cards.length === 0 && (due.candidateCount ?? 0) > 0) {
+        const registered = due.registeredCount;
+        showMessage(
+          registered === undefined
+            ? `分组“${group.name}”找到 ${due.candidateCount} 个闪卡根块，但无法确认 Riff 登记状态`
+            : registered === 0
+            ? `分组“${group.name}”找到 ${due.candidateCount} 个闪卡根块，但尚未登记到 Riff，请先在过滤结果中一键制卡并登记`
+            : `分组“${group.name}”已登记 ${registered} 张卡，但当前没有到期卡`,
+          7000,
+          "info",
+        );
+      }
+      if (due.cards.length === 0 && (due.candidateCount ?? 0) === 0) {
+        showMessage(`分组“${group.name}”未找到符合条件的闪卡根块`, 5000, "info");
+      }
+      if (due.cards.length === 0) return;
       await this.openNativeReview(`复习：${group.name}`, due, group);
     } catch (error) {
       this.reportError(`获取分组“${group.name}”失败`, error);
@@ -407,7 +425,10 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   private async batchPriority(group: FlashcardGroup): Promise<void> {
     try {
-      const preview = await this.runtime.previewBatchPriority(group);
+      const selected = window.prompt("输入优先级标签（P1、P2、P3 或 P4）", "P2")?.trim().toUpperCase();
+      const priority = ({ P1: 100, P2: 75, P3: 50, P4: 25 } as Record<string, number>)[selected ?? ""];
+      if (!priority) return;
+      const preview = await this.runtime.previewBatchPriority(group, priority);
       if (preview.cards.length === 0) {
         showMessage(`分组 "${group.name}" 未找到对应的闪卡`);
         return;
@@ -421,7 +442,7 @@ export default class FlashcardPlugin extends SubPluginBase {
         );
       });
       if (!approved) return;
-      const result = await this.runtime.applyBatchPriority(group);
+      const result = await this.runtime.applyBatchPriority(group, priority);
       showMessage(`已处理 ${result.count} 张卡（${result.status === "pending" ? "待运行时同步" : "已提交"}）`, 5000, result.status === "pending" ? "error" : "info");
     } catch (error) {
       this.reportError("批量设置优先级失败", error);

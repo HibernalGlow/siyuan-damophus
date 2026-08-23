@@ -25,7 +25,7 @@
   <header>
     <div>
       <h2>{title}</h2>
-      <p>{filtered ? `${rows.length} 个 SQL 命中，${displayRows.length} 个去重后闪卡根块` : `${rows.length} 个 SQL 结果，${roots.length} 个闪卡根块`}{due ? `，${due.cards.length} 个到期卡` : ""}</p>
+      <p>{filtered ? `${rows.length} 个 SQL 命中，${displayRows.length} 个去重后闪卡根块` : `${rows.length} 个 SQL 结果，${roots.length} 个闪卡根块`}{due ? `，${due.cards.length} 个到期卡` : ""}{#if due && due.candidateCount && due.registeredCount !== undefined && due.registeredCount < due.candidateCount}，{due.candidateCount - due.registeredCount} 个待制卡{/if}</p>
     </div>
     <div class="actions">
       {#if roots.length > 0}<button class="b3-button" on:click={onRegister}>一键制卡并登记</button>{/if}

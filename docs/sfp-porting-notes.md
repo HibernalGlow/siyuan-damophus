@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `DataManager.ts` | `src/flashcard/runtime.ts` | 配置、分类、分组、缓存、query-first、失效和预加载；缓存是可重建派生数据 |
 | `GroupActionService.ts` | `src/lets-flashcard/index.ts` + `runtime.ts` | 分组复习、原始 SQL、过滤后 IdList、批量优先级；批量写入增加 preview/confirm |
-| `AutomationService.ts` | `FlashcardRuntime.postponeTodayCards/scanPriorities` | 今日新卡推迟扫描整个牌组；优先级按启用分组扫描今日卡；原生 Riff 优先，Tomato 仅可选加速 |
+| `AutomationService.ts` | `FlashcardRuntime.postponeTodayCards` | 保留今日新卡推迟；移除按分组自动统一优先级，优先级由 Markdown P1-P4 标签决定 |
 | `TimerService.ts` | `FlashcardRuntime.startAutomation/stopAutomation` | 定时器可重启、卸载清理，并在启动时立即执行一次预加载/自动化 |
 | `MenuService.ts` | DAMO 子插件菜单、命令和设置 Tab | 全部到期卡、启用分组入口、设置入口均复用原生 `siyuan-card` |
 | `apiSiyuanSQL.ts` | `FlashcardSiyuanAdapter.paginatedSql/loadBlocks` | SQL 分页、块读取、父链解析；保留任意可执行 SQL 聚合能力 |
@@ -24,7 +24,7 @@ SQL 结果如果直接命中原生可制卡容器（list、heading、superBlock�
 ## 明确不照搬的部分
 
 - SFP 的独立插件生命周期、独立存储文件名和菜单壳不进入 DAMO。
-- Tomato 的私有优先级/停止 API 不作为核心依赖；能力缺失返回 `pending`。
+- Tomato 的私有 API 不再调用；Riff 官方优先级 API 不可用时保留 Markdown 标签并返回 `pending`。
 - 文档流仅是外部查看器；DAMO 自己提供原始/过滤结果 Dialog。
 - SFP 的旧块 ID、Riff card ID 和运行时调度字段不进入 DAMO Markdown 身份协议。
 

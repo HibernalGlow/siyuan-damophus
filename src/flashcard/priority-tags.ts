@@ -2,7 +2,7 @@ export type FlashcardPriorityTag = "P1" | "P2" | "P3" | "P4";
 
 /** Maps the adapter's 0-100 priority scale to the portable user-facing tag. */
 export function priorityTag(priority: number): FlashcardPriorityTag {
-  const value = Number.isFinite(priority) ? priority : 50;
+  const value = Number.isFinite(priority) ? priority : 0;
   if (value >= 76) return "P1";
   if (value >= 51) return "P2";
   if (value >= 26) return "P3";

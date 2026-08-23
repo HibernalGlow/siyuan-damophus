@@ -19,8 +19,14 @@ function mergeSettings(value: unknown): FlashcardSettings {
   const groups = Array.isArray(input.groups) ? input.groups : DEFAULT_FLASHCARD_SETTINGS.groups;
   const categories = Array.isArray(input.categories) ? input.categories : DEFAULT_FLASHCARD_SETTINGS.categories;
   return {
-    ...clone(DEFAULT_FLASHCARD_SETTINGS),
-    ...input,
+    deckId: String(input.deckId ?? DEFAULT_FLASHCARD_SETTINGS.deckId),
+    maxReviewCards: Math.max(1, Number(input.maxReviewCards ?? DEFAULT_FLASHCARD_SETTINGS.maxReviewCards)),
+    maxResolveDepth: Math.max(1, Number(input.maxResolveDepth ?? DEFAULT_FLASHCARD_SETTINGS.maxResolveDepth)),
+    cacheUpdateInterval: Math.max(1, Number(input.cacheUpdateInterval ?? DEFAULT_FLASHCARD_SETTINGS.cacheUpdateInterval)),
+    scanInterval: Math.max(1, Number(input.scanInterval ?? DEFAULT_FLASHCARD_SETTINGS.scanInterval)),
+    postponeEnabled: input.postponeEnabled === true,
+    postponeDays: Math.max(0, Number(input.postponeDays ?? DEFAULT_FLASHCARD_SETTINGS.postponeDays)),
+    rendererInterceptionEnabled: input.rendererInterceptionEnabled !== false,
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],
       ...group,
@@ -28,10 +34,9 @@ function mergeSettings(value: unknown): FlashcardSettings {
       name: String(group.name ?? "新分组"),
       sqlQuery: String(group.sqlQuery ?? "SELECT id FROM blocks LIMIT 1"),
       categoryId: String(group.categoryId ?? "default"),
-    cacheMinutes: Number(group.cacheMinutes ?? input.cacheUpdateInterval ?? 30),
+      cacheMinutes: Number(group.cacheMinutes ?? input.cacheUpdateInterval ?? 30),
       enabled: group.enabled !== false,
       queryFirst: group.queryFirst === true,
-      priorityEnabled: group.priorityEnabled === true,
     })),
     categories: categories.map((category) => ({
       id: String(category.id ?? crypto.randomUUID()),
@@ -46,7 +51,6 @@ export class FlashcardRuntime {
   private settings: FlashcardSettings = clone(DEFAULT_FLASHCARD_SETTINGS);
   private cache = new Map<string, FlashcardGroupCache>();
   private timer?: number;
-  private priorityTimer?: number;
   private loaded = false;
 
   constructor(
@@ -214,14 +218,14 @@ export class FlashcardRuntime {
     await this.adapter.resetDeck(this.load().deckId, blockIds);
   }
 
-  async previewBatchPriority(group: FlashcardGroup): Promise<{ cards: Awaited<ReturnType<FlashcardSiyuanAdapter["getCardsByBlockIds"]>>; priority: number }> {
+  async previewBatchPriority(group: FlashcardGroup, priority: number): Promise<{ cards: Awaited<ReturnType<FlashcardSiyuanAdapter["getCardsByBlockIds"]>>; priority: number }> {
     const roots = await this.provideGroupBlockIds(group);
     const cards = await this.adapter.getCardsByBlockIds(roots);
-    return { cards, priority: Number(group.priority ?? 0) };
+    return { cards, priority };
   }
 
-  async applyBatchPriority(group: FlashcardGroup): Promise<{ status: "native" | "tomato" | "pending"; count: number }> {
-    const preview = await this.previewBatchPriority(group);
+  async applyBatchPriority(group: FlashcardGroup, priority: number): Promise<{ status: "native" | "pending"; count: number }> {
+    const preview = await this.previewBatchPriority(group, priority);
     if (preview.cards.length === 0) return { status: "pending", count: 0 };
     const status = await this.adapter.setPriority(preview.cards, preview.priority);
     return { status, count: preview.cards.length };
@@ -245,23 +249,6 @@ export class FlashcardRuntime {
     }
   }
 
-  async scanPriorities(): Promise<{ groups: number; cards: number; pending: number }> {
-    this.load();
-    let groups = 0;
-    let cards = 0;
-    let pending = 0;
-    for (const group of this.getEnabledGroups().filter((candidate) => candidate.priorityEnabled && candidate.priority !== undefined)) {
-      groups += 1;
-      const roots = await this.provideGroupBlockIds(group);
-      const dueCards = (await this.adapter.getCardsByBlockIds(roots)).filter(FlashcardSiyuanAdapter.isTodayCard);
-      if (dueCards.length === 0) continue;
-      cards += dueCards.length;
-      const status = await this.adapter.setPriority(dueCards, Number(group.priority));
-      if (status === "pending") pending += dueCards.length;
-    }
-    return { groups, cards, pending };
-  }
-
   startAutomation(): void {
     this.stopAutomation();
     const settings = this.load();
@@ -271,16 +258,10 @@ export class FlashcardRuntime {
     }, interval);
     void this.refreshEnabledGroups(true).catch((error) => log.warn("initial-group-refresh-failed", error));
     if (settings.postponeEnabled) void this.postponeTodayCards().catch((error) => log.warn("initial-postpone-failed", error));
-    if (settings.priorityScanEnabled) {
-      this.priorityTimer = window.setInterval(() => void this.scanPriorities().catch((error) => log.warn("priority-scan-failed", error)), Math.max(1, settings.priorityScanInterval) * 60_000);
-      void this.scanPriorities().catch((error) => log.warn("initial-priority-scan-failed", error));
-    }
   }
 
   stopAutomation(): void {
     if (this.timer !== undefined) window.clearInterval(this.timer);
-    if (this.priorityTimer !== undefined) window.clearInterval(this.priorityTimer);
     this.timer = undefined;
-    this.priorityTimer = undefined;
   }
 }

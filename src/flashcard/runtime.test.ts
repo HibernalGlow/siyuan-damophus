@@ -63,4 +63,33 @@ describe("flashcard runtime SFP parity", () => {
       unreviewedOldCardCount: 1,
     });
   });
+
+  it("refreshes tag-group candidates when a review is opened", async () => {
+    const stored = structuredClone(DEFAULT_FLASHCARD_SETTINGS);
+    const runtime = new FlashcardRuntime(
+      (key) => key === "config" ? stored : undefined,
+      vi.fn(),
+    );
+    const group = stored.groups[0];
+    const paginated = vi.spyOn(runtime.adapter, "paginatedSql")
+      .mockResolvedValueOnce([{ id: "20260823000000-aaaaaaa" }])
+      .mockResolvedValueOnce([{ id: "20260823000001-bbbbbbb" }]);
+    vi.spyOn(runtime.adapter, "inspectRows").mockImplementation(async (rows) => rows.map((row) => ({
+      blockId: row.id,
+      renderer: "list",
+      kind: "basic",
+      attributes: {},
+    })));
+    vi.spyOn(runtime.adapter, "buildDueCardsData").mockResolvedValue({
+      cards: [],
+      unreviewedCount: 0,
+      unreviewedNewCardCount: 0,
+      unreviewedOldCardCount: 0,
+    });
+
+    await runtime.provideGroupBlockIds(group);
+    await runtime.buildGroupDueCards(group, true);
+
+    expect(paginated).toHaveBeenCalledTimes(2);
+  });
 });

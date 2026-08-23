@@ -61,7 +61,6 @@
       enabled: true,
       queryFirst: true,
       cacheMinutes: config.cacheUpdateInterval,
-      priorityEnabled: false,
     };
     await runtime.saveGroup(group);
     reload();
@@ -147,7 +146,7 @@
       <ul>
         <li>原始结果和过滤结果可以分别查看；批量优先级调整始终先预览再确认。</li>
         <li>启用“查询优先”可在复习前读取最新 SQL 结果，否则使用缓存以缩短打开时间。</li>
-        <li>自动推迟作用于牌组内今天创建且未暂停的卡；自动优先级只处理启用分组中的今天卡。</li>
+        <li>自动推迟作用于牌组内今天创建且未暂停的卡；优先级只由 Markdown 中的 P1-P4 标签决定。</li>
         <li>文档流入口是可选集成；没有文档流插件时，DAMO 的结果查看和原生复习仍可用。</li>
       </ul>
     </section>
@@ -162,8 +161,6 @@
     <section class="automation-panel">
       <label class="check"><input type="checkbox" bind:checked={config.postponeEnabled} on:change={saveGlobalOnChange} /> 自动推迟今日新卡</label>
       <label>推迟天数<input type="number" min="1" max="30" bind:value={config.postponeDays} on:change={saveGlobalOnChange} /></label>
-      <label class="check"><input type="checkbox" bind:checked={config.priorityScanEnabled} on:change={saveGlobalOnChange} /> 自动优先级扫描</label>
-      <label>扫描间隔（分钟）<input type="number" min="1" max="1440" bind:value={config.priorityScanInterval} on:change={saveGlobalOnChange} /></label>
       <button class="b3-button" on:click={updateGlobal} disabled={saving}>保存并应用自动化</button>
     </section>
   {:else}
@@ -208,8 +205,6 @@
         <textarea aria-label="SQL 查询" bind:value={group.sqlQuery} rows="3"></textarea>
         <div class="group-options">
           <label>缓存分钟<input type="number" min="1" bind:value={group.cacheMinutes} /></label>
-          <label class="check"><input type="checkbox" bind:checked={group.priorityEnabled} /> 自动优先级</label>
-          <label>优先级<input type="number" min="0" max="100" bind:value={group.priority} /></label>
           <button class="b3-button b3-button--outline" on:click={() => saveGroup(group)}>保存分组</button>
         </div>
       </article>

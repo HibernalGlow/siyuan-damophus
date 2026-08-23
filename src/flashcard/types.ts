@@ -51,8 +51,6 @@ export interface FlashcardGroup {
   enabled: boolean;
   queryFirst: boolean;
   cacheMinutes: number;
-  priority?: number;
-  priorityEnabled: boolean;
 }
 
 export interface FlashcardCategory {
@@ -76,8 +74,6 @@ export interface FlashcardSettings {
   scanInterval: number;
   postponeEnabled: boolean;
   postponeDays: number;
-  priorityScanEnabled: boolean;
-  priorityScanInterval: number;
   groups: FlashcardGroup[];
   categories: FlashcardCategory[];
   rendererInterceptionEnabled: boolean;
@@ -91,8 +87,6 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   scanInterval: 15,
   postponeEnabled: false,
   postponeDays: 2,
-  priorityScanEnabled: false,
-  priorityScanInterval: 15,
   rendererInterceptionEnabled: true,
   categories: [{ id: "default", name: "默认分组" }],
   groups: [
@@ -104,18 +98,15 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
       enabled: true,
       queryFirst: false,
       cacheMinutes: 30,
-      priorityEnabled: false,
     },
     {
       id: "tagged-cards",
       name: "含指定标签",
       sqlQuery: "SELECT id FROM blocks WHERE tag LIKE '%#指定标签#%'",
       categoryId: "default",
-      enabled: true,
+      enabled: false,
       queryFirst: false,
       cacheMinutes: 30,
-      priority: 50,
-      priorityEnabled: true,
     },
   ],
 };

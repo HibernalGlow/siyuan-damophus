@@ -27,8 +27,12 @@ provider topic ID 和 question topic ID 不保存思源块 ID。块移动、重�
 如果工作区仍安装过 `Specialized-Flashcard-Plugin`，设置页提供“导入 SFP 设置”。DAMO 从 `/data/storage/petal/Specialized-Flashcard-Plugin/plugin-config.json` 读取旧配置，先预览分类、分组和启用数量，再由用户确认。转换范围包括：
 
 - `groupCategories` → `categories`
-- `groups`、`categoryId`、`enabled`、`queryFirst`、`priority`、`priorityEnabled`
-- `postponeDays`、`postponeEnabled`、`scanInterval`、`priorityScanEnabled`、`priorityScanInterval`、`cacheUpdateInterval`
+- `groups`、`categoryId`、`enabled`、`queryFirst`
+- `postponeDays`、`postponeEnabled`、`scanInterval`、`cacheUpdateInterval`
+
+旧配置中的 `priority`、`priorityEnabled`、`priorityScanEnabled` 和
+`priorityScanInterval` 只作为兼容输入读取并丢弃，不会重新启用自动统一优先级。
+优先级由 Markdown 的 `#闪卡/优先级/P1#` 至 `P4` 标签决定；批量调整时先选择标签，再预览并确认。
 
 不导入 `cache-data.json`，因为它只含可重建的 SQL 结果；不删除旧插件文件，不写入 Markdown，不重置 Riff 历史。读取失败、JSON 无效或用户取消时保持 DAMO 当前设置不变。
 
