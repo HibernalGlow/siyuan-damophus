@@ -105,4 +105,25 @@ describe("flashcard SiYuan adapter", () => {
     } as never);
     await expect(new FlashcardSiyuanAdapter().getCardsByBlockIds(["20260823112001-stts5qv"])).resolves.toEqual([]);
   });
+
+  it("includes a newly registered state-zero card when Riff's global new-card limit omits it", async () => {
+    const adapter = new FlashcardSiyuanAdapter();
+    const card = { blockID: "20260823112001-stts5qv", cardID: "card-new", state: 0 };
+    vi.spyOn(adapter, "getCardsByBlockIds").mockResolvedValue([card]);
+    vi.spyOn(adapter, "getDueCards").mockResolvedValue({
+      cards: [],
+      unreviewedCount: 1,
+      unreviewedNewCardCount: 1,
+      unreviewedOldCardCount: 0,
+    });
+
+    const result = await adapter.buildDueCardsData(
+      "20230218211946-2kw8jgx",
+      [card.blockID],
+      20,
+    );
+
+    expect(result.cards).toEqual([card]);
+    expect(result.registeredCount).toBe(1);
+  });
 });

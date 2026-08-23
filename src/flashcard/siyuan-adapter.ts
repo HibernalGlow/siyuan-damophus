@@ -60,7 +60,16 @@ function normalizeRiffCard(value: unknown): RiffCardRecord | undefined {
   const blockID = String(record.blockID ?? record.block_id ?? record.id ?? "");
   const cardID = String(record.cardID ?? record.riffCardID ?? record.card_id ?? "");
   if (!blockID || !cardID) return undefined;
-  return { ...record, blockID, cardID } as RiffCardRecord;
+  const riffCard = record.riffCard && typeof record.riffCard === "object"
+    ? record.riffCard as Record<string, unknown>
+    : undefined;
+  return {
+    ...record,
+    blockID,
+    cardID,
+    state: Number(record.state ?? riffCard?.state),
+    due: record.due ?? riffCard?.due,
+  } as RiffCardRecord;
 }
 
 function responseCards(value: unknown): RiffCardRecord[] {
@@ -208,15 +217,25 @@ export class FlashcardSiyuanAdapter {
 
   async buildDueCardsData(deckId: string, blockIds: readonly string[], limit: number): Promise<DueCardsData> {
     const allowed = new Set(dedupeIds(blockIds));
+    let registered: RiffCardRecord[] = [];
     let registeredCount: number | undefined;
     try {
-      registeredCount = (await this.getCardsByBlockIds([...allowed])).length;
+      registered = await this.getCardsByBlockIds([...allowed]);
+      registeredCount = registered.length;
     } catch (error) {
       // Registration diagnostics must not make the native due-card path fail.
       log.warn("riff.registration-diagnostic-unavailable", error);
     }
     const due = await this.getDueCards(deckId);
-    const cards = due.cards.filter((card) => allowed.has(card.blockID)).slice(0, Math.max(1, limit));
+    const dueCards = due.cards.filter((card) => allowed.has(card.blockID));
+    const dueIds = new Set(dueCards.map((card) => card.blockID));
+    // Riff applies global new-card limits before returning due cards. A scoped
+    // DAMO group must still be able to review a newly registered state-0 card;
+    // append those missing new cards without changing their native state.
+    const missingNewCards = registered.filter((card) =>
+      allowed.has(card.blockID) && card.state === 0 && !dueIds.has(card.blockID),
+    );
+    const cards = [...dueCards, ...missingNewCards].slice(0, Math.max(1, limit));
     return {
       cards,
       unreviewedCount: cards.length,
