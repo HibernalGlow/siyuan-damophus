@@ -128,14 +128,54 @@ export class NativePriorityControls {
       ));
     }
     if (settings.more) elements.push(this.createAction(toolbar, "iconMore", "闪卡工具与显示设置", (trigger) => {
-      this.openMoreMenu(trigger);
+      this.openMoreMenu(trigger, root);
     }));
     if (settings.workbench) elements.push(this.createAction(toolbar, "iconSettings", "打开闪卡工作台", () => this.options.openWorkbench()));
     this.controls.set(toolbar, { root, elements, signature });
   }
 
-  private openMoreMenu(trigger: HTMLElement): void {
+  private openMoreMenu(trigger: HTMLElement, root: HTMLElement): void {
     const menu = new Menu("damophus-flashcard-more-menu");
+    menu.addItem({ icon: "iconFocus", label: "定位原块", click: async () => {
+      const card = await this.resolveCard(root);
+      if (card) await this.options.locate(card);
+    } });
+    menu.addItem({ icon: "iconCloseRound", label: "取消登记", click: async () => {
+      const card = await this.resolveCard(root);
+      if (card && await this.options.unregister(card)) {
+        root.querySelector<HTMLButtonElement>('.card__action:not(.fn__none) button[data-type="-3"]')?.click();
+      }
+    } });
+    menu.addItem({
+      type: "submenu",
+      icon: "iconSort",
+      label: "设置优先级",
+      submenu: PRIORITIES.map((option) => ({
+        icon: "iconSort",
+        label: option.label,
+        click: async () => {
+          const card = await this.resolveCard(root);
+          if (!card) return;
+          const status = await this.options.setPriority(card, option.value);
+          showMessage(
+            status === "pending"
+              ? `当前卡片的 ${priorityTag(option.value)} 标签保存失败`
+              : `当前卡片优先级已调整为 ${priorityTag(option.value)}`,
+            4000,
+            status === "pending" ? "error" : "info",
+          );
+        },
+      })),
+    });
+    const rendererEnabled = this.options.isRendererOverrideEnabled();
+    menu.addItem({
+      icon: rendererEnabled ? "iconEye" : "iconEyeoff",
+      label: rendererEnabled ? "关闭按卡片 renderer" : "启用按卡片 renderer",
+      click: () => void this.options.toggleRendererOverride(),
+    });
+    menu.addItem({ icon: "iconSettings", label: "打开工作台", click: () => this.options.openWorkbench() });
+    menu.addItem({ type: "separator" });
+    const settings = this.options.getSettings();
     const tools: Array<[ReviewToolbarKey, string]> = [
       ["locate", "定位原块"],
       ["unregister", "取消登记"],
@@ -143,8 +183,16 @@ export class NativePriorityControls {
       ["renderer", "按卡片 renderer"],
       ["workbench", "打开工作台"],
     ];
+    const toolState: Record<ReviewToolbarKey, boolean> = {
+      locate: settings.locate,
+      unregister: settings.unregister,
+      priority: settings.priority,
+      renderer: settings.renderer,
+      workbench: settings.workbench,
+    };
     menu.addItem({ type: "submenu", label: "工具栏按钮", submenu: tools.map(([key, label]) => ({
-      label,
+      icon: toolState[key] ? "iconCheck" : "iconUncheck",
+      label: `${label}（${toolState[key] ? "已显示" : "已隐藏"}）`,
       click: () => void this.options.toggleToolVisibility(key),
     })) });
     const visibility = this.options.getRendererVisibility();
@@ -158,7 +206,8 @@ export class NativePriorityControls {
       ["tag", "标签"],
     ];
     menu.addItem({ type: "submenu", label: "隐藏规则", submenu: renderers.map(([key, label]) => ({
-      label: `${visibility[key] ? "✓ " : "  "}${label}`,
+      icon: visibility[key] ? "iconCheck" : "iconUncheck",
+      label: `${label}（${visibility[key] ? "隐藏中" : "显示中"}）`,
       click: () => void this.options.toggleRendererVisibility(key),
     })) });
     const rect = trigger.getBoundingClientRect();
