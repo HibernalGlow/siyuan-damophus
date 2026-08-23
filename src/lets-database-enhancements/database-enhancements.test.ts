@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseDocTitleImg,
+  extractTitleImgSource,
   buildCardCoverHTML,
   extractCardBlockId,
   INHERITED_IMG_CLASS,
@@ -23,6 +24,11 @@ describe("Database Enhancements: Card Cover Inherit", () => {
   it("parses direct asset path or URL correctly", () => {
     const ial = '{: id="20230805-root" title-img="assets/cover-123.jpg"}';
     expect(parseDocTitleImg(ial)).toBe("assets/cover-123.jpg");
+  });
+
+  it("extracts a remote source URL from a title image style", () => {
+    expect(extractTitleImgSource('background-image:url("https://safebooru.org/cover.jpg")')).toBe("https://safebooru.org/cover.jpg");
+    expect(extractTitleImgSource("assets/cover.png")).toBeNull();
   });
 
   it("handles null or empty IAL", () => {

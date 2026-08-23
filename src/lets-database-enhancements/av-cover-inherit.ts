@@ -22,6 +22,14 @@ export function parseDocTitleImg(ial: string | undefined | null): string | null 
   return val || null;
 }
 
+export function extractTitleImgSource(titleImg: string | undefined | null): string | null {
+  const value = String(titleImg || "").trim();
+  if (!value) return null;
+  const match = value.match(/url\((?:"([^"]+)"|'([^']+)'|([^)]*))\)/i);
+  const source = (match?.[1] || match?.[2] || match?.[3] || (match ? "" : value)).trim();
+  return /^https?:\/\//i.test(source) ? source : null;
+}
+
 export function escapeAttr(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -49,18 +57,27 @@ export function buildCardCoverHTML(titleImg: string): string {
   )}" style="width: 100%; height: 100%; object-fit: cover; display: block;">`;
 }
 
-async function loadCachedCover(source: string, cachePath: string | null): Promise<string> {
-  if (!cachePath) return source;
+async function readCachedObjectUrl(cachePath: string | null): Promise<string | null> {
+  if (!cachePath) return null;
   try {
     const response = await fetch("/api/file/getFile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: cachePath }),
     });
-    if (!response.ok || response.status === 202) return source;
+    if (!response.ok || response.status === 202) return null;
     const blob = await response.blob();
-    if (!blob.size) return source;
-    const objectUrl = URL.createObjectURL(blob);
+    if (!blob.size) return null;
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
+async function loadCachedCover(source: string, cachePath: string | null): Promise<string> {
+  const objectUrl = await readCachedObjectUrl(cachePath);
+  if (!objectUrl) return source;
+  try {
     if (source.includes("url(")) {
       return source.replace(/url\((?:"[^"]*"|'[^']*'|[^)]*)\)/, `url("${objectUrl}")`);
     }
@@ -92,11 +109,14 @@ export class AvCoverInheritManager {
   private pendingBlockIds = new Set<string>();
   private fetchTimer: ReturnType<typeof setTimeout> | null = null;
   private watchedRoots = new Set<HTMLElement>();
+  private cachedObjectUrls = new Map<HTMLImageElement, string>();
 
   clearCache(): void {
     this.blockToRootCache.clear();
     this.rootToTitleImgCache.clear();
     this.pendingBlockIds.clear();
+    for (const url of this.cachedObjectUrls.values()) URL.revokeObjectURL(url);
+    this.cachedObjectUrls.clear();
   }
 
   observe(wysiwyg: HTMLElement): () => void {
@@ -164,13 +184,13 @@ export class AvCoverInheritManager {
       const blockId = extractCardBlockId(card);
       if (!blockId) return;
 
-      // 检查是否已有原生真正的封面图片（且不是继承图或透明图）
+      // 已有本地/数据 URL 的原生封面不需要继承；远程题头图仍需查询缓存属性。
       const nativeGalleryImg = coverContainer.querySelector<HTMLImageElement>(
         `img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
       );
       if (nativeGalleryImg) {
         const src = nativeGalleryImg.getAttribute("src") || "";
-        if (src && !src.startsWith("data:image/png;base64") && src.length > 20) {
+        if (src && !/^https?:\/\//i.test(src)) {
           return;
         }
       }
@@ -180,7 +200,7 @@ export class AvCoverInheritManager {
         const rootId = this.blockToRootCache.get(blockId)!;
         const cover = this.rootToTitleImgCache.get(rootId);
         if (cover) {
-          void loadCachedCover(cover.titleImg, cover.cachePath).then((value) => this.applyCoverToCard(card, value));
+          void this.applyResolvedCover(card, cover);
         }
       } else {
         neededBlockIds.push(blockId);
@@ -248,7 +268,7 @@ export class AvCoverInheritManager {
           if (rootId) {
             const cover = this.rootToTitleImgCache.get(rootId);
             if (cover) {
-              void loadCachedCover(cover.titleImg, cover.cachePath).then((value) => this.applyCoverToCard(card, value));
+              void this.applyResolvedCover(card, cover);
             }
           }
         });
@@ -279,7 +299,38 @@ export class AvCoverInheritManager {
     coverContainer.innerHTML = buildCardCoverHTML(titleImg);
   }
 
+  private async applyResolvedCover(card: HTMLElement, cover: { titleImg: string; cachePath: string | null }): Promise<void> {
+    const coverContainer = card.querySelector<HTMLElement>(".av__gallery-cover");
+    if (!coverContainer) return;
+    const nativeGalleryImg = coverContainer.querySelector<HTMLImageElement>(
+      `img.av__gallery-img:not(.${INHERITED_IMG_CLASS})`,
+    );
+    const source = extractTitleImgSource(cover.titleImg);
+    const nativeSource = nativeGalleryImg?.getAttribute("src") || "";
+    if (nativeGalleryImg && source && /^https?:\/\//i.test(nativeSource) && nativeSource === source && cover.cachePath) {
+      const objectUrl = await readCachedObjectUrl(cover.cachePath);
+      if (!objectUrl) return;
+      const original = nativeGalleryImg.getAttribute("data-damophus-original-cover-src");
+      if (!original) nativeGalleryImg.setAttribute("data-damophus-original-cover-src", nativeSource);
+      const previous = this.cachedObjectUrls.get(nativeGalleryImg);
+      if (previous) URL.revokeObjectURL(previous);
+      this.cachedObjectUrls.set(nativeGalleryImg, objectUrl);
+      nativeGalleryImg.src = objectUrl;
+      return;
+    }
+    const value = await loadCachedCover(cover.titleImg, cover.cachePath);
+    this.applyCoverToCard(card, value);
+  }
+
   restoreWysiwyg(wysiwyg: HTMLElement): void {
+    wysiwyg.querySelectorAll<HTMLImageElement>("img[data-damophus-original-cover-src]").forEach((img) => {
+      const objectUrl = this.cachedObjectUrls.get(img);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      this.cachedObjectUrls.delete(img);
+      const original = img.getAttribute("data-damophus-original-cover-src");
+      if (original) img.src = original;
+      img.removeAttribute("data-damophus-original-cover-src");
+    });
     const inheritedCovers = wysiwyg.querySelectorAll<HTMLElement>(`.${INHERITED_COVER_CLASS}`);
     inheritedCovers.forEach((el) => {
       el.remove();
