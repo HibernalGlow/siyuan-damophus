@@ -116,18 +116,13 @@ export class FlashcardRendererCompat {
       ];
       const actions = block.parentElement?.querySelectorAll<HTMLElement>(".card__action") ?? [];
       const answerShown = actions.length > 1 && !actions[1].classList.contains("fn__none");
-      const activeClass = {
-        mark: "card__block--hidemark",
-        list: "card__block--hideli",
-        heading: "card__block--hideh",
-        superBlock: "card__block--hidesb",
-      }[renderer];
-      const visible = renderer === "mark" ? this.visibility.mark
-        : renderer === "list" ? this.visibility.list
-          : renderer === "heading" ? this.visibility.heading
-            : renderer === "superBlock" ? this.visibility.superBlock : false;
+      const enabledClasses = new Set<string>();
+      if (this.visibility.mark) enabledClasses.add("card__block--hidemark");
+      if (this.visibility.list) enabledClasses.add("card__block--hideli");
+      if (this.visibility.heading) enabledClasses.add("card__block--hideh");
+      if (this.visibility.superBlock) enabledClasses.add("card__block--hidesb");
       for (const className of hideClasses) {
-        const shouldHave = !answerShown && visible && className === activeClass;
+        const shouldHave = !answerShown && enabledClasses.has(className);
         if (block.classList.contains(className) !== shouldHave) {
           block.classList.toggle(className, shouldHave);
         }
