@@ -29,6 +29,7 @@ export class FlashcardRendererCompat {
   private installed = false;
   private pendingBlockId?: string;
   private activeBlockId?: string;
+  private domObserver?: MutationObserver;
 
   onCardRender?: (blockId: string) => void;
 
@@ -102,6 +103,11 @@ export class FlashcardRendererCompat {
       }
       return Reflect.apply(owner.originalFetch!, window, [input, init]);
     };
+    if (typeof document !== "undefined" && document.body && typeof MutationObserver !== "undefined") {
+      this.domObserver = new MutationObserver(() => this.applyNativeVisibilityFallback());
+      this.domObserver.observe(document.body, { childList: true, subtree: true });
+      this.applyNativeVisibilityFallback();
+    }
     this.installed = true;
     return { installed: true };
   }
@@ -118,11 +124,53 @@ export class FlashcardRendererCompat {
       }
     }
     if (this.originalFetch) window.fetch = this.originalFetch;
+    this.domObserver?.disconnect();
+    this.domObserver = undefined;
     this.originalConfigDescriptor = undefined;
     this.originalFetch = undefined;
     this.pendingBlockId = undefined;
     this.activeBlockId = undefined;
     this.rendererByBlockId.clear();
     this.installed = false;
+  }
+
+  /**
+   * SiYuan 3.8 can read flashcard config before getDocInfo finishes. Its
+   * native renderer already has the correct hide classes, so apply those same
+   * classes from the card's DAMO IAL as a narrow timing fallback.
+   */
+  private applyNativeVisibilityFallback(): void {
+    const blocks = document.querySelectorAll<HTMLElement>(
+      '[data-key="dialog-opencard"] .card__block, .card__block',
+    );
+    for (const block of blocks) {
+      const root = block.querySelector<HTMLElement>('[data-node-id][custom-dm-card-renderer]');
+      const activeRoot = this.activeBlockId
+        ? block.querySelector<HTMLElement>(`[data-node-id="${this.activeBlockId}"]`)
+        : undefined;
+      const renderer = (root?.getAttribute("custom-dm-card-renderer")
+        ?? this.rendererByBlockId.get(activeRoot ? (this.activeBlockId ?? "") : "")) as FlashcardRenderer | "unknown" | null;
+      if (!renderer || !Object.prototype.hasOwnProperty.call(rendererFlags, renderer)) continue;
+      const hideClasses = [
+        "card__block--hidemark",
+        "card__block--hideli",
+        "card__block--hideh",
+        "card__block--hidesb",
+      ];
+      const actions = block.parentElement?.querySelectorAll<HTMLElement>(".card__action") ?? [];
+      const answerShown = actions.length > 1 && !actions[1].classList.contains("fn__none");
+      const activeClass = {
+        mark: "card__block--hidemark",
+        list: "card__block--hideli",
+        heading: "card__block--hideh",
+        superBlock: "card__block--hidesb",
+      }[renderer];
+      for (const className of hideClasses) {
+        const shouldHave = !answerShown && className === activeClass;
+        if (block.classList.contains(className) !== shouldHave) {
+          block.classList.toggle(className, shouldHave);
+        }
+      }
+    }
   }
 }
