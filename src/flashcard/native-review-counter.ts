@@ -42,6 +42,13 @@ const COUNTER_STYLE = `
   transition: opacity .2s ease, transform .2s ease, background-color .2s ease;
 }
 .damophus-priority-chip[data-count="0"] { opacity: .42; }
+.damophus-priority-chip[data-active="true"] {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 24%, transparent);
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent);
+  font-weight: 750;
+}
 .damophus-priority-chip[data-priority="P1"] { color: var(--b3-theme-error); font-weight: 700; }
 .damophus-priority-chip[data-priority="P2"] { color: var(--b3-theme-warning); font-weight: 650; }
 .damophus-priority-chip[data-priority="P3"] { color: var(--b3-theme-primary); }
@@ -98,6 +105,7 @@ export class NativeReviewCounter {
   private readonly completed = new Set<string>();
   private readonly animated = new Set<ReviewPriorityBucket>();
   private queue: ReviewCounterCard[] = [];
+  private activeCardID?: string;
   private lastCounts = new Map<ReviewPriorityBucket, number>();
   private renderQueued = false;
 
@@ -118,8 +126,14 @@ export class NativeReviewCounter {
       if (!nextIds.has(cardID)) this.completed.delete(cardID);
     }
     this.queue = cards.map((card) => ({ ...card }));
+    if (this.activeCardID && !nextIds.has(this.activeCardID)) this.activeCardID = undefined;
     this.animated.clear();
     this.lastCounts = this.counts();
+    this.scheduleRender();
+  }
+
+  setActiveCard(cardID: string | undefined): void {
+    this.activeCardID = cardID;
     this.scheduleRender();
   }
 
@@ -142,6 +156,7 @@ export class NativeReviewCounter {
     this.states.clear();
     this.queue = [];
     this.completed.clear();
+    this.activeCardID = undefined;
     this.animated.clear();
     this.lastCounts.clear();
     this.options.documentRef.getElementById(STYLE_ID)?.remove();
@@ -184,7 +199,8 @@ export class NativeReviewCounter {
       const markup = PRIORITIES.map((priority) => {
         const count = counts.get(priority) ?? 0;
         const complete = completedPriorities.has(priority) || this.animated.has(priority);
-        return `<span class="damophus-priority-chip" data-priority="${priority}" data-count="${count}" data-complete="${complete}">
+        const active = this.queue.some((card) => card.cardID === this.activeCardID && card.priority === priority);
+        return `<span class="damophus-priority-chip" data-priority="${priority}" data-count="${count}" data-complete="${complete}" data-active="${active}">
           <span>${priority === "other" ? "其他" : priority}</span><strong>${count}</strong>
         </span>`;
       }).join("") + `<span class="damophus-priority-total" aria-label="剩余闪卡">共 ${this.queue.length - this.completed.size}</span>`;

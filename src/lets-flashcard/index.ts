@@ -107,6 +107,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     const card = this.reviewCards.get(blockId);
     if (!card) return;
     this.currentReviewCard = card;
+    this.reviewCounter.setActiveCard(card.cardID);
     this.compat.refresh();
     this.reviewCounter.refresh();
     this.priorityControls.refresh();
@@ -119,6 +120,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!card?.blockID) return;
     this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = card;
+    this.reviewCounter.setActiveCard(card.cardID);
     this.compat.refresh();
     this.reviewCounter.markReviewed(card.cardID, event.detail?.type ?? "");
     this.reviewCounter.refresh();

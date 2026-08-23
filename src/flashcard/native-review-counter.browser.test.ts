@@ -35,6 +35,11 @@ describe("native review priority counter", () => {
     expect(count.querySelector('[data-priority="P3"] strong')?.textContent).toBe("0");
     expect(count.textContent).toContain("共 4");
 
+    counter.setActiveCard("p2-a");
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(count.querySelector('[data-priority="P2"]')?.getAttribute("data-active")).toBe("true");
+    expect(count.querySelector('[data-priority="P1"]')?.getAttribute("data-active")).toBe("false");
+
     counter.markReviewed("p1-a", "3");
     await new Promise<void>((resolve) => queueMicrotask(resolve));
     expect(count.querySelector('[data-priority="P1"] strong')?.textContent).toBe("1");
