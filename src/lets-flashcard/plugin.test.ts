@@ -35,8 +35,10 @@ describe("flashcard plugin metadata", () => {
     FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
 
     expect(addItem).toHaveBeenCalledTimes(1);
-    const item = addItem.mock.calls[0][0] as { label: string; submenu?: Array<{ label?: string; type?: string }> };
+    const item = addItem.mock.calls[0][0] as { label: string; type?: string; click?: unknown; submenu?: Array<{ label?: string; type?: string }> };
     expect(item.label).toBe("lets-flashcard.displayName");
+    expect(item.type).toBe("submenu");
+    expect(item.click).toBeUndefined();
     expect(item.submenu?.map((child) => child.type ?? child.label)).toEqual([
       "lets-flashcard.openSettings",
       "lets-flashcard.reviewAll",

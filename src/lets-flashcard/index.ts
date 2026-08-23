@@ -518,7 +518,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     menu.addItem({
       icon: "iconRiffCard",
       label: this.t("lets-flashcard.displayName"),
-      click: () => this.openSettings(),
+      type: "submenu",
       submenu,
     });
   }
