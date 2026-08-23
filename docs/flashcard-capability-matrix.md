@@ -81,7 +81,7 @@ Tomato 调用或文档流依赖。
 
 ## Verification log (2026-08-23)
 
-- `pnpm build` passed; focused flashcard suite passed: 6 files, 15 tests.
+- `pnpm build` passed; focused flashcard suite passed: 7 files, 18 tests.
 - `git diff --check` passed. Latest `dist/index.js` was deployed to
   `D:/1STUDY/SIYUAN/data/plugins/siyuan-damophus` and the two files have the
   same SHA-256.
@@ -128,3 +128,15 @@ Tomato 调用或文档流依赖。
   ordinary/legacy card read returns the untouched global mark-only settings.
 - The live evidence used SiYuan 3.7.3 and is diagnostic only; the 3.8.1+ gate
   still requires repeating the renderer isolation and unload checks.
+
+## Workbench and nested-tag regression evidence (2026-08-23)
+
+- The flashcard plugin menu now contributes one top-level workbench entry; its
+  settings, all-due review and enabled-group review actions are children of
+  that entry. The command palette and desktop/mobile Dock use the same
+  workbench tab entry.
+- Filtered SQL results render one row per deduped explicit card root while raw
+  SQL results retain every matching row. A nested tag-match regression test
+  covers one root with multiple tagged descendants.
+- `pnpm vitest run src/flashcard src/lets-flashcard/plugin.test.ts` passed with
+  18 tests; the deployed build was refreshed after this change.
