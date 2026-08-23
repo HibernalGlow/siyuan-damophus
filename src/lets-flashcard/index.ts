@@ -11,6 +11,7 @@ import { FlashcardRuntime } from "@/flashcard/runtime";
 import { openDocumentFlow } from "@/flashcard/document-flow";
 import type { FlashcardGroup } from "@/flashcard/types";
 import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
+import { priorityTag } from "@/flashcard/priority-tags";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -287,7 +288,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       const approved = await new Promise<boolean>((resolve) => {
         confirm(
           "批量设置优先级",
-          `将对 ${preview.cards.length} 张卡设置优先级 ${preview.priority}。该操作可能影响已有调度，确认继续？`,
+          `将对 ${preview.cards.length} 张卡设置优先级 ${priorityTag(preview.priority)}（${preview.priority}），并同步 Markdown 标签。该操作可能影响已有调度，确认继续？`,
           () => resolve(true),
           () => resolve(false),
         );

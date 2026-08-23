@@ -18,7 +18,7 @@ Status: implementation baseline; SFP behavior has been ported, with target-versi
 | Source identity | IAL | `custom-dm-source-key` | 协议已定 | 多匹配停止 |
 | Topic provider relation | IAL + dynamic lookup | `custom-qb-note-topic-id` | 已有题库关系基础 | 块 ID 只在索引中缓存 |
 | Question topic relation | IAL | `custom-qb-question-topic-ids` | 已有题库字段 | 不能以双链替代 |
-| Priority | Markdown tag | `#闪卡/优先级/P1-P4#` | 协议已定 | 不猜 Riff 私有字段 |
+| Priority | Markdown tag | `#闪卡/优先级/P1-P4#` | 已实现 | preview/confirm 同步 Riff 优先级与 DAMO 标签；失败返回 pending |
 | Idempotent registration | Riff API | add then query verify | 已实现 | pending/unregistered |
 | Native review panel | `siyuan-card` | Reuse native path | 设计已定 | 不复制面板 |
 | Pre-render renderer selection | Global flashcard config | Capability-detected interceptor | 已实现 | original global config |
@@ -61,7 +61,7 @@ with the DAMO owner shown so a future change cannot silently drop a feature:
 | Cache freshness, query-first, preload and manual clear | `FlashcardRuntime` | 迁移 |
 | All-due and group-due native review entry | `FlashcardRuntime` + native `siyuan-card` | 迁移 |
 | Automatic postponement of today's cards | `postponeTodayCards` | 迁移 |
-| Automatic and batch priority actions | `scanPriorities` + `setPriority` | 迁移 with native/Tomato/pending fallback |
+| Automatic and batch priority actions | `scanPriorities` + `setPriority` | 迁移 with native/Tomato/pending fallback; Markdown P1-P4 tag sync |
 | Raw SQL and filtered card-root result views | `FlashcardResults.svelte` | 迁移 |
 | Optional document-flow SQL/IdList launchers | `document-flow.ts` | 迁移, optional integration |
 | SFP `plugin-config.json` import | `sfp-migration.ts` | 迁移, preview/confirm |
@@ -80,7 +80,7 @@ Tomato 调用或文档流依赖。
 
 ## Verification log (2026-08-23)
 
-- `pnpm build` passed; focused flashcard suite passed: 5 files, 10 tests.
+- `pnpm build` passed; focused flashcard suite passed: 6 files, 15 tests.
 - `git diff --check` passed. Latest `dist/index.js` was deployed to
   `D:/1STUDY/SIYUAN/data/plugins/siyuan-damophus` and the two files have the
   same SHA-256.
@@ -111,3 +111,19 @@ Tomato 调用或文档流依赖。
   `1 / 95`; a 390x844 viewport also rendered the native mobile controls.
 - That run used the local 3.7.3 binary. It proves the SFP-compatible data flow,
   but it is not a supported-version acceptance result until repeated on 3.8.1+.
+
+## Priority-tag and tag-group evidence (2026-08-23)
+
+- An isolated temporary document containing `#闪卡/优先级/P1#` and an explicit
+  `custom-dm-card-renderer="list"` root was queried through `/api/query/sql`;
+  the tag index returned three matching blocks and the list root was resolved.
+- The root was registered with `/api/riff/addRiffCards` and verified through
+  `/api/riff/getRiffCardsByBlockIDs`; the temporary Riff card and document were
+  then removed.
+- `priority-tags.test.ts` and the adapter test cover P1-P4 mapping, preserving
+  non-DAMO tags, runtime priority success, and pending status on either Riff or
+  Markdown tag-sync failure.
+- `renderer-compat.test.ts` verifies list-card interception and that the next
+  ordinary/legacy card read returns the untouched global mark-only settings.
+- The live evidence used SiYuan 3.7.3 and is diagnostic only; the 3.8.1+ gate
+  still requires repeating the renderer isolation and unload checks.

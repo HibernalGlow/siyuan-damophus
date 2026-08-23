@@ -1,4 +1,4 @@
-import { requestStrict } from "@/api";
+import { getBlockKramdownStrict, requestStrict, updateBlockStrict } from "@/api";
 import { getLogger } from "@/libs/logger";
 import type {
   FlashcardBlockRow,
@@ -11,6 +11,7 @@ import {
   resolveCardRoots,
   toFlashcardRoot,
 } from "./types";
+import { replacePriorityTag } from "./priority-tags";
 
 const log = getLogger("flashcard-adapter");
 const nodeId = /^\d{14}-[a-z0-9]{7}$/u;
@@ -259,22 +260,51 @@ export class FlashcardSiyuanAdapter {
     });
   }
 
+  private async syncPriorityTags(cards: readonly RiffCardRecord[], priority: number): Promise<boolean> {
+    const ids = dedupeIds(cards.map((card) => card.blockID));
+    let failed = false;
+    for (const id of ids) {
+      try {
+        const current = await getBlockKramdownStrict(id);
+        const markdown = typeof current?.kramdown === "string" ? current.kramdown : "";
+        if (!markdown) {
+          failed = true;
+          continue;
+        }
+        const next = replacePriorityTag(markdown, priority);
+        if (next !== markdown) await updateBlockStrict("markdown", next, id);
+      } catch (error) {
+        failed = true;
+        log.warn("priority-tag-sync-failed", { blockId: id, error });
+      }
+    }
+    return !failed;
+  }
+
   async setPriority(cards: readonly RiffCardRecord[], priority: number): Promise<"native" | "tomato" | "pending"> {
-    const tomato = (window as Window & { tomato_zZmqus5PtYRi?: any }).tomato_zZmqus5PtYRi;
+    if (cards.length === 0) return "pending";
+    let status: "native" | "tomato" | "pending" = "pending";
+    const tomato = (globalThis as typeof globalThis & { tomato_zZmqus5PtYRi?: any }).tomato_zZmqus5PtYRi;
     if (tomato?.cardPriorityBox?.updateDocPriorityBatchDialog) {
-      await tomato.cardPriorityBox.updateDocPriorityBatchDialog(cards, priority, false);
-      return "tomato";
+      try {
+        await tomato.cardPriorityBox.updateDocPriorityBatchDialog(cards, priority, false);
+        status = "tomato";
+      } catch (error) {
+        log.warn("tomato.priority-unavailable", error);
+      }
+    } else {
+      try {
+        await requestStrict<unknown>("/api/riff/setRiffCardsPriority", {
+          cardIDs: cards.map((card) => card.cardID),
+          priority,
+        });
+        status = "native";
+      } catch (error) {
+        log.warn("riff.priority-unavailable", error);
+      }
     }
-    try {
-      await requestStrict<unknown>("/api/riff/setRiffCardsPriority", {
-        cardIDs: cards.map((card) => card.cardID),
-        priority,
-      });
-      return "native";
-    } catch (error) {
-      log.warn("riff.priority-unavailable", error);
-      return "pending";
-    }
+    if (!(await this.syncPriorityTags(cards, priority))) return "pending";
+    return status;
   }
 
   static isTodayCard(card: RiffCardRecord): boolean {

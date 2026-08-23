@@ -22,4 +22,21 @@ describe("flashcard renderer compatibility", () => {
     expect(Object.getOwnPropertyDescriptor(config, "flashcard")).toEqual(descriptor);
     expect(window.fetch).toBe(originalFetch);
   });
+
+  it("isolates a DAMO renderer read from ordinary cards using global settings", async () => {
+    const original = { mark: true, list: false, heading: false, superBlock: false };
+    const config = { flashcard: original };
+    const host = { siyuan: { config }, fetch: vi.fn(async () => new Response("{}")) };
+    vi.stubGlobal("window", host);
+    const compat = new FlashcardRendererCompat();
+    compat.preload("20260823000000-bbbbbbb", "list");
+    expect(compat.install().installed).toBe(true);
+    await window.fetch("/api/block/getDocInfo", { body: JSON.stringify({ id: "20260823000000-bbbbbbb" }) });
+    expect(config.flashcard).toMatchObject({ mark: false, list: true });
+    expect(config.flashcard).toEqual(original);
+    // A normal/legacy card has no pending DAMO renderer and keeps the user's
+    // global mark-only configuration on its next read.
+    expect(config.flashcard).toEqual(original);
+    compat.uninstall();
+  });
 });

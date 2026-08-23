@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { FlashcardSiyuanAdapter } from "./siyuan-adapter";
 
-const { requestStrict } = vi.hoisted(() => ({ requestStrict: vi.fn(async () => []) }));
+const { requestStrict, getBlockKramdownStrict, updateBlockStrict } = vi.hoisted(() => ({
+  requestStrict: vi.fn(async () => []),
+  getBlockKramdownStrict: vi.fn(async () => ({ kramdown: "" })),
+  updateBlockStrict: vi.fn(async () => []),
+}));
 
-vi.mock("@/api", () => ({ requestStrict }));
+vi.mock("@/api", () => ({ requestStrict, getBlockKramdownStrict, updateBlockStrict }));
 
 describe("flashcard SiYuan adapter", () => {
   it("batches large block loads for SFP dynamic groups", async () => {
@@ -43,5 +47,26 @@ describe("flashcard SiYuan adapter", () => {
     expect(roots).toHaveLength(1);
     expect(roots[0].blockId).toBe(rows[0].id);
     expect(requestStrict).not.toHaveBeenCalled();
+  });
+
+  it("syncs the portable priority tag after runtime priority succeeds", async () => {
+    requestStrict.mockClear();
+    getBlockKramdownStrict.mockResolvedValue({ kramdown: "- 问题\n#闪卡/优先级/P4#" });
+    updateBlockStrict.mockClear();
+    const adapter = new FlashcardSiyuanAdapter();
+    const status = await adapter.setPriority([{ blockID: "20260823031431-rql6ii7", cardID: "card-1" }], 90);
+    expect(status).toBe("native");
+    expect(updateBlockStrict).toHaveBeenCalledWith("markdown", "- 问题\n#闪卡/优先级/P1#", "20260823031431-rql6ii7");
+  });
+
+  it("reports pending when Markdown tag synchronization fails", async () => {
+    requestStrict.mockClear();
+    getBlockKramdownStrict.mockResolvedValue({ kramdown: "- 问题" });
+    updateBlockStrict.mockRejectedValueOnce(new Error("write failed"));
+    const status = await new FlashcardSiyuanAdapter().setPriority(
+      [{ blockID: "20260823031431-rql6ii7", cardID: "card-1" }],
+      10,
+    );
+    expect(status).toBe("pending");
   });
 });
