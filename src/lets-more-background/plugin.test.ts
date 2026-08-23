@@ -26,6 +26,7 @@ describe("lets-more-background plugin metadata", () => {
     expect(keys).toContain("toolbarCustomY");
     expect(keys).toContain("coverBreadcrumb");
     expect(keys).toContain("coverDocumentMenu");
+    expect(keys).toContain("confirmRemoveCover");
     expect(keys).toContain("siteCredentials");
     expect(keys).toContain("templates");
     expect(keys).toContain("sources");

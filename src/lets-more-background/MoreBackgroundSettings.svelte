@@ -93,6 +93,7 @@
   export let toolbarCustomY = 15;
   export let coverBreadcrumb = false;
   export let coverDocumentMenu = false;
+  export let confirmRemoveCover = true;
   export let mobile = false;
   export let onMaintenance: ((detail: { action: "maintain" | "cleanup"; documentLink?: string }) => void | Promise<void>) | undefined;
 
@@ -1762,6 +1763,17 @@
           <Switch checked={coverDocumentMenu} onCheckedChange={(value) => {
             coverDocumentMenu = value;
             void handleBasicChange("coverDocumentMenu", value);
+          }} />
+        </div>
+
+        <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-0.5">
+            <div class="font-medium text-foreground">{t("lets-more-background.confirmRemoveCoverTitle")}</div>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.confirmRemoveCoverDescription")}</p>
+          </div>
+          <Switch checked={confirmRemoveCover} onCheckedChange={(value) => {
+            confirmRemoveCover = value;
+            void handleBasicChange("confirmRemoveCover", value);
           }} />
         </div>
       </div>

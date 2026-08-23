@@ -1,4 +1,4 @@
-import { Menu, showMessage } from "siyuan";
+import { confirm, Menu, showMessage } from "siyuan";
 import { isMobile, plugin } from "@/utils";
 import { getLogger } from "@/libs/logger";
 import {
@@ -55,6 +55,7 @@ export interface MoreBackgroundOptions {
   toolbarCustomY?: number;
   coverBreadcrumb?: boolean;
   coverDocumentMenu?: boolean;
+  confirmRemoveCover?: boolean;
   autoAddCoverOnEmptyDoc?: boolean;
   autoRetryOnFailure?: boolean;
   blacklistedTags?: string;
@@ -865,6 +866,32 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     topEl?.addEventListener("mouseover", handleHeaderMouse, { passive: true });
     titleEl?.addEventListener("mouseover", handleHeaderMouse, { passive: true });
 
+    const approvedNativeRemovals = new WeakSet<Element>();
+    const handleNativeRemove = (event: MouseEvent) => {
+      if (this.options.confirmRemoveCover === false) return;
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLElement>('[data-type="remove"]')
+        : null;
+      if (!target || !backgroundEl?.contains(target)) return;
+      if (approvedNativeRemovals.has(target)) {
+        approvedNativeRemovals.delete(target);
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      confirm(
+        this.options.t("lets-more-background.confirmRemoveCoverTitle"),
+        this.options.t("lets-more-background.confirmRemoveCoverDescription"),
+        () => {
+          approvedNativeRemovals.add(target);
+          target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        },
+      );
+    };
+
+    backgroundEl?.addEventListener("click", handleNativeRemove, true);
+
     // 针对 background / top 的轻量级 MutationObserver（使用 rAF 节流，绝不 observe root 或 wysiwyg）
     let bgObserver: MutationObserver | null = null;
     let scheduledRaf = 0;
@@ -892,6 +919,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       backgroundEl?.removeEventListener("mouseover", handleHeaderMouse);
       topEl?.removeEventListener("mouseover", handleHeaderMouse);
       titleEl?.removeEventListener("mouseover", handleHeaderMouse);
+      backgroundEl?.removeEventListener("click", handleNativeRemove, true);
       const injected = root.querySelectorAll(
         `[${BUTTON_ATTR}], [data-damophus-more-background-title-btn]`,
       );

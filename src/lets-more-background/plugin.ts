@@ -141,6 +141,13 @@ export const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "checkbox",
+      title: "lets-more-background.confirmRemoveCoverTitle",
+      description: "lets-more-background.confirmRemoveCoverDescription",
+      key: "confirmRemoveCover",
+      value: true,
+    },
+    {
       type: "list",
       title: "lets-more-background.credentialsTab",
       description: "lets-more-background.credentialsDescription",

@@ -76,6 +76,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
             toolbarCustomY: opts.toolbarCustomY ?? 15,
             coverBreadcrumb: opts.coverBreadcrumb === true,
             coverDocumentMenu: opts.coverDocumentMenu === true,
+            confirmRemoveCover: opts.confirmRemoveCover !== false,
             onMaintenance: (detail) => owner.handleMaintenance(detail),
           },
         });
@@ -260,6 +261,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       toolbarCustomY: Number(this.getSetting("toolbarCustomY")),
       coverBreadcrumb: this.getSetting("coverBreadcrumb") === true,
       coverDocumentMenu: this.getSetting("coverDocumentMenu") === true,
+      confirmRemoveCover: this.getSetting("confirmRemoveCover") !== false,
       siteCredentials,
       sources,
       t: (key) => this.t(key as any),

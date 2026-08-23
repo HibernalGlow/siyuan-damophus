@@ -115,6 +115,8 @@ export const en = {
   "lets-more-background.coverBreadcrumbDescription": "Allow the cover to appear above the breadcrumb while keeping document controls independent.",
   "lets-more-background.coverDocumentMenuTitle": "Cover document controls",
   "lets-more-background.coverDocumentMenuDescription": "Allow the cover to appear above the lock, document, and more controls on the right.",
+  "lets-more-background.confirmRemoveCoverTitle": "Confirm removing a cover",
+  "lets-more-background.confirmRemoveCoverDescription": "Show a confirmation before SiYuan removes a document title cover.",
   "lets-more-background.openSetting": "Open settings",
 };
 
@@ -235,5 +237,7 @@ export const zhCN: typeof en = {
   "lets-more-background.coverBreadcrumbDescription": "允许题头图显示在面包屑上方，右侧文档按钮仍可独立设置。",
   "lets-more-background.coverDocumentMenuTitle": "题头图覆盖文档按钮",
   "lets-more-background.coverDocumentMenuDescription": "允许题头图显示在右侧的锁定、文档和更多按钮上方。",
+  "lets-more-background.confirmRemoveCoverTitle": "删除题头图前确认",
+  "lets-more-background.confirmRemoveCoverDescription": "思源删除文档题头图前先显示确认提示，避免误触导致题头图消失。",
   "lets-more-background.openSetting": "打开设置",
 };
