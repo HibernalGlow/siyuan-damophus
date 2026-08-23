@@ -41,7 +41,7 @@ const PRIORITIES = [
 
 interface AttachedControl {
   root: HTMLElement;
-  elements: HTMLElement[];
+  elements: Element[];
   signature: string;
 }
 
@@ -54,7 +54,7 @@ const BREADCRUMB_POLICY_STYLE = `
   margin-left: 2px;
   padding: 2px;
 }
-.protyle-breadcrumb[data-damophus-flashcard-breadcrumb] > .block__icon:first-of-type {
+.protyle-breadcrumb[data-damophus-flashcard-breadcrumb] > [data-type="readonly"].block__icon {
   margin-left: 0;
 }
 `;
@@ -69,7 +69,11 @@ export class NativePriorityControls {
     const more = target?.closest<HTMLElement>('[data-type="more"]');
     const root = more?.closest<HTMLElement>(".card__main");
     if (!root || !this.options.getSettings().enabled) return;
-    queueMicrotask(() => this.appendNativeMoreItems(root));
+    // Native SiYuan creates #commonMenu during the click handler itself.
+    // Defer until after that handler and retry once for slower mobile menus.
+    for (const delay of [0, 40, 120]) {
+      window.setTimeout(() => this.appendNativeMoreItems(root), delay);
+    }
   };
 
   constructor(private readonly options: NativePriorityControlOptions) {}
@@ -167,7 +171,7 @@ export class NativePriorityControls {
   }
 
   private attach(root: HTMLElement, toolbar: HTMLElement, settings: NativeReviewToolbarSettings, signature: string): void {
-    const elements: HTMLElement[] = [];
+    const elements: Element[] = [];
     if (settings.locate) elements.push(this.createAction(toolbar, "iconFocus", "定位闪卡原块", async () => {
       const card = await this.resolveCard(root);
       if (card) await this.options.locate(card);
@@ -213,22 +217,26 @@ export class NativePriorityControls {
   }
 
   private appendNativeMoreItems(root: HTMLElement): void {
+    const menuElement = this.options.documentRef.querySelector<HTMLElement>("#commonMenu");
+    if (!menuElement || menuElement.classList.contains("fn__none")) return;
+    if (menuElement.querySelector('[data-id^="damophus-flashcard-more-"]')) return;
     const menu = (window.siyuan as unknown as {
       menus?: { menu?: { addItem?: (item: IMenu) => void; addSeparator?: () => void } };
     }).menus?.menu;
     if (!menu?.addItem) return;
-    menu.addSeparator?.();
-    menu.addItem({ icon: "iconFocus", label: "定位原块", click: async () => {
+    menu.addItem({ id: "damophus-flashcard-more-separator", type: "separator" });
+    menu.addItem({ id: "damophus-flashcard-more-locate", icon: "iconFocus", label: "定位原块", click: async () => {
       const card = await this.resolveCard(root);
       if (card) await this.options.locate(card);
     } });
-    menu.addItem({ icon: "iconCloseRound", label: "取消登记", click: async () => {
+    menu.addItem({ id: "damophus-flashcard-more-unregister", icon: "iconCloseRound", label: "取消登记", click: async () => {
       const card = await this.resolveCard(root);
       if (card && await this.options.unregister(card)) {
         root.querySelector<HTMLButtonElement>('.card__action:not(.fn__none) button[data-type="-3"]')?.click();
       }
     } });
     menu.addItem({
+      id: "damophus-flashcard-more-priority",
       type: "submenu",
       icon: "iconSort",
       label: "设置优先级",
@@ -251,12 +259,13 @@ export class NativePriorityControls {
     });
     const rendererEnabled = this.options.isRendererOverrideEnabled();
     menu.addItem({
+      id: "damophus-flashcard-more-renderer",
       icon: rendererEnabled ? "iconEye" : "iconEyeoff",
       label: rendererEnabled ? "关闭按卡片 renderer" : "启用按卡片 renderer",
       click: () => void this.options.toggleRendererOverride(),
     });
-    menu.addItem({ icon: "iconSettings", label: "打开工作台", click: () => this.options.openWorkbench() });
-    menu.addItem({ type: "separator" });
+    menu.addItem({ id: "damophus-flashcard-more-workbench", icon: "iconSettings", label: "打开工作台", click: () => this.options.openWorkbench() });
+    menu.addItem({ id: "damophus-flashcard-more-settings-separator", type: "separator" });
     const settings = this.options.getSettings();
     const tools: Array<[ReviewToolbarKey, string]> = [
       ["locate", "定位原块"],
@@ -272,7 +281,7 @@ export class NativePriorityControls {
       renderer: settings.renderer,
       workbench: settings.workbench,
     };
-    menu.addItem({ type: "submenu", label: "工具栏按钮", submenu: tools.map(([key, label]) => ({
+    menu.addItem({ id: "damophus-flashcard-more-tools", type: "submenu", label: "工具栏按钮", submenu: tools.map(([key, label]) => ({
       icon: toolState[key] ? "iconCheck" : "iconUncheck",
       label: `${label}（${toolState[key] ? "已显示" : "已隐藏"}）`,
       click: () => void this.options.toggleToolVisibility(key),
@@ -287,7 +296,7 @@ export class NativePriorityControls {
       ["superBlock", "超级块内容"],
       ["tag", "标签"],
     ];
-    menu.addItem({ type: "submenu", label: "隐藏规则", submenu: renderers.map(([key, label]) => ({
+    menu.addItem({ id: "damophus-flashcard-more-renderers", type: "submenu", label: "隐藏规则", submenu: renderers.map(([key, label]) => ({
       icon: visibility[key] ? "iconCheck" : "iconUncheck",
       label: `${label}（${visibility[key] ? "隐藏中" : "显示中"}）`,
       click: () => void this.options.toggleRendererVisibility(key),
@@ -298,11 +307,13 @@ export class NativePriorityControls {
     toolbar: HTMLElement,
     icon: string,
     label: string,
-    action: (trigger: HTMLElement) => void | Promise<void>,
-  ): HTMLElement {
+    action: (trigger: Element) => void | Promise<void>,
+  ): Element {
     const mobile = toolbar.classList.contains("toolbar");
-    const element = this.options.documentRef.createElement(mobile ? "svg" : "button");
-    element.className = mobile ? "toolbar__icon" : "block__icon block__icon--show";
+    const element = mobile
+      ? this.options.documentRef.createElementNS("http://www.w3.org/2000/svg", "svg")
+      : this.options.documentRef.createElement("button");
+    element.setAttribute("class", mobile ? "toolbar__icon" : "block__icon block__icon--show");
     element.setAttribute("data-damophus-flashcard-tool", icon);
     element.setAttribute("aria-label", label);
     element.setAttribute("title", label);
@@ -326,7 +337,7 @@ export class NativePriorityControls {
     return element;
   }
 
-  private openPriorityMenu(trigger: HTMLElement, card: RiffCardRecord): void {
+  private openPriorityMenu(trigger: Element, card: RiffCardRecord): void {
     const menu = new Menu("damophus-flashcard-priority-menu");
     for (const option of PRIORITIES) {
       menu.addItem({

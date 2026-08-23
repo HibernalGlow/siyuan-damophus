@@ -57,15 +57,18 @@ describe("native flashcard toolbar", () => {
 
     controls.install();
     await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(5));
-    document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconFocus"]')?.click();
-    document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconSettings"]')?.click();
+    document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconFocus"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    document.querySelector<HTMLElement>('[data-damophus-flashcard-tool="iconSettings"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     await vi.waitFor(() => expect(locate).toHaveBeenCalled());
     expect(openWorkbench).toHaveBeenCalled();
     const tools = [...document.querySelectorAll<HTMLElement>("[data-damophus-flashcard-tool]")];
-    expect(tools.every((tool) => tool.tagName === (mobile ? "svg" : "BUTTON").toUpperCase())).toBe(true);
+    expect(tools.every((tool) => tool.tagName.toLowerCase() === (mobile ? "svg" : "button"))).toBe(true);
     if (mobile) {
       const iconUse = tools[0]?.querySelector("use");
+      expect(tools[0]?.namespaceURI).toBe("http://www.w3.org/2000/svg");
       expect(iconUse?.getAttribute("href")).toBe("#iconFocus");
       expect(iconUse?.getAttribute("xlink:href")).toBe("#iconFocus");
     }
@@ -131,6 +134,9 @@ describe("native flashcard toolbar", () => {
     root.querySelector(".block__icons")?.append(more);
     const addItem = vi.fn();
     const addSeparator = vi.fn();
+    const commonMenu = document.createElement("div");
+    commonMenu.id = "commonMenu";
+    document.body.append(commonMenu);
     vi.stubGlobal("siyuan", { menus: { menu: { addItem, addSeparator } } });
     controls = new NativePriorityControls({
       documentRef: document,
@@ -150,7 +156,8 @@ describe("native flashcard toolbar", () => {
     controls.install();
     more.click();
     await vi.waitFor(() => expect(addItem).toHaveBeenCalled());
-    expect(addSeparator).toHaveBeenCalledTimes(1);
+    expect(addSeparator).not.toHaveBeenCalled();
+    expect(addItem.mock.calls.map(([item]) => item.id)).toContain("damophus-flashcard-more-separator");
     expect(addItem.mock.calls.map(([item]) => item.label)).toContain("定位原块");
     expect(document.querySelectorAll('[data-damophus-flashcard-tool="iconMore"]')).toHaveLength(0);
   });
