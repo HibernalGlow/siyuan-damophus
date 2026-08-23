@@ -1,4 +1,4 @@
-import type { ICommand, IMenu, IPluginDockTab, Menu, Plugin } from "siyuan";
+import type { ICommand, IMenu, IPluginDockTab, IProtyle, Menu, Plugin } from "siyuan";
 import { isMobileEntryFrontend, type PluginEntrySurface } from "./plugin-entry-settings";
 
 export interface UnifiedEntryDock {
@@ -15,6 +15,10 @@ export interface UnifiedEntryDefinition {
   title: string;
   icon: string;
   execute(): void;
+  /** Optional editor-scoped command handler used by keyboard shortcuts. */
+  executeWithEditor?(protyle: IProtyle): void;
+  /** Shortcut callbacks that need the currently active editor context. */
+  executeFromActiveEditor?(): void;
   menuItem?: (execute: () => void) => IMenu;
   command?: {
     langKey: string;
@@ -61,8 +65,20 @@ export class UnifiedEntryPoint {
       langKey: this.definition.command.langKey,
       hotkey: this.definition.command.hotkey ?? "",
       callback: () => {
-        if (this.enabled) this.definition.execute();
+        if (!this.enabled) return;
+        if (isMobileEntryFrontend() && this.definition.executeFromActiveEditor) {
+          this.definition.executeFromActiveEditor();
+          return;
+        }
+        this.definition.execute();
       },
+      ...(this.definition.executeWithEditor
+        ? {
+          editorCallback: (protyle: IProtyle) => {
+            if (this.enabled) this.definition.executeWithEditor?.(protyle);
+          },
+        }
+        : {}),
     };
     this.host.addCommand(this.registeredCommand);
   }

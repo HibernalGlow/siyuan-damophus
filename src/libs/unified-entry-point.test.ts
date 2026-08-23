@@ -67,6 +67,85 @@ describe("UnifiedEntryPoint", () => {
     expect(initialized).toEqual([target]);
   });
 
+  it("exposes editor context to keyboard shortcuts while keeping the global callback", () => {
+    const commands: any[] = [];
+    const globalExecute = vi.fn();
+    const editorExecute = vi.fn();
+    const entry = new UnifiedEntryPoint({
+      id: "scoped-review",
+      title: "Scoped review",
+      icon: "iconRiffCard",
+      execute: globalExecute,
+      executeWithEditor: editorExecute,
+      command: { langKey: "scoped-review" },
+    }, {
+      commands,
+      addCommand: (command) => commands.push(command),
+      addDock: () => ({ config: {} as never, model: {} as never }),
+    });
+
+    entry.registerCommand();
+    const protyle = { block: { rootID: "doc-1" } } as never;
+    commands[0].callback();
+    commands[0].editorCallback(protyle);
+
+    expect(globalExecute).toHaveBeenCalledOnce();
+    expect(editorExecute).toHaveBeenCalledWith(protyle);
+  });
+
+  it("uses the active-editor fallback for mobile shortcut callbacks", () => {
+    const commands: any[] = [];
+    const activeEditorExecute = vi.fn();
+    const entry = new UnifiedEntryPoint({
+      id: "mobile-scoped-review",
+      title: "Mobile scoped review",
+      icon: "iconRiffCard",
+      execute: vi.fn(),
+      executeFromActiveEditor: activeEditorExecute,
+      command: { langKey: "mobile-scoped-review" },
+    }, {
+      commands,
+      addCommand: (command) => commands.push(command),
+      addDock: () => ({ config: {} as never, model: {} as never }),
+    });
+
+    entry.registerCommand();
+    vi.stubGlobal("document", { documentElement: { dataset: { frontend: "mobile" } } });
+    commands[0].callback();
+    vi.unstubAllGlobals();
+
+    expect(activeEditorExecute).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a desktop ordinary callback global while editorCallback carries the editor", () => {
+    const commands: any[] = [];
+    const globalExecute = vi.fn();
+    const activeEditorExecute = vi.fn();
+    const editorExecute = vi.fn();
+    const entry = new UnifiedEntryPoint({
+      id: "desktop-scoped-review",
+      title: "Desktop scoped review",
+      icon: "iconRiffCard",
+      execute: globalExecute,
+      executeFromActiveEditor: activeEditorExecute,
+      executeWithEditor: editorExecute,
+      command: { langKey: "desktop-scoped-review" },
+    }, {
+      commands,
+      addCommand: (command) => commands.push(command),
+      addDock: () => ({ config: {} as never, model: {} as never }),
+    });
+
+    entry.registerCommand();
+    commands[0].callback();
+    const protyle = { block: { rootID: "doc-1" } } as never;
+    commands[0].editorCallback(protyle);
+
+    expect(globalExecute).toHaveBeenCalledOnce();
+    expect(activeEditorExecute).not.toHaveBeenCalled();
+    expect(editorExecute).toHaveBeenCalledWith(protyle);
+  });
+
   it("disables command execution and tears down Dock content until re-enabled", () => {
     const commands: any[] = [];
     const docks: any[] = [];
