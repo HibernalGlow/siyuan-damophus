@@ -115,6 +115,7 @@ export interface FlashcardSettings {
     tag: boolean;
   };
   randomInterleaveEnabled: boolean;
+  samePriorityShuffleEnabled: boolean;
   reviewToolbarEnabled: boolean;
   reviewToolbarLocate: boolean;
   reviewToolbarUnregister: boolean;
@@ -134,6 +135,7 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   rendererInterceptionEnabled: true,
   rendererVisibility: { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false },
   randomInterleaveEnabled: false,
+  samePriorityShuffleEnabled: false,
   reviewToolbarEnabled: true,
   reviewToolbarLocate: true,
   reviewToolbarUnregister: true,

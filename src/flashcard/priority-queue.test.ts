@@ -42,4 +42,33 @@ describe("flashcard priority queue", () => {
     expect(ordered.slice(1, 4).some((item) => item.blockID.startsWith("p4"))).toBe(true);
     expect(new Set(ordered.map((item) => item.blockID)).size).toBe(cards.length);
   });
+
+  it("shuffles cards within each priority only when enabled", () => {
+    const cards = [card("p1-a"), card("p1-b"), card("p2-a"), card("p2-b")];
+    const roots = cards.map((item) => root(item.blockID, item.blockID.startsWith("p1") ? "P1" : "P2"));
+    const ordered = orderCardsByPriority(cards, roots, {
+      randomInterleave: false,
+      samePriorityShuffle: true,
+      random: () => 0,
+    });
+
+    expect(ordered.map((item) => item.blockID)).toEqual(["p1-b", "p1-a", "p2-b", "p2-a"]);
+    expect(orderCardsByPriority(cards, roots, { randomInterleave: false }).map((item) => item.blockID)).toEqual([
+      "p1-a", "p1-b", "p2-a", "p2-b",
+    ]);
+  });
+
+  it("allows same-priority shuffle and cross-priority interleave together", () => {
+    const cards = [card("p1-a"), card("p1-b"), card("p4-a"), card("p4-b")];
+    const roots = cards.map((item) => root(item.blockID, item.blockID.startsWith("p1") ? "P1" : "P4"));
+    const ordered = orderCardsByPriority(cards, roots, {
+      randomInterleave: true,
+      samePriorityShuffle: true,
+      interleaveRate: 0.5,
+      random: () => 0,
+    });
+
+    expect(new Set(ordered.map((item) => item.blockID))).toEqual(new Set(cards.map((item) => item.blockID)));
+    expect(ordered.slice(0, 2).some((item) => item.blockID.startsWith("p4"))).toBe(true);
+  });
 });

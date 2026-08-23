@@ -331,6 +331,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.compat.preloadMany(roots);
     const ordered = orderCardsByPriority(cards, roots, {
       randomInterleave: this.runtime.getSettings().randomInterleaveEnabled,
+      samePriorityShuffle: this.runtime.getSettings().samePriorityShuffleEnabled,
     });
     const rootsById = new Map(roots.map((root) => [root.blockId, root]));
     this.reviewCounter.setQueue(ordered.map((card) => {

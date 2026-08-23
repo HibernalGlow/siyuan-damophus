@@ -35,6 +35,7 @@ function mergeSettings(value: unknown): FlashcardSettings {
       ...(input.rendererVisibility && typeof input.rendererVisibility === "object" ? input.rendererVisibility : {}),
     },
     randomInterleaveEnabled: input.randomInterleaveEnabled === true,
+    samePriorityShuffleEnabled: input.samePriorityShuffleEnabled === true,
     reviewToolbarEnabled: input.reviewToolbarEnabled !== false,
     reviewToolbarLocate: input.reviewToolbarLocate !== false,
     reviewToolbarUnregister: input.reviewToolbarUnregister !== false,

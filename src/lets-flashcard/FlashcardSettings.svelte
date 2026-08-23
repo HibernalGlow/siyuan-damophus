@@ -279,6 +279,7 @@
       </div>
       <h3>复习顺序</h3>
       <label class="check"><input type="checkbox" bind:checked={config.randomInterleaveEnabled} on:change={saveGlobalOnChange} /> 随机模式：将约 5% 的较低优先级卡插入高优先级区段</label>
+      <label class="check"><input type="checkbox" bind:checked={config.samePriorityShuffleEnabled} on:change={saveGlobalOnChange} /> 同级随机：每轮复习打乱同一优先级内的卡片顺序</label>
       <h3>原生复习工具栏</h3>
       <label class="check"><input type="checkbox" bind:checked={config.reviewToolbarEnabled} on:change={saveGlobalOnChange} /> 启用工具栏增强</label>
       <div class="toolbar-options">

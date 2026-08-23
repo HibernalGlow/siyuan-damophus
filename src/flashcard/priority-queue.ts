@@ -10,6 +10,7 @@ const PRIORITY_RANK = {
 
 interface PriorityQueueOptions {
   randomInterleave: boolean;
+  samePriorityShuffle?: boolean;
   random?: () => number;
   interleaveRate?: number;
 }
@@ -19,7 +20,7 @@ function rootRank(root: FlashcardRoot | undefined): number {
   return PRIORITY_RANK[root.priority];
 }
 
-/** Keeps Riff order stable inside each priority while optionally mixing 5% of lower-priority cards. */
+/** Orders priority bands, optionally shuffling each band and mixing lower-priority cards. */
 export function orderCardsByPriority(
   cards: readonly RiffCardRecord[],
   roots: readonly FlashcardRoot[],
@@ -32,6 +33,20 @@ export function orderCardsByPriority(
     rank: rootRank(rootsById.get(card.blockID)),
   }));
   ranked.sort((left, right) => left.rank - right.rank || left.index - right.index);
+
+  const random = options.random ?? Math.random;
+  if (options.samePriorityShuffle && ranked.length > 1) {
+    let start = 0;
+    while (start < ranked.length) {
+      let end = start + 1;
+      while (end < ranked.length && ranked[end].rank === ranked[start].rank) end += 1;
+      for (let index = end - 1; index > start; index -= 1) {
+        const swapIndex = start + Math.floor(random() * (index - start + 1));
+        [ranked[index], ranked[swapIndex]] = [ranked[swapIndex], ranked[index]];
+      }
+      start = end;
+    }
+  }
 
   if (!options.randomInterleave || ranked.length < 2) {
     return ranked.map(({ card }) => card);
@@ -46,7 +61,6 @@ export function orderCardsByPriority(
   // Tomato's dormant 5% experiment inserted low-ranked cards into the first
   // third. Sample across lower priorities without shuffling the whole Riff
   // queue or disturbing the cards that remain in their priority bands.
-  const random = options.random ?? Math.random;
   const pool = [...lower];
   const selectedEntries = Array.from({ length: count }, () => {
     const index = Math.min(pool.length - 1, Math.floor(random() * pool.length));
