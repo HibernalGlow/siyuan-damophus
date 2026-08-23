@@ -1,4 +1,4 @@
-import { Menu, showMessage } from "siyuan";
+import { Menu, showMessage, type IMenu } from "siyuan";
 import type { RiffCardRecord } from "./siyuan-adapter";
 import { priorityTag } from "./priority-tags";
 
@@ -9,7 +9,8 @@ export interface NativeReviewToolbarSettings {
   priority: boolean;
   workbench: boolean;
   renderer: boolean;
-  more: boolean;
+  skipBetween: boolean;
+  showExitFocus?: boolean;
 }
 
 export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock" | "blockquote" | "callout" | "tag";
@@ -44,10 +45,32 @@ interface AttachedControl {
   signature: string;
 }
 
+const BREADCRUMB_POLICY_STYLE_ID = "damophus-flashcard-breadcrumb-policy";
+const BREADCRUMB_POLICY_STYLE = `
+.protyle-breadcrumb[data-damophus-flashcard-breadcrumb]:not([data-damophus-show-exit-focus]) > [data-type="exit-focus"] {
+  display: none !important;
+}
+.protyle-breadcrumb[data-damophus-flashcard-breadcrumb] > .block__icon {
+  margin-left: 2px;
+  padding: 2px;
+}
+.protyle-breadcrumb[data-damophus-flashcard-breadcrumb] > .block__icon:first-of-type {
+  margin-left: 0;
+}
+`;
+
 /** Adds narrow actions to SiYuan's native review toolbar on desktop and mobile. */
 export class NativePriorityControls {
   private observer?: MutationObserver;
+  private scanTimer?: number;
   private readonly controls = new Map<HTMLElement, AttachedControl>();
+  private readonly handleNativeMoreClick = (event: Event): void => {
+    const target = event.target as Element | null;
+    const more = target?.closest<HTMLElement>('[data-type="more"]');
+    const root = more?.closest<HTMLElement>(".card__main");
+    if (!root || !this.options.getSettings().enabled) return;
+    queueMicrotask(() => this.appendNativeMoreItems(root));
+  };
 
   constructor(private readonly options: NativePriorityControlOptions) {}
 
@@ -56,6 +79,8 @@ export class NativePriorityControls {
     this.observer = new MutationObserver(() => this.scan());
     const root = this.options.documentRef.body;
     if (root) this.observer.observe(root, { childList: true, subtree: true });
+    this.options.documentRef.addEventListener("click", this.handleNativeMoreClick, true);
+    this.scanTimer = window.setInterval(() => this.scan(), 250);
     this.scan();
   }
 
@@ -67,6 +92,7 @@ export class NativePriorityControls {
         this.controls.delete(toolbar);
         continue;
       }
+      this.applySkipPlacement(entry.root, settings.skipBetween);
       const enabled = Boolean(this.options.getCurrentCard() || this.blockIdForRoot(entry.root));
       for (const element of entry.elements) {
         if (element instanceof HTMLButtonElement) element.disabled = !enabled;
@@ -79,27 +105,65 @@ export class NativePriorityControls {
   uninstall(): void {
     this.observer?.disconnect();
     this.observer = undefined;
+    this.options.documentRef.removeEventListener("click", this.handleNativeMoreClick, true);
+    if (this.scanTimer !== undefined) window.clearInterval(this.scanTimer);
+    this.scanTimer = undefined;
     for (const entry of this.controls.values()) {
       for (const element of entry.elements) element.remove();
     }
+    this.clearBreadcrumbPolicies();
     this.controls.clear();
+    this.options.documentRef.getElementById(BREADCRUMB_POLICY_STYLE_ID)?.remove();
   }
 
   private scan(): void {
     const settings = this.options.getSettings();
-    if (!settings.enabled) return;
+    if (!settings.enabled) {
+      this.clearBreadcrumbPolicies();
+      return;
+    }
     const signature = JSON.stringify(settings);
     for (const root of this.options.documentRef.querySelectorAll<HTMLElement>(".card__main")) {
-      const toolbar = root.querySelector<HTMLElement>(":scope > .block__icons, :scope > .toolbar");
+      const toolbar = [...root.children].find((child): child is HTMLElement =>
+        child.classList.contains("block__icons") || child.classList.contains("toolbar"),
+      );
       if (!toolbar) continue;
+      this.applyBreadcrumbPolicy(root, settings, toolbar.classList.contains("toolbar"));
+      this.applySkipPlacement(root, settings.skipBetween);
       const current = this.controls.get(toolbar);
-      if (current?.signature === signature) continue;
+      if (current?.signature === signature && current.elements.every((element) => element.isConnected)) continue;
       if (current) {
         for (const element of current.elements) element.remove();
         this.controls.delete(toolbar);
       }
       this.attach(root, toolbar, settings, signature);
     }
+  }
+
+  private applyBreadcrumbPolicy(root: HTMLElement, settings: NativeReviewToolbarSettings, mobile: boolean): void {
+    const breadcrumb = root.querySelector<HTMLElement>(".protyle-breadcrumb");
+    if (!breadcrumb) return;
+    const active = settings.enabled && mobile;
+    breadcrumb.toggleAttribute("data-damophus-flashcard-breadcrumb", active);
+    breadcrumb.toggleAttribute("data-damophus-show-exit-focus", active && settings.showExitFocus === true);
+    if (active) this.ensureBreadcrumbPolicyStyle();
+  }
+
+  private clearBreadcrumbPolicies(): void {
+    for (const breadcrumb of this.options.documentRef.querySelectorAll<HTMLElement>(
+      '.card__main .protyle-breadcrumb[data-damophus-flashcard-breadcrumb]',
+    )) {
+      breadcrumb.removeAttribute("data-damophus-flashcard-breadcrumb");
+      breadcrumb.removeAttribute("data-damophus-show-exit-focus");
+    }
+  }
+
+  private ensureBreadcrumbPolicyStyle(): void {
+    if (this.options.documentRef.getElementById(BREADCRUMB_POLICY_STYLE_ID)) return;
+    const style = this.options.documentRef.createElement("style");
+    style.id = BREADCRUMB_POLICY_STYLE_ID;
+    style.textContent = BREADCRUMB_POLICY_STYLE;
+    this.options.documentRef.head.append(style);
   }
 
   private attach(root: HTMLElement, toolbar: HTMLElement, settings: NativeReviewToolbarSettings, signature: string): void {
@@ -127,15 +191,33 @@ export class NativePriorityControls {
         () => this.options.toggleRendererOverride(),
       ));
     }
-    if (settings.more) elements.push(this.createAction(toolbar, "iconMore", "闪卡工具与显示设置", (trigger) => {
-      this.openMoreMenu(trigger, root);
-    }));
     if (settings.workbench) elements.push(this.createAction(toolbar, "iconSettings", "打开闪卡工作台", () => this.options.openWorkbench()));
     this.controls.set(toolbar, { root, elements, signature });
   }
 
-  private openMoreMenu(trigger: HTMLElement, root: HTMLElement): void {
-    const menu = new Menu("damophus-flashcard-more-menu");
+  private applySkipPlacement(root: HTMLElement, moveBetween: boolean): void {
+    const action = [...root.querySelectorAll<HTMLElement>(".card__action")]
+      .find((candidate) => candidate.querySelector('[data-type="-1"]'));
+    if (!action) return;
+    const pq = action.querySelector<HTMLElement>(':scope > [data-type="-2"]');
+    const showAnswer = action.querySelector<HTMLElement>(':scope > [data-type="-1"]');
+    const skip = action.querySelector<HTMLElement>(':scope > [data-type="-3"]');
+    const spaces = [...action.querySelectorAll<HTMLElement>(":scope > .fn__space")];
+    if (!pq || !showAnswer || !skip || spaces.length < 2) return;
+
+    const ordered = moveBetween
+      ? [pq, spaces[0], skip, spaces[1], showAnswer]
+      : [pq, spaces[0], showAnswer, spaces[1], skip];
+    if (ordered.every((element, index) => action.children[index] === element)) return;
+    for (const element of ordered) action.append(element);
+  }
+
+  private appendNativeMoreItems(root: HTMLElement): void {
+    const menu = (window.siyuan as unknown as {
+      menus?: { menu?: { addItem?: (item: IMenu) => void; addSeparator?: () => void } };
+    }).menus?.menu;
+    if (!menu?.addItem) return;
+    menu.addSeparator?.();
     menu.addItem({ icon: "iconFocus", label: "定位原块", click: async () => {
       const card = await this.resolveCard(root);
       if (card) await this.options.locate(card);
@@ -210,8 +292,6 @@ export class NativePriorityControls {
       label: `${label}（${visibility[key] ? "隐藏中" : "显示中"}）`,
       click: () => void this.options.toggleRendererVisibility(key),
     })) });
-    const rect = trigger.getBoundingClientRect();
-    menu.open({ x: rect.left, y: rect.bottom, isLeft: false });
   }
 
   private createAction(
@@ -228,7 +308,10 @@ export class NativePriorityControls {
     element.setAttribute("title", label);
     if (mobile) {
       const use = this.options.documentRef.createElementNS("http://www.w3.org/2000/svg", "use");
-      use.setAttribute("href", `#${icon}`);
+      const iconHref = `#${icon}`;
+      // SiYuan's mobile SVG templates still use the SVG 1.1 xlink form.
+      use.setAttribute("href", iconHref);
+      use.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", iconHref);
       element.append(use);
     } else {
       element.innerHTML = `<svg><use href="#${icon}"></use></svg>`;
