@@ -15,7 +15,9 @@ function cardRoot(mobile: boolean): HTMLElement {
   root.className = "card__main";
   root.innerHTML = `
     <div class="${mobile ? "toolbar" : "block__icons"}">
-      <${mobile ? "svg" : "button"} data-type="filter"></${mobile ? "svg" : "button"}>
+      ${mobile
+        ? '<svg class="toolbar__icon"><use href="#iconRiffCard"></use></svg><span class="toolbar__text">闪卡</span><svg class="toolbar__icon" data-type="filter"></svg>'
+        : '<div class="block__logo block__logo--icon"><svg class="block__logoicon"><use href="#iconRiffCard"></use></svg>闪卡</div><button data-type="filter"></button>'}
     </div>
     <div class="card__block">
       <div class="protyle-breadcrumb">
@@ -42,7 +44,7 @@ describe("native flashcard toolbar", () => {
     const openWorkbench = vi.fn();
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true, skipBetween: true, showExitFocus: false }),
+      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true, skipBetween: true, showExitFocus: false, showBrand: true }),
       getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
       setPriority: vi.fn(async () => "native" as const),
       locate,
@@ -79,7 +81,7 @@ describe("native flashcard toolbar", () => {
     let enabled = true;
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled, locate: true, unregister: true, priority: true, workbench: true, renderer: true, skipBetween: true, showExitFocus: false }),
+      getSettings: () => ({ enabled, locate: true, unregister: true, priority: true, workbench: true, renderer: true, skipBetween: true, showExitFocus: false, showBrand: true }),
       getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
       setPriority: vi.fn(async () => "native" as const),
       locate: vi.fn(),
@@ -100,12 +102,48 @@ describe("native flashcard toolbar", () => {
     expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(0);
   });
 
+  it.each([false, true])("can hide and restore the native card brand on %s layout", async (mobile) => {
+    const root = cardRoot(mobile);
+    let showBrand = true;
+    controls = new NativePriorityControls({
+      documentRef: document,
+      getSettings: () => ({ enabled: true, locate: false, unregister: false, priority: false, workbench: false, renderer: false, skipBetween: true, showExitFocus: false, showBrand }),
+      getCurrentCard: () => undefined,
+      setPriority: vi.fn(async () => "native" as const),
+      locate: vi.fn(),
+      unregister: vi.fn(async () => false),
+      openWorkbench: vi.fn(),
+      isRendererOverrideEnabled: () => true,
+      toggleRendererOverride: vi.fn(),
+      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false }),
+      toggleRendererVisibility: vi.fn(),
+      toggleToolVisibility: vi.fn(),
+    });
+
+    controls.install();
+    const brand = mobile
+      ? [root.querySelector<HTMLElement>(".toolbar > .toolbar__icon"), root.querySelector<HTMLElement>(".toolbar > .toolbar__text")]
+      : [root.querySelector<HTMLElement>(".block__logo")];
+    const filter = root.querySelector<HTMLElement>('[data-type="filter"]');
+    await vi.waitFor(() => expect(brand.every((element) => !element?.hasAttribute("hidden"))).toBe(true));
+    expect(filter?.hasAttribute("hidden")).toBe(false);
+
+    showBrand = false;
+    controls.refresh();
+    expect(brand.every((element) => element?.hasAttribute("hidden"))).toBe(true);
+    expect(filter?.hasAttribute("hidden")).toBe(false);
+
+    showBrand = true;
+    controls.refresh();
+    expect(brand.every((element) => !element?.hasAttribute("hidden"))).toBe(true);
+  });
+
   it("can place skip between PQ and show answer", async () => {
     const root = cardRoot(false);
     let moveSkip = true;
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled: true, locate: false, unregister: false, priority: false, workbench: false, renderer: false, skipBetween: moveSkip, showExitFocus: false }),
+      getSettings: () => ({ enabled: true, locate: false, unregister: false, priority: false, workbench: false, renderer: false, skipBetween: moveSkip, showExitFocus: false, showBrand: true }),
       getCurrentCard: () => undefined,
       setPriority: vi.fn(async () => "native" as const),
       locate: vi.fn(),
@@ -140,7 +178,7 @@ describe("native flashcard toolbar", () => {
     vi.stubGlobal("siyuan", { menus: { menu: { addItem, addSeparator } } });
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true, skipBetween: true, showExitFocus: false }),
+      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true, skipBetween: true, showExitFocus: false, showBrand: true }),
       getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
       setPriority: vi.fn(async () => "native" as const),
       locate: vi.fn(),
@@ -167,7 +205,7 @@ describe("native flashcard toolbar", () => {
     let showExitFocus = false;
     controls = new NativePriorityControls({
       documentRef: document,
-      getSettings: () => ({ enabled: true, locate: false, unregister: false, priority: false, workbench: false, renderer: false, skipBetween: true, showExitFocus }),
+      getSettings: () => ({ enabled: true, locate: false, unregister: false, priority: false, workbench: false, renderer: false, skipBetween: true, showExitFocus, showBrand: true }),
       getCurrentCard: () => undefined,
       setPriority: vi.fn(async () => "native" as const),
       locate: vi.fn(),

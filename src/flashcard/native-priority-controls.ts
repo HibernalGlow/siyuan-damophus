@@ -11,6 +11,7 @@ export interface NativeReviewToolbarSettings {
   renderer: boolean;
   skipBetween: boolean;
   showExitFocus?: boolean;
+  showBrand: boolean;
 }
 
 export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock" | "blockquote" | "callout" | "tag";
@@ -96,6 +97,7 @@ export class NativePriorityControls {
         this.controls.delete(toolbar);
         continue;
       }
+      this.applyCardBrandVisibility(entry.root, settings.showBrand);
       this.applySkipPlacement(entry.root, settings.skipBetween);
       const enabled = Boolean(this.options.getCurrentCard() || this.blockIdForRoot(entry.root));
       for (const element of entry.elements) {
@@ -132,6 +134,7 @@ export class NativePriorityControls {
         child.classList.contains("block__icons") || child.classList.contains("toolbar"),
       );
       if (!toolbar) continue;
+      this.applyCardBrandVisibility(root, settings.showBrand);
       this.applyBreadcrumbPolicy(root, settings, toolbar.classList.contains("toolbar"));
       this.applySkipPlacement(root, settings.skipBetween);
       const current = this.controls.get(toolbar);
@@ -151,6 +154,25 @@ export class NativePriorityControls {
     breadcrumb.toggleAttribute("data-damophus-flashcard-breadcrumb", active);
     breadcrumb.toggleAttribute("data-damophus-show-exit-focus", active && settings.showExitFocus === true);
     if (active) this.ensureBreadcrumbPolicyStyle();
+  }
+
+  private applyCardBrandVisibility(root: HTMLElement, showBrand: boolean): void {
+    const desktopToolbar = [...root.children].find((child): child is HTMLElement => child.classList.contains("block__icons"));
+    const desktopBrand = desktopToolbar
+      ? [...desktopToolbar.children].find((child): child is HTMLElement => child.classList.contains("block__logo"))
+      : undefined;
+    desktopBrand?.toggleAttribute("hidden", !showBrand);
+
+    const mobileToolbar = [...root.children].find((child): child is HTMLElement => child.classList.contains("toolbar"));
+    if (!mobileToolbar) return;
+    const mobileBrandIcon = [...mobileToolbar.children].find((child): child is HTMLElement =>
+      child.classList.contains("toolbar__icon") && !child.dataset.type,
+    );
+    const mobileBrandText = [...mobileToolbar.children].find((child): child is HTMLElement =>
+      child.classList.contains("toolbar__text"),
+    );
+    mobileBrandIcon?.toggleAttribute("hidden", !showBrand);
+    mobileBrandText?.toggleAttribute("hidden", !showBrand);
   }
 
   private clearBreadcrumbPolicies(): void {
