@@ -29,6 +29,7 @@ export class FlashcardRendererCompat {
   private originalFetch?: typeof window.fetch;
   private installed = false;
   private activeBlockId?: string;
+  private notifiedBlockId?: string;
   private domObserver?: MutationObserver;
   private visibility: RendererVisibility = { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false };
   private styleElement?: HTMLStyleElement;
@@ -67,6 +68,7 @@ export class FlashcardRendererCompat {
           const payload = JSON.parse(init.body) as { id?: unknown };
           if (typeof payload.id === "string") {
             owner.activeBlockId = undefined;
+            owner.notifiedBlockId = undefined;
           }
         } catch {
           // Leave the native request untouched when its body is not JSON.
@@ -94,6 +96,7 @@ export class FlashcardRendererCompat {
     this.styleElement = undefined;
     this.originalFetch = undefined;
     this.activeBlockId = undefined;
+    this.notifiedBlockId = undefined;
     this.rendererByBlockId.clear();
     this.installed = false;
   }
@@ -113,7 +116,10 @@ export class FlashcardRendererCompat {
         : block.querySelector<HTMLElement>('[data-node-id][custom-dm-card-renderer]');
       if (root?.dataset.nodeId && this.rendererByBlockId.has(root.dataset.nodeId)) {
         this.activeBlockId = root.dataset.nodeId;
-        this.onCardRender?.(root.dataset.nodeId);
+        if (this.notifiedBlockId !== root.dataset.nodeId) {
+          this.notifiedBlockId = root.dataset.nodeId;
+          this.onCardRender?.(root.dataset.nodeId);
+        }
       }
       const activeRoot = this.activeBlockId
         ? block.querySelector<HTMLElement>(`[data-node-id="${this.activeBlockId}"]`)
