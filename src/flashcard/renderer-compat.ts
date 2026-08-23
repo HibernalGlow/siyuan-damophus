@@ -30,6 +30,7 @@ export class FlashcardRendererCompat {
   private installed = false;
   private activeBlockId?: string;
   private notifiedBlockId?: string;
+  private applyingVisibilityFallback = false;
   private domObserver?: MutationObserver;
   private visibility: RendererVisibility = { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false };
   private styleElement?: HTMLStyleElement;
@@ -107,6 +108,9 @@ export class FlashcardRendererCompat {
    * classes from the card's DAMO IAL as a narrow timing fallback.
    */
   private applyNativeVisibilityFallback(): void {
+    if (this.applyingVisibilityFallback || typeof document === "undefined") return;
+    this.applyingVisibilityFallback = true;
+    try {
     const blocks = document.querySelectorAll<HTMLElement>(
       '[data-key="dialog-opencard"] .card__block, .card__block',
     );
@@ -140,15 +144,23 @@ export class FlashcardRendererCompat {
       if (this.visibility.list) enabledClasses.add("card__block--hideli");
       if (this.visibility.heading) enabledClasses.add("card__block--hideh");
       if (this.visibility.superBlock) enabledClasses.add("card__block--hidesb");
-      block.classList.toggle("damophus-card--hideblockquote", !answerShown && this.visibility.blockquote);
-      block.classList.toggle("damophus-card--hidecallout", !answerShown && this.visibility.callout);
-      block.classList.toggle("damophus-card--hidetag", !answerShown && this.visibility.tag);
+      const customClasses: Array<[string, boolean]> = [
+        ["damophus-card--hideblockquote", !answerShown && this.visibility.blockquote],
+        ["damophus-card--hidecallout", !answerShown && this.visibility.callout],
+        ["damophus-card--hidetag", !answerShown && this.visibility.tag],
+      ];
+      for (const [className, shouldHave] of customClasses) {
+        if (block.classList.contains(className) !== shouldHave) block.classList.toggle(className, shouldHave);
+      }
       for (const className of hideClasses) {
         const shouldHave = !answerShown && enabledClasses.has(className);
         if (block.classList.contains(className) !== shouldHave) {
           block.classList.toggle(className, shouldHave);
         }
       }
+    }
+    } finally {
+      this.applyingVisibilityFallback = false;
     }
   }
 

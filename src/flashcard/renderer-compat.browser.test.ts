@@ -27,4 +27,29 @@ describe("flashcard renderer compatibility browser guard", () => {
 
     compat.uninstall();
   });
+
+  it("applies renderer visibility without generating repeated class mutations", async () => {
+    const card = document.createElement("div");
+    card.className = "card__block";
+    const root = document.createElement("div");
+    root.dataset.nodeId = "20260823130238-card002";
+    root.setAttribute("custom-dm-card-renderer", "blockquote");
+    card.append(root);
+    document.body.append(card);
+
+    const compat = new FlashcardRendererCompat();
+    compat.preload(root.dataset.nodeId, "blockquote");
+    compat.install();
+    const mutations: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => mutations.push(...records));
+    observer.observe(card, { attributes: true, attributeFilter: ["class"] });
+    compat.refresh();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    const firstCount = mutations.length;
+    compat.refresh();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(mutations.length).toBe(firstCount);
+    observer.disconnect();
+    compat.uninstall();
+  });
 });
