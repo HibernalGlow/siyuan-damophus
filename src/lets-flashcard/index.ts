@@ -2,6 +2,7 @@ import { Dialog, Menu, confirm, getActiveTab, getAllEditor, openMobileFileById, 
 import { mount, unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
+import { isMobileEntryFrontend } from "@/libs/plugin-entry-settings";
 import { getLogger } from "@/libs/logger";
 import { isMobile, plugin } from "@/utils";
 import FlashcardSettings from "./FlashcardSettings.svelte";
@@ -20,6 +21,8 @@ import { orderCardsByPriority } from "@/flashcard/priority-queue";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
+const BREADCRUMB_BUTTON_ID = "damophus-flashcard";
+const BREADCRUMB_BUTTON_ICON = "iconRiffCard";
 
 function settingsTabId(): string {
   return `${plugin.name}${SETTINGS_TAB_TYPE}`;
@@ -39,6 +42,8 @@ export default class FlashcardPlugin extends SubPluginBase {
   private readonly reviewCards = new Map<string, RiffCardRecord>();
   private currentReviewCard?: RiffCardRecord;
   private menuEventsBound = false;
+  private mobileNativeEntryBound = false;
+  private breadcrumbButtonRegistered = false;
   private readonly reviewCounter = new NativeReviewCounter({
     documentRef: document,
     getStatsSettings: () => this.runtime.getSettings().reviewStats,
@@ -163,9 +168,11 @@ export default class FlashcardPlugin extends SubPluginBase {
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
     this.menuEventsBound = true;
+    this.bindMobileNativeReviewEntry();
     this.reviewCounter.install();
     this.priorityControls.install();
     this.runtime.load();
+    this.syncBreadcrumbButton();
     this.compat.setVisibility(this.runtime.getSettings().rendererVisibility);
     if (this.getSetting("rendererInterceptionEnabled") !== false) {
       const status = this.compat.install();
@@ -225,6 +232,32 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.entry?.setSurfaces(this.configuredSettingsEntrySurfaces());
     this.reviewCounter.refresh();
     this.priorityControls.refresh();
+  }
+
+  private syncBreadcrumbButton(): void {
+    const api = plugin as unknown as {
+      addBreadcrumbButton?: (options: {
+        id: string;
+        icon: string;
+        title: string;
+        callback: (event: MouseEvent, protyle: IProtyle) => void;
+      }) => string;
+      removeBreadcrumbButton?: (id: string) => void;
+    };
+    if (typeof api.addBreadcrumbButton !== "function") {
+      log.warn("breadcrumb-api-unavailable");
+      return;
+    }
+    if (this.breadcrumbButtonRegistered) {
+      api.removeBreadcrumbButton?.(BREADCRUMB_BUTTON_ID);
+    }
+    api.addBreadcrumbButton({
+      id: BREADCRUMB_BUTTON_ID,
+      icon: BREADCRUMB_BUTTON_ICON,
+      title: this.t("lets-flashcard.reviewCurrentDocument"),
+      callback: (_event, protyle) => this.reviewFromEditor(protyle),
+    });
+    this.breadcrumbButtonRegistered = true;
   }
 
   /** Shared settings surface used by the central DAMO settings page. */
@@ -386,6 +419,11 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onunload(): void {
+    this.unbindMobileNativeReviewEntry();
+    if (this.breadcrumbButtonRegistered) {
+      (plugin as unknown as { removeBreadcrumbButton?: (id: string) => void }).removeBreadcrumbButton?.(BREADCRUMB_BUTTON_ID);
+      this.breadcrumbButtonRegistered = false;
+    }
     if (this.menuEventsBound) {
       plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
       plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
@@ -406,6 +444,36 @@ export default class FlashcardPlugin extends SubPluginBase {
     for (const app of this.mounted.values()) void unmount(app);
     this.mounted.clear();
   }
+
+  /**
+   * SiYuan's mobile bottom-bar spaced-repetition action always calls the
+   * global native entry. Intercept that one action so DAMO can preserve the
+   * current document scope; the command/menu global actions remain unchanged.
+   */
+  private bindMobileNativeReviewEntry(): void {
+    if (this.mobileNativeEntryBound || typeof document === "undefined") return;
+    document.addEventListener("click", this.handleMobileNativeReviewEntry, true);
+    this.mobileNativeEntryBound = true;
+  }
+
+  private unbindMobileNativeReviewEntry(): void {
+    if (!this.mobileNativeEntryBound || typeof document === "undefined") return;
+    document.removeEventListener("click", this.handleMobileNativeReviewEntry, true);
+    this.mobileNativeEntryBound = false;
+  }
+
+  private readonly handleMobileNativeReviewEntry = (event: MouseEvent): void => {
+    if (!isMobileEntryFrontend()) return;
+    const target = event.target instanceof Element
+      ? event.target.closest<HTMLElement>("#mobileBottomBarSpacedRepetition")
+      : null;
+    if (!target) return;
+    const context = this.currentReviewContext();
+    if (!context) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.reviewDocumentScope(context.documentId, context.documentName);
+  };
 
   addMenuItem(menu: Menu): void {
     if (!this.isEntryEnabled("menu") || (!this.isEntryEnabled("tab") && !this.isEntryEnabled("dock"))) return;

@@ -44,6 +44,8 @@ const COUNTER_STYLE = `
   display: flex;
   align-items: center;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   flex: 0 0 auto;
   min-height: 32px;
   box-sizing: border-box;
@@ -56,6 +58,7 @@ const COUNTER_STYLE = `
   flex: 1 1 auto;
   width: 100%;
   max-width: none;
+  min-width: 0;
   justify-content: flex-start;
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -114,7 +117,11 @@ const COUNTER_STYLE = `
   gap: 0;
 }
 .damophus-counter-row > .damophus-counter-details {
+  flex: 1 1 auto;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   overflow-x: auto;
   overflow-y: hidden;
   justify-content: flex-start;

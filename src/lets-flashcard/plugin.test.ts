@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import pluginMetadata from "./plugin";
 import FlashcardPlugin from "./index";
+import { plugin, setPlugin } from "@/utils";
 
 describe("flashcard plugin metadata", () => {
   it("declares the settings surface and native review entry points", () => {
@@ -177,6 +178,68 @@ describe("flashcard plugin metadata", () => {
     vi.stubGlobal("window", previousWindow);
     vi.stubGlobal("document", previousDocument);
     vi.stubGlobal("CSS", previousCss);
+  });
+
+  it("intercepts the native mobile spaced-repetition button for the current document", () => {
+    const addEventListener = vi.fn();
+    const removeEventListener = vi.fn();
+    const fakeDocument = { addEventListener, removeEventListener };
+    const reviewDocumentScope = vi.fn();
+    const instance = {
+      mobileNativeEntryBound: false,
+      isEntryEnabled: () => true,
+      currentReviewContext: () => ({ documentId: "doc-1", documentName: "当前文档" }),
+      reviewDocumentScope,
+      bindMobileNativeReviewEntry: (FlashcardPlugin.prototype as any).bindMobileNativeReviewEntry,
+      unbindMobileNativeReviewEntry: (FlashcardPlugin.prototype as any).unbindMobileNativeReviewEntry,
+      handleMobileNativeReviewEntry: (FlashcardPlugin.prototype as any).handleMobileNativeReviewEntry,
+    } as any;
+    const previousDocument = globalThis.document;
+    vi.stubGlobal("document", fakeDocument);
+    Object.assign(instance, { mobileNativeEntryBound: false });
+    instance.bindMobileNativeReviewEntry();
+    expect(addEventListener).toHaveBeenCalledWith("click", instance.handleMobileNativeReviewEntry, true);
+    instance.unbindMobileNativeReviewEntry();
+    expect(removeEventListener).toHaveBeenCalledWith("click", instance.handleMobileNativeReviewEntry, true);
+    vi.stubGlobal("document", previousDocument);
+  });
+
+  it("registers one native breadcrumb button for desktop and mobile editors", () => {
+    const previousPlugin = plugin;
+    const addBreadcrumbButton = vi.fn();
+    const removeBreadcrumbButton = vi.fn();
+    const reviewFromEditor = vi.fn();
+    const instance = {
+      breadcrumbButtonRegistered: false,
+      t: (key: string) => key === "lets-flashcard.reviewCurrentDocument" ? "复习当前文档闪卡" : key,
+      reviewFromEditor,
+    } as any;
+
+    setPlugin({ addBreadcrumbButton, removeBreadcrumbButton } as never);
+    try {
+      (FlashcardPlugin.prototype as any).syncBreadcrumbButton.call(instance);
+      expect(addBreadcrumbButton).toHaveBeenCalledTimes(1);
+      const options = addBreadcrumbButton.mock.calls[0][0] as {
+        id: string;
+        icon: string;
+        title: string;
+        callback: (event: MouseEvent, protyle: unknown) => void;
+      };
+      expect(options).toMatchObject({
+        id: "damophus-flashcard",
+        icon: "iconRiffCard",
+        title: "复习当前文档闪卡",
+      });
+      const protyle = { block: { rootID: "doc-1" } };
+      options.callback({} as MouseEvent, protyle);
+      expect(reviewFromEditor).toHaveBeenCalledWith(protyle);
+
+      (FlashcardPlugin.prototype as any).syncBreadcrumbButton.call(instance);
+      expect(removeBreadcrumbButton).toHaveBeenCalledWith("damophus-flashcard");
+      expect(addBreadcrumbButton).toHaveBeenCalledTimes(2);
+    } finally {
+      setPlugin(previousPlugin as never);
+    }
   });
 
 });
