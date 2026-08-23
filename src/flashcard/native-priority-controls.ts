@@ -166,7 +166,7 @@ export class NativePriorityControls {
     const mobileToolbar = [...root.children].find((child): child is HTMLElement => child.classList.contains("toolbar"));
     if (!mobileToolbar) return;
     const mobileBrandIcon = [...mobileToolbar.children].find((child): child is HTMLElement =>
-      child.classList.contains("toolbar__icon") && !child.dataset.type,
+      child.classList.contains("toolbar__icon") && !(child as HTMLElement).dataset?.type,
     );
     const mobileBrandText = [...mobileToolbar.children].find((child): child is HTMLElement =>
       child.classList.contains("toolbar__text"),

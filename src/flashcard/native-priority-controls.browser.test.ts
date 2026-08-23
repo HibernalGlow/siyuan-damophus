@@ -102,6 +102,48 @@ describe("native flashcard toolbar", () => {
     expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(0);
   });
 
+  it("keeps DAMO actions stable on a narrow mobile toolbar", async () => {
+    const root = cardRoot(true);
+    const toolbar = root.querySelector<HTMLElement>(".toolbar")!;
+    let toolbarWidth = 385;
+    Object.defineProperties(toolbar, {
+      clientWidth: { configurable: true, get: () => toolbarWidth },
+      scrollWidth: { configurable: true, get: () => 900 },
+    });
+    const addItem = vi.fn();
+    const commonMenu = document.createElement("div");
+    commonMenu.id = "commonMenu";
+    document.body.append(commonMenu);
+    vi.stubGlobal("siyuan", { menus: { menu: { addItem } } });
+    controls = new NativePriorityControls({
+      documentRef: document,
+      getSettings: () => ({ enabled: true, locate: true, unregister: true, priority: true, workbench: true, renderer: true, skipBetween: true, showExitFocus: false, showBrand: true }),
+      getCurrentCard: () => ({ blockID: "20260823120000-aaaaaaa", cardID: "card-1" }),
+      setPriority: vi.fn(async () => "native" as const),
+      locate: vi.fn(),
+      unregister: vi.fn(async () => false),
+      openWorkbench: vi.fn(),
+      isRendererOverrideEnabled: () => true,
+      toggleRendererOverride: vi.fn(),
+      getRendererVisibility: () => ({ mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false }),
+      toggleRendererVisibility: vi.fn(),
+      toggleToolVisibility: vi.fn(),
+    });
+
+    controls.install();
+    await vi.waitFor(() => expect(document.querySelectorAll("[data-damophus-flashcard-tool]")).toHaveLength(5));
+    const tools = [...document.querySelectorAll<HTMLElement>("[data-damophus-flashcard-tool]")];
+    expect(tools.every((tool) => !tool.hasAttribute("hidden"))).toBe(true);
+    expect(toolbar.querySelector('[data-type="filter"]')?.hasAttribute("hidden")).toBe(false);
+
+    root.querySelector<HTMLElement>('.protyle-breadcrumb [data-type="more"]')?.click();
+    await vi.waitFor(() => expect(addItem.mock.calls.map(([item]) => item.id)).toContain("damophus-flashcard-more-locate"));
+
+    toolbarWidth = 1200;
+    controls.refresh();
+    expect(tools.every((tool) => !tool.hasAttribute("hidden"))).toBe(true);
+  });
+
   it.each([false, true])("can hide and restore the native card brand on %s layout", async (mobile) => {
     const root = cardRoot(mobile);
     let showBrand = true;
