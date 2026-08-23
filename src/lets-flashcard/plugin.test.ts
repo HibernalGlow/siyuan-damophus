@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import pluginMetadata from "./plugin";
+import FlashcardPlugin from "./index";
 
 describe("flashcard plugin metadata", () => {
   it("declares the settings surface and native review entry points", () => {
@@ -13,5 +14,29 @@ describe("flashcard plugin metadata", () => {
       ["tab", true],
     ]);
     expect(pluginMetadata.settings?.some((setting) => setting.key === "openSettingsButton")).toBe(false);
+  });
+
+  it("contributes one top-level menu item with review actions as children", () => {
+    const addItem = vi.fn();
+    const fakePlugin = {
+      isEntryEnabled: () => true,
+      t: (key: string) => key,
+      runtime: { getEnabledGroups: () => [{ name: "含指定标签" }] },
+      openSettings: vi.fn(),
+      reviewAll: vi.fn(),
+      reviewGroup: vi.fn(),
+    };
+
+    FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
+
+    expect(addItem).toHaveBeenCalledTimes(1);
+    const item = addItem.mock.calls[0][0] as { label: string; submenu?: Array<{ label?: string; type?: string }> };
+    expect(item.label).toBe("lets-flashcard.displayName");
+    expect(item.submenu?.map((child) => child.type ?? child.label)).toEqual([
+      "lets-flashcard.openSettings",
+      "lets-flashcard.reviewAll",
+      "separator",
+      "复习：含指定标签",
+    ]);
   });
 });

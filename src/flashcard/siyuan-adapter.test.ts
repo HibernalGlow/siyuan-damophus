@@ -49,6 +49,35 @@ describe("flashcard SiYuan adapter", () => {
     expect(requestStrict).not.toHaveBeenCalled();
   });
 
+  it("collapses nested tag matches to one explicit card root", async () => {
+    requestStrict.mockClear();
+    const rootId = "20260823031431-rql6ii7";
+    const rows = [
+      {
+        id: rootId,
+        type: "l",
+        content: "问题 #闪卡/优先级/P1#",
+        ial: '{: custom-dm-card-id="tag-card" custom-dm-card-renderer="list"}',
+      },
+      {
+        id: "20260823031432-aaaaaaa",
+        parent_id: rootId,
+        type: "i",
+        content: "答案一 #闪卡/优先级/P1#",
+      },
+      {
+        id: "20260823031433-bbbbbbb",
+        parent_id: rootId,
+        type: "i",
+        content: "答案二 #闪卡/优先级/P1#",
+      },
+    ];
+
+    const roots = await new FlashcardSiyuanAdapter().inspectRows(rows, { maxResolveDepth: 8 });
+
+    expect(roots.map((root) => root.blockId)).toEqual([rootId]);
+  });
+
   it("syncs the portable priority tag after runtime priority succeeds", async () => {
     requestStrict.mockClear();
     getBlockKramdownStrict.mockResolvedValue({ kramdown: "- 问题\n#闪卡/优先级/P4#" });

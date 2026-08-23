@@ -1,4 +1,4 @@
-import { Dialog, Menu, confirm, openTab, showMessage, type IEventBusMap } from "siyuan";
+import { Dialog, Menu, confirm, openTab, showMessage, type IEventBusMap, type IMenu } from "siyuan";
 import { mount, unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
@@ -29,7 +29,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     (key, value) => this.setSetting(key, value),
   );
   private entry?: UnifiedEntryPoint;
-  private reviewEntry?: UnifiedEntryPoint;
   private tabRegistered = false;
   private readonly mounted = new Map<HTMLElement, ReturnType<typeof mount>>();
   private reviewScope?: { group: FlashcardGroup; ids: Set<string> };
@@ -93,16 +92,6 @@ export default class FlashcardPlugin extends SubPluginBase {
       icon: "iconRiffCard",
       execute: () => this.openSettings(),
       command: { langKey: "lets-flashcard.open" },
-    }, plugin);
-    this.entry.registerCommand();
-    this.entry.setSurfaces(this.configuredSettingsEntrySurfaces());
-    this.entry.setEnabled(true);
-
-    this.reviewEntry ??= new UnifiedEntryPoint({
-      id: "flashcard.review",
-      title: this.t("lets-flashcard.reviewAll"),
-      icon: "iconRiffCard",
-      execute: () => this.reviewAllFromSettings(),
       dock: {
         config: {
           position: "LeftTop",
@@ -120,7 +109,7 @@ export default class FlashcardPlugin extends SubPluginBase {
           const button = document.createElement("button");
           button.type = "button";
           button.className = "b3-button b3-button--outline";
-          button.textContent = this.t("lets-flashcard.reviewAll");
+          button.textContent = this.t("lets-flashcard.open");
           button.addEventListener("click", this.handleDockLauncherClick);
           target.append(button);
         },
@@ -130,21 +119,24 @@ export default class FlashcardPlugin extends SubPluginBase {
         },
       },
     }, plugin);
-    this.reviewEntry.registerDock();
-    this.reviewEntry.setSurfaces({ dock: this.isEntryEnabled("dock") });
-    this.reviewEntry.setEnabled(true);
+    this.entry.registerCommand();
+    this.entry.registerDock();
+    this.entry.setSurfaces(this.configuredSettingsEntrySurfaces());
+    this.entry.setEnabled(true);
   }
 
   private readonly handleDockLauncherClick = (): void => {
-    this.reviewAllFromSettings();
-  }
+    this.openSettings();
+  };
 
   private configuredSettingsEntrySurfaces() {
+    const dock = this.isEntryEnabled("dock");
     const tab = this.isEntryEnabled("tab");
+    const hasTarget = tab || dock;
     return {
-      menu: tab && this.isEntryEnabled("menu"),
-      command: tab && this.isEntryEnabled("command"),
-      dock: false,
+      menu: hasTarget && this.isEntryEnabled("menu"),
+      command: hasTarget && this.isEntryEnabled("command"),
+      dock,
     };
   }
 
@@ -152,7 +144,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.runtime.stopAutomation();
     this.runtime.startAutomation();
     this.entry?.setSurfaces(this.configuredSettingsEntrySurfaces());
-    this.reviewEntry?.setSurfaces({ dock: this.isEntryEnabled("dock") });
   }
 
   /** Shared settings surface used by the central DAMO settings page. */
@@ -234,8 +225,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.priorityControls.uninstall();
     this.compat.onCardRender = undefined;
     this.entry?.setEnabled(false);
-    this.reviewEntry?.setEnabled(false);
-    this.reviewEntry?.destroyDockContent();
     this.entry?.destroyDockContent();
     this.runtime.stopAutomation();
     this.compat.uninstall();
@@ -248,27 +237,36 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   addMenuItem(menu: Menu): void {
     if (!this.isEntryEnabled("menu") || (!this.isEntryEnabled("tab") && !this.isEntryEnabled("dock"))) return;
+    const submenu: IMenu[] = [];
     if (this.isEntryEnabled("tab")) {
-      menu.addItem({
+      submenu.push({
         icon: "iconRiffCard",
         label: this.t("lets-flashcard.openSettings"),
         click: () => this.openSettings(),
       });
     }
-    menu.addItem({
+    submenu.push({
       icon: "iconRiffCard",
       label: this.t("lets-flashcard.reviewAll"),
       click: () => void this.reviewAll(),
     });
     const groups = this.runtime.getEnabledGroups();
-    if (groups.length > 0) menu.addSeparator();
+    if (groups.length > 0) submenu.push({ type: "separator" });
     for (const group of groups) {
-      menu.addItem({
+      submenu.push({
         icon: "iconRiffCard",
         label: `复习：${group.name}`,
         click: () => void this.reviewGroup(group),
       });
     }
+    // Keep one DAMO top-level entry. The row itself opens the settings
+    // workbench; the existing review actions remain available as children.
+    menu.addItem({
+      icon: "iconRiffCard",
+      label: this.t("lets-flashcard.displayName"),
+      click: () => this.openSettings(),
+      submenu,
+    });
   }
 
   private mountSettings(target: HTMLElement): ReturnType<typeof mount> {
@@ -363,6 +361,7 @@ export default class FlashcardPlugin extends SubPluginBase {
           rows,
           roots,
           due,
+          filtered,
           onReview: () => {
             dialog.destroy();
             if (due) void this.openNativeReview(`复习：${group.name}`, due, group);

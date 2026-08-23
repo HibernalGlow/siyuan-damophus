@@ -23,6 +23,7 @@ Status: implementation baseline; SFP behavior has been ported, with target-versi
 | Native review panel | `siyuan-card` | Reuse native path | 设计已定 | 不复制面板 |
 | Pre-render renderer selection | Global flashcard config | Capability-detected interceptor | 已实现 | original global config |
 | Dynamic review list | SQL + Riff due cards | Preload intersection pipeline | 已实现 | SQL failure stops next round; target-version browser gate remains |
+| Nested tag aggregation | SQL tag matches may include descendants | Filtered results and review inputs use deduped card roots | 已实现 | Raw SQL view intentionally keeps every matching row |
 | Legacy mark cards | Existing Riff card | Preserve root and history | 迁移规则已定 | no automatic rewrite |
 | Mobile review | Native panel | Same adapter contract | 待验证 | report unsupported capability |
 | Unload recovery | Descriptor/interceptor | Restore exact original | 已实现 | plugin must fail closed |

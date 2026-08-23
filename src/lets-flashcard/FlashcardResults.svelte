@@ -6,18 +6,26 @@
   export let rows: FlashcardBlockRow[];
   export let roots: FlashcardRoot[];
   export let due: DueCardsData | undefined;
+  export let filtered = false;
   export let onReview: () => void;
   export let onRegister: () => void | Promise<void>;
 
   const rootIds = new Set(roots.map((root) => root.blockId));
   const rootById = new Map(roots.map((root) => [root.blockId, root]));
+  $: displayRows = filtered
+    ? roots.map((root) => ({
+        id: root.blockId,
+        content: root.content,
+        type: root.renderer,
+      }))
+    : rows;
 </script>
 
 <div class="flashcard-results" data-testid="flashcard-results">
   <header>
     <div>
       <h2>{title}</h2>
-      <p>{rows.length} 个 SQL 结果，{roots.length} 个闪卡根块{due ? `，${due.cards.length} 个到期卡` : ""}</p>
+      <p>{filtered ? `${rows.length} 个 SQL 命中，${displayRows.length} 个去重后闪卡根块` : `${rows.length} 个 SQL 结果，${roots.length} 个闪卡根块`}{due ? `，${due.cards.length} 个到期卡` : ""}</p>
     </div>
     <div class="actions">
       {#if roots.length > 0}<button class="b3-button" on:click={onRegister}>一键制卡并登记</button>{/if}
@@ -25,7 +33,7 @@
     </div>
   </header>
   <div class="result-list">
-    {#each rows as row (row.id)}
+    {#each displayRows as row (row.id)}
       <div class:root={rootIds.has(row.id)} class="result-row">
         <code>{row.id}</code>
         <span>{row.content || row.type || "block"}</span>
