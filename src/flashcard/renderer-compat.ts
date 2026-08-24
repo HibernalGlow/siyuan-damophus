@@ -13,6 +13,7 @@ export type RendererVisibility = {
   blockquote: boolean;
   callout: boolean;
   tag: boolean;
+  topicRelations: boolean;
 };
 
 const rendererFlags: Record<FlashcardRenderer, string> = {
@@ -32,7 +33,10 @@ export class FlashcardRendererCompat {
   private notifiedBlockId?: string;
   private applyingVisibilityFallback = false;
   private domObserver?: MutationObserver;
-  private visibility: RendererVisibility = { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false };
+  private readonly initializedAnswerByBlockId = new Set<string>();
+  private readonly initialAnswerByBlockId = new Set<string>();
+  private readonly forcedAnswerActions = new Map<HTMLElement, { firstHidden: boolean; secondHidden: boolean }>();
+  private visibility: RendererVisibility = { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false, topicRelations: false };
   private styleElement?: HTMLStyleElement;
 
   onCardRender?: (blockId: string) => void;
@@ -68,8 +72,7 @@ export class FlashcardRendererCompat {
         try {
           const payload = JSON.parse(init.body) as { id?: unknown };
           if (typeof payload.id === "string") {
-            owner.activeBlockId = undefined;
-            owner.notifiedBlockId = undefined;
+            owner.resetCardLifecycle();
           }
         } catch {
           // Leave the native request untouched when its body is not JSON.
@@ -98,6 +101,14 @@ export class FlashcardRendererCompat {
     this.originalFetch = undefined;
     this.activeBlockId = undefined;
     this.notifiedBlockId = undefined;
+    for (const [block, original] of this.forcedAnswerActions) {
+      const actions = block.parentElement?.querySelectorAll<HTMLElement>(".card__action") ?? [];
+      if (actions[0]) actions[0].classList.toggle("fn__none", original.firstHidden);
+      if (actions[1]) actions[1].classList.toggle("fn__none", original.secondHidden);
+    }
+    this.forcedAnswerActions.clear();
+    this.initializedAnswerByBlockId.clear();
+    this.initialAnswerByBlockId.clear();
     this.rendererByBlockId.clear();
     this.installed = false;
   }
@@ -115,21 +126,36 @@ export class FlashcardRendererCompat {
       '[data-key="dialog-opencard"] .card__block, .card__block',
     );
     for (const block of blocks) {
-      const root = block.matches('[data-node-id][custom-dm-card-renderer]')
-        ? block
-        : block.querySelector<HTMLElement>('[data-node-id][custom-dm-card-renderer]');
-      if (root?.dataset.nodeId && this.rendererByBlockId.has(root.dataset.nodeId)) {
+      // SiYuan may strip DAMO IAL attributes while materializing the card
+      // editor. Resolve the rendered root by block ID first, then use the
+      // preloaded renderer map as the portable source of truth.
+      const candidateRoots = [
+        ...(block.matches("[data-node-id]") ? [block] : []),
+        ...block.querySelectorAll<HTMLElement>("[data-node-id]"),
+      ];
+      const root = candidateRoots.find((candidate) => {
+        const mapped = candidate.dataset.nodeId ? this.rendererByBlockId.get(candidate.dataset.nodeId) : undefined;
+        return Boolean(mapped && Object.prototype.hasOwnProperty.call(rendererFlags, mapped));
+      })
+        ?? candidateRoots.find((candidate) => candidate.hasAttribute("custom-dm-card-renderer"))
+        ?? candidateRoots.find((candidate) => this.rendererByBlockId.has(candidate.dataset.nodeId ?? ""));
+      if (root?.dataset.nodeId && (this.rendererByBlockId.has(root.dataset.nodeId) || root.hasAttribute("custom-dm-card-renderer"))) {
+        if (this.activeBlockId !== root.dataset.nodeId) this.notifiedBlockId = undefined;
         this.activeBlockId = root.dataset.nodeId;
         if (this.notifiedBlockId !== root.dataset.nodeId) {
           this.notifiedBlockId = root.dataset.nodeId;
           this.onCardRender?.(root.dataset.nodeId);
         }
+        if (!this.initializedAnswerByBlockId.has(root.dataset.nodeId)) {
+          this.initializedAnswerByBlockId.add(root.dataset.nodeId);
+          this.initialAnswerByBlockId.add(root.dataset.nodeId);
+        }
       }
-      const activeRoot = this.activeBlockId
-        ? block.querySelector<HTMLElement>(`[data-node-id="${this.activeBlockId}"]`)
-        : undefined;
+      // Resolve the renderer from the selected root itself. The root can be
+      // the `.card__block` element, so querying only its descendants would
+      // miss the preloaded renderer map for native materialized cards.
       const renderer = (root?.getAttribute("custom-dm-card-renderer")
-        ?? this.rendererByBlockId.get(activeRoot ? (this.activeBlockId ?? "") : "")) as FlashcardRenderer | "unknown" | null;
+        ?? (root?.dataset.nodeId ? this.rendererByBlockId.get(root.dataset.nodeId) : undefined)) as FlashcardRenderer | "unknown" | null;
       if (!renderer || !Object.prototype.hasOwnProperty.call(rendererFlags, renderer)) continue;
       const hideClasses = [
         "card__block--hidemark",
@@ -138,16 +164,69 @@ export class FlashcardRendererCompat {
         "card__block--hidesb",
       ];
       const actions = block.parentElement?.querySelectorAll<HTMLElement>(".card__action") ?? [];
-      const answerShown = actions.length > 1 && !actions[1].classList.contains("fn__none");
+      // A DAMO renderer selects the card's primary answer boundary, while the
+      // native visibility switches still apply to any enabled structures that
+      // are actually present in the materialized card.
       const enabledClasses = new Set<string>();
-      if (this.visibility.mark) enabledClasses.add("card__block--hidemark");
-      if (this.visibility.list) enabledClasses.add("card__block--hideli");
-      if (this.visibility.heading) enabledClasses.add("card__block--hideh");
-      if (this.visibility.superBlock) enabledClasses.add("card__block--hidesb");
+      const rendererKey = renderer && Object.prototype.hasOwnProperty.call(rendererFlags, renderer)
+        ? rendererFlags[renderer as FlashcardRenderer]
+        : undefined;
+      const nativeClass: Partial<Record<FlashcardRenderer, string>> = {
+        mark: "card__block--hidemark",
+        list: "card__block--hideli",
+        heading: "card__block--hideh",
+        superBlock: "card__block--hidesb",
+      };
+      // SiYuan hides every enabled answer structure present in the card, not
+      // only the structure selected by a DAMO renderer. Keep that behavior so
+      // a list card containing an explicit mark still honors "隐藏高亮".
+      const hasMark = Boolean(block.querySelector('span[data-type~="mark"]'));
+      const hasList = Boolean(block.querySelector(".list, .li"));
+      const hasHeading = Boolean(block.querySelector('[data-type="NodeHeading"]'));
+      const hasSuperBlock = Boolean(block.querySelector(":scope > .sb, .sb"));
+      const nativeVisibility: Array<[FlashcardRenderer, boolean]> = [
+        ["mark", hasMark || renderer === "mark"],
+        ["list", hasList || renderer === "list"],
+        ["heading", hasHeading || renderer === "heading"],
+        ["superBlock", hasSuperBlock || renderer === "superBlock"],
+      ];
+      for (const [kind, present] of nativeVisibility) {
+        if (this.visibility[kind] && present) enabledClasses.add(nativeClass[kind]!);
+      }
+      const shouldHideInitialAnswer = Boolean(rendererKey && this.visibility[rendererKey]);
+      const rootId = root?.dataset.nodeId;
+      const forced = this.forcedAnswerActions.get(block);
+      if (rootId && !shouldHideInitialAnswer && forced && actions.length > 1) {
+        actions[0].classList.toggle("fn__none", forced.firstHidden);
+        actions[1].classList.toggle("fn__none", forced.secondHidden);
+        this.forcedAnswerActions.delete(block);
+        this.initialAnswerByBlockId.delete(rootId);
+      }
+      if (rootId && shouldHideInitialAnswer && this.initialAnswerByBlockId.has(rootId) && actions.length > 1) {
+        const currentAnswerShown = !actions[1].classList.contains("fn__none");
+        const initialForced = this.forcedAnswerActions.get(block);
+        if (!initialForced) {
+          this.forcedAnswerActions.set(block, {
+            firstHidden: actions[0].classList.contains("fn__none"),
+            secondHidden: actions[1].classList.contains("fn__none"),
+          });
+          if (currentAnswerShown) {
+            actions[0].classList.remove("fn__none");
+            actions[1].classList.add("fn__none");
+          }
+        } else if (currentAnswerShown) {
+          // The native "显示答案" action made the second action visible.
+          // Treat that as an intentional reveal instead of hiding it again.
+          this.initialAnswerByBlockId.delete(rootId);
+          this.forcedAnswerActions.delete(block);
+        }
+      }
+      const answerShown = actions.length > 1 && !actions[1].classList.contains("fn__none");
       const customClasses: Array<[string, boolean]> = [
-        ["damophus-card--hideblockquote", !answerShown && this.visibility.blockquote],
-        ["damophus-card--hidecallout", !answerShown && this.visibility.callout],
+        ["damophus-card--hideblockquote", !answerShown && renderer === "blockquote" && this.visibility.blockquote],
+        ["damophus-card--hidecallout", !answerShown && renderer === "callout" && this.visibility.callout],
         ["damophus-card--hidetag", !answerShown && this.visibility.tag],
+        ["damophus-card--hidetopicrelations", !answerShown && this.visibility.topicRelations],
       ];
       for (const [className, shouldHave] of customClasses) {
         if (block.classList.contains(className) !== shouldHave) block.classList.toggle(className, shouldHave);
@@ -177,8 +256,22 @@ export class FlashcardRendererCompat {
         "damophus-card--hideblockquote",
         "damophus-card--hidecallout",
         "damophus-card--hidetag",
+        "damophus-card--hidetopicrelations",
       );
     }
+  }
+
+  private resetCardLifecycle(): void {
+    this.activeBlockId = undefined;
+    this.notifiedBlockId = undefined;
+    for (const [block, original] of this.forcedAnswerActions) {
+      const actions = block.parentElement?.querySelectorAll<HTMLElement>(".card__action") ?? [];
+      if (actions[0]) actions[0].classList.toggle("fn__none", original.firstHidden);
+      if (actions[1]) actions[1].classList.toggle("fn__none", original.secondHidden);
+    }
+    this.forcedAnswerActions.clear();
+    this.initializedAnswerByBlockId.clear();
+    this.initialAnswerByBlockId.clear();
   }
 
   private ensureVisibilityStyle(): void {
@@ -187,6 +280,8 @@ export class FlashcardRendererCompat {
     style.dataset.damophusFlashcardVisibility = "true";
     style.textContent = `
       .damophus-card--hidetag span[data-type~="tag"] { display: none !important; }
+      .damophus-card--hidetopicrelations .damophus-topic-relations,
+      .damophus-card--hidetopicrelations + .damophus-topic-relations { display: none !important; }
       .damophus-card--hideblockquote .bq > :not(:first-child),
       .damophus-card--hideblockquote blockquote > :not(:first-child) { display: none !important; }
       .damophus-card--hidecallout .callout-content { display: none !important; }
