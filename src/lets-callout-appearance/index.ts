@@ -36,6 +36,7 @@ export default class CalloutAppearancePlugin extends SubPluginBase {
       removeQuoteShadow: this.getSetting("removeQuoteShadow"),
       removeEmbedOutline: this.getSetting("removeEmbedOutline"),
       riffMarker: this.getSetting("riffMarker"),
+      flashcardLeftHighlightFix: this.getSetting("flashcardLeftHighlightFix"),
     };
   }
 }

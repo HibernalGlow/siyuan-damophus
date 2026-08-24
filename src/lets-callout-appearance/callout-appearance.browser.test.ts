@@ -153,6 +153,41 @@ describe("callout appearance", () => {
     expect(css).not.toContain("custom-riff-decks");
   });
 
+  it("restores the native left marker for Callouts in flashcard review when enabled", () => {
+    document.documentElement.style.setProperty("--b3-protyle-inline-mark-background", "rgb(1, 2, 3)");
+    const hostStyle = document.createElement("style");
+    hostStyle.textContent = `
+      .card__block .protyle-wysiwyg:not([data-doc-type="NodeDocument"]) [data-node-id][custom-riff-decks] {
+        box-shadow: none;
+      }
+    `;
+    document.head.append(hostStyle);
+
+    const cardHost = document.createElement("div");
+    cardHost.className = "card__block";
+    cardHost.innerHTML = `
+      <div class="protyle-wysiwyg">
+        <div class="callout" data-node-id="flashcard-callout" data-type="NodeCallout" data-subtype="WARNING" custom-riff-decks="deck">
+          <div class="callout-info"><span class="callout-title">Warning</span></div>
+          <div class="callout-content"><p>Body</p></div>
+        </div>
+      </div>
+    `;
+    document.body.append(cardHost);
+    const callout = cardHost.querySelector<HTMLElement>(".callout")!;
+
+    const disabledStyles = startCalloutAppearance({ riffMarker: false, flashcardLeftHighlightFix: false });
+    expect(getComputedStyle(callout).boxShadow).toBe("none");
+    disabledStyles.destroy();
+
+    const enabledStyles = startCalloutAppearance({ flashcardLeftHighlightFix: true });
+    expect(getComputedStyle(callout).boxShadow).toContain("inset");
+    expect(createCalloutAppearanceCss({ flashcardLeftHighlightFix: true })).toContain(".card__block .protyle-wysiwyg .callout");
+    enabledStyles.destroy();
+    hostStyle.remove();
+    document.documentElement.style.removeProperty("--b3-protyle-inline-mark-background");
+  });
+
   it("mounts once and removes only its own style node", () => {
     const unrelated = document.createElement("style");
     unrelated.id = "unrelated-style";
@@ -339,6 +374,11 @@ describe("callout appearance", () => {
     });
     expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
       key: "followCalloutTextColor",
+      type: "checkbox",
+      value: false,
+    }));
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "flashcardLeftHighlightFix",
       type: "checkbox",
       value: false,
     }));

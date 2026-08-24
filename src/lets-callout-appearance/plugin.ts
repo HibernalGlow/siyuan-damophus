@@ -21,6 +21,7 @@ export const pluginMetadata: PluginMetadata = {
     { type: "checkbox", title: "lets-callout-appearance.removeQuoteShadowTitle", description: "lets-callout-appearance.removeQuoteShadowDescription", key: "removeQuoteShadow", value: true },
     { type: "checkbox", title: "lets-callout-appearance.removeEmbedOutlineTitle", description: "lets-callout-appearance.removeEmbedOutlineDescription", key: "removeEmbedOutline", value: true },
     { type: "checkbox", title: "lets-callout-appearance.riffMarkerTitle", description: "lets-callout-appearance.riffMarkerDescription", key: "riffMarker", value: true },
+    { type: "checkbox", title: "lets-callout-appearance.flashcardLeftHighlightFixTitle", description: "lets-callout-appearance.flashcardLeftHighlightFixDescription", key: "flashcardLeftHighlightFix", value: false },
     {
       type: "slider",
       title: "lets-callout-appearance.paddingTopTitle",

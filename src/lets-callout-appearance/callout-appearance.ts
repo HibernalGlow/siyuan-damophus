@@ -17,6 +17,7 @@ export interface CalloutAppearanceSettings {
   removeQuoteShadow: boolean;
   removeEmbedOutline: boolean;
   riffMarker: boolean;
+  flashcardLeftHighlightFix: boolean;
 }
 
 export const DEFAULT_CALLOUT_APPEARANCE_SETTINGS: CalloutAppearanceSettings = {
@@ -34,9 +35,10 @@ export const DEFAULT_CALLOUT_APPEARANCE_SETTINGS: CalloutAppearanceSettings = {
   removeQuoteShadow: true,
   removeEmbedOutline: true,
   riffMarker: true,
+  flashcardLeftHighlightFix: false,
 };
 
-type NumericCalloutAppearanceSetting = Exclude<keyof CalloutAppearanceSettings, "followCalloutTextColor" | "palette" | "contentPadding" | "removeQuoteShadow" | "removeEmbedOutline" | "riffMarker">;
+type NumericCalloutAppearanceSetting = Exclude<keyof CalloutAppearanceSettings, "followCalloutTextColor" | "palette" | "contentPadding" | "removeQuoteShadow" | "removeEmbedOutline" | "riffMarker" | "flashcardLeftHighlightFix">;
 
 const SETTING_LIMITS = {
   paddingTop: [8, 24],
@@ -85,6 +87,8 @@ export function resolveCalloutAppearanceSettings(
     removeQuoteShadow: settings.removeQuoteShadow !== false && settings.removeQuoteShadow !== "false",
     removeEmbedOutline: settings.removeEmbedOutline !== false && settings.removeEmbedOutline !== "false",
     riffMarker: settings.riffMarker !== false && settings.riffMarker !== "false",
+    flashcardLeftHighlightFix: settings.flashcardLeftHighlightFix === true
+      || settings.flashcardLeftHighlightFix === "true",
   };
 }
 
@@ -148,6 +152,7 @@ ${directBodySelectors} {
     settings.removeQuoteShadow ? `.protyle-wysiwyg [data-node-id][style*="--b3-font-background1)"] { box-shadow: none !important; filter: none !important; }` : "",
     settings.removeEmbedOutline ? `.protyle-wysiwyg [data-node-id][style*="--b3-font-background1)"] { outline: none !important; }` : "",
     settings.riffMarker ? `.protyle-wysiwyg .callout[data-type="NodeCallout"][custom-riff-decks] { box-shadow: 2px 0 0 0 var(--b3-protyle-inline-mark-background) inset !important; }` : "",
+    settings.flashcardLeftHighlightFix ? `:root body .card__block .protyle-wysiwyg .callout[data-type="NodeCallout"][custom-riff-decks] { box-shadow: 2px 0 0 0 var(--b3-protyle-inline-mark-background) inset !important; }` : "",
   ].filter(Boolean).join("\n");
 
   return `
