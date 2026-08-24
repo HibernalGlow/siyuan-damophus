@@ -694,6 +694,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
         timingEnabled: this.getSetting("timingEnabled") !== false,
         pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
         pauseOnBlur: this.getSetting("pauseOnBlur") === true,
+        completionShowCorrectness: this.getSetting("completionShowCorrectness") !== false,
+        completionShowRating: this.getSetting("completionShowRating") !== false,
+        completionShowDuration: this.getSetting("completionShowDuration") !== false,
+        completionShowAnswer: this.getSetting("completionShowAnswer") !== false,
+        completionShowAnsweredAt: this.getSetting("completionShowAnsweredAt") === true,
         mobileBreadcrumb: isMobile,
         breadcrumbPriority: normalizeBreadcrumbPriority(
           settings.getBySpace("mobileBreadcrumb", "overflowPriority"),

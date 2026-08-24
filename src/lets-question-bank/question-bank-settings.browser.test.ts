@@ -27,6 +27,8 @@ const labels = {
     displayDescription: "管理答题显示。",
     timing: "计时",
     timingDescription: "管理作答计时。",
+    completion: "完成页",
+    completionDescription: "管理练习完成后的显示。",
     mask: "原文答案遮罩",
   },
   mask: {
@@ -66,6 +68,11 @@ const settingItems: ISettingItem[] = [
   { type: "checkbox", title: "看答案时暂停", description: "暂停说明", key: "pauseOnAnswerReveal", value: true },
   { type: "checkbox", title: "离开焦点时自动暂停", description: "失焦暂停说明", key: "pauseOnBlur", value: false },
   { type: "select", title: "用时对比位置", description: "位置说明", key: "durationComparisonPosition", value: "rating", options: { rating: "评分上方" } },
+  { type: "checkbox", title: "显示正误", description: "正误说明", key: "completionShowCorrectness", value: true },
+  { type: "checkbox", title: "显示评级", description: "评级说明", key: "completionShowRating", value: true },
+  { type: "checkbox", title: "显示作答用时", description: "用时说明", key: "completionShowDuration", value: true },
+  { type: "checkbox", title: "显示已提交答案", description: "答案说明", key: "completionShowAnswer", value: true },
+  { type: "checkbox", title: "显示提交时间", description: "提交时间说明", key: "completionShowAnsweredAt", value: false },
   { type: "checkbox", title: "隐藏原文答案", description: "遮罩说明", key: "maskSourceAnswers", value: false },
   { type: "select", title: "遮罩样式", description: "遮罩样式说明", key: "answerMaskStyle", value: "blur", options: { blur: "模糊" } },
 ];
@@ -108,7 +115,7 @@ describe("question bank settings navigation", () => {
     await tick();
 
     expect(target.textContent).toContain("复习与闪卡");
-    expect(target.querySelectorAll(".workspace-panel")).toHaveLength(6);
+    expect(target.querySelectorAll(".workspace-panel")).toHaveLength(7);
     const reviewTrigger = target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-review"]');
     const displayTrigger = target.querySelector<HTMLButtonElement>('button[aria-controls="question-bank-settings-display"]');
     if (!reviewTrigger || !displayTrigger) throw new Error("Missing settings panel trigger");
@@ -267,17 +274,17 @@ describe("question bank settings navigation", () => {
     });
 
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
-    expect(target.querySelectorAll("[data-settings-section-target]")).toHaveLength(6);
+    expect(target.querySelectorAll("[data-settings-section-target]")).toHaveLength(7);
     expect(target.querySelectorAll("h2, h3").length).toBeLessThanOrEqual(1);
   });
 
-  it("keeps all six compact navigation icons on one row", async () => {
+  it("keeps all seven compact navigation icons on one row", async () => {
     await page.viewport(320, 760);
     const target = render({}, true);
     await tick();
 
     const navigationItems = [...target.querySelectorAll<HTMLElement>("[data-settings-section-target]")];
-    expect(navigationItems).toHaveLength(6);
+    expect(navigationItems).toHaveLength(7);
     expect(new Set(navigationItems.map((item) => Math.round(item.getBoundingClientRect().top))).size).toBe(1);
     expect(navigationItems.every((item) => item.getBoundingClientRect().width >= 40)).toBe(true);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);

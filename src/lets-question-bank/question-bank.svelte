@@ -125,6 +125,11 @@
   export let pauseOnAnswerReveal = true;
   export let pauseOnBlur = false;
   export let onPauseOnBlurChange: ((value: boolean) => void) | undefined = undefined;
+  export let completionShowCorrectness = true;
+  export let completionShowRating = true;
+  export let completionShowDuration = true;
+  export let completionShowAnswer = true;
+  export let completionShowAnsweredAt = false;
   export let now: () => number = Date.now;
   export let mobileBreadcrumb = false;
   export let breadcrumbPriority: BreadcrumbOverflowPriority = "tail";
@@ -1555,7 +1560,8 @@
   {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
   {correctCurrentAnswer}
   {recoveryIssues} {goToQuestion} {suggestedRating} {revealAnswer} {retry} {submitRating} {correctRating} {sessionAttempts}
-  {completionCorrect} {completionDurationMs} {touchedDrafts} {resetPractice}
+  {completionCorrect} {completionDurationMs} {touchedDrafts} {completionShowCorrectness} {completionShowRating}
+  {completionShowDuration} {completionShowAnswer} {completionShowAnsweredAt} {resetPractice}
   {currentBookmark} onToggleBookmark={toggleBookmark} onSaveBookmarkDetails={saveBookmarkDetails} onRemoveBookmark={removeCurrentBookmark} {bookmarkedQuestions}
   {questionIndexProjectionBlockId} {includeUnansweredMappingRows} onIncludeUnansweredMappingRowsChange={setIncludeUnansweredMappingRows} {pruneStaleMappingRows} onPruneStaleMappingRowsChange={setPruneStaleMappingRows} {mappingStatus} {mappingMessage} {selectCurrentMappingTarget} {checkMappingTarget} {syncMappingTarget} {setMappingTarget}
 />

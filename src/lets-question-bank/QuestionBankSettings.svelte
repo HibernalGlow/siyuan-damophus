@@ -13,6 +13,8 @@
     displayDescription: string;
     timing: string;
     timingDescription: string;
+    completion: string;
+    completionDescription: string;
     mask: string;
   }
 
@@ -24,7 +26,7 @@
 
 <script lang="ts">
   import { createEventDispatcher, tick } from "svelte";
-  import { BookOpenCheck, Database, EyeOff, GraduationCap, Monitor, Timer } from "lucide-svelte";
+  import { BarChart3, BookOpenCheck, Database, EyeOff, GraduationCap, Monitor, Timer } from "lucide-svelte";
   import SettingPanel from "@/libs/setting-panel.svelte";
   import { Button } from "@/components/ui/button";
   import { plugin } from "@/utils";
@@ -43,7 +45,7 @@
   // Kept in the component contract so the commented detail switch can be restored directly.
   void moduleSettingItems;
 
-  const sectionIds = ["practice", "review", "index", "display", "timing", "mask"] as const;
+  const sectionIds = ["practice", "review", "index", "display", "timing", "completion", "mask"] as const;
   type SectionId = typeof sectionIds[number];
   type StandardSectionId = Exclude<SectionId, "mask">;
   const displaySelectSettingKeys = new Set(["questionRenderMode", "embedHeadingMode"]);
@@ -70,6 +72,13 @@
       "embedHeadingMode",
     ],
     timing: ["timingEnabled", "pauseOnAnswerReveal", "pauseOnBlur", "durationComparisonPosition"],
+    completion: [
+      "completionShowCorrectness",
+      "completionShowRating",
+      "completionShowDuration",
+      "completionShowAnswer",
+      "completionShowAnsweredAt",
+    ],
   };
 
   const dispatch = createEventDispatcher();
@@ -82,6 +91,7 @@
     { id: "index" as const, Icon: Database, label: labels.sections.index, description: labels.sections.indexDescription },
     { id: "display" as const, Icon: Monitor, label: labels.sections.display, description: labels.sections.displayDescription },
     { id: "timing" as const, Icon: Timer, label: labels.sections.timing, description: labels.sections.timingDescription },
+    { id: "completion" as const, Icon: BarChart3, label: labels.sections.completion, description: labels.sections.completionDescription },
     { id: "mask" as const, Icon: EyeOff, label: labels.sections.mask, description: labels.mask.description },
   ];
   $: maskEnabled = Boolean(settingItems.find((item) => item.key === "maskSourceAnswers")?.value);
@@ -335,7 +345,7 @@
 
   .question-bank-settings.mobile .question-bank-settings-navigation {
     display: grid;
-    grid-template-columns: repeat(6, minmax(40px, 1fr));
+    grid-template-columns: repeat(7, minmax(40px, 1fr));
     gap: 4px;
     justify-content: stretch;
     overflow-x: auto;
@@ -401,7 +411,7 @@
 
     .question-bank-settings-navigation {
       display: grid;
-      grid-template-columns: repeat(6, minmax(40px, 1fr));
+      grid-template-columns: repeat(7, minmax(40px, 1fr));
       gap: 4px;
       justify-content: stretch;
       overflow-x: auto;

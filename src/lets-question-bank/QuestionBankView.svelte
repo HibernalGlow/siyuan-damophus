@@ -210,6 +210,11 @@
   export let completionCorrect: number;
   export let completionDurationMs: number;
   export let touchedDrafts: number;
+  export let completionShowCorrectness = true;
+  export let completionShowRating = true;
+  export let completionShowDuration = true;
+  export let completionShowAnswer = true;
+  export let completionShowAnsweredAt = false;
   export let resetPractice: any;
   export let currentBookmark: any = undefined;
   export let onToggleBookmark: any = undefined;
@@ -509,6 +514,12 @@
       correctCount={completionCorrect}
       {completionDurationMs}
       {touchedDrafts}
+      attempts={sessionAttempts}
+      showCorrectness={completionShowCorrectness}
+      showRating={completionShowRating}
+      showDuration={completionShowDuration}
+      showAnswer={completionShowAnswer}
+      showAnsweredAt={completionShowAnsweredAt}
       {formatDuration}
       {goToQuestion}
       {resetPractice}

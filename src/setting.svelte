@@ -396,6 +396,8 @@
         displayDescription: t("lets-question-bank.settingsDisplayDescription", "Choose how questions, answers, and source blocks appear during practice."),
         timing: t("lets-question-bank.settingsTiming", "Timing"),
         timingDescription: t("lets-question-bank.settingsTimingDescription", "Configure answer timing and where comparisons appear."),
+        completion: t("lets-question-bank.settingsCompletion", "Completion page"),
+        completionDescription: t("lets-question-bank.settingsCompletionDescription", "Choose which session and per-question details appear after practice."),
         mask: t("lets-question-bank.settingsMask", "Source answer mask"),
       },
       mask: questionBankMaskLabels(),
