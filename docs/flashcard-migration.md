@@ -36,6 +36,17 @@ provider topic ID 和 question topic ID 不保存思源块 ID。块移动、重�
 
 不导入 `cache-data.json`，因为它只含可重建的 SQL 结果；不删除旧插件文件，不写入 Markdown，不重置 Riff 历史。读取失败、JSON 无效或用户取消时保持 DAMO 当前设置不变。
 
+## Review-log export compatibility
+
+工作台的“复习记录”页只读扫描 `/data/storage/riff/logs/*.msgpack`。合并导出生成
+`revlog.csv`，按月导出生成包含各 `YYYYMM.csv` 和合并文件的 ZIP。CSV 保持旧工具
+使用的五列契约：`card_id`、`review_time`、`review_rating`、`review_state`、
+`review_duration`；当前 Riff 日志不记录单次复习耗时，因此最后一列固定为 `0`。
+
+这不是复习历史迁移：导出不会修改卡片、调度参数或日志。遇到未知字段结构、损坏
+文件或读取失败时按文件显示错误并跳过，不生成看似成功的损坏数据。未来 Riff 格式
+变化必须先扩展解码器和回归样例；不得根据文件名或版本号猜测新字段。
+
 ## Protocol/schema changes
 
 ### Schema 1 to Schema 2

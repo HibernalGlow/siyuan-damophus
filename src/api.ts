@@ -517,7 +517,7 @@ export async function removeUnusedAssetStrict(path: string): Promise<string> {
 
 
 
-export async function readDir(path: string): Promise<IResReadDir> {
+export async function readDir(path: string): Promise<IResReadDir[]> {
     let data = {
         path: path
     }

@@ -23,6 +23,7 @@ Status: implementation baseline; SFP behavior has been ported, with target-versi
 | Recent and pinned scopes | Plugin data | Group/document/notebook scope history | 已实现 | 可删除导航历史，不是业务身份 |
 | Document/notebook + SQL scope | Native due API + group intersection | Temporary menu scope | 已实现 | 仅当前上下文；SQL 失败关闭范围 |
 | Flashcard browser | Workbench diagnostics | renderer/priority/due/groups | 已实现 | 单次最多渲染 300 行 |
+| Review-log export | Current Riff MessagePack logs | Monthly ZIP + merged FSRS CSV | 已实现 | `review_duration` 固定为 `0`；未知 schema 按文件跳过并报告，不回写历史 |
 | Native review tools | Native toolbar | locate/unregister/P1-P4/workbench | 已实现 | 原生 skip 保留；不删除块 |
 | Context-menu bulk unregister | Block, heading, document, notebook | Preview then `/api/riff/removeRiffCards` | 已实现 | 仅取消 Riff 登记；保留正文、IAL、标签和复习内容 |
 | Idempotent registration | Riff API | add then query verify | 已实现 | pending/unregistered |
@@ -169,3 +170,19 @@ Tomato 调用或文档流依赖。
 - Refreshing the flashcard index exposed 4,161 cards; the P1 filter reduced the
   view to the isolated list-card regression card. A 390x844 viewport rendered
   the workbench without horizontal overflow (`scrollWidth === 390`).
+
+## Review-log compatibility evidence (2026-08-24)
+
+- Reference behavior was inspected at
+  `mdzz2048/siyuan-plugin-export-revlog@b53653120d93e3e7f7bda91ab70a49eed26394ce`.
+  The repository root says MIT while its core source header says AGPLv3, so DAMO
+  independently implements the observable CSV contract instead of copying code.
+- Current vendored SiYuan pins `github.com/siyuan-note/riff` at
+  `v0.0.0-20251022131846-228528e70754`. The current workspace's 20 monthly log
+  files all decoded with `ID`, `CardID`, `Rating`, `ScheduledDays`,
+  `ElapsedDays`, `Reviewed`, and `State`: 5,818 unique records, no incompatible
+  files, spanning August 2023 through August 2026.
+- DAMO scans the directory once, validates every record, removes duplicate log
+  IDs, reports incompatible files, and offers a monthly ZIP plus merged
+  `revlog.csv`. It does not create a permanent public export directory and does
+  not mutate Riff history or apply optimizer parameters.
