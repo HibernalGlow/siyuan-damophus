@@ -18,12 +18,15 @@
     HelpCircle,
     History,
     Landmark,
+    Maximize2,
     ScrollText,
     ShieldAlert,
     ShieldCheck,
     Target,
     TrendingUp,
+    X,
   } from "lucide-svelte";
+  import { onDestroy, tick } from "svelte";
   import * as Select from "@/components/ui/select";
   import { Badge } from "@/components/ui/badge";
   import { Input } from "@/components/ui/input";
@@ -161,6 +164,61 @@
   $: maxWeakness = Math.max(1, ...(snapshot?.weakQuestions.map((question) => question.weaknessScore) ?? [1]));
   $: localHeights = { ...defaultStatisticsLayout.heights, ...statisticsLayout?.heights };
 
+  let fullscreenCard: string | undefined;
+  let fullscreenTrigger: HTMLElement | undefined;
+  let previousBodyOverflow = "";
+
+  function fullscreenLabel(title: string): string {
+    return `${label("statisticsFullscreenPreview", "Preview full screen")}: ${title}`;
+  }
+
+  async function openFullscreenCard(id: string, event: MouseEvent): Promise<void> {
+    fullscreenTrigger = event.currentTarget as HTMLElement;
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    fullscreenCard = id;
+    await tick();
+    document.querySelector<HTMLElement>(`[data-statistics-card-id="${id}"] .statistics-fullscreen-button`)?.focus();
+  }
+
+  async function closeFullscreenCard(): Promise<void> {
+    if (!fullscreenCard) return;
+    fullscreenCard = undefined;
+    document.body.style.overflow = previousBodyOverflow;
+    await tick();
+    fullscreenTrigger?.focus();
+    fullscreenTrigger = undefined;
+  }
+
+  function handleFullscreenKeydown(event: KeyboardEvent): void {
+    if (!fullscreenCard) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      void closeFullscreenCard();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const card = document.querySelector<HTMLElement>(`[data-statistics-card-id="${fullscreenCard}"]`);
+    if (!card) return;
+    const focusable = [...card.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    )].filter((element) => element.offsetParent !== null);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  onDestroy(() => {
+    if (fullscreenCard) document.body.style.overflow = previousBodyOverflow;
+  });
+
   function duration(milliseconds: number): string {
     if (!milliseconds) return "0 秒";
     const seconds = Math.round(milliseconds / 1000);
@@ -281,6 +339,8 @@
   }
 </script>
 
+<svelte:window onkeydown={handleFullscreenKeydown} />
+
 <section class="statistics-view min-h-0 flex-1 overflow-y-auto p-4" data-testid="statistics-view">
   <div class="statistics-toolbar flex flex-wrap items-center justify-between gap-3">
     <div class="flex items-center gap-2">
@@ -323,44 +383,92 @@
     <div class="flex min-h-48 items-center justify-center text-sm opacity-70">{label("statisticsEmpty", "No attempt data yet")}</div>
   {:else}
     <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="statistics-metric p-3.5">
+      <div
+        class:statistics-card-fullscreen={fullscreenCard === "overview-coverage"}
+        class="statistics-metric statistics-previewable-card p-3.5"
+        data-statistics-card-id="overview-coverage"
+        role={fullscreenCard === "overview-coverage" ? "dialog" : undefined}
+        aria-modal={fullscreenCard === "overview-coverage" ? "true" : undefined}
+        aria-labelledby="statistics-coverage-heading"
+      >
         <div class="flex items-center justify-between gap-2">
-          <span class="text-xs font-medium opacity-75">{label("statisticsCoverage", "Question coverage")}</span>
-          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Target size={15} />
+          <span id="statistics-coverage-heading" class="text-xs font-medium opacity-75">{label("statisticsCoverage", "Question coverage")}</span>
+          <div class="statistics-card-actions">
+            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Target size={15} />
+            </div>
+            <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "overview-coverage" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsCoverage", "Question coverage"))} title={fullscreenCard === "overview-coverage" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "overview-coverage" ? closeFullscreenCard() : openFullscreenCard("overview-coverage", event)}>
+              {#if fullscreenCard === "overview-coverage"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+            </button>
           </div>
         </div>
         <strong class="mt-2 block text-2xl font-bold tracking-tight">{snapshot.overview.attemptedQuestions} <span class="text-sm font-normal opacity-60">/ {snapshot.overview.totalQuestions}</span></strong>
         <span class="text-xs opacity-65">{label("statisticsAttemptedAll", "Attempted / all questions")}</span>
       </div>
 
-      <div class="statistics-metric p-3.5">
+      <div
+        class:statistics-card-fullscreen={fullscreenCard === "overview-accuracy"}
+        class="statistics-metric statistics-previewable-card p-3.5"
+        data-statistics-card-id="overview-accuracy"
+        role={fullscreenCard === "overview-accuracy" ? "dialog" : undefined}
+        aria-modal={fullscreenCard === "overview-accuracy" ? "true" : undefined}
+        aria-labelledby="statistics-accuracy-heading"
+      >
         <div class="flex items-center justify-between gap-2">
-          <span class="text-xs font-medium opacity-75">{label("statisticsAccuracy", "Objective accuracy")}</span>
-          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <TrendingUp size={15} />
+          <span id="statistics-accuracy-heading" class="text-xs font-medium opacity-75">{label("statisticsAccuracy", "Objective accuracy")}</span>
+          <div class="statistics-card-actions">
+            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <TrendingUp size={15} />
+            </div>
+            <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "overview-accuracy" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsAccuracy", "Objective accuracy"))} title={fullscreenCard === "overview-accuracy" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "overview-accuracy" ? closeFullscreenCard() : openFullscreenCard("overview-accuracy", event)}>
+              {#if fullscreenCard === "overview-accuracy"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+            </button>
           </div>
         </div>
         <strong class="mt-2 block text-2xl font-bold tracking-tight">{snapshot.overview.accuracy}%</strong>
         <span class="text-xs opacity-65">{snapshot.overview.correct} {label("correct", "correct")} · {snapshot.overview.wrong} {label("incorrect", "wrong")}</span>
       </div>
 
-      <div class="statistics-metric p-3.5">
+      <div
+        class:statistics-card-fullscreen={fullscreenCard === "overview-attempts"}
+        class="statistics-metric statistics-previewable-card p-3.5"
+        data-statistics-card-id="overview-attempts"
+        role={fullscreenCard === "overview-attempts" ? "dialog" : undefined}
+        aria-modal={fullscreenCard === "overview-attempts" ? "true" : undefined}
+        aria-labelledby="statistics-attempts-heading"
+      >
         <div class="flex items-center justify-between gap-2">
-          <span class="text-xs font-medium opacity-75">{label("statisticsAttempts", "Attempts")}</span>
-          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Flame size={15} />
+          <span id="statistics-attempts-heading" class="text-xs font-medium opacity-75">{label("statisticsAttempts", "Attempts")}</span>
+          <div class="statistics-card-actions">
+            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Flame size={15} />
+            </div>
+            <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "overview-attempts" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsAttempts", "Attempts"))} title={fullscreenCard === "overview-attempts" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "overview-attempts" ? closeFullscreenCard() : openFullscreenCard("overview-attempts", event)}>
+              {#if fullscreenCard === "overview-attempts"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+            </button>
           </div>
         </div>
         <strong class="mt-2 block text-2xl font-bold tracking-tight">{snapshot.overview.attempts}</strong>
         <span class="text-xs opacity-65">{label("statisticsObjectiveAttempts", "Objective attempts")} {snapshot.overview.objectiveAttempts}</span>
       </div>
 
-      <div class="statistics-metric p-3.5">
+      <div
+        class:statistics-card-fullscreen={fullscreenCard === "overview-duration"}
+        class="statistics-metric statistics-previewable-card p-3.5"
+        data-statistics-card-id="overview-duration"
+        role={fullscreenCard === "overview-duration" ? "dialog" : undefined}
+        aria-modal={fullscreenCard === "overview-duration" ? "true" : undefined}
+        aria-labelledby="statistics-duration-heading"
+      >
         <div class="flex items-center justify-between gap-2">
-          <span class="text-xs font-medium opacity-75">{label("statisticsAverageTime", "Average time")}</span>
-          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Clock3 size={15} />
+          <span id="statistics-duration-heading" class="text-xs font-medium opacity-75">{label("statisticsAverageTime", "Average time")}</span>
+          <div class="statistics-card-actions">
+            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Clock3 size={15} />
+            </div>
+            <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "overview-duration" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsAverageTime", "Average time"))} title={fullscreenCard === "overview-duration" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "overview-duration" ? closeFullscreenCard() : openFullscreenCard("overview-duration", event)}>
+              {#if fullscreenCard === "overview-duration"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+            </button>
           </div>
         </div>
         <strong class="mt-2 block text-2xl font-bold tracking-tight">{duration(snapshot.overview.averageDurationMs)}</strong>
@@ -369,11 +477,15 @@
     </div>
 
     <section
+      class:statistics-card-fullscreen={fullscreenCard === "subject-progress"}
       class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 p-4"
       aria-labelledby="statistics-subject-progress-heading"
       data-testid="subject-dashboard"
       data-resizable-card="subject-progress"
+      data-statistics-card-id="subject-progress"
       style={`height: ${localHeights["subject-progress"] ?? statisticsCardDefaultHeight}px;`}
+      role={fullscreenCard === "subject-progress" ? "dialog" : undefined}
+      aria-modal={fullscreenCard === "subject-progress" ? "true" : undefined}
     >
       <div class="flex shrink-0 items-center justify-between gap-2">
         <div class="flex items-center gap-2.5">
@@ -394,6 +506,9 @@
             <span class="text-xs text-destructive font-normal">保存失败</span>
           {/if}
           <Badge variant="outline" class="rounded-full text-xs font-normal">{subjectMetrics.length} {label("statisticsSubjects", "subjects")}</Badge>
+          <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "subject-progress" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsSubjectProgress", "Subject progress"))} title={fullscreenCard === "subject-progress" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "subject-progress" ? closeFullscreenCard() : openFullscreenCard("subject-progress", event)}>
+            {#if fullscreenCard === "subject-progress"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+          </button>
         </div>
       </div>
       <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
@@ -458,11 +573,15 @@
 
     <div class="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr] items-start">
       <section
+        class:statistics-card-fullscreen={fullscreenCard === "trend"}
         class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden p-4"
         aria-labelledby="statistics-trend-heading"
         data-testid="trend-dashboard"
         data-resizable-card="trend"
+        data-statistics-card-id="trend"
         style={`height: ${localHeights["trend"] ?? statisticsCardDefaultHeight}px;`}
+        role={fullscreenCard === "trend" ? "dialog" : undefined}
+        aria-modal={fullscreenCard === "trend" ? "true" : undefined}
       >
         <div class="flex shrink-0 items-center justify-between gap-2">
           <div class="flex items-center gap-2">
@@ -471,7 +590,12 @@
             </div>
             <h3 id="statistics-trend-heading" class="font-semibold text-sm">{label("statisticsTrend", "Trend")}</h3>
           </div>
-          <Badge variant="outline" class="rounded-full text-xs font-normal">{snapshot.trend.length} {label("statisticsDays", "days")}</Badge>
+          <div class="statistics-card-actions">
+            <Badge variant="outline" class="rounded-full text-xs font-normal">{snapshot.trend.length} {label("statisticsDays", "days")}</Badge>
+            <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "trend" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsTrend", "Trend"))} title={fullscreenCard === "trend" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "trend" ? closeFullscreenCard() : openFullscreenCard("trend", event)}>
+              {#if fullscreenCard === "trend"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+            </button>
+          </div>
         </div>
         <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto">
           {#if snapshot.trend.length === 0}
@@ -501,11 +625,15 @@
       </section>
 
       <section
+        class:statistics-card-fullscreen={fullscreenCard === "weak"}
         class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden p-4"
         aria-labelledby="statistics-weak-heading"
         data-testid="weak-dashboard"
         data-resizable-card="weak"
+        data-statistics-card-id="weak"
         style={`height: ${localHeights["weak"] ?? statisticsCardDefaultHeight}px;`}
+        role={fullscreenCard === "weak" ? "dialog" : undefined}
+        aria-modal={fullscreenCard === "weak" ? "true" : undefined}
       >
         <div class="flex shrink-0 items-center justify-between gap-2 flex-wrap">
           <div class="flex items-center gap-2">
@@ -528,6 +656,9 @@
               </Select.Content>
             </Select.Root>
             <Badge variant="outline" class="rounded-full text-xs font-normal">{snapshot.weakQuestions.length}</Badge>
+            <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "weak" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsWeak", "Weak questions"))} title={fullscreenCard === "weak" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "weak" ? closeFullscreenCard() : openFullscreenCard("weak", event)}>
+              {#if fullscreenCard === "weak"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+            </button>
           </div>
         </div>
         <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
@@ -600,6 +731,8 @@
       days={snapshot.heatmap}
       height={localHeights["heatmap"]}
       onResize={(h) => updateLayout({ heights: { ...localHeights, heatmap: h } })}
+      fullscreen={fullscreenCard === "heatmap"}
+      onFullscreen={(event) => fullscreenCard === "heatmap" ? closeFullscreenCard() : openFullscreenCard("heatmap", event)}
       {label}
     />
 
@@ -608,19 +741,29 @@
         {@const distribution = distributionByDimension.get(dimension.value)}
         {@const items = distribution?.items ?? []}
         <section
+          class:statistics-card-fullscreen={fullscreenCard === dimension.value}
           class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden p-4"
           data-distribution-card={dimension.value}
           data-resizable-card={dimension.value}
+          data-statistics-card-id={dimension.value}
           style={`height: ${localHeights[dimension.value] ?? statisticsCardDefaultHeight}px;`}
+          role={fullscreenCard === dimension.value ? "dialog" : undefined}
+          aria-modal={fullscreenCard === dimension.value ? "true" : undefined}
+          aria-labelledby={`statistics-distribution-${dimension.value}-heading`}
         >
           <div class="flex shrink-0 items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <div class="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <svelte:component this={getDimensionIcon(dimension.value)} size={14} />
               </div>
-              <h3 class="text-sm font-semibold">{distributionTitle(dimension.value)}</h3>
+              <h3 id={`statistics-distribution-${dimension.value}-heading`} class="text-sm font-semibold">{distributionTitle(dimension.value)}</h3>
             </div>
-            <Badge variant="outline" class="rounded-full text-xs font-normal">{items.length} 项</Badge>
+            <div class="statistics-card-actions">
+              <Badge variant="outline" class="rounded-full text-xs font-normal">{items.length} 项</Badge>
+              <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === dimension.value ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(distributionTitle(dimension.value))} title={fullscreenCard === dimension.value ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === dimension.value ? closeFullscreenCard() : openFullscreenCard(dimension.value, event)}>
+                {#if fullscreenCard === dimension.value}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+              </button>
+            </div>
           </div>
           <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
             {#if items.length === 0}
@@ -652,11 +795,15 @@
     </div>
 
     <section
+      class:statistics-card-fullscreen={fullscreenCard === "recent-attempts"}
       class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 p-4"
       aria-labelledby="statistics-history-heading"
       data-testid="recent-attempts-dashboard"
       data-resizable-card="recent-attempts"
+      data-statistics-card-id="recent-attempts"
       style={`height: ${localHeights["recent-attempts"] ?? statisticsCardDefaultHeight}px;`}
+      role={fullscreenCard === "recent-attempts" ? "dialog" : undefined}
+      aria-modal={fullscreenCard === "recent-attempts" ? "true" : undefined}
     >
       <div class="flex shrink-0 items-center justify-between gap-2">
         <div class="flex items-center gap-2">
@@ -665,6 +812,9 @@
           </div>
           <h3 id="statistics-history-heading" class="font-semibold text-sm">{label("statisticsRecent", "Recent attempts")}</h3>
         </div>
+        <button type="button" class="statistics-fullscreen-button" aria-label={fullscreenCard === "recent-attempts" ? label("statisticsClosePreview", "Close preview") : fullscreenLabel(label("statisticsRecent", "Recent attempts"))} title={fullscreenCard === "recent-attempts" ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")} onclick={(event) => fullscreenCard === "recent-attempts" ? closeFullscreenCard() : openFullscreenCard("recent-attempts", event)}>
+          {#if fullscreenCard === "recent-attempts"}<X size={15} />{:else}<Maximize2 size={15} />{/if}
+        </button>
       </div>
       <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
         <table class="w-full min-w-[34rem] text-left text-xs">
@@ -713,6 +863,9 @@
         onkeydown={(event) => resizeCardByKeyboard("recent-attempts", event)}
       ><GripHorizontal size={15} aria-hidden="true" /></button>
     </section>
+    {#if fullscreenCard}
+      <button class="statistics-fullscreen-backdrop" type="button" tabindex="-1" aria-label={label("statisticsClosePreview", "Close preview")} onclick={() => closeFullscreenCard()}></button>
+    {/if}
   {/if}
 </section>
 
@@ -734,6 +887,81 @@
   .statistics-subject:hover {
     border-color: color-mix(in srgb, var(--b3-theme-primary, var(--primary)) 45%, var(--b3-border-color, var(--border)));
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+  .statistics-previewable-card,
+  .statistics-panel {
+    position: relative;
+  }
+  .statistics-card-actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+  }
+  .statistics-fullscreen-button {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--b3-theme-on-surface, var(--muted-foreground));
+    cursor: pointer;
+    opacity: .68;
+    transition: background-color .15s ease, color .15s ease, opacity .15s ease;
+  }
+  .statistics-fullscreen-button:hover,
+  .statistics-fullscreen-button:focus-visible {
+    background: color-mix(in srgb, var(--b3-theme-primary, var(--primary)) 12%, transparent);
+    color: var(--b3-theme-primary, var(--primary));
+    opacity: 1;
+  }
+  .statistics-fullscreen-button:focus-visible,
+  .statistics-card-fullscreen:focus-visible {
+    outline: 2px solid var(--b3-theme-primary, var(--ring));
+    outline-offset: 2px;
+  }
+  .statistics-fullscreen-backdrop {
+    position: fixed;
+    z-index: 10000;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: rgb(0 0 0 / 58%);
+    backdrop-filter: blur(2px);
+  }
+  .statistics-card-fullscreen {
+    position: fixed !important;
+    z-index: 10001;
+    inset: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-radius: 8px;
+    background: var(--b3-theme-background, var(--background));
+    box-shadow: var(--b3-dialog-shadow, 0 20px 48px rgb(0 0 0 / 32%));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+  .statistics-card-fullscreen.statistics-resizable-panel {
+    padding-bottom: 16px;
+  }
+  .statistics-card-fullscreen .statistics-card-content {
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+  }
+  .statistics-card-fullscreen .statistics-card-resizer {
+    display: none;
   }
   .statistics-distribution-row {
     display: grid;
@@ -813,5 +1041,19 @@
   .statistics-card-resizer:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 1px;
+  }
+  @media (max-width: 640px) {
+    .statistics-card-fullscreen {
+      inset: 0;
+      padding-top: max(14px, env(safe-area-inset-top));
+      padding-right: max(14px, env(safe-area-inset-right));
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      padding-left: max(14px, env(safe-area-inset-left));
+      border-width: 0;
+      border-radius: 0;
+    }
+    .statistics-card-fullscreen.statistics-resizable-panel {
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
+    }
   }
 </style>
