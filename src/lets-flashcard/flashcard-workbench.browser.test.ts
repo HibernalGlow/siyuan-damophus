@@ -84,7 +84,7 @@ describe("flashcard workbench", () => {
     const tabs = target.querySelector<HTMLElement>('[data-slot="tabs-list"]');
     expect(tabs?.scrollWidth).toBeLessThanOrEqual(tabs?.clientWidth ?? 0);
     const labels = [...target.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"] span')];
-    expect(labels).toHaveLength(5);
+    expect(labels).toHaveLength(6);
     expect(labels.every((label) => getComputedStyle(label).display === "none")).toBe(true);
   });
 
@@ -123,9 +123,26 @@ describe("flashcard workbench", () => {
     const target = await render();
     const tabs = [...target.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')];
     expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
-      "最近范围", "SQL 分组", "闪卡浏览器", "总体配置", "使用说明",
+      "最近范围", "SQL 分组", "闪卡浏览器", "复习记录", "总体配置", "使用说明",
     ]);
     expect(tabs.every((tab) => tab.querySelector("svg"))).toBe(true);
+  });
+
+  it("offers review log scan and both supported export modes", async () => {
+    await page.viewport(460, 760);
+    const target = await render();
+    clickTab(target, "复习记录");
+
+    await vi.waitFor(() => expect(target.querySelector('[data-testid="review-log-panel"]')).not.toBeNull());
+    const heading = target.querySelector<HTMLElement>('[data-testid="review-log-heading"]');
+    expect(heading?.getBoundingClientRect().width).toBeGreaterThan(240);
+    expect(target.textContent).toContain("尚未扫描");
+    expect(target.querySelector('[aria-label="复习记录"] svg')).not.toBeNull();
+    expect(target.querySelector('[aria-label="按月打包导出"]')).not.toBeNull();
+    expect(target.querySelector('[aria-label="导出合并记录"]')).not.toBeNull();
+
+    await page.viewport(320, 760);
+    await vi.waitFor(() => expect(getComputedStyle(target.querySelector('[aria-label="按月打包导出"] span')!).display).toBe("none"));
   });
 
   it("uses semantic switches and collapses renderer options with its master setting", async () => {

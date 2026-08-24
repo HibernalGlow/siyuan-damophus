@@ -3,8 +3,8 @@
   import type { RiffCardRecord } from "@/flashcard/siyuan-adapter";
   import type { FlashcardRuntime } from "@/flashcard/runtime";
   import {
-    ArrowDown, ArrowUp, BookOpen, Boxes, CalendarClock, Crosshair, Database,
-    Eye, FileText, Files, Filter, Focus, Gauge, Heading, Highlighter, History,
+    Archive, ArrowDown, ArrowUp, BookOpen, Boxes, CalendarClock, Crosshair, Database, Download,
+    Eye, FileArchive, FileSpreadsheet, FileText, Files, Filter, Focus, Gauge, Heading, Highlighter, History,
     Layers3, LayoutDashboard, ListTree, LocateFixed, MessageSquareText, PanelTop, Pencil, Percent, Pin,
     PinOff, Play, Plus, Quote, RefreshCw, Repeat2, RotateCcw, Save, Search,
     Settings2, SkipForward, SlidersHorizontal, Tags, Trash2, Unlink,
@@ -18,6 +18,14 @@
   import * as Select from "@/components/ui/select";
   import * as TreeView from "@/components/ui/tree-view";
   import { Badge } from "@/components/ui/badge";
+  import {
+    createSiyuanReviewLogReader,
+    downloadReviewLog,
+    loadReviewLogArchive,
+    monthlyReviewLogZip,
+    reviewLogToCsv,
+    type ReviewLogArchive,
+  } from "@/flashcard/review-log-export";
 
   export let runtime: FlashcardRuntime;
   export let onReviewGroup: (group: FlashcardGroup) => void;
@@ -36,7 +44,7 @@
   let config: FlashcardSettings = runtime.getSettings();
   let message = "";
   let saving = false;
-  let activeTab: "instructions" | "recent" | "groups" | "browser" | "global" = "recent";
+  let activeTab: "instructions" | "recent" | "groups" | "browser" | "revlog" | "global" = "recent";
   let activeCategoryId = config.categories[0]?.id ?? "default";
   let editingCategoryId: string | undefined;
   let editingCategoryName = "";
@@ -49,6 +57,8 @@
   let browserRenderer = "all";
   let browserDueOnly = false;
   let visibleDiagnostics: FlashcardDiagnosticRow[] = [];
+  let reviewLogArchive: ReviewLogArchive | undefined;
+  let reviewLogLoading = false;
   let documentTreeOpen = true;
   let applicationTreeOpen = true;
   let readablePaths: Record<string, string> = {};
@@ -132,6 +142,53 @@
     return Number.isFinite(timestamp) && timestamp > 0
       ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium" }).format(new Date(timestamp))
       : "时间未知";
+  }
+
+  function formatReviewLogDate(timestamp: number | undefined): string {
+    if (!timestamp) return "暂无记录";
+    return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp));
+  }
+
+  async function scanReviewLogs(): Promise<ReviewLogArchive | undefined> {
+    reviewLogLoading = true;
+    try {
+      reviewLogArchive = await loadReviewLogArchive(createSiyuanReviewLogReader());
+      message = reviewLogArchive.entries.length
+        ? `已读取 ${reviewLogArchive.entries.length} 条复习记录`
+        : "没有找到可导出的复习记录";
+      return reviewLogArchive;
+    } catch (error) {
+      message = `读取复习记录失败：${error instanceof Error ? error.message : String(error)}`;
+      return undefined;
+    } finally {
+      reviewLogLoading = false;
+    }
+  }
+
+  async function exportMergedReviewLog(): Promise<void> {
+    const archive = reviewLogArchive ?? await scanReviewLogs();
+    if (!archive?.entries.length) return;
+    try {
+      downloadReviewLog(reviewLogToCsv(archive.entries), "revlog.csv", "text/csv;charset=utf-8");
+      message = `已导出合并记录，共 ${archive.entries.length} 条`;
+    } catch (error) {
+      message = `导出合并记录失败：${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  async function exportMonthlyReviewLogs(): Promise<void> {
+    const archive = reviewLogArchive ?? await scanReviewLogs();
+    if (!archive?.entries.length) return;
+    reviewLogLoading = true;
+    try {
+      const bytes = await monthlyReviewLogZip(archive);
+      downloadReviewLog(bytes as BlobPart, "siyuan-revlog-by-month.zip", "application/zip");
+      message = `已导出 ${archive.entriesByMonth.size} 个月份和合并记录`;
+    } catch (error) {
+      message = `按月导出失败：${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      reviewLogLoading = false;
+    }
   }
 
   async function ensureReadablePaths(ids: string[]): Promise<void> {
@@ -322,6 +379,7 @@
       <Tabs.Trigger value="recent" title="最近范围" aria-label="最近范围" onclick={() => history = runtime.getHistory()}><History /><span>最近范围</span></Tabs.Trigger>
       <Tabs.Trigger value="groups" title="SQL 分组" aria-label="SQL 分组"><Database /><span>SQL 分组</span></Tabs.Trigger>
       <Tabs.Trigger value="browser" title="闪卡浏览器" aria-label="闪卡浏览器" onclick={() => { if (diagnosticRows.length === 0) void loadDiagnostics(); }}><Search /><span>闪卡浏览器</span></Tabs.Trigger>
+      <Tabs.Trigger value="revlog" title="复习记录" aria-label="复习记录"><Archive /><span>复习记录</span></Tabs.Trigger>
       <Tabs.Trigger value="global" title="总体配置" aria-label="总体配置"><SlidersHorizontal /><span>总体配置</span></Tabs.Trigger>
       <Tabs.Trigger value="instructions" title="使用说明" aria-label="使用说明"><BookOpen /><span>使用说明</span></Tabs.Trigger>
     </Tabs.List>
@@ -408,6 +466,43 @@
         </article>
       {:else}<p class="empty">没有符合筛选条件的闪卡。</p>{/each}
     </div>
+  {:else if activeTab === "revlog"}
+    <section class="review-log-header">
+      <div class="review-log-heading" data-testid="review-log-heading">
+        <span class="review-log-heading-icon"><Archive /></span>
+        <div><h3>复习记录</h3><p>导出 FSRS 兼容数据，原记录保持不变</p></div>
+      </div>
+      <div class="review-log-actions">
+        <Button variant="outline" size="sm" disabled={reviewLogLoading} onclick={scanReviewLogs} title="扫描复习记录" aria-label="扫描复习记录"><RefreshCw /><span>扫描</span></Button>
+        <Button variant="outline" size="sm" disabled={reviewLogLoading} onclick={exportMonthlyReviewLogs} title="按月打包导出" aria-label="按月打包导出"><FileArchive /><span>按月 ZIP</span></Button>
+        <Button size="sm" disabled={reviewLogLoading} onclick={exportMergedReviewLog} title="导出合并记录" aria-label="导出合并记录"><Download /><span>合并 CSV</span></Button>
+      </div>
+    </section>
+    <section class="settings-section review-log-panel" data-testid="review-log-panel">
+      <div class="section-title"><FileSpreadsheet /><div><h3>Riff 复习日志</h3><p><code>/data/storage/riff/logs</code></p></div></div>
+      {#if reviewLogLoading}
+        <div class="review-log-empty"><RefreshCw class="loading-icon" /><strong>正在读取复习记录</strong></div>
+      {:else if reviewLogArchive}
+        <div class="review-log-summary">
+          <div><FileArchive /><span>月份文件</span><strong>{reviewLogArchive.files.length}</strong></div>
+          <div><History /><span>有效记录</span><strong>{reviewLogArchive.entries.length}</strong></div>
+          <div><CalendarClock /><span>时间范围</span><strong>{formatReviewLogDate(reviewLogArchive.firstReviewedAt)}<br />至 {formatReviewLogDate(reviewLogArchive.lastReviewedAt)}</strong></div>
+        </div>
+        <div class="review-log-status">
+          <Badge variant={reviewLogArchive.errors.length ? "destructive" : "secondary"}>
+            {reviewLogArchive.errors.length ? `跳过 ${reviewLogArchive.errors.length} 个不兼容文件` : "当前 Riff 日志格式兼容"}
+          </Badge>
+          {#if reviewLogArchive.duplicateCount}<Badge variant="outline">已去除 {reviewLogArchive.duplicateCount} 条重复记录</Badge>{/if}
+        </div>
+        {#if reviewLogArchive.errors.length}
+          <div class="review-log-errors">
+            {#each reviewLogArchive.errors as error}<p><strong>{error.file}</strong><span>{error.message}</span></p>{/each}
+          </div>
+        {/if}
+      {:else}
+        <div class="review-log-empty"><Archive /><strong>尚未扫描</strong><span>点击扫描检查当前 SiYuan 的日志格式和可导出记录数</span></div>
+      {/if}
+    </section>
   {:else if activeTab === "global"}
     <div class="global-settings">
       <section class="settings-section">
@@ -594,7 +689,7 @@
   .flashcard-settings::-webkit-scrollbar-thumb { background: var(--b3-scroll-color, var(--border)); border-radius: 6px; }
   .flashcard-settings :global(.flashcard-workbench-tabs) {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     width: 100%;
     height: 36px;
     padding: 3px;
@@ -673,6 +768,28 @@
   .group-options { flex-wrap: wrap; justify-content: space-between; }
   .group-action-strip { display: flex; align-items: center; gap: 2px; }
   .group-options label { min-width: 110px; }
+  .review-log-header { display: grid; grid-template-columns: minmax(220px, 1fr) auto; align-items: center; gap: 10px 16px; min-width: 0; }
+  .review-log-heading { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; }
+  .review-log-heading-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 7px; color: var(--primary, var(--b3-theme-primary)); background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 10%, transparent); }
+  .review-log-heading-icon :global(svg) { width: 17px; height: 17px; }
+  .review-log-heading h3 { font-size: 15px; }
+  .review-log-heading p { margin-top: 2px; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 12px; line-height: 1.35; }
+  .review-log-actions { display: grid; grid-template-columns: repeat(3, max-content); align-items: center; gap: 6px; }
+  .review-log-panel { padding-bottom: 12px; }
+  .review-log-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; padding: 12px 0; }
+  .review-log-summary > div { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 2px 8px; min-width: 0; padding: 9px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 7px; }
+  .review-log-summary :global(svg) { grid-row: 1 / 3; width: 17px; height: 17px; color: var(--primary, var(--b3-theme-primary)); }
+  .review-log-summary span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .review-log-summary strong { min-width: 0; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+  .review-log-status { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 10px; }
+  .review-log-empty { display: flex; min-height: 150px; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); text-align: center; }
+  .review-log-empty > :global(svg) { width: 28px; height: 28px; color: var(--primary, var(--b3-theme-primary)); }
+  .review-log-empty span { max-width: 420px; font-size: 12px; }
+  :global(.loading-icon) { animation: review-log-spin 1s linear infinite; }
+  .review-log-errors { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border, var(--b3-border-color)); }
+  .review-log-errors p { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; }
+  .review-log-errors span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); overflow-wrap: anywhere; }
+  @keyframes review-log-spin { to { transform: rotate(360deg); } }
   :global(.scope-tree) { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   :global(.tree-branch), :global(.tree-subbranch) { width: 100%; min-height: 36px; padding: 6px 8px; border-radius: 6px; color: var(--foreground, var(--b3-theme-on-background)); font-size: 13px; font-weight: 600; }
   :global(.tree-branch:hover), :global(.tree-subbranch:hover) { background: var(--muted, var(--b3-list-hover)); }
@@ -701,6 +818,9 @@
     .browser-toolbar > :global([data-slot="input"]) { flex-basis: 100%; }
     .browser-toolbar > :global([data-slot="select-trigger"]) { flex: 1 1 120px; }
     .group-row > :global([data-slot="button"]:not([data-size])) { flex: 1 1 auto; }
+    .review-log-header { grid-template-columns: minmax(0, 1fr); }
+    .review-log-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .review-log-actions :global([data-slot="button"]) { width: 100%; min-width: 0; }
   }
 
   @container (max-width: 390px) {
@@ -709,5 +829,10 @@
     .option-grid, .sortable-list { grid-template-columns: 1fr; }
     .setting-row { gap: 10px; }
     .toolbar-actions :global([data-slot="button"]), .section-actions :global([data-slot="button"]) { flex: 1; }
+  }
+
+  @container (max-width: 330px) {
+    .review-log-actions :global([data-slot="button"] span) { display: none; }
+    .review-log-actions :global([data-slot="button"]) { min-height: 32px; padding-inline: 0; }
   }
 </style>
