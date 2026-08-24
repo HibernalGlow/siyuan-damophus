@@ -154,6 +154,7 @@ describe("Statistics", () => {
   });
 
   it("opens every report card in a keyboard-accessible fullscreen preview", async () => {
+    const onFullscreenPreview = vi.fn();
     const target = document.createElement("div");
     target.style.height = "100vh";
     document.body.appendChild(target);
@@ -165,6 +166,7 @@ describe("Statistics", () => {
         label,
         topicDictionary,
         subjectQuestionTotals: {"civil-procedure": 100},
+        onFullscreenPreview,
       },
     });
     await tick();
@@ -174,24 +176,19 @@ describe("Statistics", () => {
     expect(cards).toHaveLength(13);
     expect(previewButtons).toHaveLength(13);
 
-    for (const button of previewButtons) {
-      button.click();
-      await tick();
-      const dialog = target.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
-      expect(dialog).not.toBeNull();
-      expect(dialog?.classList.contains("statistics-card-fullscreen")).toBe(true);
-      expect(document.body.style.overflow).toBe("hidden");
-      expect(dialog?.querySelector('[aria-label="关闭全屏预览"]')).not.toBeNull();
-      window.dispatchEvent(new KeyboardEvent("keydown", {bubbles: true, key: "Escape"}));
-      await tick();
-      expect(target.querySelector('[role="dialog"]')).toBeNull();
-      expect(document.body.style.overflow).toBe("");
-      expect(button.isConnected).toBe(true);
-    }
+    for (const button of previewButtons) button.click();
+    expect(onFullscreenPreview).toHaveBeenCalledTimes(13);
+    expect(onFullscreenPreview).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      id: "overview-coverage",
+      title: "题目覆盖",
+      card: cards[0],
+      trigger: previewButtons[0],
+    }));
   });
 
   it("fills a mobile viewport and keeps fullscreen card content scrollable", async () => {
     await page.viewport(360, 640);
+    const onFullscreenPreview = vi.fn();
     const target = document.createElement("div");
     target.style.height = "100vh";
     document.body.appendChild(target);
@@ -202,25 +199,20 @@ describe("Statistics", () => {
         translations,
         label,
         topicDictionary,
+        onFullscreenPreview,
       },
     });
     await tick();
 
     target.querySelector<HTMLButtonElement>('[aria-label="全屏查看: 科目进度"]')?.click();
     await tick();
-    const dialog = target.querySelector<HTMLElement>('[data-statistics-card-id="subject-progress"]')!;
+    const request = onFullscreenPreview.mock.calls[0]?.[0];
+    expect(request).toMatchObject({id: "subject-progress", title: "科目进度"});
+    const dialog = request.card as HTMLElement;
+    dialog.classList.add("damophus-statistics-preview-card");
     const content = dialog.querySelector<HTMLElement>(".statistics-card-content")!;
-    const rect = dialog.getBoundingClientRect();
-    expect(rect.left).toBeCloseTo(0, 0);
-    expect(rect.top).toBeCloseTo(0, 0);
-    expect(rect.right).toBeCloseTo(360, 0);
-    expect(rect.bottom).toBeCloseTo(640, 0);
-    expect(["auto", "scroll"]).toContain(getComputedStyle(content).overflowY);
-    expect(getComputedStyle(dialog).overscrollBehaviorY).toBe("contain");
+    expect(getComputedStyle(content).overflowY).toBe("auto");
+    expect(getComputedStyle(content).overscrollBehaviorY).toBe("contain");
     expect(dialog.querySelector(".statistics-card-resizer")).not.toBeVisible();
-
-    target.querySelector<HTMLButtonElement>('[aria-label="关闭全屏预览"]')?.click();
-    await tick();
-    expect(target.querySelector('[role="dialog"]')).toBeNull();
   });
 });

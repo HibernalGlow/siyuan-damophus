@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { CalendarDays, GripHorizontal, Maximize2, X } from "lucide-svelte";
+  import { CalendarDays, GripHorizontal, Maximize2 } from "lucide-svelte";
   import type { StatisticsHeatmapDay } from "@/question-bank/core/statistics";
   import { statisticsCardDefaultHeight, statisticsCardMaxHeight, statisticsCardMinHeight } from "@/question-bank/core/subject-dashboard";
+  import type { StatisticsCardPreviewHandler } from "./statistics-preview";
 
   export let days: StatisticsHeatmapDay[] = [];
   export let height: number | undefined = undefined;
   export let onResize: ((height: number) => void) | undefined = undefined;
-  export let fullscreen = false;
-  export let onFullscreen: ((event: MouseEvent) => void) | undefined = undefined;
+  export let onFullscreenPreview: StatisticsCardPreviewHandler | undefined = undefined;
   export let label: (key: string, fallback: string) => string = (_key, fallback) => fallback;
 
   const weekDays = 7;
@@ -86,15 +86,12 @@
 </script>
 
 <section
-  class:statistics-card-fullscreen={fullscreen}
   class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 p-4"
   aria-labelledby="statistics-heatmap-heading"
   data-testid="statistics-heatmap"
   data-resizable-card="heatmap"
   data-statistics-card-id="heatmap"
   style={`height: ${localHeight ?? statisticsCardDefaultHeight}px;`}
-  role={fullscreen ? "dialog" : undefined}
-  aria-modal={fullscreen ? "true" : undefined}
 >
   <div class="flex shrink-0 items-center justify-between gap-2">
     <div class="flex items-center gap-2">
@@ -108,10 +105,14 @@
       <button
         type="button"
         class="statistics-fullscreen-button"
-        aria-label={fullscreen ? label("statisticsClosePreview", "Close preview") : `${label("statisticsFullscreenPreview", "Preview full screen")}: ${label("statisticsHeatmap", "Activity heatmap")}`}
-        title={fullscreen ? label("statisticsClosePreview", "Close preview") : label("statisticsFullscreenPreview", "Preview full screen")}
-        onclick={(event) => onFullscreen?.(event)}
-      >{#if fullscreen}<X size={15} />{:else}<Maximize2 size={15} />{/if}</button>
+        aria-label={`${label("statisticsFullscreenPreview", "Preview full screen")}: ${label("statisticsHeatmap", "Activity heatmap")}`}
+        title={label("statisticsFullscreenPreview", "Preview full screen")}
+        onclick={(event) => {
+          const trigger = event.currentTarget as HTMLElement;
+          const card = trigger.closest<HTMLElement>("[data-statistics-card-id]");
+          if (card) onFullscreenPreview?.({ id: "heatmap", title: label("statisticsHeatmap", "Activity heatmap"), card, trigger });
+        }}
+      ><Maximize2 size={15} /></button>
     </div>
   </div>
   <div class="statistics-card-content mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-auto">
@@ -186,35 +187,6 @@
     opacity: 1;
   }
   .statistics-fullscreen-button:focus-visible,
-  .statistics-card-fullscreen:focus-visible {
-    outline: 2px solid var(--b3-theme-primary, var(--ring));
-    outline-offset: 2px;
-  }
-  .statistics-card-fullscreen {
-    position: fixed !important;
-    z-index: 10001;
-    inset: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-    width: auto !important;
-    height: auto !important;
-    max-width: none !important;
-    max-height: none !important;
-    margin: 0 !important;
-    padding-bottom: 16px;
-    border-radius: 8px;
-    background: var(--b3-theme-background, var(--background));
-    box-shadow: var(--b3-dialog-shadow, 0 20px 48px rgb(0 0 0 / 32%));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-  }
-  .statistics-card-fullscreen .statistics-card-content {
-    overflow: auto;
-    overscroll-behavior: contain;
-    touch-action: pan-x pan-y;
-  }
-  .statistics-card-fullscreen .statistics-card-resizer {
-    display: none;
-  }
   .statistics-card-content {
     box-sizing: border-box;
     min-height: 0;
@@ -262,16 +234,5 @@
   .statistics-card-resizer:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 1px;
-  }
-  @media (max-width: 640px) {
-    .statistics-card-fullscreen {
-      inset: 0;
-      padding-top: max(14px, env(safe-area-inset-top));
-      padding-right: max(14px, env(safe-area-inset-right));
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
-      padding-left: max(14px, env(safe-area-inset-left));
-      border-width: 0;
-      border-radius: 0;
-    }
   }
 </style>

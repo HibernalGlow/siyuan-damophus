@@ -63,6 +63,7 @@ import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 import { bindMenuIdentity } from "@/libs/menu-identity";
+import { openStatisticsCardPreview, type StatisticsCardPreviewRequest } from "./statistics-preview";
 import {
   questionProgressFromAggregate,
   setQuestionProgressLoader,
@@ -520,6 +521,10 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
   }
 
+  private openStatisticsCardPreview(request: StatisticsCardPreviewRequest): void {
+    openStatisticsCardPreview(request, Dialog, isMobile);
+  }
+
   private pinTabInstance(target: unknown): void {
     if (!target || typeof target !== "object") return;
     const candidate = ("pin" in target && typeof (target as { pin?: unknown }).pin === "function")
@@ -710,6 +715,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         ),
         loadBreadcrumb: (blockId: string) => getBlockBreadcrumb(blockId),
         onClose,
+        openStatisticsCardPreview: (request: StatisticsCardPreviewRequest) => this.openStatisticsCardPreview(request),
         renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
           this.questionRenderer(markdown, inheritSourceStyles)
         ),

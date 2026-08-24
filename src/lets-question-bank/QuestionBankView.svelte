@@ -98,6 +98,7 @@
   export let subjectTotalsSaveStatus: any;
   export let statisticsLayout: any;
   export let changeStatisticsLayout: any;
+  export let openStatisticsCardPreview: any = undefined;
   export let controller: any;
   export let examQuestions: any[];
   export let preview: any;
@@ -363,6 +364,7 @@
         {subjectTotalsSaveStatus}
         {statisticsLayout}
         onLayoutChange={changeStatisticsLayout}
+        onFullscreenPreview={openStatisticsCardPreview}
         {translations}
         {label}
       />

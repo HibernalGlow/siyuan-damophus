@@ -79,6 +79,7 @@
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
   import type { StoredPracticeSession } from "./session-host";
   import { createPracticeActions } from "./question-bank-practice-actions";
+  import type { StatisticsCardPreviewHandler } from "./statistics-preview";
   import { compareAttemptDuration } from "./attempt-duration-comparison";
   import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
   import {
@@ -136,6 +137,7 @@
   export let breadcrumbTextDisplay: BreadcrumbTextDisplay = normalizeBreadcrumbTextDisplay("full", 16, 160);
   export let loadBreadcrumb: ((blockId: string) => Promise<BlockBreadcrumbItem[]>) | undefined = undefined;
   export let onClose: (() => void) | undefined = undefined;
+  export let openStatisticsCardPreview: StatisticsCardPreviewHandler | undefined = undefined;
 
   const label = (key: string, fallback: string) => translations[`lets-question-bank.${key}`] ?? fallback;
   const log = getLogger("question-bank.practice");
@@ -1545,7 +1547,7 @@
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
   {questionSetBlueprints} {run} {loadQuestionSetData} {previewSourceSync} {confirmSourceSync} {assembleBlueprint} {saveBlueprint}
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}
-  {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {subjectTotalsSaveStatus} {statisticsLayout} {changeStatisticsLayout} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
+  {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {subjectTotalsSaveStatus} {statisticsLayout} {changeStatisticsLayout} {openStatisticsCardPreview} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
   {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
   {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
   {completionPercent} {attemptedQuestions} {untouchedQuestions} {reviewQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
