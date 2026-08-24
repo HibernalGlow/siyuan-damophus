@@ -1,5 +1,6 @@
 const EDITOR_SELECTOR = ".protyle-wysiwyg";
 const BLOCK_SELECTOR = "[data-node-id]";
+const QUESTION_BANK_NATIVE_SOURCE_SELECTOR = ".damophus-native-source-block";
 
 interface DragOrigin {
   editor: HTMLElement;
@@ -32,6 +33,10 @@ function isPlainPrimaryMouseDown(event: MouseEvent): boolean {
 
 function isTextSelectionSurface(target: Element): boolean {
   return !target.closest(".av, table, .code-block, .render-node, .protyle-action, .sb__resize");
+}
+
+function isQuestionBankNativeSource(editor: HTMLElement): boolean {
+  return editor.closest(QUESTION_BANK_NATIVE_SOURCE_SELECTOR) !== null;
 }
 
 export class LegacyBlockSelectionBridge {
@@ -74,8 +79,11 @@ export class LegacyBlockSelectionBridge {
       return;
     }
 
-    // Older SiYuan releases already own content-area block selection.
-    if (typeof this.documentRef.onmousemove === "function") {
+    // Older SiYuan releases already own content-area block selection. Native
+    // question-bank Protyles also install this handler, but still need the
+    // padding-origin bridge to switch a text drag into block selection.
+    if (typeof this.documentRef.onmousemove === "function"
+      && !isQuestionBankNativeSource(origin.editor)) {
       origin.bridged = true;
       return;
     }

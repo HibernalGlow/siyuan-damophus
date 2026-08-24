@@ -42,6 +42,16 @@ function renderEditor(): EditorFixture {
   return { editor, firstText, firstWrappedText, secondText };
 }
 
+function renderQuestionBankEditor(contentEditable: "true" | "false"): EditorFixture {
+  const host = document.createElement("div");
+  host.className = "damophus-native-source-block";
+  document.body.append(host);
+  const fixture = renderEditor();
+  fixture.editor.contentEditable = contentEditable;
+  host.append(fixture.editor);
+  return fixture;
+}
+
 function mouseDown(target: Element, init: MouseEventInit = {}): void {
   target.dispatchEvent(new MouseEvent("mousedown", {
     bubbles: true,
@@ -151,6 +161,26 @@ describe("legacy block selection bridge", () => {
     expect(paddingMouseDown).not.toHaveBeenCalled();
     bridge.destroy();
   });
+
+  it.each(["true", "false"] as const)(
+    "bridges question-bank native editors with contenteditable=%s when SiYuan installed a drag handler",
+    (contentEditable) => {
+      const { editor, firstText, secondText } = renderQuestionBankEditor(contentEditable);
+      const paddingMouseDown = vi.fn();
+      editor.addEventListener("mousedown", (event) => {
+        if (event.target === editor) paddingMouseDown(event);
+      });
+      const bridge = new LegacyBlockSelectionBridge();
+      bridge.start();
+
+      mouseDown(firstText);
+      document.onmousemove = vi.fn();
+      mouseMove(secondText);
+
+      expect(paddingMouseDown).toHaveBeenCalledOnce();
+      bridge.destroy();
+    },
+  );
 
   it("removes its listeners when disabled", () => {
     const { editor, firstText, secondText } = renderEditor();
