@@ -43,6 +43,46 @@ describe("booru API client, condition templates & ratio filter", () => {
     expect(request.responseEncoding).toBe("text");
   });
 
+  it("excludes image URLs that are already used as title covers", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      json: async () => ({
+        code: 0,
+        data: {
+          status: 200,
+          body: JSON.stringify([
+            {
+              id: 41,
+              file_url: "https://safebooru.org/images/41/used.jpg",
+              width: 1920,
+              height: 1080,
+              score: 50,
+              tags: "scenery wallpaper",
+            },
+            {
+              id: 42,
+              file_url: "https://safebooru.org/images/42/fresh.jpg",
+              width: 1920,
+              height: 1080,
+              score: 50,
+              tags: "scenery wallpaper",
+            },
+          ]),
+        },
+      }),
+    } as Response);
+
+    const resolved = await resolveBooruImageInfo(
+      "booru:sb?tags=scenery&ratio=wide&min_score=30",
+      undefined,
+      undefined,
+      new Set(["https://safebooru.org/images/41/used.jpg"]),
+    );
+
+    expect(resolved?.imageUrl).toBe("https://safebooru.org/images/42/fresh.jpg");
+    expect(resolved?.diagnostic?.rejectedByDuplicate).toBe(1);
+  });
+
   it("detects booru sources accurately", () => {
     expect(isBooruSource("booru:safebooru?tags=wallpaper")).toBe(true);
     expect(isBooruSource("booru:sb?tags=wallpaper")).toBe(true);

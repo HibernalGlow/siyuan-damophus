@@ -1,4 +1,5 @@
 import { getLogger } from "@/libs/logger";
+import { normalizeCoverUrl } from "./cover-dedup";
 import { search, resolveSite, sites, type Post } from "@himeka/booru";
 import type { SiteCredential } from "./sources";
 
@@ -171,6 +172,7 @@ export interface BooruResolveDiagnostic {
   rejectedByScore?: number;
   rejectedByBlacklist?: number;
   rejectedByTime?: number;
+  rejectedByDuplicate?: number;
   errorMessage?: string;
 }
 
@@ -803,8 +805,20 @@ export async function resolveBooruImageInfo(
   urlOrUri: string,
   siteCredentials?: SiteCredential[],
   globalBlacklist?: string[] | string,
+  excludedImageUrls?: Iterable<string>,
 ): Promise<BooruResolvedInfo | null> {
   try {
+    const excludedUrls = new Set(
+      [...(excludedImageUrls || [])]
+        .map((url) => normalizeCoverUrl(url))
+        .filter((url): url is string => Boolean(url)),
+    );
+    const isExcluded = (...urls: Array<string | null | undefined>) =>
+      urls.some((url) => {
+        const normalized = normalizeCoverUrl(url || "");
+        return normalized ? excludedUrls.has(normalized) : false;
+      });
+
     if (urlOrUri.startsWith("booru:")) {
       const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, timeRange, pool, quality, blacklist } =
         parseBooruUri(urlOrUri);
@@ -852,8 +866,13 @@ export async function resolveBooruImageInfo(
           let rejectedByRatio = 0;
           let rejectedByScore = 0;
           let rejectedByTime = 0;
+          let rejectedByDuplicate = 0;
 
           const candidates = res.posts.filter((p) => {
+            if (isExcluded(p.file_url, p.large_file_url, p.preview_file_url)) {
+              rejectedByDuplicate++;
+              return false;
+            }
             if (combinedBlacklist.length > 0 && isPostBlacklisted(p, combinedBlacklist)) {
               rejectedByBlacklist++;
               return false;
@@ -904,6 +923,7 @@ export async function resolveBooruImageInfo(
               rejectedByRatio,
               rejectedByScore,
               rejectedByTime,
+              rejectedByDuplicate,
             });
             return null;
           }
@@ -936,6 +956,7 @@ export async function resolveBooruImageInfo(
                 rejectedByRatio,
                 rejectedByScore,
                 rejectedByTime,
+                rejectedByDuplicate,
               },
             };
           }
@@ -980,8 +1001,22 @@ export async function resolveBooruImageInfo(
           let rejectedByRatio = 0;
           let rejectedByScore = 0;
           let rejectedByTime = 0;
+          let rejectedByDuplicate = 0;
 
           const candidates = results.filter((p) => {
+            if (isExcluded(
+              p.fileUrl,
+              (p as any).file_url,
+              p.sampleUrl,
+              (p as any).sample_url,
+              p.jpegUrl,
+              (p as any).jpeg_url,
+              p.previewUrl,
+              (p as any).preview_url,
+            )) {
+              rejectedByDuplicate++;
+              return false;
+            }
             if (combinedBlacklist.length > 0 && isPostBlacklisted(p, combinedBlacklist)) {
               rejectedByBlacklist++;
               return false;
@@ -1032,6 +1067,7 @@ export async function resolveBooruImageInfo(
               rejectedByRatio,
               rejectedByScore,
               rejectedByTime,
+              rejectedByDuplicate,
             });
             return null;
           }
@@ -1064,6 +1100,7 @@ export async function resolveBooruImageInfo(
                 rejectedByRatio,
                 rejectedByScore,
                 rejectedByTime,
+                rejectedByDuplicate,
               },
             };
           }

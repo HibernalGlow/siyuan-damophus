@@ -23,6 +23,7 @@ import {
   maintainDocumentTree,
   type LegacyCoverMaintenanceResult,
 } from "./local-cover-cache-maintenance";
+import { loadUsedCoverUrls } from "./cover-dedup";
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
@@ -58,6 +59,7 @@ export interface MoreBackgroundOptions {
   confirmRemoveCover?: boolean;
   autoAddCoverOnEmptyDoc?: boolean;
   autoRetryOnFailure?: boolean;
+  deduplicateNewCovers?: boolean;
   blacklistedTags?: string;
   siteCredentials?: SiteCredential[];
   sources?: CoverSourceItem[];
@@ -1135,7 +1137,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     const isAutoCover = this.options.autoAddCoverOnEmptyDoc === true;
     menu.addItem({
-      label: `${isAutoCover ? "✓ " : ""}${this.options.t("lets-more-background.autoAddCoverOnEmptyDoc") || "自动为无题头图文档添加 (使用上次模板)"}`,
+      label: `${isAutoCover ? "✓ " : ""}${this.options.t("lets-more-background.autoAddCoverOnEmptyDoc")}`,
       icon: "iconSparkles",
       click: () => {
         const nextVal = !isAutoCover;
@@ -1144,13 +1146,15 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           settings.setBySpace("moreBackground", "autoAddCoverOnEmptyDoc", nextVal);
           void settings.save();
         } catch {}
-        showMessage(nextVal ? "已开启：打开无题头图文档时自动补图" : "已关闭：无题头图文档自动补图");
+        showMessage(this.options.t(nextVal
+          ? "lets-more-background.autoAddCoverOnEmptyDocEnabled"
+          : "lets-more-background.autoAddCoverOnEmptyDocDisabled"));
       },
     });
 
     const isAutoRetry = this.options.autoRetryOnFailure !== false;
     menu.addItem({
-      label: `${isAutoRetry ? "✓ " : ""}${this.options.t("lets-more-background.autoRetryOnFailure") || "加载失败自动重试"}`,
+      label: `${isAutoRetry ? "✓ " : ""}${this.options.t("lets-more-background.autoRetryOnFailure")}`,
       icon: "iconRefresh",
       click: () => {
         const nextVal = !isAutoRetry;
@@ -1159,7 +1163,26 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           settings.setBySpace("moreBackground", "autoRetryOnFailure", nextVal);
           void settings.save();
         } catch {}
-        showMessage(nextVal ? "已开启：加载失败自动多轮重试" : "已关闭：加载失败自动重试");
+        showMessage(this.options.t(nextVal
+          ? "lets-more-background.autoRetryOnFailureEnabled"
+          : "lets-more-background.autoRetryOnFailureDisabled"));
+      },
+    });
+
+    const isDeduplicationEnabled = this.options.deduplicateNewCovers !== false;
+    menu.addItem({
+      label: `${isDeduplicationEnabled ? "✓ " : ""}${this.options.t("lets-more-background.deduplicateNewCovers")}`,
+      icon: "iconFilter",
+      click: () => {
+        const nextVal = !isDeduplicationEnabled;
+        this.options.deduplicateNewCovers = nextVal;
+        try {
+          settings.setBySpace("moreBackground", "deduplicateNewCovers", nextVal);
+          void settings.save();
+        } catch {}
+        showMessage(this.options.t(nextVal
+          ? "lets-more-background.deduplicateNewCoversEnabled"
+          : "lets-more-background.deduplicateNewCoversDisabled"));
       },
     });
 
@@ -1260,26 +1283,36 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     background: HTMLElement,
     attempt = 1,
     maxRetries = 10,
+    excludedCoverUrls?: ReadonlySet<string>,
   ): Promise<void> {
     background.style.cursor = "wait";
     const autoRetry = this.options.autoRetryOnFailure !== false;
     const effectiveMaxRetries = autoRetry ? maxRetries : 1;
+    let deduplicationUrls = excludedCoverUrls;
 
     try {
       let finalImageUrl = url;
       let postInfo: BooruResolvedInfo | null = null;
 
       if (isBooruSource(url)) {
+        if (this.options.deduplicateNewCovers !== false && !deduplicationUrls) {
+          try {
+            deduplicationUrls = await loadUsedCoverUrls();
+          } catch (error) {
+            log.warn("Failed to load used cover URLs:", error);
+            deduplicationUrls = new Set();
+          }
+        }
         const credentials = this.options.siteCredentials;
         const globalBlacklist = this.options.blacklistedTags || DEFAULT_BLACKLISTED_TAGS;
-        postInfo = await resolveBooruImageInfo(url, credentials, globalBlacklist);
+        postInfo = await resolveBooruImageInfo(url, credentials, globalBlacklist, deduplicationUrls);
 
         if (!postInfo || !postInfo.imageUrl) {
           if (attempt < effectiveMaxRetries) {
             log.info(`Fetch cover filtered/failed (attempt ${attempt}/${effectiveMaxRetries}), retrying...`);
             showMessage(`正在尝试重新匹配符合条件的题头图 (第 ${attempt + 1}/${effectiveMaxRetries} 次)...`);
             await new Promise((r) => setTimeout(r, 400));
-            return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries);
+            return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries, deduplicationUrls);
           }
           showMessage("未找到满足条件（宽高比/评分/已排除屏蔽词）的题头图，建议放宽筛选条件");
           return;
@@ -1324,7 +1357,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
             log.info(`Image blob download failed (attempt ${attempt}/${effectiveMaxRetries}), retrying another post...`);
             showMessage(`图片下载受限，正在重试其他候选图 (第 ${attempt + 1}/${effectiveMaxRetries} 次)...`);
             await new Promise((r) => setTimeout(r, 400));
-            return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries);
+            return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries, deduplicationUrls);
           }
           await this.setBlockBackgroundImage(background, finalImageUrl, postInfo);
         }
@@ -1336,7 +1369,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       if (attempt < effectiveMaxRetries && isBooruSource(url)) {
         showMessage(`获取异常，正在重试 (第 ${attempt + 1}/${effectiveMaxRetries} 次)...`);
         await new Promise((r) => setTimeout(r, 500));
-        return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries);
+        return this.fetchAndSetBackground(url, background, attempt + 1, effectiveMaxRetries, deduplicationUrls);
       }
       showMessage(this.options.t("lets-more-background.loadUrlFailed"));
     } finally {
