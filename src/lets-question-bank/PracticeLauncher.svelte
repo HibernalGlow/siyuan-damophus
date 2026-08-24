@@ -209,6 +209,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 18px;
+    flex-wrap: wrap;
   }
 
   .practice-launcher-title,
@@ -264,15 +265,17 @@
   }
 
   .practice-launcher-stats {
+    flex: 1 1 460px;
+    min-width: min(100%, 360px);
     margin: 0;
     display: grid;
-    grid-template-columns: repeat(4, minmax(58px, auto));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0;
   }
 
   .practice-launcher-stats div {
-    min-width: 62px;
-    padding: 1px 13px;
+    min-width: 0;
+    padding: 1px clamp(7px, 1.2vw, 13px);
     border-left: 1px solid var(--b3-border-color);
     display: flex;
     flex-direction: column-reverse;
@@ -442,8 +445,10 @@
     }
 
     .practice-launcher-stats {
-      grid-template-columns: repeat(2, minmax(58px, auto));
-      row-gap: 8px;
+      flex-basis: 100%;
+      min-width: 0;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      row-gap: 0;
     }
 
     .practice-launcher-body {
@@ -486,7 +491,8 @@
 
     .practice-launcher-stats {
       width: 100%;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      row-gap: 8px;
     }
 
     .practice-launcher-stats div:first-child {
@@ -509,6 +515,10 @@
   }
 
   @container (max-width: 430px) {
+    .practice-launcher-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .practice-order-grid {
       grid-template-columns: 1fr;
     }
