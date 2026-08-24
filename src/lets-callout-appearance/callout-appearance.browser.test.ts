@@ -220,6 +220,26 @@ describe("callout appearance", () => {
       .toBe("flex");
   });
 
+  it("keeps the left marker visible in the standard editor", () => {
+    document.documentElement.style.setProperty("--b3-protyle-inline-mark-background", "rgb(1, 2, 3)");
+    const hostStyle = document.createElement("style");
+    hostStyle.textContent = `
+      :root body .protyle-wysiwyg .callout[data-type="NodeCallout"] {
+        box-shadow: none !important;
+      }
+    `;
+    document.head.append(hostStyle);
+    const callout = renderCallout();
+    callout.setAttribute("custom-riff-decks", "deck");
+
+    const styles = startCalloutAppearance({ riffMarker: true });
+    expect(getComputedStyle(callout).boxShadow).toContain("inset");
+
+    styles.destroy();
+    hostStyle.remove();
+    document.documentElement.style.removeProperty("--b3-protyle-inline-mark-background");
+  });
+
   it("clamps user adjustments and updates the mounted style", () => {
     expect(resolveCalloutAppearanceSettings({ radius: 99, surfaceOpacity: -4 })).toMatchObject({
       followCalloutTextColor: false,

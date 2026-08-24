@@ -151,7 +151,7 @@ ${directBodySelectors} {
     settings.contentPadding ? `:is(.b3-typography,.protyle-wysiwyg) .callout-content { padding-inline-start: 4px; }` : "",
     settings.removeQuoteShadow ? `.protyle-wysiwyg [data-node-id][style*="--b3-font-background1)"] { box-shadow: none !important; filter: none !important; }` : "",
     settings.removeEmbedOutline ? `.protyle-wysiwyg [data-node-id][style*="--b3-font-background1)"] { outline: none !important; }` : "",
-    settings.riffMarker ? `.protyle-wysiwyg .callout[data-type="NodeCallout"][custom-riff-decks] { box-shadow: 2px 0 0 0 var(--b3-protyle-inline-mark-background) inset !important; }` : "",
+    settings.riffMarker ? `:root body .protyle-wysiwyg .callout[data-type="NodeCallout"][custom-riff-decks] { box-shadow: 2px 0 0 0 var(--b3-protyle-inline-mark-background) inset !important; }` : "",
     settings.flashcardLeftHighlightFix ? `:root body .card__block .protyle-wysiwyg .callout[data-type="NodeCallout"][custom-riff-decks] { box-shadow: 2px 0 0 0 var(--b3-protyle-inline-mark-background) inset !important; }` : "",
   ].filter(Boolean).join("\n");
 
