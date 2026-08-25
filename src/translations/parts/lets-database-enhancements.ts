@@ -25,6 +25,7 @@ export const en = {
   "lets-database-enhancements.cancel": "Cancel",
   "lets-database-enhancements.save": "Save",
   "lets-database-enhancements.columnBindingSaveFailed": "Unable to save this database configuration",
+  "lets-database-enhancements.cutAsset": "Cut",
 };
 
 export const zhCN: typeof en = {
@@ -54,4 +55,5 @@ export const zhCN: typeof en = {
   "lets-database-enhancements.cancel": "取消",
   "lets-database-enhancements.save": "保存",
   "lets-database-enhancements.columnBindingSaveFailed": "无法保存当前数据库配置",
+  "lets-database-enhancements.cutAsset": "剪切",
 };

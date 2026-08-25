@@ -4,6 +4,7 @@ import { plugin } from "@/utils";
 import { AvCoverInheritManager } from "./av-cover-inherit";
 import { AvColumnBindingManager } from "./av-column-binding";
 import { AvRelationReorderManager } from "./av-relation-reorder";
+import { AvAssetCutManager } from "./av-asset-cut";
 import {
   DATE_NOW_GENERATOR,
   COLUMN_BINDINGS_ATTR,
@@ -18,12 +19,14 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
   private readonly coverManager = new AvCoverInheritManager();
   private readonly relationManager = new AvRelationReorderManager();
   private readonly columnBindingManager = new AvColumnBindingManager();
+  private readonly assetCutManager = new AvAssetCutManager(() => this.t("lets-database-enhancements.cutAsset"));
   private listening = false;
   private layoutReady = false;
   private readonly watchedRoots = new Map<HTMLElement, () => void>();
   private documentCleanup: (() => void) | null = null;
 
   override onload(): void {
+    this.assetCutManager.start();
     this.columnBindingManager.updateOptions({
       enabled: this.isColumnBindingEnabled(),
     });
@@ -56,6 +59,7 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
   }
 
   override onunload(): void {
+    this.assetCutManager.stop();
     plugin.eventBus.off("open-menu-av", this.handleAttributeViewMenu);
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     this.unbindEvents();
