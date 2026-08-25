@@ -56,6 +56,9 @@ importers:
       diff:
         specifier: ^8.0.4
         version: 8.0.4
+      fsrs-browser:
+        specifier: 2.0.4
+        version: 2.0.4
       jszip:
         specifier: 3.10.1
         version: 3.10.1
@@ -1398,6 +1401,9 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  fsrs-browser@2.0.4:
+    resolution: {integrity: sha512-T5tnQtahUGHxBeKKLPBePasgm+gNxNGe1SlnXtB+Y7V0ZB3rPdNaSgBDzqL4VTB4a5VNRGvkIhcuLjiBqd46vA==}
 
   function-bind@1.1.2:
     resolution: {integrity: sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==}
@@ -3782,6 +3788,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  fsrs-browser@2.0.4: {}
 
   function-bind@1.1.2: {}
 

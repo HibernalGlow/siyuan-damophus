@@ -71,7 +71,13 @@
       "embedBreadcrumb",
       "embedHeadingMode",
     ],
-    timing: ["timingEnabled", "pauseOnAnswerReveal", "pauseOnBlur", "durationComparisonPosition"],
+    timing: [
+      "timingEnabled",
+      "pauseOnAnswerReveal",
+      "pauseOnBlur",
+      "durationComparisonPosition",
+      "revealActionBelowOptions",
+    ],
     completion: [
       "completionShowCorrectness",
       "completionShowRating",

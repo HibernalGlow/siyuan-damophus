@@ -29,6 +29,7 @@ export interface FlashcardAttributes {
 export interface FlashcardBlockRow {
   id: string;
   box?: string;
+  hpath?: string;
   parent_id?: string | null;
   root_id?: string | null;
   type?: string;
@@ -71,6 +72,7 @@ export interface FlashcardGroupCache {
 }
 
 export type FlashcardReviewScopeType = "group" | "document" | "notebook";
+export type FsrsOptimizerMode = "internal" | "browser";
 
 export const FLASHCARD_REVIEW_STAT_KEYS = [
   "reviews",
@@ -118,6 +120,7 @@ export interface FlashcardSettings {
   scanInterval: number;
   postponeEnabled: boolean;
   postponeDays: number;
+  confirmBeforeAutoRegister: boolean;
   groups: FlashcardGroup[];
   categories: FlashcardCategory[];
   rendererInterceptionEnabled: boolean;
@@ -129,10 +132,13 @@ export interface FlashcardSettings {
     blockquote: boolean;
     callout: boolean;
     tag: boolean;
+    topicRelations: boolean;
   };
   randomInterleaveEnabled: boolean;
   samePriorityShuffleEnabled: boolean;
   reviewStats: FlashcardReviewStatsSettings;
+  reviewTimerEnabled: boolean;
+  reviewTimerContinueAfterAnswer: boolean;
   reviewToolbarEnabled: boolean;
   reviewToolbarLocate: boolean;
   reviewToolbarUnregister: boolean;
@@ -142,7 +148,10 @@ export interface FlashcardSettings {
   reviewToolbarSkipBetween: boolean;
   reviewToolbarShowExitFocus: boolean;
   reviewToolbarShowBrand: boolean;
+  reviewToolbarShowFilter: boolean;
+  reviewToolbarShowFullscreen: boolean;
   showBreadcrumbReviewButton: boolean;
+  fsrsOptimizerMode: FsrsOptimizerMode;
 }
 
 export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
@@ -153,8 +162,9 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   scanInterval: 15,
   postponeEnabled: false,
   postponeDays: 2,
+  confirmBeforeAutoRegister: false,
   rendererInterceptionEnabled: true,
-  rendererVisibility: { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false },
+  rendererVisibility: { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false, topicRelations: false },
   randomInterleaveEnabled: false,
   samePriorityShuffleEnabled: false,
   reviewStats: {
@@ -168,6 +178,8 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
       interval: true,
     },
   },
+  reviewTimerEnabled: true,
+  reviewTimerContinueAfterAnswer: false,
   reviewToolbarEnabled: true,
   reviewToolbarLocate: true,
   reviewToolbarUnregister: true,
@@ -177,7 +189,10 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   reviewToolbarSkipBetween: true,
   reviewToolbarShowExitFocus: false,
   reviewToolbarShowBrand: true,
+  reviewToolbarShowFilter: true,
+  reviewToolbarShowFullscreen: true,
   showBreadcrumbReviewButton: true,
+  fsrsOptimizerMode: "internal",
   categories: [{ id: "default", name: "默认分组" }],
   groups: [
     {

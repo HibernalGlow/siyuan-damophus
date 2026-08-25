@@ -29,6 +29,13 @@ export const pluginMetadata: PluginMetadata = {
       key: "highlightRelevantItem",
       value: true,
     },
+    {
+      type: "checkbox",
+      title: "lets-database-enhancements.columnBindingTitle",
+      description: "lets-database-enhancements.columnBindingDescription",
+      key: "columnBindingEnabled",
+      value: false,
+    },
   ],
 };
 

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
-  import { isMobile } from "../utils";
-  import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-svelte";
+  import { isMobile, plugin } from "../utils";
+  import { ArrowDown, ArrowUp, Plus, Smile, Trash2 } from "lucide-svelte";
+  import { openEmoji } from "siyuan";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import * as Select from "@/components/ui/select";
@@ -10,7 +11,7 @@
   export let columns: Array<{
     key: string;
     title: string;
-    type: "text" | "number" | "select";
+    type: "text" | "number" | "select" | "notebook" | "emoji";
     width?: string;
     options?: Record<string, string>;
   }> = [];
@@ -21,6 +22,12 @@
   }
 
   const dispatch = createEventDispatcher();
+
+  $: i18n = plugin?.i18n ?? {};
+  $: notebooks = typeof window !== "undefined" ? (window.siyuan?.notebooks ?? []) : [];
+  function columnLabel(column: typeof columns[number]): string {
+    return i18n[column.title] || column.title;
+  }
 
   function addItem() {
     const newItem: Record<string, any> = {};
@@ -60,6 +67,22 @@
   function notifyChange() {
     dispatch("value", value);
   }
+
+  function chooseEmoji(item: Record<string, any>, key: string, anchor: HTMLElement) {
+    const rect = anchor.getBoundingClientRect();
+    openEmoji({
+      position: { x: rect.left, y: rect.bottom, w: rect.width, h: rect.height },
+      selectedCB: (emoji) => {
+        item[key] = emoji;
+        notifyChange();
+      },
+    });
+  }
+
+  function emojiSource(value: unknown): string {
+    const text = String(value ?? "");
+    return text.startsWith("/") || /^https?:/u.test(text) ? text : `/emojis/${text}`;
+  }
 </script>
 
 <div class="setting-list-container">
@@ -70,18 +93,38 @@
         {#each columns as col}
           <div class="field-item" style:flex={col.width && col.width !== '1fr' ? `0 0 ${col.width}` : "1"}>
             {#if isMobile}
-              <span class="field-label mobile-only">{col.title}</span>
+              <span class="field-label mobile-only">{columnLabel(col)}</span>
             {/if}
             
-            {#if col.type === "select" && col.options}
+            {#if col.type === "emoji"}
+              <Button
+                variant="outline"
+                size="icon"
+                class="setting-list-emoji-button"
+                title={columnLabel(col)}
+                aria-label={columnLabel(col)}
+                onclick={(event) => chooseEmoji(item, col.key, event.currentTarget)}
+              >
+                {#if item[col.key]}
+                  <img class="setting-list-emoji" src={emojiSource(item[col.key])} alt={String(item[col.key])} />
+                {:else}
+                  <Smile aria-hidden="true" />
+                {/if}
+              </Button>
+            {:else if col.type === "notebook"}
+              <Select.Root type="single" value={String(item[col.key] ?? "")} onValueChange={(next) => { item[col.key] = next; notifyChange(); }}>
+                <Select.Trigger class="w-full">{notebooks.find((notebook) => notebook.id === item[col.key])?.name || item[col.key] || columnLabel(col)}</Select.Trigger>
+                <Select.Content>{#each notebooks as notebook}<Select.Item value={notebook.id} label={notebook.name || notebook.id} />{/each}</Select.Content>
+              </Select.Root>
+            {:else if col.type === "select" && col.options}
               <Select.Root type="single" value={String(item[col.key])} onValueChange={(next) => { item[col.key] = next; notifyChange(); }}>
-                <Select.Trigger class="w-full">{col.options[String(item[col.key])] ?? item[col.key]}</Select.Trigger>
-                <Select.Content>{#each Object.entries(col.options) as [optValue, optLabel]}<Select.Item value={optValue} label={optLabel} />{/each}</Select.Content>
+              <Select.Trigger class="w-full">{i18n[col.options[String(item[col.key])]] || col.options[String(item[col.key])] || item[col.key]}</Select.Trigger>
+              <Select.Content>{#each Object.entries(col.options) as [optValue, optLabel]}<Select.Item value={optValue} label={i18n[optLabel] || optLabel} />{/each}</Select.Content>
               </Select.Root>
             {:else if col.type === "number"}
-              <Input type="number" bind:value={item[col.key]} placeholder={col.title} oninput={notifyChange} />
+              <Input type="number" bind:value={item[col.key]} placeholder={columnLabel(col)} oninput={notifyChange} />
             {:else}
-              <Input type="text" bind:value={item[col.key]} placeholder={col.title} oninput={notifyChange} />
+              <Input type="text" bind:value={item[col.key]} placeholder={columnLabel(col)} oninput={notifyChange} />
             {/if}
           </div>
         {/each}
@@ -162,4 +205,7 @@
   .list-add-action {
     margin-top: 12px;
   }
+
+  :global(.setting-list-emoji-button) { width: 38px; height: 38px; padding: 5px; }
+  :global(.setting-list-emoji) { width: 26px; height: 26px; object-fit: contain; }
 </style>

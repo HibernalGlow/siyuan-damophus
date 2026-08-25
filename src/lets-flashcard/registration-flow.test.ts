@@ -10,21 +10,19 @@ vi.mock("siyuan", async () => ({
 import FlashcardPlugin from "./index";
 
 describe("flashcard scope registration flow", () => {
-  it("requires two confirmations before unregistering", async () => {
+  it("requires one confirmation before unregistering", async () => {
     confirmMock.mockImplementation((_title: string, _message: string, onConfirm: () => void) => onConfirm());
 
     const approved = await (FlashcardPlugin.prototype as any).confirmUnregister.call(
       {},
       "批量取消闪卡登记",
-      "预览",
       "最终警告",
     );
 
     expect(approved).toBe(true);
-    expect(confirmMock).toHaveBeenCalledTimes(2);
+    expect(confirmMock).toHaveBeenCalledTimes(1);
     expect(confirmMock.mock.calls.map(([title, message]) => [title, message])).toEqual([
-      ["批量取消闪卡登记", "预览"],
-      ["最终确认取消登记", "最终警告"],
+      ["批量取消闪卡登记", "最终警告"],
     ]);
     confirmMock.mockReset();
   });
@@ -32,22 +30,10 @@ describe("flashcard scope registration flow", () => {
   it("stops after the first confirmation is declined", async () => {
     confirmMock.mockImplementationOnce((_title: string, _message: string, _onConfirm: () => void, onCancel: () => void) => onCancel());
 
-    const approved = await (FlashcardPlugin.prototype as any).confirmUnregister.call({}, "标题", "预览", "最终警告");
+    const approved = await (FlashcardPlugin.prototype as any).confirmUnregister.call({}, "标题", "最终警告");
 
     expect(approved).toBe(false);
     expect(confirmMock).toHaveBeenCalledTimes(1);
-    confirmMock.mockReset();
-  });
-
-  it("stops after the final confirmation is declined", async () => {
-    confirmMock
-      .mockImplementationOnce((_title: string, _message: string, onConfirm: () => void) => onConfirm())
-      .mockImplementationOnce((_title: string, _message: string, _onConfirm: () => void, onCancel: () => void) => onCancel());
-
-    const approved = await (FlashcardPlugin.prototype as any).confirmUnregister.call({}, "标题", "预览", "最终警告");
-
-    expect(approved).toBe(false);
-    expect(confirmMock).toHaveBeenCalledTimes(2);
     confirmMock.mockReset();
   });
 
@@ -108,7 +94,7 @@ describe("flashcard scope registration flow", () => {
       runtime: {
         provideScopeBlockIds: vi.fn().mockResolvedValue(roots.map((root) => root.blockId)),
         adapter: { inspectRoots: vi.fn().mockResolvedValue(roots) },
-        getSettings: vi.fn().mockReturnValue({ maxResolveDepth: 8 }),
+        getSettings: vi.fn().mockReturnValue({ maxResolveDepth: 8, confirmBeforeAutoRegister: true }),
         recordScope,
       },
       openRegistrationResults,
@@ -129,6 +115,104 @@ describe("flashcard scope registration flow", () => {
       roots,
     }));
     expect(recordScope).toHaveBeenCalledWith(scope);
-    expect(reviewScopeCards).toHaveBeenCalledWith(scope);
+    expect(reviewScopeCards).toHaveBeenCalledWith(scope, true);
+  });
+
+  it("always opens the registration preview even when extra confirmation is disabled", async () => {
+    const scope = { id: "group:test", type: "group", targetName: "测试", groupId: "test", groupName: "测试" } as const;
+    const roots = [{ blockId: "20260823130238-card001", renderer: "list", kind: "basic", attributes: {}, content: "测试闪卡" }];
+    const openRegistrationResults = vi.fn().mockResolvedValue(undefined);
+    const fakePlugin = {
+      runtime: {
+        provideScopeBlockIds: vi.fn().mockResolvedValue([roots[0].blockId]),
+        adapter: { inspectRoots: vi.fn().mockResolvedValue(roots) },
+        getSettings: vi.fn().mockReturnValue({ maxResolveDepth: 8, confirmBeforeAutoRegister: false }),
+      },
+      openRegistrationResults,
+    };
+
+    await (FlashcardPlugin.prototype as any).openScopeRegistration.call(fakePlugin, scope, "测试", {});
+
+    expect(openRegistrationResults).toHaveBeenCalledWith(expect.objectContaining({
+      title: "测试 · 待登记闪卡",
+      roots,
+      onRegistered: expect.any(Function),
+    }));
+  });
+
+  it("retries the scope query after registration before giving up on native review", async () => {
+    const scope = { id: "group:test", type: "group", targetName: "Test", groupId: "test", groupName: "Test" } as const;
+    const card = { blockID: "20260823130238-card001", cardID: "card-1", state: 0 };
+    const due = { cards: [card], unreviewedCount: 1, unreviewedNewCardCount: 1, unreviewedOldCardCount: 0, candidateCount: 1, registeredCount: 1 };
+    const buildScopeDueCards = vi.fn()
+      .mockResolvedValueOnce({ ...due, cards: [], unreviewedCount: 0, unreviewedNewCardCount: 0 })
+      .mockResolvedValue(due);
+    const openNativeReview = vi.fn().mockResolvedValue(undefined);
+    const fakePlugin = {
+      runtime: { buildScopeDueCards, recordScope: vi.fn().mockResolvedValue(undefined) },
+      openNativeReview,
+      reportError: vi.fn(),
+    };
+
+    await (FlashcardPlugin.prototype as any).reviewScopeCards.call(fakePlugin, scope, true);
+
+    expect(buildScopeDueCards).toHaveBeenCalledTimes(2);
+    expect(openNativeReview).toHaveBeenCalledWith("复习：Test", due, scope);
+  });
+
+  it("keeps native global review restricted to the selected group across rounds", async () => {
+    const scope = { id: "group:test", type: "group", targetName: "Test", groupId: "test", groupName: "Test" } as const;
+    const initial = { blockID: "20260823130238-card001", cardID: "card-1", state: 1 };
+    const nextRound = { blockID: "20260823130238-card002", cardID: "card-2", state: 0 };
+    const unrelated = { blockID: "20260823130238-global1", cardID: "global-1", state: 1 };
+    const fakePlugin = {
+      reviewCards: new Map(),
+      reviewScope: { scope, ids: new Set([initial.blockID]) },
+      runtime: { provideScopeBlockIds: vi.fn().mockResolvedValue([initial.blockID, nextRound.blockID]) },
+      orderCards: vi.fn(async (cards: unknown[]) => cards),
+      orderCardsData: vi.fn(),
+    };
+
+    const result = await (FlashcardPlugin.prototype as any).updateCards.call(fakePlugin, {
+      cards: [nextRound, unrelated],
+      unreviewedCount: 2,
+      unreviewedNewCardCount: 1,
+      unreviewedOldCardCount: 1,
+    });
+
+    expect(result.cards).toEqual([nextRound]);
+    expect(result).toMatchObject({ unreviewedCount: 1, unreviewedNewCardCount: 1, unreviewedOldCardCount: 0 });
+    expect(fakePlugin.reviewScope).toBeDefined();
+  });
+
+  it("clears a pending scope when the native review entry cannot be opened", async () => {
+    const due = {
+      cards: [{ blockID: "20260823130238-card001", cardID: "card-1", state: 1 }],
+      unreviewedCount: 1,
+      unreviewedNewCardCount: 0,
+      unreviewedOldCardCount: 1,
+    };
+    const fakePlugin = {
+      orderCardsData: vi.fn().mockResolvedValue(due),
+      reviewCards: new Map(),
+      priorityControls: { refresh: vi.fn() },
+      runtime: {
+        adapter: { inspectRoots: vi.fn().mockResolvedValue([]) },
+        getSettings: vi.fn().mockReturnValue({}),
+      },
+      compat: { preloadMany: vi.fn(), refresh: vi.fn() },
+      mobileSurface: { openReview: vi.fn().mockReturnValue(false) },
+      reviewScope: undefined,
+    };
+
+    await (FlashcardPlugin.prototype as any).openNativeReview.call(
+      fakePlugin,
+      "Test",
+      due,
+      { id: "group:test", type: "group", targetName: "Test", groupId: "test" },
+    );
+
+    expect(fakePlugin.mobileSurface.openReview).toHaveBeenCalled();
+    expect(fakePlugin.reviewScope).toBeUndefined();
   });
 });

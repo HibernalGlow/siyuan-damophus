@@ -2,6 +2,8 @@ import { encode } from "@msgpack/msgpack";
 import { describe, expect, it } from "vitest";
 import {
   decodeReviewLog,
+  filterReviewLogEntries,
+  groupReviewLogEntriesByMonth,
   loadReviewLogArchive,
   monthlyReviewLogZip,
   reviewLogToCsv,
@@ -87,5 +89,60 @@ describe("Riff review log export", () => {
     const zip = await JSZip.loadAsync(bytes);
     expect(Object.keys(zip.files).sort()).toEqual(["202601.csv", "202602.csv", "revlog.csv"]);
     expect(await zip.file("revlog.csv")!.async("string")).toContain("card-two,20000,3,2,0");
+  });
+
+  it("filters review records by time, scope and review state without mutating the archive", () => {
+    const entries = [
+      { id: "a", cardId: "card-a", rating: 3, scheduledDays: 1, elapsedDays: 1, reviewed: 100, state: 0 },
+      { id: "b", cardId: "card-b", rating: 4, scheduledDays: 2, elapsedDays: 2, reviewed: 200, state: 2 },
+      { id: "c", cardId: "card-c", rating: 1, scheduledDays: 3, elapsedDays: 3, reviewed: 300, state: 3 },
+    ];
+    const contexts = new Map([
+      ["card-a", { cardId: "card-a", documentId: "doc-a", notebookId: "book-a" }],
+      ["card-b", { cardId: "card-b", documentId: "doc-b", notebookId: "book-a" }],
+      ["card-c", { cardId: "card-c", documentId: "doc-c", notebookId: "book-b" }],
+    ]);
+    expect(filterReviewLogEntries(entries, {
+      fromReviewed: 150_000,
+      toReviewed: 250_000,
+      notebookId: "book-a",
+      state: 2,
+    }, contexts).map((entry) => entry.id)).toEqual(["b"]);
+    expect(entries.map((entry) => entry.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("includes descendant documents only when the document scope switch is enabled", () => {
+    const entries = [
+      { id: "root", cardId: "root-card", rating: 3, scheduledDays: 1, elapsedDays: 1, reviewed: 100, state: 2 },
+      { id: "child", cardId: "child-card", rating: 3, scheduledDays: 1, elapsedDays: 1, reviewed: 200, state: 2 },
+      { id: "sibling", cardId: "sibling-card", rating: 3, scheduledDays: 1, elapsedDays: 1, reviewed: 300, state: 2 },
+    ];
+    const contexts = new Map([
+      ["root-card", { cardId: "root-card", documentId: "doc-root", documentPath: "/Study/Root" }],
+      ["child-card", { cardId: "child-card", documentId: "doc-child", documentPath: "/Study/Root/Child" }],
+      ["sibling-card", { cardId: "sibling-card", documentId: "doc-sibling", documentPath: "/Study/Rootish" }],
+    ]);
+    expect(filterReviewLogEntries(entries, {
+      documentId: "doc-root",
+      documentPath: "/Study/Root",
+      includeSubdocuments: true,
+    }, contexts).map((item) => item.id)).toEqual(["root", "child"]);
+    expect(filterReviewLogEntries(entries, {
+      documentId: "doc-root",
+      documentPath: "/Study/Root",
+      includeSubdocuments: false,
+    }, contexts).map((item) => item.id)).toEqual(["root"]);
+    expect(filterReviewLogEntries(entries, {
+      documentPath: "/Study",
+      includeSubdocuments: true,
+    }, contexts).map((item) => item.id)).toEqual(["root", "child", "sibling"]);
+  });
+
+  it("groups an arbitrary filtered selection into local calendar months", () => {
+    const entries = [
+      { id: "a", cardId: "a", rating: 3, scheduledDays: 1, elapsedDays: 1, reviewed: Date.UTC(2026, 0, 2) / 1000, state: 2 },
+      { id: "b", cardId: "b", rating: 3, scheduledDays: 1, elapsedDays: 1, reviewed: Date.UTC(2026, 1, 2) / 1000, state: 2 },
+    ];
+    expect([...groupReviewLogEntriesByMonth(entries).keys()]).toEqual(["202601", "202602"]);
   });
 });

@@ -211,7 +211,7 @@ describe("Statistics", () => {
     const dialog = request.card as HTMLElement;
     dialog.classList.add("damophus-statistics-preview-card");
     const content = dialog.querySelector<HTMLElement>(".statistics-card-content")!;
-    expect(getComputedStyle(content).overflowY).toBe("auto");
+    expect(getComputedStyle(content).overflowY).toBe("visible");
     expect(getComputedStyle(content).overscrollBehaviorY).toBe("contain");
     expect(dialog.querySelector(".statistics-card-resizer")).not.toBeVisible();
   });

@@ -53,6 +53,7 @@ function mergeSettings(value: unknown): FlashcardSettings {
     scanInterval: Math.max(1, Number(input.scanInterval ?? DEFAULT_FLASHCARD_SETTINGS.scanInterval)),
     postponeEnabled: input.postponeEnabled === true,
     postponeDays: Math.max(0, Number(input.postponeDays ?? DEFAULT_FLASHCARD_SETTINGS.postponeDays)),
+    confirmBeforeAutoRegister: input.confirmBeforeAutoRegister === true,
     rendererInterceptionEnabled: input.rendererInterceptionEnabled !== false,
     rendererVisibility: {
       ...DEFAULT_FLASHCARD_SETTINGS.rendererVisibility,
@@ -65,6 +66,8 @@ function mergeSettings(value: unknown): FlashcardSettings {
       order,
       visible: normalizedVisible,
     },
+    reviewTimerEnabled: input.reviewTimerEnabled !== false,
+    reviewTimerContinueAfterAnswer: input.reviewTimerContinueAfterAnswer === true,
     reviewToolbarEnabled: input.reviewToolbarEnabled !== false,
     reviewToolbarLocate: input.reviewToolbarLocate !== false,
     reviewToolbarUnregister: input.reviewToolbarUnregister !== false,
@@ -74,7 +77,10 @@ function mergeSettings(value: unknown): FlashcardSettings {
     reviewToolbarSkipBetween: input.reviewToolbarSkipBetween !== false,
     reviewToolbarShowExitFocus: input.reviewToolbarShowExitFocus === true,
     reviewToolbarShowBrand: input.reviewToolbarShowBrand !== false,
+    reviewToolbarShowFilter: input.reviewToolbarShowFilter !== false,
+    reviewToolbarShowFullscreen: input.reviewToolbarShowFullscreen !== false,
     showBreadcrumbReviewButton: input.showBreadcrumbReviewButton !== false,
+    fsrsOptimizerMode: input.fsrsOptimizerMode === "browser" ? "browser" : "internal",
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],
       ...group,

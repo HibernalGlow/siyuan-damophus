@@ -154,6 +154,29 @@ export async function upload(assetsDirPath: string, files: any[]): Promise<IResU
     return request(url, form);
 }
 
+export interface SiyuanFlashcardConfig {
+    deck: boolean;
+    heading: boolean;
+    list: boolean;
+    mark: boolean;
+    maximumInterval: number;
+    newCardLimit: number;
+    requestRetention: number;
+    reviewCardLimit: number;
+    reviewMode: number;
+    superBlock: boolean;
+    weights: string;
+    [key: string]: unknown;
+}
+
+export async function setFlashcardConfig(config: SiyuanFlashcardConfig): Promise<SiyuanFlashcardConfig | null> {
+    return request("/api/setting/setFlashcard", config);
+}
+
+export async function getSystemConfig(): Promise<{ conf?: { flashcard?: SiyuanFlashcardConfig } } | null> {
+    return request("/api/system/getConf", {});
+}
+
 export async function uploadAssetsStrict(
     assetsDirPath: string,
     files: File[],

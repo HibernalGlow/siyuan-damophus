@@ -7,6 +7,10 @@ function card(id: string): RiffCardRecord {
   return { blockID: id, cardID: `${id}-card` };
 }
 
+function stateCard(id: string, state: number): RiffCardRecord {
+  return { ...card(id), state };
+}
+
 function root(id: string, priority?: FlashcardRoot["priority"], priorityConflict = false): FlashcardRoot {
   return { blockId: id, renderer: "list", kind: "basic", attributes: {}, priority, priorityConflict };
 }
@@ -27,6 +31,24 @@ describe("flashcard priority queue", () => {
 
     expect(orderCardsByPriority(cards, roots, { randomInterleave: false }).map((item) => item.blockID)).toEqual([
       "p4", "conflict",
+    ]);
+  });
+
+  it("honors native new-card-first ordering before DAMO priority", () => {
+    const cards = [stateCard("old-p1", 1), stateCard("new-p4", 0), stateCard("old-p2", 1), stateCard("new-p1", 0)];
+    const roots = [root("old-p1", "P1"), root("new-p4", "P4"), root("old-p2", "P2"), root("new-p1", "P1")];
+
+    expect(orderCardsByPriority(cards, roots, { randomInterleave: false, reviewMode: 1 }).map((item) => item.blockID)).toEqual([
+      "new-p1", "new-p4", "old-p1", "old-p2",
+    ]);
+  });
+
+  it("honors native old-card-first ordering before DAMO priority", () => {
+    const cards = [stateCard("new-p1", 0), stateCard("old-p4", 1), stateCard("new-p2", 0), stateCard("old-p1", 1)];
+    const roots = [root("new-p1", "P1"), root("old-p4", "P4"), root("new-p2", "P2"), root("old-p1", "P1")];
+
+    expect(orderCardsByPriority(cards, roots, { randomInterleave: false, reviewMode: 2 }).map((item) => item.blockID)).toEqual([
+      "old-p1", "old-p4", "new-p1", "new-p2",
     ]);
   });
 

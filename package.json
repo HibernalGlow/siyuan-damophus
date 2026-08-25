@@ -76,6 +76,7 @@
     "clsx": "2.1.1",
     "consola": "^3.4.2",
     "diff": "^8.0.4",
+    "fsrs-browser": "2.0.4",
     "jszip": "3.10.1",
     "lucide-svelte": "0.545.0",
     "mdast-util-to-string": "^4.0.0",

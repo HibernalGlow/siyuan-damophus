@@ -2,21 +2,26 @@ import type { FlashcardPriorityTag } from "./priority-tags";
 import { DEFAULT_FLASHCARD_SETTINGS } from "./types";
 import type { FlashcardReviewStatKey, FlashcardReviewStatsSettings } from "./types";
 import { reviewStatDisplay, type ReviewCardStats } from "./review-stats";
+import { formatReviewTimer, type NativeReviewTimerDisplay } from "./native-review-timer";
 
 export type ReviewPriorityBucket = FlashcardPriorityTag | "other";
 
 export interface ReviewCounterCard {
   cardID: string;
   priority: ReviewPriorityBucket;
+  /** Native Riff state 0 is a new card; all other states are treated as old. */
+  isNew?: boolean;
   stats?: ReviewCardStats;
 }
 
 export interface NativeReviewCounterOptions {
   documentRef: Document;
   getStatsSettings?: () => FlashcardReviewStatsSettings;
+  getTimerDisplay?: () => NativeReviewTimerDisplay;
 }
 
 const PRIORITIES: readonly ReviewPriorityBucket[] = ["P1", "P2", "P3", "P4", "other"];
+interface PriorityCount { total: number; newCount: number; oldCount: number; }
 const STYLE_ID = "damophus-native-review-counter-style";
 const STAT_ICONS: Record<FlashcardReviewStatKey, string> = {
   reviews: "iconHistory",
@@ -186,6 +191,32 @@ const COUNTER_STYLE = `
 .damophus-priority-chip[data-priority="P3"] { color: var(--b3-theme-primary); }
 .damophus-priority-chip[data-priority="P4"] { color: var(--b3-theme-success); }
 .damophus-priority-chip[data-priority="other"] { color: var(--b3-theme-on-surface-light); }
+.damophus-priority-chip[data-split="true"] strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.damophus-priority-count-new,
+.damophus-priority-count-old {
+  min-width: 15px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  text-align: center;
+}
+.damophus-priority-count-new {
+  color: var(--b3-theme-on-primary);
+  background: var(--b3-theme-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-primary) 20%, transparent);
+}
+.damophus-priority-count-old {
+  color: var(--b3-theme-on-surface);
+  background: color-mix(in srgb, var(--b3-theme-on-surface) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b3-theme-on-surface) 28%, transparent);
+}
+.damophus-priority-count-plus {
+  color: var(--b3-theme-on-surface-light);
+  font-weight: 500;
+}
 .damophus-priority-chip[data-complete="true"] { opacity: .7; }
 .damophus-priority-chip[data-complete="true"][data-priority="P1"] { animation: damophus-priority-p1 .8s ease both; }
 .damophus-priority-chip[data-complete="true"][data-priority="P2"] { animation: damophus-priority-p2 .8s ease both; }
@@ -219,9 +250,38 @@ const COUNTER_STYLE = `
   border-radius: 4px;
   background: color-mix(in srgb, currentColor 6%, transparent);
 }
+.damophus-review-timers {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: 5px;
+  color: var(--b3-theme-on-surface-light);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.damophus-review-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  white-space: nowrap;
+}
+.damophus-review-timer[data-paused="true"] { opacity: .68; }
+.damophus-review-timer-icon { width: 14px; height: 14px; flex: 0 0 14px; }
+.damophus-review-timer-label { display: none; }
+.damophus-review-timers strong { font-weight: 650; white-space: nowrap; }
+.damophus-counter-row .damophus-review-timers { margin-inline-start: 0; gap: 6px; }
+.damophus-counter-row .damophus-review-timer { font-size: 0; }
+.damophus-counter-row .damophus-review-timer strong { font-size: 12px; line-height: 1; }
 [data-damophus-density="expanded"] .damophus-priority-label,
 [data-damophus-density="expanded"] .damophus-priority-total-label,
-[data-damophus-density="expanded"] .damophus-review-stat-label { display: inline; }
+[data-damophus-density="expanded"] .damophus-review-stat-label,
+[data-damophus-density="expanded"] .damophus-review-timer-label { display: inline; }
+[data-damophus-density="tight"] .damophus-counter-details { flex: 1 1 100%; width: 100%; overflow-x: auto; }
+[data-damophus-density="tight"] .damophus-priority-counter { flex-wrap: wrap; }
 @keyframes damophus-priority-p1 {
   0%, 100% { transform: scale(1); }
   35% { transform: scale(1.18); box-shadow: 0 0 0 4px color-mix(in srgb, var(--b3-theme-error) 18%, transparent); }
@@ -267,7 +327,7 @@ export class NativeReviewCounter {
   private readonly animated = new Set<ReviewPriorityBucket>();
   private queue: ReviewCounterCard[] = [];
   private activeCardID?: string;
-  private lastCounts = new Map<ReviewPriorityBucket, number>();
+  private lastCounts = new Map<ReviewPriorityBucket, PriorityCount>();
   private renderQueued = false;
 
   constructor(private readonly options: NativeReviewCounterOptions) {}
@@ -285,9 +345,17 @@ export class NativeReviewCounter {
   }
 
   setQueue(cards: readonly ReviewCounterCard[]): void {
+    const previousRoundComplete = this.queue.length > 0
+      && this.queue.every((card) => this.completed.has(card.cardID));
     const nextIds = new Set(cards.map((card) => card.cardID));
     for (const cardID of [...this.completed]) {
       if (!nextIds.has(cardID)) this.completed.delete(cardID);
+    }
+    // A seamless native review can start a new round with the same card IDs
+    // (for example after Again). Those cards must be countable again; the
+    // completed set only belongs to the previous round.
+    if (previousRoundComplete) {
+      for (const cardID of nextIds) this.completed.delete(cardID);
     }
     this.queue = cards.map((card) => ({ ...card }));
     if (this.activeCardID && !nextIds.has(this.activeCardID)) this.activeCardID = undefined;
@@ -354,7 +422,7 @@ export class NativeReviewCounter {
     const counts = this.counts();
     const completedPriorities = new Set<ReviewPriorityBucket>();
     for (const priority of PRIORITIES) {
-      if ((this.lastCounts.get(priority) ?? 0) > 0 && counts.get(priority) === 0) {
+      if ((this.lastCounts.get(priority)?.total ?? 0) > 0 && (counts.get(priority)?.total ?? 0) === 0) {
         completedPriorities.add(priority);
         this.animated.add(priority);
       }
@@ -494,11 +562,15 @@ export class NativeReviewCounter {
     if (root) this.resizeObserver.observe(root);
   }
 
-  private counts(): Map<ReviewPriorityBucket, number> {
-    const counts = new Map<ReviewPriorityBucket, number>(PRIORITIES.map((priority) => [priority, 0]));
+  private counts(): Map<ReviewPriorityBucket, PriorityCount> {
+    const counts = new Map<ReviewPriorityBucket, PriorityCount>(PRIORITIES.map((priority) => [priority, { total: 0, newCount: 0, oldCount: 0 }]));
     for (const card of this.queue) {
       if (this.completed.has(card.cardID)) continue;
-      counts.set(card.priority, (counts.get(card.priority) ?? 0) + 1);
+      const count = counts.get(card.priority) ?? { total: 0, newCount: 0, oldCount: 0 };
+      count.total += 1;
+      if (card.isNew) count.newCount += 1;
+      else count.oldCount += 1;
+      counts.set(card.priority, count);
     }
     return counts;
   }
@@ -511,28 +583,47 @@ export class NativeReviewCounter {
     this.options.documentRef.head?.append(style);
   }
 
-  private densityFor(element: HTMLElement): "compact" | "expanded" {
-    const layout = element.closest<HTMLElement>(".toolbar, .block__icons, .card__main") ?? element.parentElement ?? element;
-    const width = layout.getBoundingClientRect().width;
+  private densityFor(element: HTMLElement): "compact" | "expanded" | "tight" {
+    const root = element.closest<HTMLElement>(".card__main");
+    const toolbar = root?.querySelector<HTMLElement>(".toolbar, .block__icons")
+      ?? element.closest<HTMLElement>(".toolbar, .block__icons");
+    const layout = toolbar ?? element.parentElement ?? element;
+    const width = layout.clientWidth || layout.getBoundingClientRect().width;
+    if (toolbar && width > 0 && width < 360) return "tight";
     return width >= 1100 ? "expanded" : "compact";
   }
 
   private renderMarkup(
-    counts: Map<ReviewPriorityBucket, number>,
+    counts: Map<ReviewPriorityBucket, PriorityCount>,
     completedPriorities: Set<ReviewPriorityBucket>,
   ): string {
     const chips = PRIORITIES.map((priority) => {
-      const count = counts.get(priority) ?? 0;
+      const count = counts.get(priority) ?? { total: 0, newCount: 0, oldCount: 0 };
       const complete = completedPriorities.has(priority) || this.animated.has(priority);
       const active = this.queue.some((card) => card.cardID === this.activeCardID && card.priority === priority);
       const label = priority === "other" ? "其他" : priority;
-      return `<span class="damophus-priority-chip" data-priority="${priority}" data-count="${count}" data-complete="${complete}" data-active="${active}" title="${label} ${count}" aria-label="${label} ${count}">
+      const split = count.newCount > 0 && count.oldCount > 0;
+      const number = split
+        ? `<span class="damophus-priority-count-new" title="新卡 ${count.newCount}">${count.newCount}</span><span class="damophus-priority-count-plus" aria-hidden="true">+</span><span class="damophus-priority-count-old" title="旧卡 ${count.oldCount}">${count.oldCount}</span>`
+        : count.total;
+      const accessibleNumber = split ? `${count.newCount}+${count.oldCount}` : String(count.total);
+      return `<span class="damophus-priority-chip" data-priority="${priority}" data-count="${count.total}" data-new-count="${count.newCount}" data-old-count="${count.oldCount}" data-split="${split}" data-complete="${complete}" data-active="${active}" title="${label} ${accessibleNumber}" aria-label="${label} ${accessibleNumber}">
         <svg class="damophus-counter-icon" aria-hidden="true"><use href="#iconTags"></use></svg>
-        <span class="damophus-priority-label">${label}</span><strong>${count}</strong>
+        <span class="damophus-priority-label">${label}</span><strong>${number}</strong>
       </span>`;
     }).join("");
     return `<span class="damophus-priority-segment">${chips}</span>`
-      + `<span class="damophus-counter-details"><span class="damophus-priority-total" title="共 ${this.queue.length - this.completed.size}" aria-label="剩余闪卡"><svg class="damophus-counter-icon" aria-hidden="true"><use href="#iconRiffCard"></use></svg><span class="damophus-priority-total-label">共</span> <strong>${this.queue.length - this.completed.size}</strong></span>${this.renderStats()}</span>`;
+      + `<span class="damophus-counter-details"><span class="damophus-priority-total" title="共 ${this.queue.length - this.completed.size}" aria-label="剩余闪卡"><svg class="damophus-counter-icon" aria-hidden="true"><use href="#iconRiffCard"></use></svg><span class="damophus-priority-total-label">共</span> <strong>${this.queue.length - this.completed.size}</strong></span>${this.renderTimer()}${this.renderStats()}</span>`;
+  }
+
+  private renderTimer(): string {
+    const timer = this.options.getTimerDisplay?.();
+    if (!timer?.enabled) return "";
+    const paused = String(timer.paused);
+    return `<span class="damophus-review-timers" data-testid="damophus-review-timers">`
+      + `<span class="damophus-review-timer" data-timer="total" data-paused="${paused}" title="本轮总计时 ${formatReviewTimer(timer.totalMs)}" aria-label="本轮总计时 ${formatReviewTimer(timer.totalMs)}"><svg class="damophus-review-timer-icon" aria-hidden="true"><use href="#iconHistory"></use></svg><span class="damophus-review-timer-label">总计</span><strong>${formatReviewTimer(timer.totalMs)}</strong></span>`
+      + `<span class="damophus-review-timer" data-timer="card" data-paused="${paused}" title="当前卡片 ${formatReviewTimer(timer.cardMs)}" aria-label="当前卡片 ${formatReviewTimer(timer.cardMs)}"><svg class="damophus-review-timer-icon" aria-hidden="true"><use href="#iconClock"></use></svg><span class="damophus-review-timer-label">本卡</span><strong>${formatReviewTimer(timer.cardMs)}</strong></span>`
+      + `</span>`;
   }
 
   private renderStats(): string {

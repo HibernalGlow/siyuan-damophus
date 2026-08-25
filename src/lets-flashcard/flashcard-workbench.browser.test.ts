@@ -40,6 +40,7 @@ async function render() {
       onOpenRaw: vi.fn(), onOpenFiltered: vi.fn(), onBatchPriority: vi.fn(), onImportSfp: vi.fn(),
       onReviewScope: vi.fn(), onLocateCard: vi.fn(), onUnregisterCard: vi.fn(),
       onSetCardPriority: vi.fn(), onSettingsChanged: vi.fn(),
+      onOptimizeReviewLog: vi.fn(), onApplyFsrsWeights: vi.fn(),
     },
   });
   await tick();
@@ -140,6 +141,10 @@ describe("flashcard workbench", () => {
     expect(target.querySelector('[aria-label="复习记录"] svg')).not.toBeNull();
     expect(target.querySelector('[aria-label="按月打包导出"]')).not.toBeNull();
     expect(target.querySelector('[aria-label="导出合并记录"]')).not.toBeNull();
+    expect(target.querySelector('[data-testid="fsrs-optimizer-panel"]')).not.toBeNull();
+    expect(target.querySelector('[aria-label="启动 FSRS 优化器"]')).not.toBeNull();
+    expect(target.querySelector('[aria-label="FSRS 优化运行模式"]')).not.toBeNull();
+    expect(target.textContent).toContain("插件内部");
 
     await page.viewport(320, 760);
     await vi.waitFor(() => expect(getComputedStyle(target.querySelector('[aria-label="按月打包导出"] span')!).display).toBe("none"));
@@ -154,6 +159,8 @@ describe("flashcard workbench", () => {
     await vi.waitFor(() => expect(target.querySelector('[aria-label="启用卡片渲染适配"]')).not.toBeNull());
     expect(target.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(target.querySelector('[data-testid="renderer-options"]')).not.toBeNull();
+    expect(target.querySelector('[aria-label="显示原生筛选"]')).not.toBeNull();
+    expect(target.querySelector('[aria-label="显示原生全屏"]')).not.toBeNull();
     const rendererRows = [...target.querySelectorAll<HTMLElement>('[data-testid="renderer-options"] .option-row')];
     expect(rendererRows.every((row) => row.querySelector("svg"))).toBe(true);
     expect(Math.round(rendererRows[0].getBoundingClientRect().top)).toBe(Math.round(rendererRows[1].getBoundingClientRect().top));

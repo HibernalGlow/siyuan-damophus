@@ -115,4 +115,47 @@ describe("duration comparison placement", () => {
 
     expect(document.querySelector(".practice-heading-details [data-benchmark=previous]")).not.toBeNull();
   });
+
+  it("can place the reveal action directly below the options", async () => {
+    mounted = mount(QuestionBankPractice, {
+      target: document.body,
+      props: {
+        label,
+        currentQuestion: question,
+        currentGroup: undefined,
+        currentQuestionBlockId: undefined,
+        displayedOptions: [{ originalId: "A", displayLabel: "A", markdown: "Option" }],
+        selectedOptionIds: ["A"],
+        revealed: false,
+        readOnlyQuestion: false,
+        objectiveCorrect: null,
+        subjectiveScore: undefined,
+        currentAttempt: undefined,
+        durationComparisons: [],
+        durationComparisonPosition: "rating",
+        revealActionBelowOptions: true,
+        renderedQuestionContent: (markdown: string) => markdown,
+        questionTypeLabel: () => "Single choice",
+        optionMarkdown: () => "Option",
+        formatDuration,
+        toggleOption: vi.fn(),
+        changeSubjectiveScore: vi.fn(),
+        mountSourceBlock: undefined,
+        suggestedRating: undefined,
+        resetQuestionTimer: vi.fn(),
+        confirmEndPractice: vi.fn(),
+        retryPracticeSave: vi.fn(),
+        goToQuestion: vi.fn(),
+        revealAnswer: vi.fn(),
+        retry: vi.fn(),
+        submitRating: vi.fn(),
+      },
+    });
+    await tick();
+
+    const inlineAction = document.querySelector(".action-bar--inline");
+    expect(inlineAction).not.toBeNull();
+    expect(document.querySelectorAll(".action-bar")).toHaveLength(1);
+    expect(document.querySelector(".options")).not.toBeNull();
+  });
 });

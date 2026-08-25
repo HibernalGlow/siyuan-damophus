@@ -1,9 +1,13 @@
 import { getAllTabs } from "siyuan";
-import { getHPathByID } from "@/api";
+import { getIDsByHPath, getPathByID } from "@/api";
+
+export interface TabDocumentLocation {
+  path: string;
+  notebook: string;
+}
 
 export interface TabIconOptions {
-  parentPath: string;
-  icon: string;
+  rules: ReadonlyArray<{ notebook?: string; parentPath: string; icon: string }>;
 }
 
 export interface TabWithDocument {
@@ -18,6 +22,10 @@ export function normalizeHPath(value: string): string {
   if (!normalized) return "";
   const withLeadingSlash = normalized.startsWith("/") ? normalized : `/${normalized}`;
   return withLeadingSlash.length > 1 ? withLeadingSlash.replace(/\/+$/u, "") : withLeadingSlash;
+}
+
+export function isBlockId(value: string): boolean {
+  return /^\d{14}-[a-z0-9]{7}$/u.test(value.trim());
 }
 
 export function isDescendantHPath(parentPath: string, candidatePath: string): boolean {
@@ -41,10 +49,11 @@ export function getTabRootId(tab: TabWithDocument): string | undefined {
 }
 
 type TabGetter = () => readonly TabWithDocument[];
-type PathResolver = (id: string) => Promise<string>;
+type LocationResolver = (id: string) => Promise<TabDocumentLocation>;
+type PathValidator = (notebook: string, path: string) => Promise<boolean>;
 
 export class TabIconController {
-  private options: TabIconOptions = { parentPath: "", icon: "" };
+  private options: TabIconOptions = { rules: [] };
   private readonly managed = new Map<TabWithDocument, string>();
   private observer?: MutationObserver;
   private timer?: number;
@@ -53,7 +62,11 @@ export class TabIconController {
 
   constructor(
     private readonly getTabs: TabGetter = () => getAllTabs(),
-    private readonly resolvePath: PathResolver = getHPathByID,
+    private readonly resolveLocation: LocationResolver = getPathByID,
+    private readonly validatePath: PathValidator = async (notebook, path) => {
+      const ids = await getIDsByHPath(notebook, path);
+      return Array.isArray(ids) && ids.length > 0;
+    },
   ) {}
 
   start(options: TabIconOptions): void {
@@ -86,18 +99,42 @@ export class TabIconController {
     }
     this.syncing = true;
     try {
-      const options = {
-        parentPath: normalizeHPath(this.options.parentPath),
-        icon: this.options.icon.trim(),
-      };
+      const resolvedRules = await Promise.all(this.options.rules.map(async (rule) => {
+        const parentSetting = rule.parentPath.trim();
+        let parentPath = normalizeHPath(parentSetting);
+        let notebook = resolveNotebookId((rule.notebook ?? "").trim());
+        let valid = Boolean(notebook);
+        if (isBlockId(parentSetting)) {
+          try {
+            const location = await this.resolveLocation(parentSetting);
+            parentPath = normalizeHPath(location.path);
+            notebook = location.notebook;
+            valid = Boolean(parentPath && notebook);
+          } catch {
+            parentPath = "";
+            valid = false;
+          }
+        } else if (notebook && parentPath) {
+          try {
+            valid = await this.validatePath(notebook, parentPath);
+          } catch {
+            valid = false;
+          }
+        }
+        return { parentPath, notebook, icon: rule.icon.trim(), valid };
+      }));
       const tabs = this.getTabs();
-      const matches = new Set<TabWithDocument>();
-      if (options.parentPath && options.icon) {
+      const matches = new Map<TabWithDocument, string>();
+      if (resolvedRules.some((rule) => rule.parentPath && rule.icon)) {
         await Promise.all(tabs.map(async (tab) => {
           const rootId = getTabRootId(tab);
           if (!rootId) return;
           try {
-            if (isDescendantHPath(options.parentPath, await this.resolvePath(rootId))) matches.add(tab);
+            const location = await this.resolveLocation(rootId);
+            const rule = resolvedRules.find((candidate) => candidate.valid && candidate.parentPath && candidate.icon
+              && notebookMatches(candidate.notebook, location.notebook)
+              && isDescendantHPath(candidate.parentPath, location.path));
+            if (rule) matches.set(tab, rule.icon);
           } catch {
             // A tab can disappear while its document path is being resolved.
           }
@@ -105,7 +142,8 @@ export class TabIconController {
       }
 
       for (const tab of tabs) {
-        if (matches.has(tab)) this.applyIcon(tab, options.icon);
+        const icon = matches.get(tab);
+        if (icon) this.applyIcon(tab, icon);
         else this.restoreIcon(tab);
       }
       for (const tab of this.managed.keys()) {
@@ -144,4 +182,20 @@ export class TabIconController {
   private restoreManagedTabs(): void {
     for (const tab of [...this.managed.keys()]) this.restoreIcon(tab);
   }
+}
+
+function notebookMatches(selector: string, notebookId: string): boolean {
+  const value = selector.trim();
+  if (!value) return true;
+  if (value === notebookId) return true;
+  const notebooks = (globalThis as typeof globalThis & { siyuan?: { notebooks?: Array<{ id?: string; name?: string }> } }).siyuan?.notebooks ?? [];
+  return notebooks.some((notebook) => notebook.id === notebookId && notebook.name?.trim() === value);
+}
+
+function resolveNotebookId(selector: string): string {
+  if (!selector) return "";
+  const notebooks = (globalThis as typeof globalThis & { siyuan?: { notebooks?: Array<{ id?: string; name?: string }> } }).siyuan?.notebooks ?? [];
+  return notebooks.find((notebook) => notebook.id === selector)?.id
+    || notebooks.find((notebook) => notebook.name?.trim() === selector)?.id
+    || selector;
 }

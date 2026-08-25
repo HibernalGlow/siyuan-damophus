@@ -68,6 +68,7 @@ const settingItems: ISettingItem[] = [
   { type: "checkbox", title: "看答案时暂停", description: "暂停说明", key: "pauseOnAnswerReveal", value: true },
   { type: "checkbox", title: "离开焦点时自动暂停", description: "失焦暂停说明", key: "pauseOnBlur", value: false },
   { type: "select", title: "用时对比位置", description: "位置说明", key: "durationComparisonPosition", value: "rating", options: { rating: "评分上方" } },
+  { type: "select", title: "揭示答案操作位置", description: "选择揭示答案操作的位置", key: "revealActionBelowOptions", value: "bottom", options: { bottom: "底部", belowOptions: "选项下方" } },
   { type: "checkbox", title: "显示正误", description: "正误说明", key: "completionShowCorrectness", value: true },
   { type: "checkbox", title: "显示评级", description: "评级说明", key: "completionShowRating", value: true },
   { type: "checkbox", title: "显示作答用时", description: "用时说明", key: "completionShowDuration", value: true },
@@ -255,6 +256,16 @@ describe("question bank settings navigation", () => {
 
     expect(document.documentElement.style.overflow).not.toBe("hidden");
     expect(document.body.style.overflow).not.toBe("hidden");
+  });
+
+  it("shows the reveal answer placement switch in the timing section", async () => {
+    const target = render();
+    await tick();
+
+    const timingSection = target.querySelector<HTMLElement>('#question-bank-settings-section-timing');
+    if (!timingSection) throw new Error("Missing timing settings section");
+    expect(timingSection.textContent).toContain("揭示答案操作位置");
+    expect(timingSection.querySelector("#revealActionBelowOptions")).not.toBeNull();
   });
 
   it("adapts navigation labels to the available width without overflowing", async () => {

@@ -126,6 +126,7 @@
   export let pauseOnAnswerReveal = true;
   export let pauseOnBlur = false;
   export let onPauseOnBlurChange: ((value: boolean) => void) | undefined = undefined;
+  export let revealActionBelowOptions = false;
   export let completionShowCorrectness = true;
   export let completionShowRating = true;
   export let completionShowDuration = true;
@@ -1557,7 +1558,7 @@
   {syncTopicProgress} toggleSyncTopicProgress={toggleSyncTopicProgress} rebuildTopicProgress={rebuildTopicProgress}
   {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
   {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
-  {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {indefinitePracticeMode} {renderedQuestionContent}
+  {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {indefinitePracticeMode} {revealActionBelowOptions} {renderedQuestionContent}
   {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}
   {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}
   {correctCurrentAnswer}

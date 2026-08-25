@@ -31,6 +31,7 @@
   export let durationComparisonPosition: DurationComparisonPosition = "rating";
   export let inheritSourceStyles = true;
   export let questionRenderMode: "html" | "native" | "embed" = "native";
+  export let revealActionBelowOptions = false;
   export let sourceEditingLocked = false;
   export let showStemStyles = false;
   export let indefinitePracticeMode = false;
@@ -124,7 +125,8 @@
     </aside>
   {/if}
   <ScrollArea.Root class="practice-content min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain">
-    <PracticeQuestionContent
+    <div class="practice-scroll-content">
+      <PracticeQuestionContent
       {currentQuestion}
       {currentBookmark}
       {currentGroup}
@@ -155,7 +157,22 @@
       {toggleOption}
       {changeSubjectiveScore}
       {label}
-    />
+      />
+      {#if !readOnlyQuestion && !revealed && revealActionBelowOptions}
+      <div class="action-bar action-bar--inline" class:timer-enabled={timingEnabled}>
+        {#if timingEnabled}
+          <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
+          <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
+            <RotateCcw size={16} aria-hidden="true" />
+          </Button>
+        {/if}
+        <Button onclick={revealAnswer}>
+          <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>
+          {label("reveal", "Reveal answer")}
+        </Button>
+      </div>
+      {/if}
+    </div>
   </ScrollArea.Root>
 
   {#if readOnlyQuestion}
@@ -171,7 +188,7 @@
         >{label(rating, rating)}</Button>
       {/each}
     </div>
-  {:else if !revealed}
+  {:else if !revealed && !revealActionBelowOptions}
 	<div class="action-bar" class:timer-enabled={timingEnabled}>
       {#if timingEnabled}
         <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>

@@ -46,4 +46,24 @@ describe("SiyuanMobileFlashcardSurfaceAdapter", () => {
     expect(adapter.openReview()).toBe(false);
     vi.unstubAllGlobals();
   });
+
+  it("opens the desktop native review dialog through the workspace menu", () => {
+    vi.useFakeTimers();
+    const more = { click: vi.fn() };
+    const reviewItem = { click: vi.fn() };
+    let ready = false;
+    vi.stubGlobal("document", { querySelector: vi.fn((selector: string) => {
+      if (selector === "#barMore") return more;
+      return ready ? reviewItem : null;
+    }) });
+    const adapter = new SiyuanMobileFlashcardSurfaceAdapter(vi.fn() as never);
+
+    expect(adapter.openReview(undefined, false)).toBe(true);
+    expect(more.click).toHaveBeenCalledTimes(1);
+    setTimeout(() => { ready = true; }, 25);
+    vi.advanceTimersByTime(100);
+    expect(reviewItem.click).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 });

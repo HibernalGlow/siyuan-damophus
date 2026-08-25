@@ -214,6 +214,11 @@
     locateCardFromSettings?: (card: import("./flashcard/siyuan-adapter").RiffCardRecord) => void;
     unregisterCardFromSettings?: (card: import("./flashcard/siyuan-adapter").RiffCardRecord) => void;
     setCardPriorityFromSettings?: (card: import("./flashcard/siyuan-adapter").RiffCardRecord, priority: number) => void;
+    optimizeReviewLogFromSettings?: (entries: import("./flashcard/review-log-export").RiffReviewLogEntry[]) => Promise<{
+      result: import("./flashcard/fsrs-optimizer-protocol").FsrsOptimizationResult;
+      preview: import("./flashcard/fsrs-settings-adapter").FsrsWeightPreview;
+    }>;
+    applyFsrsWeightsFromSettings?: (weights: number[]) => Promise<boolean>;
     onDataChanged?: () => void;
   } | undefined;
   $: flashcardRuntime = flashcardModule?.getSettingsRuntime?.();
@@ -851,6 +856,8 @@
           onLocateCard={(card) => flashcardModule?.locateCardFromSettings?.(card)}
           onUnregisterCard={(card) => flashcardModule?.unregisterCardFromSettings?.(card)}
           onSetCardPriority={(card, priority) => flashcardModule?.setCardPriorityFromSettings?.(card, priority)}
+          onOptimizeReviewLog={(entries) => flashcardModule?.optimizeReviewLogFromSettings?.(entries) ?? Promise.reject(new Error("闪卡模块不可用"))}
+          onApplyFsrsWeights={(weights) => flashcardModule?.applyFsrsWeightsFromSettings?.(weights) ?? Promise.resolve(false)}
           onSettingsChanged={() => flashcardModule?.onDataChanged?.()}
         />
       {:else if showLayoutActionsSettings}

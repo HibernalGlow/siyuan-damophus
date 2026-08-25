@@ -21,6 +21,29 @@ export interface RiffReviewLogEntry {
   state: number;
 }
 
+export interface ReviewLogCardContext {
+  cardId: string;
+  blockId?: string;
+  documentId?: string;
+  documentPath?: string;
+  notebookId?: string;
+  notebookName?: string;
+}
+
+export interface ReviewLogSelection {
+  fromReviewed?: number;
+  toReviewed?: number;
+  documentId?: string;
+  documentPath?: string;
+  includeSubdocuments?: boolean;
+  notebookId?: string;
+  state?: number;
+}
+
+function normalizedDocumentPath(path: string | undefined): string {
+  return (path ?? "").trim().replace(/\\/gu, "/").replace(/\/+/gu, "/").replace(/\/$/u, "");
+}
+
 export interface ReviewLogFile {
   name: string;
   month: string;
@@ -34,6 +57,41 @@ export interface ReviewLogArchive {
   errors: Array<{ file: string; message: string }>;
   firstReviewedAt?: number;
   lastReviewedAt?: number;
+}
+
+export function filterReviewLogEntries(
+  entries: readonly RiffReviewLogEntry[],
+  selection: ReviewLogSelection,
+  contexts: ReadonlyMap<string, ReviewLogCardContext> = new Map(),
+): RiffReviewLogEntry[] {
+  return entries.filter((entry) => {
+    const reviewed = entry.reviewed * 1000;
+    if (selection.fromReviewed !== undefined && reviewed < selection.fromReviewed) return false;
+    if (selection.toReviewed !== undefined && reviewed > selection.toReviewed) return false;
+    if (selection.state !== undefined && entry.state !== selection.state) return false;
+    const context = contexts.get(entry.cardId);
+    if (selection.documentId || selection.documentPath) {
+      const sameDocument = Boolean(selection.documentId && context?.documentId === selection.documentId);
+      const selectedPath = normalizedDocumentPath(selection.documentPath);
+      const contextPath = normalizedDocumentPath(context?.documentPath);
+      const samePath = Boolean(selectedPath && contextPath && contextPath === selectedPath);
+      const descendant = selection.includeSubdocuments
+        && Boolean(selectedPath && contextPath)
+        && (contextPath === selectedPath || contextPath.startsWith(`${selectedPath}/`));
+      if (!sameDocument && !samePath && !descendant) return false;
+    }
+    if (selection.notebookId && context?.notebookId !== selection.notebookId) return false;
+    return true;
+  });
+}
+
+export function groupReviewLogEntriesByMonth(entries: readonly RiffReviewLogEntry[]): Map<string, RiffReviewLogEntry[]> {
+  const grouped = new Map<string, RiffReviewLogEntry[]>();
+  for (const entry of entries) {
+    const month = new Date(entry.reviewed * 1000).toISOString().slice(0, 7).replace("-", "");
+    grouped.set(month, [...(grouped.get(month) ?? []), entry]);
+  }
+  return grouped;
 }
 
 export interface ReviewLogReader {

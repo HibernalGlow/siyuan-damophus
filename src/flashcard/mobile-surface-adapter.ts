@@ -6,7 +6,7 @@ export interface MobileFlashcardSurfaceAdapter {
     mount: (target: HTMLElement, close: () => void) => void,
     onDestroy: () => void,
   ): void;
-  openReview(scope?: { type: "document" | "notebook" }): boolean;
+  openReview(scope?: { type: "document" | "notebook" }, mobile?: boolean): boolean;
 }
 
 /**
@@ -45,7 +45,7 @@ export class SiyuanMobileFlashcardSurfaceAdapter implements MobileFlashcardSurfa
     mount(target, () => dialog.destroy());
   }
 
-  openReview(scope?: { type: "document" | "notebook" }): boolean {
+  openReview(scope?: { type: "document" | "notebook" }, mobile = true): boolean {
     if (scope?.type === "document") {
       const titleButton = document.querySelector<HTMLElement>('button[data-type="doc"]');
       if (!titleButton) return false;
@@ -77,11 +77,31 @@ export class SiyuanMobileFlashcardSurfaceAdapter implements MobileFlashcardSurfa
       return true;
     }
     if (!scope) {
-      const globalEntry = document.querySelector<HTMLElement>("#menuCard");
+      const globalEntry = document.querySelector<HTMLElement>(mobile ? "#menuCard" : "#barMore")
+        ?? (!mobile ? document.querySelector<HTMLElement>("#barWorkspace") : null);
       if (!globalEntry) return false;
       globalEntry.click();
+      if (!mobile) {
+        this.clickWhenAvailable('.b3-menu__item[data-id="spaceRepetition"]', '#barWorkspace');
+      }
       return true;
     }
     return false;
+  }
+
+  private clickWhenAvailable(selector: string, workspaceFallback?: string): void {
+    const startedAt = Date.now();
+    const findItem = (): void => {
+      const item = document.querySelector<HTMLElement>(selector);
+      if (item) {
+        item.click();
+        return;
+      }
+      if (workspaceFallback && Date.now() - startedAt > 150 && Date.now() - startedAt < 300) {
+        document.querySelector<HTMLElement>(workspaceFallback)?.click();
+      }
+      if (Date.now() - startedAt < 3000) globalThis.setTimeout(findItem, 50);
+    };
+    globalThis.setTimeout(findItem, 0);
   }
 }

@@ -128,7 +128,7 @@ export class FlashcardSiyuanAdapter {
         // SiYuan's SQL endpoint applies a small implicit row cap when LIMIT
         // is omitted. The explicit bound is required even for a chunked IN
         // query, otherwise large dynamic groups silently lose most blocks.
-        `SELECT id, parent_id, root_id, box, type, content, ial FROM blocks WHERE id IN (${idsClause(chunk)}) LIMIT ${chunk.length}`,
+        `SELECT id, parent_id, root_id, box, hpath, type, content, ial FROM blocks WHERE id IN (${idsClause(chunk)}) LIMIT ${chunk.length}`,
       );
       if (Array.isArray(batch)) rows.push(...batch);
     }

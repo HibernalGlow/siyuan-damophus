@@ -12,10 +12,12 @@ export interface NativeReviewToolbarSettings {
   skipBetween: boolean;
   showExitFocus?: boolean;
   showBrand: boolean;
+  showFilter?: boolean;
+  showFullscreen?: boolean;
 }
 
-export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock" | "blockquote" | "callout" | "tag";
-export type ReviewToolbarKey = "locate" | "unregister" | "priority" | "workbench" | "renderer";
+export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock" | "blockquote" | "callout" | "tag" | "topicRelations";
+export type ReviewToolbarKey = "locate" | "unregister" | "priority" | "workbench" | "renderer" | "filter" | "fullscreen";
 
 export interface NativePriorityControlOptions {
   documentRef: Document;
@@ -28,7 +30,7 @@ export interface NativePriorityControlOptions {
   openWorkbench: () => void;
   isRendererOverrideEnabled: () => boolean;
   toggleRendererOverride: () => void | Promise<void>;
-  getRendererVisibility: () => Record<RendererVisibilityKey, boolean>;
+  getRendererVisibility: () => Partial<Record<RendererVisibilityKey, boolean>>;
   toggleRendererVisibility: (key: RendererVisibilityKey) => void | Promise<void>;
   toggleToolVisibility: (key: ReviewToolbarKey) => void | Promise<void>;
 }
@@ -57,6 +59,12 @@ const BREADCRUMB_POLICY_STYLE = `
 }
 .protyle-breadcrumb[data-damophus-flashcard-breadcrumb] > [data-type="readonly"].block__icon {
   margin-left: 0;
+}
+.card__main[data-damophus-hide-native-filter] > :is(.toolbar, .block__icons) > [data-type="filter"],
+.card__main[data-damophus-hide-native-filter] > :is(.toolbar, .block__icons) > [data-damophus-native-filter-space],
+.card__main[data-damophus-hide-native-fullscreen] > :is(.toolbar, .block__icons) > [data-type="fullscreen"],
+.card__main[data-damophus-hide-native-fullscreen] > :is(.toolbar, .block__icons) > [data-damophus-native-fullscreen-space] {
+  display: none !important;
 }
 `;
 
@@ -98,6 +106,7 @@ export class NativePriorityControls {
         continue;
       }
       this.applyCardBrandVisibility(entry.root, settings.showBrand);
+      this.applyNativeToolbarVisibility(entry.root, settings);
       this.applySkipPlacement(entry.root, settings.skipBetween);
       const enabled = Boolean(this.options.getCurrentCard() || this.blockIdForRoot(entry.root));
       for (const element of entry.elements) {
@@ -118,6 +127,7 @@ export class NativePriorityControls {
       for (const element of entry.elements) element.remove();
     }
     this.clearBreadcrumbPolicies();
+    this.clearNativeToolbarPolicies();
     this.controls.clear();
     this.options.documentRef.getElementById(BREADCRUMB_POLICY_STYLE_ID)?.remove();
   }
@@ -126,6 +136,7 @@ export class NativePriorityControls {
     const settings = this.options.getSettings();
     if (!settings.enabled) {
       this.clearBreadcrumbPolicies();
+      this.clearNativeToolbarPolicies();
       return;
     }
     const signature = JSON.stringify(settings);
@@ -135,6 +146,7 @@ export class NativePriorityControls {
       );
       if (!toolbar) continue;
       this.applyCardBrandVisibility(root, settings.showBrand);
+      this.applyNativeToolbarVisibility(root, settings);
       this.applyBreadcrumbPolicy(root, settings, toolbar.classList.contains("toolbar"));
       this.applySkipPlacement(root, settings.skipBetween);
       const current = this.controls.get(toolbar);
@@ -173,6 +185,38 @@ export class NativePriorityControls {
     );
     mobileBrandIcon?.toggleAttribute("hidden", !showBrand);
     mobileBrandText?.toggleAttribute("hidden", !showBrand);
+  }
+
+  private applyNativeToolbarVisibility(root: HTMLElement, settings: NativeReviewToolbarSettings): void {
+    root.toggleAttribute("data-damophus-hide-native-filter", settings.showFilter === false);
+    root.toggleAttribute("data-damophus-hide-native-fullscreen", settings.showFullscreen === false);
+    const toolbar = [...root.children].find((child): child is HTMLElement =>
+      child.classList.contains("block__icons") || child.classList.contains("toolbar"),
+    );
+    if (!toolbar) return;
+    this.markFollowingSpace(toolbar.querySelector<HTMLElement>('[data-type="filter"]'), "data-damophus-native-filter-space");
+    this.markFollowingSpace(toolbar.querySelector<HTMLElement>('[data-type="fullscreen"]'), "data-damophus-native-fullscreen-space");
+    this.ensureBreadcrumbPolicyStyle();
+  }
+
+  private markFollowingSpace(control: HTMLElement | null, attribute: string): void {
+    const space = control?.nextElementSibling;
+    if (space instanceof HTMLElement && space.classList.contains("fn__space")) space.setAttribute(attribute, "");
+  }
+
+  private clearNativeToolbarPolicies(): void {
+    for (const root of this.options.documentRef.querySelectorAll<HTMLElement>(
+      ".card__main[data-damophus-hide-native-filter], .card__main[data-damophus-hide-native-fullscreen]",
+    )) {
+      root.removeAttribute("data-damophus-hide-native-filter");
+      root.removeAttribute("data-damophus-hide-native-fullscreen");
+    }
+    for (const space of this.options.documentRef.querySelectorAll<HTMLElement>(
+      "[data-damophus-native-filter-space], [data-damophus-native-fullscreen-space]",
+    )) {
+      space.removeAttribute("data-damophus-native-filter-space");
+      space.removeAttribute("data-damophus-native-fullscreen-space");
+    }
   }
 
   private clearBreadcrumbPolicies(): void {
@@ -295,6 +339,8 @@ export class NativePriorityControls {
       ["priority", "优先级"],
       ["renderer", "按卡片 renderer"],
       ["workbench", "打开工作台"],
+      ["filter", "原生筛选"],
+      ["fullscreen", "原生全屏"],
     ];
     const toolState: Record<ReviewToolbarKey, boolean> = {
       locate: settings.locate,
@@ -302,6 +348,8 @@ export class NativePriorityControls {
       priority: settings.priority,
       renderer: settings.renderer,
       workbench: settings.workbench,
+      filter: settings.showFilter !== false,
+      fullscreen: settings.showFullscreen !== false,
     };
     menu.addItem({ id: "damophus-flashcard-more-tools", type: "submenu", label: "工具栏按钮", submenu: tools.map(([key, label]) => ({
       icon: toolState[key] ? "iconCheck" : "iconUncheck",
@@ -317,6 +365,7 @@ export class NativePriorityControls {
       ["heading", "标题后续内容"],
       ["superBlock", "超级块内容"],
       ["tag", "标签"],
+      ["topicRelations", "考点关系"],
     ];
     menu.addItem({ id: "damophus-flashcard-more-renderers", type: "submenu", label: "隐藏规则", submenu: renderers.map(([key, label]) => ({
       icon: visibility[key] ? "iconCheck" : "iconUncheck",

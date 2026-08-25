@@ -1,13 +1,14 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { type FlashcardDiagnosticRow, type FlashcardGroup, type FlashcardReviewHistoryItem, type FlashcardReviewScope, type FlashcardReviewStatKey, type FlashcardSettings } from "@/flashcard/types";
   import type { RiffCardRecord } from "@/flashcard/siyuan-adapter";
   import type { FlashcardRuntime } from "@/flashcard/runtime";
   import {
-    Archive, ArrowDown, ArrowUp, BookOpen, Boxes, CalendarClock, Crosshair, Database, Download,
+    Archive, ArrowDown, ArrowUp, BookOpen, Boxes, BrainCircuit, CalendarClock, CheckCircle2, Crosshair, Database, Download,
     Eye, FileArchive, FileSpreadsheet, FileText, Files, Filter, Focus, Gauge, Heading, Highlighter, History,
-    Layers3, LayoutDashboard, ListTree, LocateFixed, MessageSquareText, PanelTop, Pencil, Percent, Pin,
-    PinOff, Play, Plus, Quote, RefreshCw, Repeat2, RotateCcw, Save, Search,
-    Settings2, SkipForward, SlidersHorizontal, Tags, Trash2, Unlink,
+    Layers3, LayoutDashboard, ListTree, LocateFixed, Maximize2, MessageSquareText, PanelTop, Pencil, Percent, Pin,
+    ExternalLink, PinOff, Play, Plus, Quote, RefreshCw, Repeat2, RotateCcw, Save, Search,
+    Settings2, SkipForward, SlidersHorizontal, Tags, Timer, Trash2, Undo2, Unlink, Network, Info,
     Upload, X, XCircle,
   } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
@@ -17,15 +18,23 @@
   import * as Tabs from "@/components/ui/tabs";
   import * as Select from "@/components/ui/select";
   import * as TreeView from "@/components/ui/tree-view";
+  import * as Tooltip from "@/components/ui/tooltip";
   import { Badge } from "@/components/ui/badge";
   import {
     createSiyuanReviewLogReader,
     downloadReviewLog,
     loadReviewLogArchive,
     monthlyReviewLogZip,
+    filterReviewLogEntries,
+    groupReviewLogEntriesByMonth,
     reviewLogToCsv,
+    type ReviewLogCardContext,
     type ReviewLogArchive,
+    type ReviewLogSelection,
   } from "@/flashcard/review-log-export";
+  import type { FsrsOptimizationResult } from "@/flashcard/fsrs-optimizer-protocol";
+  import type { FsrsWeightPreview } from "@/flashcard/fsrs-settings-adapter";
+  import type { FsrsWeightHistoryEntry } from "@/flashcard/fsrs-weight-history";
 
   export let runtime: FlashcardRuntime;
   export let onReviewGroup: (group: FlashcardGroup) => void;
@@ -40,6 +49,14 @@
   export let onUnregisterCard: (card: RiffCardRecord) => void;
   export let onSetCardPriority: (card: RiffCardRecord, priority: number) => void;
   export let onSettingsChanged: () => void;
+  export let onOptimizeReviewLog: (entries: ReviewLogArchive["entries"]) => Promise<{
+    result: FsrsOptimizationResult;
+    preview: FsrsWeightPreview;
+  }>;
+  export let onApplyFsrsWeights: (weights: number[]) => Promise<boolean>;
+  export let onGetFsrsWeights: () => number[] = () => [];
+  export let onLoadFsrsHistory: () => Promise<FsrsWeightHistoryEntry[]> = async () => [];
+  export let onUndoFsrsWeights: (entry: FsrsWeightHistoryEntry) => Promise<boolean> = async () => false;
 
   let config: FlashcardSettings = runtime.getSettings();
   let message = "";
@@ -59,6 +76,27 @@
   let visibleDiagnostics: FlashcardDiagnosticRow[] = [];
   let reviewLogArchive: ReviewLogArchive | undefined;
   let reviewLogLoading = false;
+  let reviewLogContextLoading = false;
+  let reviewLogContextError = "";
+  let reviewLogContexts: ReviewLogCardContext[] = [];
+  let reviewLogFrom = "";
+  let reviewLogTo = "";
+  let reviewLogNotebook = "";
+  let reviewLogDocument = "";
+  let reviewLogDocumentQuery = "";
+  let reviewLogIncludeSubdocuments = true;
+  let reviewLogState = "";
+  let reviewLogDocuments: Array<{ id: string; label: string }> = [];
+  let filteredReviewLogDocuments: Array<{ id: string; label: string }> = [];
+  let reviewLogNotebooks: Array<{ id: string; label: string }> = [];
+  let optimizerLoading = false;
+  let optimizerApplying = false;
+  let optimizerApplied = false;
+  let optimization: { result: FsrsOptimizationResult; preview: FsrsWeightPreview } | undefined;
+  let currentFsrsWeights: number[] = [];
+  let fsrsHistory: FsrsWeightHistoryEntry[] = [];
+  let fsrsHistoryLoading = false;
+  let fsrsUndoingId = "";
   let documentTreeOpen = true;
   let applicationTreeOpen = true;
   let readablePaths: Record<string, string> = {};
@@ -72,12 +110,13 @@
   };
   const RENDERER_OPTIONS = [
     ["mark", "隐藏高亮 / 挖空", Highlighter], ["list", "隐藏列表答案", ListTree], ["blockquote", "隐藏引述块答案", Quote],
-    ["callout", "隐藏提示块内容", MessageSquareText], ["heading", "隐藏标题后续内容", Heading], ["superBlock", "隐藏超级块内容", Boxes], ["tag", "隐藏标签", Tags],
+    ["callout", "隐藏提示块内容", MessageSquareText], ["heading", "隐藏标题后续内容", Heading], ["superBlock", "隐藏超级块内容", Boxes], ["tag", "隐藏标签", Tags], ["topicRelations", "隐藏考点关系", Network],
   ] as const;
   const TOOLBAR_OPTIONS = [
     ["reviewToolbarLocate", "定位原块", Crosshair], ["reviewToolbarUnregister", "取消登记", Unlink], ["reviewToolbarPriority", "P1-P4", Gauge],
     ["reviewToolbarWorkbench", "打开工作台", LayoutDashboard], ["reviewToolbarRenderer", "渲染开关", Eye], ["reviewToolbarSkipBetween", "跳过置于 PQ 与显示答案之间", SkipForward],
     ["reviewToolbarShowExitFocus", "显示退出聚焦", Focus], ["reviewToolbarShowBrand", "显示闪卡标题", PanelTop],
+    ["reviewToolbarShowFilter", "显示原生筛选", Filter], ["reviewToolbarShowFullscreen", "显示原生全屏", Maximize2],
   ] as const;
   const REVIEW_STAT_ICONS = {
     reviews: Repeat2,
@@ -86,6 +125,27 @@
     lapseRate: Percent,
     interval: History,
   };
+  const FSRS_PARAMETER_DESCRIPTIONS = [
+    ["w0", "Again 初始稳定性", "第一次按 Again 后的初始记忆稳定性。数值越大，系统给出的起始间隔通常越长。", "决定失败评级（Again）创建或重置卡片时的起始稳定性，是四个评级初始稳定性参数之一。"],
+    ["w1", "Hard 初始稳定性", "第一次按 Hard 后的初始稳定性。", "决定困难评级（Hard）首次建立记忆时的起始稳定性，影响之后的首个复习间隔。"],
+    ["w2", "Good 初始稳定性", "第一次按 Good 后的初始稳定性。", "决定正常记住（Good）时的初始稳定性，通常是最常用的新卡起点。"],
+    ["w3", "Easy 初始稳定性", "第一次按 Easy 后的初始稳定性。", "决定轻松记住（Easy）时的初始稳定性，影响新卡首次被安排的间隔。"],
+    ["w4", "初始难度基线", "新卡难度的基础水平。", "为首次评分计算难度提供基线；它与 w5 一起把 Again、Hard、Good、Easy 映射到不同初始难度。"],
+    ["w5", "初始难度评级敏感度", "初始难度随评分变化的幅度。", "控制不同首次评分对初始难度的影响强弱；绝对值越大，评级之间的难度差异通常越明显。"],
+    ["w6", "难度变化系数", "后续评分改变难度的力度。", "控制每次复习评级对当前难度的增减幅度，影响卡片在连续答对或答错后的难度漂移。"],
+    ["w7", "难度回归强度", "让难度回到个人基准的力度。", "控制更新后的难度向 Easy 所对应的个人基准难度回归的速度，避免难度长期漂移到极端。"],
+    ["w8", "成功稳定性增长基线", "答对后稳定性增长的基础倍率。", "控制成功复习时稳定性增长的总体幅度，是成功分支计算新稳定性的主要基线参数。"],
+    ["w9", "成功增长稳定性敏感度", "当前稳定性对增长幅度的影响。", "控制已有稳定性对下一次增长的抑制或放大；用于让短稳定性和长稳定性卡片呈现不同增长曲线。"],
+    ["w10", "成功增长可提取性敏感度", "当前可回忆程度对增长幅度的影响。", "根据复习时的可提取性（retrievability）调整成功后的增长；越接近遗忘边缘时，增长通常越有价值。"],
+    ["w11", "遗忘后稳定性基线", "答错后重新建立稳定性的基础倍率。", "控制 Again 后重新学习阶段的稳定性起点，决定遗忘卡片恢复记忆的速度。"],
+    ["w12", "遗忘难度敏感度", "卡片难度对遗忘后稳定性的影响。", "控制难度越高时遗忘后可恢复稳定性的衰减程度。"],
+    ["w13", "遗忘前稳定性敏感度", "原有稳定性对遗忘后恢复的影响。", "控制遗忘前的稳定性如何参与恢复计算，影响熟卡偶尔遗忘后的回落幅度。"],
+    ["w14", "遗忘可提取性敏感度", "遗忘时的可回忆程度对恢复的影响。", "把复习发生时的可提取性纳入遗忘分支，区分刚接近遗忘和已经严重遗忘的情况。"],
+    ["w15", "Hard 成功惩罚", "答 Hard 时相对普通成功的稳定性折减。", "仅作用于成功分支中的 Hard 评级，用来限制困难回忆带来的稳定性增长。"],
+    ["w16", "Easy 成功奖励", "答 Easy 时相对普通成功的稳定性加成。", "仅作用于成功分支中的 Easy 评级，用来增加轻松回忆时的稳定性增长。"],
+    ["w17", "短期稳定性增长系数", "同日重复学习时的短期稳定性变化。", "控制同一天再次学习或重学时的稳定性增长，同时参与遗忘后的短期稳定性下限约束。"],
+    ["w18", "短期评级偏移", "短期学习阶段不同评级的偏移量。", "调整 Again、Hard、Good、Easy 在短期学习分支中的相对增长，并参与遗忘后稳定性下限计算。"],
+  ] as const;
 
   $: activeCategoryId = config.categories.some((category) => category.id === activeCategoryId)
     ? activeCategoryId
@@ -98,6 +158,33 @@
     if (browserRenderer !== "all" && row.renderer !== browserRenderer) return false;
     return !browserDueOnly || row.due;
   }).slice(0, 300);
+  $: reviewLogContextMap = new Map(reviewLogContexts.map((context) => [context.cardId, context]));
+  $: reviewLogSelection = buildReviewLogSelection(reviewLogFrom, reviewLogTo, reviewLogNotebook, reviewLogDocument, reviewLogState, reviewLogIncludeSubdocuments);
+  $: selectedReviewLogEntries = reviewLogArchive
+    ? filterReviewLogEntries(reviewLogArchive.entries, reviewLogSelection, reviewLogContextMap)
+    : [];
+  $: reviewLogDocuments = (() => {
+    const documents = new Map<string, { id: string; label: string }>();
+    for (const context of reviewLogContexts) {
+      const path = context.documentPath?.trim();
+      if (!path) continue;
+      if (context.documentId) documents.set(context.documentId, { id: context.documentId, label: path });
+      const segments = path.replace(/\\/gu, "/").split("/").filter(Boolean);
+      for (let index = 1; index < segments.length; index += 1) {
+        const ancestor = `/${segments.slice(0, index).join("/")}`;
+        const virtualId = `path:${ancestor}`;
+        if (!documents.has(virtualId)) documents.set(virtualId, { id: virtualId, label: ancestor });
+      }
+    }
+    return [...documents.values()].sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+  })();
+  $: filteredReviewLogDocuments = reviewLogDocumentQuery.trim()
+    ? reviewLogDocuments.filter((document) => `${document.id} ${document.label}`.toLowerCase().includes(reviewLogDocumentQuery.trim().toLowerCase())).slice(0, 40)
+    : [];
+  $: reviewLogNotebooks = [...new Map(reviewLogContexts
+    .filter((context) => context.notebookId)
+    .map((context) => [context.notebookId!, { id: context.notebookId!, label: context.notebookName ?? context.notebookId! }])).values()]
+    .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
   $: documentHistory = history.filter((scope) => !scope.groupName && scope.type !== "group");
   $: applicationScopeGroups = groupApplicationScopes(history.filter((scope) => Boolean(scope.groupName) || scope.type === "group"));
   function scopeBlockId(scope: FlashcardReviewScope): string {
@@ -149,10 +236,140 @@
     return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp));
   }
 
+  function localDateBoundary(value: string, end = false): number | undefined {
+    if (!value) return undefined;
+    const parsed = new Date(value);
+    if (!Number.isFinite(parsed.getTime())) return undefined;
+    if (end && /^\d{4}-\d{2}-\d{2}$/u.test(value)) parsed.setHours(23, 59, 59, 999);
+    return parsed.getTime();
+  }
+
+  function buildReviewLogSelection(from: string, to: string, notebook: string, document: string, state: string, includeSubdocuments: boolean): ReviewLogSelection {
+    const selectedDocument = reviewLogDocuments.find((item) => item.id === document);
+    const documentId = document && !document.startsWith("path:") ? document : undefined;
+    const selection: ReviewLogSelection = {
+      fromReviewed: localDateBoundary(from),
+      toReviewed: localDateBoundary(to, true),
+      notebookId: notebook || undefined,
+      documentId,
+      documentPath: selectedDocument?.label,
+      includeSubdocuments: document ? includeSubdocuments : undefined,
+      state: state ? Number(state) : undefined,
+    };
+    return Object.fromEntries(Object.entries(selection).filter(([, value]) => value !== undefined)) as ReviewLogSelection;
+  }
+
+  type DocumentPickerValue = string | { id?: string; documentId?: string; blockId?: string; path?: string; hpath?: string; name?: string };
+
+  function applyReviewLogDocumentValue(value: DocumentPickerValue): boolean {
+    const candidate = typeof value === "string" ? { id: value, path: value } : value;
+    const id = candidate.documentId || candidate.blockId || candidate.id || "";
+    const path = candidate.hpath || candidate.path || candidate.name || "";
+    const match = reviewLogDocuments.find((document) => document.id === id || document.label === path || document.id === path);
+    if (!match) {
+      reviewLogDocumentQuery = path || id;
+      message = "未在复习记录中找到该文档；请先扫描，或检查文档 ID / 路径是否正确";
+      return false;
+    }
+    reviewLogDocument = match.id;
+    reviewLogDocumentQuery = match.label;
+    message = `已选择文档：${match.label}`;
+    return true;
+  }
+
+  function applyReviewLogDocumentQuery(): void {
+    const query = reviewLogDocumentQuery.trim();
+    if (!query) {
+      reviewLogDocument = "";
+      return;
+    }
+    const exact = reviewLogDocuments.find((document) => document.id === query || document.label === query);
+    const uniqueMatch = filteredReviewLogDocuments.length === 1 ? filteredReviewLogDocuments[0] : undefined;
+    applyReviewLogDocumentValue(exact ?? uniqueMatch ?? query);
+  }
+
+  async function openOfficialDocumentPicker(): Promise<void> {
+    const host = globalThis as unknown as { siyuan?: Record<string, unknown> };
+    const siyuan = host.siyuan;
+    const candidates = [
+      siyuan?.openDocumentPicker,
+      siyuan?.openDocPicker,
+      siyuan?.openDocumentSelector,
+      (siyuan?.app as Record<string, unknown> | undefined)?.openDocumentPicker,
+      (siyuan?.layout as Record<string, unknown> | undefined)?.openDocumentPicker,
+    ].filter((candidate): candidate is (...args: unknown[]) => unknown => typeof candidate === "function");
+    const picker = candidates[0];
+    if (!picker) {
+      message = "当前思源未公开文档选择器，已提供搜索、文档 ID 和路径输入作为回退";
+      return;
+    }
+    let selected = false;
+    const onSelect = (value: unknown) => {
+      if (selected || value === undefined || value === null) return;
+      selected = true;
+      if (typeof value === "string" || typeof value === "object") applyReviewLogDocumentValue(value as DocumentPickerValue);
+    };
+    try {
+      const result = picker.call(siyuan, { multiple: false, onSelect, onConfirm: onSelect });
+      const resolved = result && typeof (result as Promise<unknown>).then === "function" ? await result : result;
+      if (resolved !== undefined && resolved !== null) onSelect(resolved);
+    } catch (error) {
+      message = `调用思源文档选择器失败，已保留搜索回退：${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  async function loadReviewLogContexts(entries: readonly ReviewLogArchive["entries"][number][]): Promise<void> {
+    reviewLogContextLoading = true;
+    reviewLogContextError = "";
+    try {
+      const cardIds = [...new Set(entries.map((entry) => entry.cardId).filter(Boolean))];
+      const directRows = await runtime.adapter.loadBlocks(cardIds);
+      const blockByCardId = new Map(directRows.map((row) => [row.id, row]));
+      const unresolved = cardIds.filter((cardId) => !blockByCardId.has(cardId));
+      if (unresolved.length > 0) {
+        try {
+          const registered = await runtime.adapter.getAllCardsByDeckId(runtime.getSettings().deckId);
+          const cardMap = new Map(registered.map((card) => [card.cardID, card.blockID]));
+          const mappedBlockIds = unresolved.map((cardId) => cardMap.get(cardId)).filter((id): id is string => Boolean(id));
+          const mappedRows = await runtime.adapter.loadBlocks(mappedBlockIds);
+          for (const row of mappedRows) {
+            const cardId = unresolved.find((candidate) => cardMap.get(candidate) === row.id);
+            if (cardId) blockByCardId.set(cardId, row);
+          }
+        } catch (error) {
+          reviewLogContextError = `部分旧卡无法反查文档范围：${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+      const roots = [...new Set([...blockByCardId.values()].map((row) => row.root_id || row.id).filter(Boolean))];
+      const rootRows = await runtime.adapter.loadBlocks(roots);
+      const rootById = new Map(rootRows.map((row) => [row.id, row]));
+      const notebooks = new Map<string, string>((window.siyuan?.notebooks ?? []).map((notebook) => [notebook.id, String(notebook.name ?? notebook.id)]));
+      reviewLogContexts = cardIds.map((cardId) => {
+        const row = blockByCardId.get(cardId);
+        const documentId = row?.root_id || (row?.type === "d" ? row.id : undefined);
+        const root = documentId ? rootById.get(documentId) : undefined;
+        return {
+          cardId,
+          blockId: row?.id,
+          documentId,
+          documentPath: root?.hpath || undefined,
+          notebookId: row?.box || root?.box,
+          notebookName: (row?.box || root?.box) ? notebooks.get(row?.box || root?.box!) : undefined,
+        };
+      });
+    } catch (error) {
+      reviewLogContexts = [];
+      reviewLogContextError = `读取卡片范围失败：${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      reviewLogContextLoading = false;
+    }
+  }
+
   async function scanReviewLogs(): Promise<ReviewLogArchive | undefined> {
     reviewLogLoading = true;
     try {
       reviewLogArchive = await loadReviewLogArchive(createSiyuanReviewLogReader());
+      await loadReviewLogContexts(reviewLogArchive.entries);
       message = reviewLogArchive.entries.length
         ? `已读取 ${reviewLogArchive.entries.length} 条复习记录`
         : "没有找到可导出的复习记录";
@@ -169,8 +386,8 @@
     const archive = reviewLogArchive ?? await scanReviewLogs();
     if (!archive?.entries.length) return;
     try {
-      downloadReviewLog(reviewLogToCsv(archive.entries), "revlog.csv", "text/csv;charset=utf-8");
-      message = `已导出合并记录，共 ${archive.entries.length} 条`;
+      downloadReviewLog(reviewLogToCsv(selectedReviewLogEntries), "revlog.csv", "text/csv;charset=utf-8");
+      message = `已导出合并记录，共 ${selectedReviewLogEntries.length} 条`;
     } catch (error) {
       message = `导出合并记录失败：${error instanceof Error ? error.message : String(error)}`;
     }
@@ -181,15 +398,94 @@
     if (!archive?.entries.length) return;
     reviewLogLoading = true;
     try {
-      const bytes = await monthlyReviewLogZip(archive);
+      const selected = selectedReviewLogEntries;
+      const bytes = await monthlyReviewLogZip({
+        ...archive,
+        entries: selected,
+        entriesByMonth: groupReviewLogEntriesByMonth(selected),
+        files: [...groupReviewLogEntriesByMonth(selected).keys()].map((month) => ({ name: `${month}.msgpack`, month })),
+      });
       downloadReviewLog(bytes as BlobPart, "siyuan-revlog-by-month.zip", "application/zip");
-      message = `已导出 ${archive.entriesByMonth.size} 个月份和合并记录`;
+      message = `已导出 ${groupReviewLogEntriesByMonth(selected).size} 个月份和合并记录`;
     } catch (error) {
       message = `按月导出失败：${error instanceof Error ? error.message : String(error)}`;
     } finally {
       reviewLogLoading = false;
     }
   }
+
+  async function optimizeReviewLogs(): Promise<void> {
+    const archive = reviewLogArchive ?? await scanReviewLogs();
+    if (!archive?.entries.length || !selectedReviewLogEntries.length) {
+      message = "当前筛选没有可用于训练的记录";
+      return;
+    }
+    optimizerLoading = true;
+    optimizerApplied = false;
+    optimization = undefined;
+    message = config.fsrsOptimizerMode === "internal" ? "正在思源插件内部训练 FSRS 参数" : "已打开系统浏览器，等待 FSRS 训练完成";
+    try {
+      optimization = await onOptimizeReviewLog(selectedReviewLogEntries);
+      message = `训练完成，用时 ${(optimization.result.durationMs / 1000).toFixed(1)} 秒；请预览后确认应用`;
+    } catch (error) {
+      message = `FSRS 优化失败：${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      optimizerLoading = false;
+    }
+  }
+
+  async function applyOptimization(): Promise<void> {
+    if (!optimization) return;
+    optimizerApplying = true;
+    try {
+      optimizerApplied = await onApplyFsrsWeights(optimization.result.weights);
+      if (optimizerApplied) {
+        message = "已写入并回读验证 FSRS 参数";
+        await loadFsrsHistory();
+        currentFsrsWeights = onGetFsrsWeights();
+      }
+    } catch (error) {
+      message = `应用 FSRS 参数失败：${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      optimizerApplying = false;
+    }
+  }
+
+  async function loadFsrsHistory(): Promise<void> {
+    fsrsHistoryLoading = true;
+    try {
+      fsrsHistory = await onLoadFsrsHistory();
+    } catch (error) {
+      message = `读取 FSRS 参数历史失败：${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      fsrsHistoryLoading = false;
+    }
+  }
+
+  async function undoFsrsHistory(entry: FsrsWeightHistoryEntry): Promise<void> {
+    if (fsrsUndoingId) return;
+    fsrsUndoingId = entry.id;
+    try {
+      if (await onUndoFsrsWeights(entry)) {
+        message = "已撤销这次 FSRS 参数修改，并完成回读验证";
+        await loadFsrsHistory();
+        currentFsrsWeights = onGetFsrsWeights();
+      }
+    } catch (error) {
+      message = `撤销 FSRS 参数失败：${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      fsrsUndoingId = "";
+    }
+  }
+
+  function formatFsrsHistoryDate(timestamp: number): string {
+    return new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date(timestamp));
+  }
+
+  onMount(() => {
+    currentFsrsWeights = onGetFsrsWeights();
+    void loadFsrsHistory();
+  });
 
   async function ensureReadablePaths(ids: string[]): Promise<void> {
     const pending = [...new Set(ids.filter(Boolean))].filter((id) => !requestedPathIds.has(id));
@@ -474,8 +770,8 @@
       </div>
       <div class="review-log-actions">
         <Button variant="outline" size="sm" disabled={reviewLogLoading} onclick={scanReviewLogs} title="扫描复习记录" aria-label="扫描复习记录"><RefreshCw /><span>扫描</span></Button>
-        <Button variant="outline" size="sm" disabled={reviewLogLoading} onclick={exportMonthlyReviewLogs} title="按月打包导出" aria-label="按月打包导出"><FileArchive /><span>按月 ZIP</span></Button>
-        <Button size="sm" disabled={reviewLogLoading} onclick={exportMergedReviewLog} title="导出合并记录" aria-label="导出合并记录"><Download /><span>合并 CSV</span></Button>
+        <Button variant="outline" size="sm" disabled={reviewLogLoading || !selectedReviewLogEntries.length} onclick={exportMonthlyReviewLogs} title="按当前筛选按月打包导出" aria-label="按月打包导出"><FileArchive /><span>按月 ZIP</span></Button>
+        <Button size="sm" disabled={reviewLogLoading || !selectedReviewLogEntries.length} onclick={exportMergedReviewLog} title="导出当前筛选记录" aria-label="导出合并记录"><Download /><span>合并 CSV</span></Button>
       </div>
     </section>
     <section class="settings-section review-log-panel" data-testid="review-log-panel">
@@ -499,9 +795,174 @@
             {#each reviewLogArchive.errors as error}<p><strong>{error.file}</strong><span>{error.message}</span></p>{/each}
           </div>
         {/if}
+        <div class="review-log-filter" data-testid="review-log-filter">
+          <div class="review-log-filter-heading"><Filter /><div><strong>选择导入记录</strong><span>筛选只影响本次训练和导出，原始日志不会被修改。</span></div><Badge variant="secondary">{selectedReviewLogEntries.length} / {reviewLogArchive.entries.length}</Badge></div>
+          <div class="review-log-filter-grid">
+            <label>开始时间<Input type="datetime-local" bind:value={reviewLogFrom} aria-label="复习记录开始时间" /></label>
+            <label>结束时间<Input type="datetime-local" bind:value={reviewLogTo} aria-label="复习记录结束时间" /></label>
+            <label>笔记本
+              <Select.Root type="single" value={reviewLogNotebook || "all"} onValueChange={(value) => reviewLogNotebook = value === "all" ? "" : value}>
+                <Select.Trigger aria-label="复习记录笔记本">{reviewLogNotebook ? (reviewLogNotebooks.find((item) => item.id === reviewLogNotebook)?.label ?? "当前笔记本") : "全部笔记本"}</Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="all" label="全部笔记本" />
+                  {#each reviewLogNotebooks as notebook}<Select.Item value={notebook.id} label={notebook.label} />{/each}
+                </Select.Content>
+              </Select.Root>
+            </label>
+            <div class="review-log-document-field">
+              <label for="review-log-document-query">文档</label>
+              <div class="review-log-document-controls">
+                <Input id="review-log-document-query" bind:value={reviewLogDocumentQuery} placeholder="搜索路径或输入文档 ID" aria-label="搜索或输入复习记录文档" onkeydown={(event) => event.key === "Enter" && applyReviewLogDocumentQuery()} />
+                <Button variant="outline" size="sm" onclick={openOfficialDocumentPicker} title="调用思源官方文档选择器" aria-label="选择文档"><FileText /><span>选择</span></Button>
+                {#if reviewLogDocument}<Button variant="ghost" size="icon-sm" onclick={() => { reviewLogDocument = ""; reviewLogDocumentQuery = ""; }} title="清除文档筛选" aria-label="清除文档筛选"><X /></Button>{/if}
+              </div>
+              <div class="review-log-document-results" role="listbox" aria-label="复习记录文档候选">
+                {#if filteredReviewLogDocuments.length}
+                  {#each filteredReviewLogDocuments as document}
+                    <Button variant="ghost" size="sm" class={reviewLogDocument === document.id ? "document-result document-result-active" : "document-result"} onclick={() => { reviewLogDocument = document.id; reviewLogDocumentQuery = document.label; }} title={document.id}>
+                      <FileText /><span>{document.label}</span>
+                    </Button>
+                  {/each}
+                {:else if reviewLogDocumentQuery.trim()}<span class="review-log-document-empty">没有匹配的文档</span>
+                {:else}<span class="review-log-document-empty">输入路径或 ID 搜索文档，也可点击“选择”</span>{/if}
+              </div>
+              <div class="review-log-document-options">
+                <label class="review-log-subdocument-toggle"><Switch size="sm" checked={reviewLogIncludeSubdocuments} onCheckedChange={(value) => reviewLogIncludeSubdocuments = value} aria-label="包含子文档" /><span>包含子文档</span></label>
+                <span>{reviewLogDocument ? (reviewLogDocuments.find((item) => item.id === reviewLogDocument)?.label ?? "已选择文档") : "未选择文档"}</span>
+              </div>
+            </div>
+            <label>复习状态
+              <Select.Root type="single" value={reviewLogState || "all"} onValueChange={(value) => reviewLogState = value === "all" ? "" : value}>
+                <Select.Trigger aria-label="复习记录状态">{{ "0": "新卡", "1": "学习中", "2": "复习中", "3": "重新学习" }[reviewLogState] ?? "全部状态"}</Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="all" label="全部状态" />
+                  <Select.Item value="0" label="新卡" />
+                  <Select.Item value="1" label="学习中" />
+                  <Select.Item value="2" label="复习中" />
+                  <Select.Item value="3" label="重新学习" />
+                </Select.Content>
+              </Select.Root>
+            </label>
+          </div>
+          <div class="review-log-filter-footer">
+            <span>{reviewLogContextLoading ? "正在读取卡片所属文档和笔记本…" : reviewLogContextError || "可按时间、文档、笔记本和复习状态组合筛选"}</span>
+            <Button variant="ghost" size="sm" onclick={() => { reviewLogFrom = ""; reviewLogTo = ""; reviewLogNotebook = ""; reviewLogDocument = ""; reviewLogDocumentQuery = ""; reviewLogIncludeSubdocuments = true; reviewLogState = ""; }} disabled={!reviewLogFrom && !reviewLogTo && !reviewLogNotebook && !reviewLogDocument && !reviewLogDocumentQuery && !reviewLogState}>重置筛选</Button>
+          </div>
+        </div>
       {:else}
         <div class="review-log-empty"><Archive /><strong>尚未扫描</strong><span>点击扫描检查当前 SiYuan 的日志格式和可导出记录数</span></div>
       {/if}
+    </section>
+    <section class="settings-section optimizer-panel" data-testid="fsrs-optimizer-panel">
+      <div class="section-title optimizer-title">
+        <BrainCircuit />
+        <div><h3>FSRS 参数优化</h3><p>fsrs-browser 2.0.4 · 19 参数 · {config.fsrsOptimizerMode === "internal" ? "插件内部单线程" : "系统浏览器多线程"}</p></div>
+        <Select.Root type="single" value={config.fsrsOptimizerMode} onValueChange={(value) => { config.fsrsOptimizerMode = value === "browser" ? "browser" : "internal"; saveGlobalOnChange(); }}>
+          <Select.Trigger size="sm" aria-label="FSRS 优化运行模式">{config.fsrsOptimizerMode === "internal" ? "插件内部" : "系统浏览器"}</Select.Trigger>
+          <Select.Content>
+            <Select.Item value="internal" label="插件内部（单线程）" />
+            <Select.Item value="browser" label="系统浏览器（多线程）" />
+          </Select.Content>
+        </Select.Root>
+        <Button
+          size="sm"
+          disabled={optimizerLoading || reviewLogLoading || !selectedReviewLogEntries.length}
+          onclick={optimizeReviewLogs}
+          title={config.fsrsOptimizerMode === "internal" ? "在思源插件内部开始本地训练" : "在系统浏览器中开始本地训练"}
+          aria-label="启动 FSRS 优化器"
+        >
+          {#if optimizerLoading}<RefreshCw class="loading-icon" />{:else if config.fsrsOptimizerMode === "internal"}<BrainCircuit />{:else}<ExternalLink />{/if}
+          <span>{optimizerLoading ? "正在训练" : config.fsrsOptimizerMode === "internal" ? "内部训练" : "打开浏览器"}</span>
+        </Button>
+      </div>
+      {#if optimization}
+        <div class="optimizer-result-summary">
+          <div><CheckCircle2 /><span>训练完成</span><strong>{optimization.result.sourceRecordCount} 条 · {optimization.result.cardCount} 张</strong></div>
+          <div><CalendarClock /><span>训练耗时</span><strong>{(optimization.result.durationMs / 1000).toFixed(1)} 秒</strong></div>
+          <div><BrainCircuit /><span>参数协议</span><strong>FSRS-5 · 19 项</strong></div>
+        </div>
+        <Tooltip.Provider>
+          <div class="fsrs-parameter-grid" aria-label="FSRS 19 项参数说明">
+            {#each FSRS_PARAMETER_DESCRIPTIONS as parameter, index}
+              {@const current = optimization.preview.current[index]}
+              {@const optimized = optimization.preview.optimized[index]}
+              {@const delta = optimized - current}
+              {@const changed = Math.abs(delta) > 1e-7}
+              <div class:changed class:increased={delta > 1e-7} class:decreased={delta < -1e-7} class="fsrs-parameter-card">
+                <div class="fsrs-parameter-info">
+                  <Tooltip.Root>
+                    <Tooltip.Trigger class="fsrs-info-trigger" aria-label={`${parameter[0]} 详细说明`}>
+                      <Info />
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side="top">{parameter[3]}</Tooltip.Content>
+                  </Tooltip.Root>
+                  <div class="fsrs-parameter-copy"><strong>{parameter[0]} · {parameter[1]}</strong><span>{parameter[2]}</span></div>
+                </div>
+                <div class:increased class:decreased class="fsrs-parameter-values" aria-label={changed ? `从 ${Number(current.toPrecision(7))} 变为 ${Number(optimized.toPrecision(7))}` : `当前值 ${Number(current.toPrecision(7))}`}>
+                  {#if changed}
+                    <div class="fsrs-value-diff">
+                      <del class="fsrs-value-old">{Number(current.toPrecision(7))}</del>
+                      {#if delta > 1e-7}<ArrowUp class="fsrs-diff-icon" aria-hidden="true" />{:else}<ArrowDown class="fsrs-diff-icon" aria-hidden="true" />{/if}
+                      <strong class="fsrs-value-new">{Number(optimized.toPrecision(7))}</strong>
+                    </div>
+                    <span class="fsrs-delta">{delta > 0 ? "+" : ""}{Number(delta.toPrecision(5))}</span>
+                  {:else}
+                    <strong class="fsrs-value-same">{Number(current.toPrecision(7))}</strong>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </Tooltip.Provider>
+        <div class="optimizer-apply">
+          <Badge variant={optimizerApplied ? "secondary" : "outline"}>{optimizerApplied ? "已应用并验证" : "尚未修改思源设置"}</Badge>
+          <Button size="sm" disabled={optimizerApplying || optimizerApplied} onclick={applyOptimization} aria-label="应用 FSRS 参数">
+            {#if optimizerApplying}<RefreshCw class="loading-icon" />{:else}<Save />{/if}
+            <span>{optimizerApplying ? "正在验证" : optimizerApplied ? "已应用" : "应用参数"}</span>
+          </Button>
+        </div>
+      {:else}
+        <div class="optimizer-empty">
+          <BrainCircuit />
+          <div><strong>在系统浏览器中训练</strong><span>当前将使用 {selectedReviewLogEntries.length || 0} 条筛选记录；本地端口 52370 仅在训练期间开放，训练结果返回后仍需在此确认应用。</span></div>
+        </div>
+      {/if}
+      {#if !optimization}
+        <Tooltip.Provider>
+          <div class="fsrs-parameter-reference" aria-label="FSRS 参数参考">
+            <div class="fsrs-reference-heading"><div><strong>当前 19 项参数</strong><span>短说明直接显示，悬停信息图标查看详细作用。</span></div><Badge variant="outline">FSRS-5</Badge></div>
+            <div class="fsrs-reference-grid">
+              {#each FSRS_PARAMETER_DESCRIPTIONS as parameter, index}
+                {@const value = currentFsrsWeights[index]}
+                <div class="fsrs-reference-row">
+                  <Tooltip.Root>
+                    <Tooltip.Trigger class="fsrs-info-trigger" aria-label={`${parameter[0]} 详细说明`}>
+                      <Info />
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side="top">{parameter[3]}</Tooltip.Content>
+                  </Tooltip.Root>
+                  <div class="fsrs-reference-copy"><strong>{parameter[0]} · {parameter[1]}</strong><span>{parameter[2]}</span></div>
+                  <code>{value === undefined ? "—" : Number(value.toPrecision(7))}</code>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </Tooltip.Provider>
+      {/if}
+      <section class="fsrs-history-panel" aria-label="FSRS 参数修改历史">
+        <div class="fsrs-history-heading"><div><strong>参数修改历史</strong><span>每次应用或撤销都会保留上一组权重，可随时恢复。</span></div><Button variant="ghost" size="icon-sm" onclick={loadFsrsHistory} disabled={fsrsHistoryLoading} title="刷新参数历史" aria-label="刷新参数历史"><RefreshCw class={fsrsHistoryLoading ? "loading-icon" : ""} /></Button></div>
+        {#if fsrsHistoryLoading}<p class="fsrs-history-empty">正在读取历史…</p>
+        {:else if fsrsHistory.length}
+          <div class="fsrs-history-list">
+            {#each fsrsHistory as entry (entry.id)}
+              <div class="fsrs-history-row">
+                <div><strong>{entry.source === "undo" ? "撤销修改" : "优化器应用"}</strong><span>{formatFsrsHistoryDate(entry.createdAt)} · {entry.next.map((value, index) => Math.abs(value - entry.previous[index]) > 1e-7 ? `w${index}` : "").filter(Boolean).slice(0, 4).join("、") || "无变化"}</span></div>
+                <Button variant="outline" size="sm" onclick={() => undoFsrsHistory(entry)} disabled={fsrsUndoingId !== ""} title="恢复这条记录之前的参数" aria-label="撤销这次参数修改">{#if fsrsUndoingId === entry.id}<RefreshCw class="loading-icon" />{:else}<Undo2 />{/if}<span>撤销</span></Button>
+              </div>
+            {/each}
+          </div>
+        {:else}<p class="fsrs-history-empty">还没有参数修改记录</p>{/if}
+      </section>
     </section>
   {:else if activeTab === "global"}
     <div class="global-settings">
@@ -516,6 +977,7 @@
           <label>推迟天数<Input type="number" min="1" max="30" bind:value={config.postponeDays} onchange={saveGlobalOnChange} disabled={!config.postponeEnabled} /></label>
         </div>
         <div class="setting-row"><div><strong>自动推迟今日新卡</strong><span>按设定天数延后今天创建的新卡</span></div><Switch checked={config.postponeEnabled} onCheckedChange={(value) => { config.postponeEnabled = value; saveGlobalOnChange(); }} aria-label="自动推迟今日新卡" /></div>
+        <div class="setting-row"><div><strong>登记前额外确认</strong><span>预览界面始终显示；开启后点击制卡还会再弹出一次确认</span></div><Switch checked={config.confirmBeforeAutoRegister} onCheckedChange={(value) => { config.confirmBeforeAutoRegister = value; saveGlobalOnChange(); }} aria-label="登记前额外确认" /></div>
         <div class="section-actions"><Button size="sm" onclick={updateGlobal} disabled={saving}><Save />保存并应用</Button></div>
       </section>
 
@@ -559,6 +1021,14 @@
               </div>
             {/each}
           </div>
+        {/if}
+      </section>
+
+      <section class="settings-section">
+        <div class="section-title"><Timer /><div><h3>复习计时</h3><p>在原生复习顶栏显示本轮与当前卡片用时</p></div></div>
+        <div class="setting-row master-row"><div><strong>显示复习计时</strong><span>显示本轮总计时和当前闪卡计时</span></div><Switch checked={config.reviewTimerEnabled} onCheckedChange={(value) => { config.reviewTimerEnabled = value; saveGlobalOnChange(); }} aria-label="显示复习计时" /></div>
+        {#if config.reviewTimerEnabled}
+          <div class="setting-row"><div><strong>显示答案后继续计时</strong><span>关闭时只统计查看题目的时间（默认）</span></div><Switch checked={config.reviewTimerContinueAfterAnswer} onCheckedChange={(value) => { config.reviewTimerContinueAfterAnswer = value; saveGlobalOnChange(); }} aria-label="显示答案后继续计时" /></div>
         {/if}
       </section>
 
@@ -789,6 +1259,79 @@
   .review-log-errors { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border, var(--b3-border-color)); }
   .review-log-errors p { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; }
   .review-log-errors span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); overflow-wrap: anywhere; }
+  .review-log-filter { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding: 12px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 8px; background: color-mix(in srgb, var(--muted, var(--b3-list-hover)) 45%, transparent); }
+  .review-log-filter-heading { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+  .review-log-filter-heading > :global(svg) { width: 17px; height: 17px; color: var(--primary, var(--b3-theme-primary)); }
+  .review-log-filter-heading div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .review-log-filter-heading span, .review-log-filter-footer span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; line-height: 1.4; }
+  .review-log-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .review-log-filter-grid label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .review-log-filter-grid :global([data-slot="select-trigger"]) { width: 100%; min-width: 0; }
+  .review-log-document-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .review-log-document-controls { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .review-log-document-controls :global([data-slot="input"]) { min-width: 0; flex: 1; }
+  .review-log-document-controls :global([data-slot="button"]) { flex: 0 0 auto; }
+  .review-log-document-results { display: flex; flex-direction: column; gap: 2px; max-height: 146px; overflow-y: auto; padding: 2px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 7px; background: var(--background, var(--b3-theme-background)); }
+  .review-log-document-results :global(.document-result) { display: flex; align-items: center; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; padding: 5px 6px; border-radius: 5px; text-align: left; }
+  .review-log-document-results :global(.document-result:hover), .review-log-document-results :global(.document-result-active) { background: var(--muted, var(--b3-list-hover)); }
+  .review-log-document-results :global(.document-result svg) { width: 14px; height: 14px; flex: 0 0 auto; color: var(--primary, var(--b3-theme-primary)); }
+  .review-log-document-results :global(.document-result span) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .review-log-document-empty { padding: 7px; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); }
+  .review-log-document-options { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+  .review-log-document-options > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); }
+  .review-log-subdocument-toggle { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 5px !important; white-space: nowrap; }
+  .review-log-filter-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+  .review-log-filter-footer span { min-width: 0; overflow-wrap: anywhere; }
+  .optimizer-panel { margin-top: 0; }
+  .optimizer-title { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; }
+  .optimizer-title > :global([data-slot="button"]) { justify-self: end; }
+  .optimizer-result-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; padding: 12px 0; }
+  .optimizer-result-summary > div { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 2px 7px; min-width: 0; padding: 8px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 7px; }
+  .optimizer-result-summary :global(svg) { grid-row: 1 / 3; width: 16px; height: 16px; color: var(--primary, var(--b3-theme-primary)); }
+  .optimizer-result-summary span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .optimizer-result-summary strong { font-size: 12px; }
+  .fsrs-parameter-grid, .fsrs-reference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 7px; }
+  .fsrs-parameter-card, .fsrs-reference-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; min-width: 0; padding: 7px 8px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 7px; background: color-mix(in srgb, var(--muted, var(--b3-list-hover)) 25%, transparent); }
+  .fsrs-parameter-card.changed { border-color: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 48%, var(--border, var(--b3-border-color))); background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 7%, transparent); }
+  .fsrs-parameter-info { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 5px; min-width: 0; }
+  :global(.fsrs-info-trigger) { display: inline-flex !important; align-items: center; justify-content: center; box-sizing: border-box; width: 24px !important; min-width: 24px !important; height: 24px !important; min-height: 24px !important; padding: 0 !important; border: 1px solid color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 38%, var(--border, var(--b3-border-color))) !important; border-radius: 999px !important; color: var(--primary, var(--b3-theme-primary)) !important; background: transparent !important; box-shadow: none !important; font: inherit; line-height: 1; cursor: help; }
+  :global(.fsrs-info-trigger:hover), :global(.fsrs-info-trigger:focus-visible) { background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 12%, transparent) !important; }
+  :global(.fsrs-info-trigger svg) { width: 14px; height: 14px; color: inherit; }
+  .fsrs-parameter-copy, .fsrs-reference-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .fsrs-parameter-copy strong, .fsrs-reference-copy strong { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+  .fsrs-parameter-copy span, .fsrs-reference-copy span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; line-height: 1.4; }
+  .fsrs-parameter-values { display: flex; min-width: 106px; flex-direction: column; align-items: flex-end; gap: 2px; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; }
+  .fsrs-value-diff { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
+  .fsrs-value-old { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); text-decoration-thickness: 1px; }
+  .fsrs-value-new { color: var(--primary, var(--b3-theme-primary)); font-weight: 650; }
+  :global(.fsrs-diff-icon) { width: 12px; height: 12px; }
+  .fsrs-delta { padding: 1px 4px; border: 1px solid color-mix(in srgb, currentColor 28%, transparent); border-radius: 4px; color: currentColor; font-size: 10px; line-height: 1.25; }
+  .fsrs-parameter-values.increased, .fsrs-parameter-card.increased { color: var(--b3-theme-success, #2e8b57); }
+  .fsrs-parameter-values.increased .fsrs-value-new, :global(.fsrs-parameter-values.increased .fsrs-diff-icon) { color: var(--b3-theme-success, #2e8b57); }
+  .fsrs-parameter-values.decreased, .fsrs-parameter-card.decreased { color: var(--b3-theme-error, #c74444); }
+  .fsrs-parameter-values.decreased .fsrs-value-new, :global(.fsrs-parameter-values.decreased .fsrs-diff-icon) { color: var(--b3-theme-error, #c74444); }
+  .fsrs-parameter-card.increased { border-color: color-mix(in srgb, var(--b3-theme-success, #2e8b57) 48%, var(--border, var(--b3-border-color))); background: color-mix(in srgb, var(--b3-theme-success, #2e8b57) 7%, transparent); }
+  .fsrs-parameter-card.decreased { border-color: color-mix(in srgb, var(--b3-theme-error, #c74444) 48%, var(--border, var(--b3-border-color))); background: color-mix(in srgb, var(--b3-theme-error, #c74444) 7%, transparent); }
+  .fsrs-parameter-reference, .fsrs-history-panel { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border, var(--b3-border-color)); }
+  .fsrs-reference-heading, .fsrs-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+  .fsrs-reference-heading > div, .fsrs-history-heading > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .fsrs-reference-heading strong, .fsrs-history-heading strong { font-size: 13px; }
+  .fsrs-reference-heading span, .fsrs-history-heading span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; line-height: 1.4; }
+  .fsrs-reference-row { grid-template-columns: 24px minmax(0, 1fr) auto; }
+  .fsrs-reference-row code { min-width: 64px; color: var(--primary, var(--b3-theme-primary)); font-size: 11px; text-align: right; }
+  .fsrs-history-list { display: flex; flex-direction: column; gap: 6px; }
+  .fsrs-history-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 7px 8px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 7px; }
+  .fsrs-history-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .fsrs-history-row strong { font-size: 12px; }
+  .fsrs-history-row span, .fsrs-history-empty { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .fsrs-history-row span { overflow-wrap: anywhere; }
+  .fsrs-history-empty { margin: 0; padding: 7px 0; }
+  .optimizer-apply { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border, var(--b3-border-color)); }
+  .optimizer-empty { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 88px; padding: 12px 0; }
+  .optimizer-empty > :global(svg) { width: 24px; height: 24px; color: var(--primary, var(--b3-theme-primary)); }
+  .optimizer-empty div { display: flex; flex-direction: column; gap: 3px; }
+  .optimizer-empty strong { font-size: 13px; }
+  .optimizer-empty span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 12px; line-height: 1.45; }
   @keyframes review-log-spin { to { transform: rotate(360deg); } }
   :global(.scope-tree) { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   :global(.tree-branch), :global(.tree-subbranch) { width: 100%; min-height: 36px; padding: 6px 8px; border-radius: 6px; color: var(--foreground, var(--b3-theme-on-background)); font-size: 13px; font-weight: 600; }
@@ -821,13 +1364,18 @@
     .review-log-header { grid-template-columns: minmax(0, 1fr); }
     .review-log-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .review-log-actions :global([data-slot="button"]) { width: 100%; min-width: 0; }
+    .optimizer-title { grid-template-columns: 20px minmax(0, 1fr) auto; }
+    .optimizer-title > :global([data-slot="button"]) { grid-column: 1 / -1; width: 100%; }
+    .review-log-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   @container (max-width: 390px) {
     .settings-title strong { display: none; }
     .field-grid { grid-template-columns: 1fr; }
-    .option-grid, .sortable-list { grid-template-columns: 1fr; }
+    .review-log-filter-grid { grid-template-columns: 1fr; }
+    .option-grid, .sortable-list, .fsrs-parameter-grid, .fsrs-reference-grid { grid-template-columns: 1fr; }
     .setting-row { gap: 10px; }
+    .fsrs-parameter-values { min-width: 88px; }
     .toolbar-actions :global([data-slot="button"]), .section-actions :global([data-slot="button"]) { flex: 1; }
   }
 

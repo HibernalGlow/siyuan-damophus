@@ -9,20 +9,16 @@ const pluginMetadata: PluginMetadata = {
   icon: "tags",
   settings: [
     {
-      type: "textinput",
-      title: "lets-tab-icons.parentPathTitle",
-      description: "lets-tab-icons.parentPathDescription",
-      key: "parentPath",
-      value: "",
-      placeholder: "lets-tab-icons.parentPathPlaceholder",
-    },
-    {
-      type: "textinput",
-      title: "lets-tab-icons.iconTitle",
-      description: "lets-tab-icons.iconDescription",
-      key: "icon",
-      value: "\u{1F516}",
-      placeholder: "lets-tab-icons.iconPlaceholder",
+      type: "list",
+      title: "lets-tab-icons.rulesTitle",
+      description: "lets-tab-icons.rulesDescription",
+      key: "rules",
+      value: [],
+      columns: [
+        { key: "notebook", title: "lets-tab-icons.notebookTitle", type: "notebook", width: "180px" },
+        { key: "parentPath", title: "lets-tab-icons.parentDocumentTitle", type: "text", width: "1fr" },
+        { key: "icon", title: "lets-tab-icons.iconTitle", type: "emoji", width: "120px" },
+      ],
     },
   ],
 };

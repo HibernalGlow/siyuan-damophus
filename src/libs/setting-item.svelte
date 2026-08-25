@@ -27,7 +27,7 @@
   export let columns: Array<{
     key: string;
     title: string;
-    type: "text" | "number" | "select";
+    type: "text" | "number" | "select" | "notebook" | "emoji";
     width?: string;
     options?: Record<string, string>;
   }> = [];

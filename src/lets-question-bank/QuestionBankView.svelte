@@ -179,6 +179,7 @@
   export let inheritSourceStyles: boolean;
   export let questionRenderMode: any;
   export let indefinitePracticeMode = false;
+  export let revealActionBelowOptions = false;
   export let toggleIndefinitePracticeMode: any;
   export let pauseOnBlur = false;
   export let togglePauseOnBlur: any;
@@ -478,6 +479,7 @@
       {inheritSourceStyles}
       {questionRenderMode}
       {indefinitePracticeMode}
+      {revealActionBelowOptions}
       {showStemStyles}
       {sourceEditingLocked}
       {renderedQuestionContent}

@@ -229,6 +229,17 @@ const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "select",
+      title: "lets-question-bank.revealActionBelowOptions",
+      description: "lets-question-bank.revealActionBelowOptionsDescription",
+      key: "revealActionBelowOptions",
+      value: "bottom",
+      options: {
+        bottom: "lets-question-bank.revealActionPositionBottom",
+        belowOptions: "lets-question-bank.revealActionPositionBelowOptions",
+      },
+    },
+    {
       type: "checkbox",
       title: "lets-question-bank.completionShowCorrectness",
       description: "lets-question-bank.completionShowCorrectnessDescription",

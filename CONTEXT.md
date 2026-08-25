@@ -28,6 +28,24 @@ _Avoid_: progress database, attempt database
 An explicit, low-frequency, Damophus-managed table or block materialized below a topic block. It is a refreshable derived view and never becomes question-bank storage.
 _Avoid_: live source, synchronized copy
 
+# Database Plus Terms
+
+**Column binding rule**:
+An explicit rule that observes one source column in a database row and may produce a value in one target column when its trigger condition is met.
+_Avoid_: database automation, formula (unless it is a native SiYuan formula)
+
+**Source column**:
+The column whose row value activates a column binding rule.
+_Avoid_: trigger field
+
+**Target column**:
+The column that receives the value produced by a column binding rule.
+_Avoid_: destination field
+
+**Binding generator**:
+The named operation that turns a source-column event into a target-column value, such as recording the current time.
+_Avoid_: callback, script
+
 # Flashcard Terms
 
 **Flashcard container**:

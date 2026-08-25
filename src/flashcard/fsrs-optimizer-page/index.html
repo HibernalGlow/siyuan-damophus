@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>DAMO FSRS 优化器</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="page-header">
+        <div class="title-mark" aria-hidden="true">FSRS</div>
+        <div>
+          <h1>DAMO 参数优化器</h1>
+          <p>本地训练，复习记录不会离开当前设备</p>
+          <p id="range" class="range-copy">正在读取记录范围</p>
+        </div>
+      </header>
+
+      <section class="status-strip shadcn-card" aria-label="训练环境">
+        <div><span>优化器</span><strong id="version">正在连接</strong></div>
+        <div><span>复习记录</span><strong id="records">-</strong></div>
+        <div><span>闪卡</span><strong id="cards">-</strong></div>
+        <div><span>隔离环境</span><strong id="isolation">检查中</strong></div>
+      </section>
+
+      <section class="workspace shadcn-card">
+        <div class="workspace-heading">
+          <div>
+            <h2>训练</h2>
+            <p id="summary">正在读取 DAMO 训练会话</p>
+          </div>
+          <label>
+            <span>线程</span>
+            <input id="threads" data-slot="input" type="number" min="1" max="32" value="1" />
+          </label>
+        </div>
+
+        <div class="progress-track" role="progressbar" aria-label="训练进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="progress-bar"></div>
+        </div>
+        <div class="progress-copy"><strong id="phase">准备中</strong><span id="progress-text">0%</span></div>
+
+        <div class="actions">
+          <button id="start" data-slot="button" type="button" disabled>开始优化</button>
+          <button id="copy" data-slot="button" class="secondary" type="button" hidden>复制参数</button>
+        </div>
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section id="result" class="result shadcn-card" hidden>
+        <div class="result-heading">
+          <div><h2>训练结果</h2><p>已安全返回 DAMO，请回到思源预览并确认应用</p></div>
+          <strong id="duration"></strong>
+        </div>
+        <ol id="weights" aria-label="19 个 FSRS 参数"></ol>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

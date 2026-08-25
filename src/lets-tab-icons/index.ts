@@ -17,10 +17,18 @@ export default class TabIconsPlugin extends SubPluginBase {
     this.controller.destroy();
   }
 
-  private readOptions(): { parentPath: string; icon: string } {
-    return {
-      parentPath: String(this.getSetting?.("parentPath") ?? ""),
-      icon: String(this.getSetting?.("icon") ?? ""),
-    };
+  private readOptions(): { rules: Array<{ notebook: string; parentPath: string; icon: string }> } {
+    const configured = this.getSetting?.("rules");
+    const rules = Array.isArray(configured)
+      ? configured
+        .filter((rule): rule is { notebook?: unknown; parentPath?: unknown; icon?: unknown } => Boolean(rule && typeof rule === "object"))
+        .map((rule) => ({
+          notebook: String(rule.notebook ?? ""),
+          parentPath: String(rule.parentPath ?? ""),
+          icon: String(rule.icon ?? ""),
+        }))
+        .filter((rule) => rule.notebook.trim() && rule.parentPath.trim() && rule.icon.trim())
+      : [];
+    return { rules };
   }
 }

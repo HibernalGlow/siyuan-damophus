@@ -193,6 +193,31 @@ export default defineConfig({
           src: "./src/lets-mobile-liquid-glass/neo-superfusion-map.png",
           dest: "./",
         },
+        {
+          src: "./src/flashcard/fsrs-optimizer-page/*",
+          dest: "./fsrs-optimizer",
+          rename: { stripBase: true },
+        },
+        {
+          src: "./node_modules/fsrs-browser/fsrs_browser.js",
+          dest: "./fsrs-optimizer/vendor",
+          rename: { stripBase: true },
+        },
+        {
+          src: "./node_modules/fsrs-browser/fsrs_browser_bg.wasm",
+          dest: "./fsrs-optimizer/vendor",
+          rename: { stripBase: true },
+        },
+        {
+          src: "./node_modules/fsrs-browser/LICENSE",
+          dest: "./fsrs-optimizer/vendor",
+          rename: { name: "LICENSE.fsrs-browser", stripBase: true },
+        },
+        {
+          src: "./node_modules/fsrs-browser/snippets/wasm-bindgen-rayon-38edf6e439f6d70d/src/workerHelpers.js",
+          dest: "./fsrs-optimizer/vendor/snippets/wasm-bindgen-rayon-38edf6e439f6d70d/src",
+          rename: { stripBase: true },
+        },
       ],
     }),
   ],

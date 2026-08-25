@@ -11,6 +11,17 @@ function todayCard(id: string, extra: Record<string, unknown> = {}) {
 describe("flashcard runtime SFP parity", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("disables the extra registration confirmation by default and preserves an explicit opt-in", () => {
+    const defaults = new FlashcardRuntime(() => ({}), vi.fn());
+    expect(defaults.getSettings().confirmBeforeAutoRegister).toBe(false);
+
+    const confirmed = new FlashcardRuntime(
+      (key) => key === "config" ? { confirmBeforeAutoRegister: true } : undefined,
+      vi.fn(),
+    );
+    expect(confirmed.getSettings().confirmBeforeAutoRegister).toBe(true);
+  });
+
   it("defaults the document breadcrumb review button to enabled and preserves an explicit off state", () => {
     const disabled = new FlashcardRuntime(
       (key) => key === "config" ? { showBreadcrumbReviewButton: false } : undefined,
@@ -19,6 +30,29 @@ describe("flashcard runtime SFP parity", () => {
     expect(disabled.getSettings().showBreadcrumbReviewButton).toBe(false);
     const enabled = new FlashcardRuntime(() => ({}), vi.fn());
     expect(enabled.getSettings().showBreadcrumbReviewButton).toBe(true);
+  });
+
+  it("defaults review timing to question-only and preserves both timing switches", () => {
+    const defaults = new FlashcardRuntime(() => ({}), vi.fn());
+    expect(defaults.getSettings()).toMatchObject({ reviewTimerEnabled: true, reviewTimerContinueAfterAnswer: false });
+    const configured = new FlashcardRuntime((key) => key === "config" ? {
+      reviewTimerEnabled: false,
+      reviewTimerContinueAfterAnswer: true,
+    } : undefined, vi.fn());
+    expect(configured.getSettings()).toMatchObject({ reviewTimerEnabled: false, reviewTimerContinueAfterAnswer: true });
+  });
+
+  it("keeps native filter and fullscreen visible for legacy settings unless explicitly hidden", () => {
+    const legacy = new FlashcardRuntime(() => ({}), vi.fn());
+    expect(legacy.getSettings().reviewToolbarShowFilter).toBe(true);
+    expect(legacy.getSettings().reviewToolbarShowFullscreen).toBe(true);
+
+    const hidden = new FlashcardRuntime((key) => key === "config" ? {
+      reviewToolbarShowFilter: false,
+      reviewToolbarShowFullscreen: false,
+    } : undefined, vi.fn());
+    expect(hidden.getSettings().reviewToolbarShowFilter).toBe(false);
+    expect(hidden.getSettings().reviewToolbarShowFullscreen).toBe(false);
   });
 
   it("normalizes configurable review statistics for legacy settings", () => {

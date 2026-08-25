@@ -8,7 +8,7 @@ class FakeDialog implements StatisticsPreviewDialog {
   element = document.createElement("div");
   private readonly destroyCallback: () => void;
 
-  constructor(options: { title: string; content: string; width: string; height: string; destroyCallback: () => void }) {
+  constructor(options: { title: string; content: string; width: string; height: string; containerClassName?: string; disableClose?: boolean; hideCloseIcon?: boolean; destroyCallback: () => void }) {
     this.destroyCallback = options.destroyCallback;
     this.element.innerHTML = options.content;
     document.body.appendChild(this.element);
@@ -48,7 +48,11 @@ describe("statistics card Dialog preview", () => {
     const dialogCard = document.querySelector<HTMLElement>(".damophus-statistics-preview-card")!;
     expect(dialogCard.parentElement?.classList.contains("damophus-statistics-preview-scroll")).toBe(true);
     expect(document.querySelector(".damophus-statistics-preview-dialog")).not.toBeNull();
-    expect(getComputedStyle(content).overflowY).toBe("auto");
+    expect(document.querySelector(".damophus-theme-root.damophus-question-bank-theme")).not.toBeNull();
+    expect(dialogCard).not.toBe(card);
+    expect(host.contains(card)).toBe(true);
+    expect(getComputedStyle(dialogCard.querySelector(".statistics-card-content")!).overflowY).toBe("visible");
+    expect(getComputedStyle(dialogCard.parentElement!).overflowY).toBe("auto");
 
     activeDialog?.destroy();
     expect(host.contains(card)).toBe(true);

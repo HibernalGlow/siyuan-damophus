@@ -15,10 +15,29 @@ import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 import { priorityTag } from "@/flashcard/priority-tags";
 import { NativePriorityControls, type ReviewToolbarKey } from "@/flashcard/native-priority-controls";
 import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/native-review-counter";
+import { NativeReviewTimer } from "@/flashcard/native-review-timer";
 import { readReviewCardStats } from "@/flashcard/review-stats";
 import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
 import { SiyuanMobileFlashcardSurfaceAdapter } from "@/flashcard/mobile-surface-adapter";
+import {
+  FsrsOptimizerLocalService,
+  loadFsrsOptimizerAssets,
+} from "@/flashcard/fsrs-optimizer-local-service";
+import {
+  buildFsrsTrainingDataset,
+  parseFsrsWeights,
+  type FsrsOptimizationResult,
+} from "@/flashcard/fsrs-optimizer-protocol";
+import { optimizeFsrsInPlugin } from "@/flashcard/fsrs-optimizer-internal";
+import { applyFsrsWeights, previewFsrsWeights, type FsrsWeightPreview } from "@/flashcard/fsrs-settings-adapter";
+import {
+  appendFsrsWeightHistory,
+  loadFsrsWeightHistory,
+  type FsrsWeightHistoryEntry,
+  type FsrsWeightHistoryStorage,
+} from "@/flashcard/fsrs-weight-history";
+import type { RiffReviewLogEntry } from "@/flashcard/review-log-export";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -48,9 +67,25 @@ export default class FlashcardPlugin extends SubPluginBase {
   private mobileNativeEntryBound = false;
   private mobileReviewButtonObserver?: MutationObserver;
   private breadcrumbButtonRegistered = false;
+  private optimizerService?: FsrsOptimizerLocalService;
+  private readonly fsrsHistoryStorage: FsrsWeightHistoryStorage = {
+    loadData: (storageName) => plugin.loadData(storageName),
+    saveData: (storageName, content) => plugin.saveData(storageName, content),
+  };
+  private readonly reviewTimer = new NativeReviewTimer({
+    getSettings: () => {
+      const settings = this.runtime.getSettings();
+      return {
+        enabled: settings.reviewTimerEnabled,
+        continueAfterAnswer: settings.reviewTimerContinueAfterAnswer,
+      };
+    },
+    onChange: () => this.reviewCounter.refresh(),
+  });
   private readonly reviewCounter = new NativeReviewCounter({
     documentRef: document,
     getStatsSettings: () => this.runtime.getSettings().reviewStats,
+    getTimerDisplay: () => this.reviewTimer.getDisplay(),
   });
   private readonly priorityControls = new NativePriorityControls({
     documentRef: document,
@@ -66,6 +101,8 @@ export default class FlashcardPlugin extends SubPluginBase {
         skipBetween: settings.reviewToolbarSkipBetween,
         showExitFocus: settings.reviewToolbarShowExitFocus,
         showBrand: settings.reviewToolbarShowBrand,
+        showFilter: settings.reviewToolbarShowFilter,
+        showFullscreen: settings.reviewToolbarShowFullscreen,
       };
     },
     getCurrentCard: () => this.currentReviewCard,
@@ -112,6 +149,8 @@ export default class FlashcardPlugin extends SubPluginBase {
         priority: "reviewToolbarPriority",
         renderer: "reviewToolbarRenderer",
         workbench: "reviewToolbarWorkbench",
+        filter: "reviewToolbarShowFilter",
+        fullscreen: "reviewToolbarShowFullscreen",
       };
       const settingKey = settingKeys[key];
       await this.runtime.saveSettings({ ...settings, [settingKey]: !Boolean(settings[settingKey]) });
@@ -123,6 +162,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     const card = this.reviewCards.get(blockId);
     if (!card) return;
     this.currentReviewCard = card;
+    this.reviewTimer?.setActiveCard(card.cardID);
     this.reviewCounter.setActiveCard(card.cardID);
     this.reviewCounter.updateCardStats(card.cardID, readReviewCardStats(card));
     this.compat.refresh();
@@ -137,6 +177,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!card?.blockID) return;
     this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = card;
+    this.reviewTimer?.handleAction(event.detail?.type ?? "", card.cardID);
     this.reviewCounter.setActiveCard(card.cardID);
     this.reviewCounter.updateCardStats(card.cardID, readReviewCardStats(card));
     this.compat.refresh();
@@ -236,6 +277,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.runtime.startAutomation();
     this.entry?.setSurfaces(this.configuredSettingsEntrySurfaces());
     this.reviewCounter.refresh();
+    this.reviewTimer?.refresh();
     this.priorityControls.refresh();
     this.syncBreadcrumbButton();
   }
@@ -357,6 +399,33 @@ export default class FlashcardPlugin extends SubPluginBase {
     void this.importSfpConfig();
   }
 
+  optimizeReviewLogFromSettings(entries: readonly RiffReviewLogEntry[]): Promise<{
+    result: FsrsOptimizationResult;
+    preview: FsrsWeightPreview;
+  }> {
+    return this.optimizeReviewLog(entries);
+  }
+
+  applyFsrsWeightsFromSettings(weights: number[]): Promise<boolean> {
+    return this.confirmAndApplyFsrsWeights(weights);
+  }
+
+  getFsrsWeightsFromSettings(): number[] {
+    try {
+      return parseFsrsWeights(window.siyuan?.config?.flashcard?.weights);
+    } catch {
+      return [];
+    }
+  }
+
+  loadFsrsHistoryFromSettings(): Promise<FsrsWeightHistoryEntry[]> {
+    return loadFsrsWeightHistory(this.fsrsHistoryStorage);
+  }
+
+  undoFsrsWeightsFromSettings(entry: FsrsWeightHistoryEntry): Promise<boolean> {
+    return this.confirmAndUndoFsrsWeights(entry);
+  }
+
   async updateCards(cardsData: {
     cards: RiffCardRecord[];
     unreviewedCount: number;
@@ -421,17 +490,29 @@ export default class FlashcardPlugin extends SubPluginBase {
     const ordered = orderCardsByPriority(cards, roots, {
       randomInterleave: this.runtime.getSettings().randomInterleaveEnabled,
       samePriorityShuffle: this.runtime.getSettings().samePriorityShuffleEnabled,
+      reviewMode: this.nativeReviewMode(),
     });
     const rootsById = new Map(roots.map((root) => [root.blockId, root]));
     this.reviewCounter.setQueue(ordered.map((card) => {
       const root = rootsById.get(card.blockID);
       const priority: ReviewPriorityBucket = root?.priority && !root.priorityConflict ? root.priority : "other";
-      return { cardID: card.cardID, priority, stats: readReviewCardStats(card) };
+      return { cardID: card.cardID, priority, isNew: card.state === 0, stats: readReviewCardStats(card) };
     }));
+    this.reviewTimer?.setQueue(ordered.map((card) => card.cardID));
     return ordered;
   }
 
+  private nativeReviewMode(): 0 | 1 | 2 {
+    const config = (window as Window & {
+      siyuan?: { config?: { flashcard?: { reviewMode?: unknown } } };
+    }).siyuan?.config?.flashcard?.reviewMode;
+    const mode = Number(config);
+    return mode === 1 || mode === 2 ? mode : 0;
+  }
+
   override onunload(): void {
+    this.reviewTimer?.stopSession();
+    this.reviewTimer?.dispose();
     this.unbindMobileNativeReviewEntry();
     this.mobileReviewButtonObserver?.disconnect();
     this.mobileReviewButtonObserver = undefined;
@@ -452,6 +533,8 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.entry?.setEnabled(false);
     this.entry?.destroyDockContent();
     this.runtime.stopAutomation();
+    void this.optimizerService?.stop();
+    this.optimizerService = undefined;
     this.compat.uninstall();
     this.reviewScope = undefined;
     this.currentReviewCard = undefined;
@@ -789,7 +872,13 @@ export default class FlashcardPlugin extends SubPluginBase {
         onLocateCard: (card: RiffCardRecord) => void this.locateCard(card),
         onUnregisterCard: (card: RiffCardRecord) => void this.unregisterCard(card),
         onSetCardPriority: (card: RiffCardRecord, priority: number) => void this.runtime.adapter.setPriority([card], priority),
+        onOptimizeReviewLog: (entries: RiffReviewLogEntry[]) => this.optimizeReviewLog(entries),
+        onApplyFsrsWeights: (weights: number[]) => this.confirmAndApplyFsrsWeights(weights),
+        onGetFsrsWeights: () => this.getFsrsWeightsFromSettings(),
+        onLoadFsrsHistory: () => this.loadFsrsHistoryFromSettings(),
+        onUndoFsrsWeights: (entry: FsrsWeightHistoryEntry) => this.undoFsrsWeightsFromSettings(entry),
         onSettingsChanged: () => {
+          this.reviewTimer?.refresh();
           this.priorityControls.refresh();
           if (this.runtime.getSettings().rendererInterceptionEnabled) {
             this.compat.setVisibility(this.runtime.getSettings().rendererVisibility);
@@ -802,6 +891,63 @@ export default class FlashcardPlugin extends SubPluginBase {
         },
       },
     });
+  }
+
+  private async optimizeReviewLog(entries: readonly RiffReviewLogEntry[]): Promise<{
+    result: FsrsOptimizationResult;
+    preview: FsrsWeightPreview;
+  }> {
+    const dataset = buildFsrsTrainingDataset(entries);
+    if (this.runtime.getSettings().fsrsOptimizerMode === "internal") {
+      const result = await optimizeFsrsInPlugin(dataset, { pluginName: plugin.name });
+      return { result, preview: previewFsrsWeights(result.weights) };
+    }
+    const assets = await loadFsrsOptimizerAssets(plugin.name);
+    this.optimizerService ??= new FsrsOptimizerLocalService();
+    const result = await this.optimizerService.optimize(dataset, assets);
+    return { result, preview: previewFsrsWeights(result.weights) };
+  }
+
+  private async confirmAndApplyFsrsWeights(weights: number[]): Promise<boolean> {
+    const approved = await new Promise<boolean>((resolve) => {
+      confirm(
+        "应用 FSRS 参数",
+        "将仅替换思源全局闪卡设置中的 19 项 FSRS 权重；保留率、最大间隔、卡片上限和制卡开关保持不变。确认写入并回读验证？",
+        () => resolve(true),
+        () => resolve(false),
+      );
+    });
+    if (!approved) return false;
+    const applied = await applyFsrsWeights(weights);
+    await appendFsrsWeightHistory(this.fsrsHistoryStorage, {
+      source: "optimizer",
+      previous: applied.current,
+      next: applied.optimized,
+    });
+    showMessage("FSRS 参数已写入并回读验证", 4000, "info");
+    return true;
+  }
+
+  private async confirmAndUndoFsrsWeights(entry: FsrsWeightHistoryEntry): Promise<boolean> {
+    const approved = await new Promise<boolean>((resolve) => {
+      confirm(
+        "撤销 FSRS 参数修改",
+        "将恢复这条历史记录中的上一组 19 项权重，并回读验证。确认继续？",
+        () => resolve(true),
+        () => resolve(false),
+      );
+    });
+    if (!approved) return false;
+    const current = this.getFsrsWeightsFromSettings();
+    if (current.length !== entry.next.length) throw new Error("当前 FSRS 参数不可用，无法撤销");
+    const applied = await applyFsrsWeights(entry.previous);
+    await appendFsrsWeightHistory(this.fsrsHistoryStorage, {
+      source: "undo",
+      previous: applied.current,
+      next: applied.optimized,
+    });
+    showMessage("FSRS 参数已撤销并回读验证", 4000, "info");
+    return true;
   }
 
   private async importSfpConfig(): Promise<void> {
@@ -877,9 +1023,16 @@ export default class FlashcardPlugin extends SubPluginBase {
     });
   }
 
-  private async reviewScopeCards(scope: FlashcardReviewScope): Promise<void> {
+  private async reviewScopeCards(scope: FlashcardReviewScope, retryAfterRegistration = false): Promise<void> {
     try {
-      const due = await this.runtime.buildScopeDueCards(scope, true);
+      let due = await this.runtime.buildScopeDueCards(scope, true);
+      if (retryAfterRegistration && due.cards.length === 0 && (due.candidateCount ?? 0) > 0 && (due.registeredCount ?? 0) > 0) {
+        for (const delay of [120, 300, 700]) {
+          await new Promise<void>((resolve) => globalThis.setTimeout(resolve, delay));
+          due = await this.runtime.buildScopeDueCards(scope, true);
+          if (due.cards.length > 0) break;
+        }
+      }
       const label = scope.groupName && scope.type !== "group"
         ? `${scope.targetName} · ${scope.groupName}`
         : scope.groupName ?? scope.targetName;
@@ -926,7 +1079,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       due,
       onRegistered: async () => {
         await this.runtime.recordScope(scope);
-        await this.reviewScopeCards(scope);
+        await this.reviewScopeCards(scope, true);
       },
     });
   }
@@ -961,15 +1114,17 @@ export default class FlashcardPlugin extends SubPluginBase {
         onRegister: async () => {
           try {
             const ids = options.roots.map((root) => root.blockId);
-            const approved = await new Promise<boolean>((resolve) => {
-              confirm(
-                "登记并开始复习",
-                `预览包含 ${ids.length} 个卡片根块。登记并验证成功后将直接打开原生闪卡复习，确认继续？`,
-                () => resolve(true),
-                () => resolve(false),
-              );
-            });
-            if (!approved) return;
+            if (this.runtime.getSettings().confirmBeforeAutoRegister) {
+              const approved = await new Promise<boolean>((resolve) => {
+                confirm(
+                  "登记并开始复习",
+                  `预览包含 ${ids.length} 个卡片根块。登记并验证成功后将直接打开原生闪卡复习，确认继续？`,
+                  () => resolve(true),
+                  () => resolve(false),
+                );
+              });
+              if (!approved) return;
+            }
             const result = await this.runtime.registerCards(ids);
             const pending = result.filter((entry) => entry.status === "pending").length;
             if (pending > 0) {
@@ -1085,47 +1240,31 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private async openNativeReview(title: string, due: DueCardsData, scope?: FlashcardReviewScope): Promise<void> {
+  private async openNativeReview(_title: string, due: DueCardsData, scope?: FlashcardReviewScope): Promise<void> {
     const orderedDue = await this.orderCardsData(due);
+    this.reviewTimer?.startSession(orderedDue.cards[0]?.cardID);
     for (const card of orderedDue.cards) this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = orderedDue.cards[0];
     this.priorityControls.refresh();
     const roots = await this.runtime.adapter.inspectRoots(orderedDue.cards.map((card) => card.blockID), this.runtime.getSettings());
     this.compat.preloadMany(roots as Array<{ blockId: string; renderer: any }>);
-    this.reviewScope = scope?.groupId
+    this.reviewScope = scope
       ? { scope, ids: new Set(orderedDue.cards.map((card) => card.blockID)) }
       : undefined;
+    const mobile = isMobileEntryFrontend();
     const nativeScope = scope && !scope.groupId && scope.type !== "group" ? scope : undefined;
-    if (isMobileEntryFrontend()) {
-      this.openMobileNativeReview(nativeScope);
+    const adapterScope = nativeScope?.type === "document"
+      ? { type: nativeScope.type, targetId: nativeScope.targetId, targetName: nativeScope.targetName }
+      : undefined;
+    if (!this.mobileSurface.openReview(adapterScope, mobile)) {
+      this.reviewTimer?.stopSession();
+      this.reviewScope = undefined;
+      showMessage("未找到思源原生闪卡浮窗入口", 5000, "error");
       return;
     }
-    await openTab({
-      app: plugin.app,
-      custom: {
-        title,
-        icon: "iconRiffCard",
-        id: "siyuan-card",
-        data: {
-          cardType: nativeScope?.type === "document" ? "doc" : nativeScope?.type ?? "all",
-          id: nativeScope?.targetId ?? "",
-          title,
-          cardsData: orderedDue,
-        },
-      },
-    });
     for (const delay of [0, 80, 250]) {
       window.setTimeout(() => this.compat.refresh(), delay);
     }
-  }
-
-  private openMobileNativeReview(scope?: FlashcardReviewScope): void {
-    if (scope?.groupId || scope?.type === "group" || scope?.type === "notebook") {
-      showMessage("移动端暂不支持按分组或笔记本打开自定义卡片队列，请先从当前文档复习", 5000, "info");
-      return;
-    }
-    if (this.mobileSurface.openReview(scope)) return;
-    showMessage(scope ? "移动端暂不支持按分组打开自定义卡片队列，请先从当前文档复习" : "未找到移动端闪卡入口", 5000, "info");
   }
 
   private async locateCard(card: RiffCardRecord): Promise<void> {
@@ -1146,7 +1285,6 @@ export default class FlashcardPlugin extends SubPluginBase {
   private async unregisterCard(card: RiffCardRecord): Promise<boolean> {
     const approved = await this.confirmUnregister(
       "取消闪卡登记",
-      "只从当前牌组移除这张闪卡，原笔记块和 DAMO 元数据会保留。是否继续查看最终确认？",
       "这会从当前牌组移除 1 张闪卡，但不会删除正文、IAL、优先级标签或复习内容。确认执行取消登记吗？",
     );
     if (!approved) return false;
@@ -1186,7 +1324,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
     const approved = await this.confirmUnregister(
       "批量取消闪卡登记",
-      `${label}中发现 ${selected.length} 张已登记闪卡。是否继续查看最终确认？`,
       `即将从思源原生牌组移除 ${selected.length} 张闪卡。正文、IAL、优先级标签和复习内容都会保留。确认执行批量取消登记吗？`,
     );
     if (!approved) return;
@@ -1201,16 +1338,10 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   private async confirmUnregister(
     title: string,
-    previewMessage: string,
-    finalMessage: string,
+    message: string,
   ): Promise<boolean> {
-    const previewApproved = await new Promise<boolean>((resolve) => {
-      confirm(title, previewMessage, () => resolve(true), () => resolve(false));
-    });
-    if (!previewApproved) return false;
-
     return new Promise<boolean>((resolve) => {
-      confirm("最终确认取消登记", finalMessage, () => resolve(true), () => resolve(false));
+      confirm(title, message, () => resolve(true), () => resolve(false));
     });
   }
 
