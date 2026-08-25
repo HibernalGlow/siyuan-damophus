@@ -29,6 +29,7 @@
     Sliders,
     SlidersHorizontal,
     Sparkles,
+    Star,
     Tag,
     Trash2,
     Upload,
@@ -71,6 +72,13 @@
   import { openCoverTagViewer } from "./tag-viewer";
   import { plugin } from "@/utils";
   import { settings } from "@/settings";
+  import {
+    loadCoverFavorites,
+    removeCoverFavorite,
+    updateCoverFavorite,
+    type CoverFavorite,
+  } from "./cover-favorites";
+  import { syncCoverFavoriteToSite } from "./cover-favorite-sync";
 
   export let group = "moreBackground";
   export let title = "题头图Plus";
@@ -101,6 +109,9 @@
   let maintenanceDocumentLink = "";
   let maintenanceBusy = false;
   let cleanupBusy = false;
+  let favorites: CoverFavorite[] = [];
+  let favoritesLoading = false;
+  let syncingFavoriteId: string | null = null;
 
   const dispatch = createEventDispatcher();
 
@@ -191,15 +202,55 @@
       ? siteCredentials
       : DEFAULT_SITE_CREDENTIALS;
 
-  onMount(async () => {
+  async function reloadFavorites() {
+    favoritesLoading = true;
     try {
-      const loaded = await loadTagPoolsFromStorage();
-      if (loaded && loaded.length > 0) {
-        tagPools = loaded;
-      }
-    } catch (e) {
-      console.warn("Failed to load tag pools from storage on mount:", e);
+      favorites = await loadCoverFavorites();
+    } finally {
+      favoritesLoading = false;
     }
+  }
+
+  async function removeFavorite(id: string) {
+    favorites = await removeCoverFavorite(id);
+  }
+
+  async function setFavoriteRating(id: string, value: string) {
+    const updated = await updateCoverFavorite(id, { rating: Number(value) || 0 });
+    if (updated) favorites = favorites.map((item) => (item.id === id ? updated : item));
+  }
+
+  async function syncFavorite(favorite: CoverFavorite, desired: boolean) {
+    if (syncingFavoriteId) return;
+    syncingFavoriteId = favorite.id;
+    try {
+      const credential = normalizedCredentials.find((item) => item.site.trim().toLowerCase() === (favorite.site || "").trim().toLowerCase());
+      const result = await syncCoverFavoriteToSite(favorite, credential, desired);
+      const updated = await updateCoverFavorite(favorite.id, {
+        remoteSync: result.status,
+        remoteSyncMessage: result.message,
+      });
+      if (updated) favorites = favorites.map((item) => (item.id === favorite.id ? updated : item));
+    } finally {
+      syncingFavoriteId = null;
+    }
+  }
+
+  onMount(() => {
+    const handleFavoritesChanged = () => void reloadFavorites();
+    window.addEventListener("damophus-cover-favorites-changed", handleFavoritesChanged);
+    void reloadFavorites();
+    void (async () => {
+      try {
+        const loaded = await loadTagPoolsFromStorage();
+        if (loaded && loaded.length > 0) {
+          tagPools = loaded;
+        }
+      } catch (e) {
+        console.warn("Failed to load tag pools from storage on mount:", e);
+      }
+    })();
+    return () => window.removeEventListener("damophus-cover-favorites-changed", handleFavoritesChanged);
   });
 
   // --- 实时保存状态跟踪与动画反馈 ---
@@ -883,6 +934,15 @@
         <span class="hidden sm:inline truncate">{t("lets-more-background.basicTab", "基础与存储设置")}</span>
       </Tabs.Trigger>
       <Tabs.Trigger
+        value="favorites"
+        class="gap-1.5 py-1.5 sm:py-2 text-xs"
+        title={t("lets-more-background.favoritesTab", "题头图收藏")}
+        aria-label={t("lets-more-background.favoritesTab", "题头图收藏")}
+      >
+        <Star class="size-4 shrink-0" />
+        <span class="hidden sm:inline truncate">{t("lets-more-background.favoritesTab", "题头图收藏")}</span>
+      </Tabs.Trigger>
+      <Tabs.Trigger
         value="cache"
         class="gap-1.5 py-1.5 sm:py-2 text-xs"
         title={t("lets-more-background.localCacheTab", "本地缓存")}
@@ -892,6 +952,89 @@
         <span class="hidden sm:inline truncate">{t("lets-more-background.localCacheTab", "本地缓存")}</span>
       </Tabs.Trigger>
     </Tabs.List>
+
+    <Tabs.Content value="favorites" class="space-y-3.5 sm:space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 sm:p-3.5">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="flex size-7.5 sm:size-8 items-center justify-center rounded-lg bg-muted text-primary shrink-0 border border-border">
+            <Star class="size-4" />
+          </div>
+          <div class="space-y-0.5">
+            <div class="font-semibold text-sm text-foreground flex items-center gap-2">
+              <span>{t("lets-more-background.favoritesTitle", "题头图收藏")}</span>
+              <Badge variant="secondary" class="text-[10px] font-mono">{favorites.length}</Badge>
+            </div>
+            <p class="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+              {t("lets-more-background.favoritesDescription", "收藏独立保存于工作区文件，不占用设置项；每条记录包含网址、原帖、文档和本地缓存信息。")}
+            </p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onclick={reloadFavorites} class="h-7.5 sm:h-8 text-xs gap-1.5" disabled={favoritesLoading}>
+          <RefreshCw class="size-3.5 {favoritesLoading ? 'animate-spin' : ''}" />
+          <span>{t("lets-more-background.refreshFavorites", "刷新")}</span>
+        </Button>
+      </div>
+
+      {#if favoritesLoading && favorites.length === 0}
+        <div class="py-12 text-center text-xs text-muted-foreground">{t("lets-more-background.loadingFavorites", "正在读取收藏...")}</div>
+      {:else if favorites.length === 0}
+        <div class="rounded-lg border border-dashed border-border p-10 text-center text-xs text-muted-foreground">
+          <Star class="size-7 mx-auto mb-2 opacity-40" />
+          <p>{t("lets-more-background.emptyFavorites", "还没有收藏题头图。在题头图工具条点击星标即可保存。")}</p>
+        </div>
+      {:else}
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
+          {#each favorites as favorite (favorite.id)}
+            <article class="damophus-card overflow-hidden flex flex-col sm:flex-row gap-3 p-3">
+              <div class="w-full sm:w-36 aspect-video sm:aspect-square shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                <img src={favorite.imageUrl || favorite.cachePath} alt={favorite.documentTitle || "题头图收藏"} class="size-full object-cover" loading="lazy" />
+              </div>
+              <div class="min-w-0 flex-1 space-y-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-medium text-sm truncate">{favorite.documentTitle || "未命名文档"}</div>
+                    {#if favorite.documentPath}
+                      <div class="text-[11px] text-muted-foreground truncate" title={favorite.documentPath}>{favorite.documentPath}</div>
+                    {/if}
+                  </div>
+                  <Button variant="ghost" size="icon-sm" class="size-7 shrink-0 text-muted-foreground hover:text-destructive" onclick={() => removeFavorite(favorite.id)} title="取消收藏">
+                    <Trash2 class="size-3.5" />
+                  </Button>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                  {#if favorite.site}<Badge variant="secondary" class="text-[10px]">{favorite.site}</Badge>{/if}
+                  {#if favorite.postId}<span class="font-mono">#{favorite.postId}</span>{/if}
+                  {#if favorite.cachePath}<span class="truncate max-w-full" title={favorite.cachePath}>本地缓存已记录</span>{/if}
+                </div>
+                <div class="flex flex-wrap items-center gap-2 text-[11px]">
+                  <label class="inline-flex items-center gap-1.5 text-muted-foreground">
+                    <Star class="size-3.5 text-amber-500" />
+                    <span>{t("lets-more-background.favoriteRating", "评分")}</span>
+                    <select value={favorite.rating} onchange={(e) => setFavoriteRating(favorite.id, (e.currentTarget as HTMLSelectElement).value)} class="h-7 rounded border border-border bg-background px-1.5 text-xs">
+                      <option value="0">未评分</option>
+                      {#each [1, 2, 3, 4, 5] as score}<option value={score}>{score} / 5</option>{/each}
+                    </select>
+                  </label>
+                  {#if favorite.postUrl}
+                    <a href={favorite.postUrl} target="_blank" rel="noopener noreferrer" class="text-primary hover:underline truncate max-w-[240px]">打开原帖</a>
+                  {/if}
+                  {#if favorite.site && favorite.postId}
+                    <Button variant="outline" size="sm" class="h-7 text-[11px] gap-1" disabled={syncingFavoriteId === favorite.id} onclick={() => syncFavorite(favorite, favorite.remoteSync !== "synced")} title="对支持的站点同步收藏状态">
+                      <Globe class="size-3" />
+                      <span>{syncingFavoriteId === favorite.id ? "同步中..." : favorite.remoteSync === "synced" ? "取消站点收藏" : "同步站点收藏"}</span>
+                    </Button>
+                  {/if}
+                </div>
+                {#if favorite.remoteSyncMessage}
+                  <div class="text-[10px] text-muted-foreground truncate" title={favorite.remoteSyncMessage}>站点同步：{favorite.remoteSyncMessage}</div>
+                {/if}
+                <div class="text-[10px] text-muted-foreground/80 truncate" title={favorite.imageUrl}>{favorite.imageUrl}</div>
+              </div>
+            </article>
+          {/each}
+        </div>
+      {/if}
+    </Tabs.Content>
 
     <!-- Tab 1: 条件模板与 Query Builder 过滤器 -->
     <Tabs.Content value="templates" class="space-y-3.5 sm:space-y-4">

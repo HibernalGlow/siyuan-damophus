@@ -25,6 +25,14 @@ import {
 } from "./local-cover-cache-maintenance";
 import { loadUsedCoverUrls, collectHistoryCoverUrls, normalizeCoverUrl } from "./cover-dedup";
 import { sql } from "@/api";
+import { getHPathByID } from "@/api";
+import {
+  coverFavoriteKey,
+  loadCoverFavorites,
+  removeCoverFavorite,
+  upsertCoverFavorite,
+  type CoverFavoriteInput,
+} from "./cover-favorites";
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
@@ -36,7 +44,18 @@ const SYNCIGNORE_PATH = "/data/.siyuan/syncignore";
 const LOCAL_CACHE_INDEX_NAME = "index.json";
 const COVER_SOURCE_ATTRIBUTE = "custom-damophus-cover-source-url";
 const COVER_CACHE_ATTRIBUTE = "custom-damophus-cover-cache-path";
+const FAVORITE_BUTTON_ATTR = "data-damophus-cover-favorite";
+const FAVORITES_CHANGED_EVENT = "damophus-cover-favorites-changed";
 const objectUrls = new WeakMap<HTMLImageElement, string>();
+
+function setNativeSymbolIcon(host: HTMLElement, symbol: string): void {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#${symbol}`);
+  use.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", `#${symbol}`);
+  svg.appendChild(use);
+  host.replaceChildren(svg);
+}
 
 export type CoverToolbarPosition = "adaptive" | "belowTags" | "belowIcon" | "native" | "custom";
 
@@ -919,65 +938,63 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         ".protyle-top .protyle-icons, .protyle-background .protyle-icons, .protyle-background__img .protyle-icons",
       );
       topIcons.forEach((iconsContainer) => {
-        if (iconsContainer.querySelector(`[${BUTTON_ATTR}]`)) return;
         const firstIcon =
           iconsContainer.querySelector(".protyle-icon.ariaLabel") || iconsContainer.firstElementChild;
         if (!firstIcon) return;
 
-        // 按钮 1: 随机换图 / 模板菜单
-        const button = document.createElement("span");
-        button.className = "protyle-icon ariaLabel";
-        button.setAttribute(BUTTON_ATTR, "true");
-        button.setAttribute("data-link", "more-background");
-        button.setAttribute("aria-label", this.options.t("lets-more-background.moreBackgroundBtn"));
-        button.innerHTML = '<svg><use xlink:href="#iconImage"></use></svg>';
+        if (!iconsContainer.querySelector(`[${BUTTON_ATTR}]`)) {
+          // 按钮 1: 随机换图 / 模板菜单
+          const button = document.createElement("span");
+          button.className = "protyle-icon ariaLabel";
+          button.setAttribute(BUTTON_ATTR, "true");
+          button.setAttribute("data-link", "more-background");
+          button.setAttribute("aria-label", this.options.t("lets-more-background.moreBackgroundBtn"));
+          button.innerHTML = '<svg><use xlink:href="#iconImage"></use></svg>';
 
-        button.addEventListener("click", (e: MouseEvent) => {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-          this.showBackgroundMenu(rect, root, bg);
-        });
-
-        // 按钮 2: Tag 标签查看按钮
-        const tagButton = document.createElement("span");
-        tagButton.className = "protyle-icon ariaLabel";
-        tagButton.setAttribute(BUTTON_ATTR, "true");
-        tagButton.setAttribute("data-link", "more-background-tag");
-        tagButton.setAttribute("aria-label", "查看题头图 Tag 标签 (中英对照)");
-        tagButton.innerHTML = '<svg><use xlink:href="#iconTag"></use></svg>';
-
-        tagButton.addEventListener("click", (e: MouseEvent) => {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-          const currentPostTags =
-            bg.getAttribute("data-damophus-post-tags") ||
-            bg.querySelector("img")?.getAttribute("data-damophus-post-tags") ||
-            "";
-          const currentPostUrl =
-            bg.getAttribute("data-damophus-post-url") ||
-            bg.querySelector("img")?.getAttribute("data-damophus-post-url") ||
-            "";
-          const currentPostSite = bg.getAttribute("data-damophus-post-site") || "";
-          const currentPostId = bg.getAttribute("data-damophus-post-id") || "";
-          const currentDimensions = bg.getAttribute("data-damophus-post-dimensions") || "";
-          const currentScore = bg.getAttribute("data-damophus-post-score") || "";
-
-          openCoverTagViewer({
-            site: currentPostSite,
-            postId: currentPostId,
-            postUrl: currentPostUrl,
-            tags: currentPostTags,
-            score: currentScore,
-            width: currentDimensions ? currentDimensions.split("×")[0]?.trim() : "",
-            height: currentDimensions ? currentDimensions.split("×")[1]?.trim() : "",
+          button.addEventListener("click", (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+            this.showBackgroundMenu(rect, root, bg);
           });
-        });
 
-        firstIcon.before(button);
-        firstIcon.before(tagButton);
+          // 按钮 2: Tag 标签查看按钮
+          const tagButton = document.createElement("span");
+          tagButton.className = "protyle-icon ariaLabel";
+          tagButton.setAttribute(BUTTON_ATTR, "true");
+          tagButton.setAttribute("data-link", "more-background-tag");
+          tagButton.setAttribute("aria-label", "查看题头图 Tag 标签 (中英对照)");
+          tagButton.innerHTML = '<svg><use xlink:href="#iconTag"></use></svg>';
+
+          tagButton.addEventListener("click", (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+            this.openTagViewerForBackground(bg);
+          });
+
+          firstIcon.before(button);
+          firstIcon.before(tagButton);
+        }
+
+        if (!iconsContainer.querySelector(`[${FAVORITE_BUTTON_ATTR}]`)) {
+          const favoriteButton = document.createElement("span");
+          favoriteButton.className = "protyle-icon ariaLabel";
+          favoriteButton.setAttribute(FAVORITE_BUTTON_ATTR, "true");
+          favoriteButton.setAttribute("aria-label", "收藏当前题头图");
+          favoriteButton.title = "收藏当前题头图（再次点击取消收藏）";
+          setNativeSymbolIcon(favoriteButton, "iconStar");
+          favoriteButton.addEventListener("click", (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+            void this.toggleCoverFavorite(root, bg, favoriteButton);
+          });
+          firstIcon.before(favoriteButton);
+          const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
+          void this.refreshFavoriteButton(root, bg, favoriteButton);
+        }
       });
     };
 
@@ -1055,10 +1072,164 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       titleEl?.removeEventListener("mouseover", handleHeaderMouse);
       backgroundEl?.removeEventListener("click", handleNativeRemove, true);
       const injected = root.querySelectorAll(
-        `[${BUTTON_ATTR}], [data-damophus-more-background-title-btn]`,
+        `[${BUTTON_ATTR}], [${FAVORITE_BUTTON_ATTR}], [data-damophus-more-background-title-btn]`,
       );
       injected.forEach((el) => el.remove());
     };
+  }
+
+  private openTagViewerForBackground(background: HTMLElement): void {
+    const currentPostTags =
+      background.getAttribute("data-damophus-post-tags") ||
+      background.querySelector("img")?.getAttribute("data-damophus-post-tags") ||
+      "";
+    const currentPostUrl =
+      background.getAttribute("data-damophus-post-url") ||
+      background.querySelector("img")?.getAttribute("data-damophus-post-url") ||
+      "";
+    const currentPostSite = background.getAttribute("data-damophus-post-site") || "";
+    const currentPostId = background.getAttribute("data-damophus-post-id") || "";
+    const currentDimensions = background.getAttribute("data-damophus-post-dimensions") || "";
+    const currentScore = background.getAttribute("data-damophus-post-score") || "";
+    openCoverTagViewer({
+      site: currentPostSite,
+      postId: currentPostId,
+      postUrl: currentPostUrl,
+      tags: currentPostTags,
+      score: currentScore,
+      width: currentDimensions ? currentDimensions.split("×")[0]?.trim() : "",
+      height: currentDimensions ? currentDimensions.split("×")[1]?.trim() : "",
+    });
+  }
+
+  private findCoverBlockId(root: HTMLElement, background: HTMLElement): string {
+    return background.getAttribute("data-node-id") ||
+      root.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
+      root.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id") ||
+      "";
+  }
+
+  private async getCoverFavoriteInput(root: HTMLElement, background: HTMLElement): Promise<CoverFavoriteInput | null> {
+    const blockId = this.findCoverBlockId(root, background);
+    if (!blockId) return null;
+    let attrs: Record<string, string> = {};
+    try {
+      const response = await fetch("/api/attr/getBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: blockId }),
+      });
+      const data = await response.json();
+      attrs = (data?.data || {}) as Record<string, string>;
+    } catch {}
+
+    const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+    const sourceUrl = attrs[COVER_SOURCE_ATTRIBUTE] ||
+      background.getAttribute(COVER_SOURCE_ATTRIBUTE) ||
+      background.getAttribute("data-damophus-post-image-url") ||
+      image?.getAttribute("data-damophus-post-image-url") ||
+      (image?.currentSrc && /^https?:\/\//i.test(image.currentSrc) ? image.currentSrc : "");
+    const titleImage = attrs["title-img"] || "";
+    const titleRemoteUrl = normalizeCoverUrl(titleImage);
+    const sourceRemoteUrl = normalizeCoverUrl(sourceUrl);
+    const currentSourceUrl = titleRemoteUrl && sourceRemoteUrl && titleRemoteUrl !== sourceRemoteUrl
+      ? titleRemoteUrl
+      : sourceUrl;
+    const cachePath = attrs[COVER_CACHE_ATTRIBUTE] || background.getAttribute(COVER_CACHE_ATTRIBUTE) || "";
+    const imageUrl = currentSourceUrl || cachePath || titleRemoteUrl || image?.currentSrc || image?.src || "";
+    if (!imageUrl) return null;
+    const dimensions = attrs["custom-damophus-post-dimensions"] || background.getAttribute("data-damophus-post-dimensions") || "";
+    const [width, height] = dimensions.split("×").map((value) => value?.trim()).filter(Boolean);
+    const documentTitle = root.querySelector<HTMLElement>(".protyle-title__input")?.textContent?.trim();
+    let documentPath: string | undefined;
+    try {
+      documentPath = await getHPathByID(blockId);
+    } catch {}
+    const rawTags = attrs["custom-damophus-post-tags"] || background.getAttribute("data-damophus-post-tags") || "";
+    return {
+      imageUrl,
+      postUrl: attrs["custom-damophus-post-url"] || background.getAttribute("data-damophus-post-url") || undefined,
+      site: attrs["custom-damophus-post-site"] || background.getAttribute("data-damophus-post-site") || undefined,
+      postId: attrs["custom-damophus-post-id"] || background.getAttribute("data-damophus-post-id") || undefined,
+      tags: rawTags.split(/\s+/).filter(Boolean),
+      width,
+      height,
+      sourceScore: attrs["custom-damophus-post-score"] || background.getAttribute("data-damophus-post-score") || undefined,
+      documentId: blockId,
+      documentTitle,
+      documentPath,
+      cachePath: cachePath || undefined,
+    };
+  }
+
+  private async refreshFavoriteButton(root: HTMLElement, background: HTMLElement, button: HTMLElement): Promise<void> {
+    const input = await this.getCoverFavoriteInput(root, background);
+    if (!input) return;
+    const favorites = await loadCoverFavorites();
+    const favorite = favorites.some((item) => coverFavoriteKey(item) === coverFavoriteKey(input));
+    button.dataset.favorited = favorite ? "true" : "false";
+    button.setAttribute("aria-label", favorite ? "取消收藏当前题头图" : "收藏当前题头图");
+    button.title = favorite ? "已收藏当前题头图（再次点击取消收藏）" : "收藏当前题头图（再次点击取消收藏）";
+    button.style.color = favorite ? "var(--b3-theme-primary)" : "";
+  }
+
+  private async ensureFavoriteCache(input: CoverFavoriteInput): Promise<CoverFavoriteInput> {
+    if (input.cachePath || !isRemoteImageUrl(input.imageUrl)) return input;
+    try {
+      let blob = await proxyFetchImageBlob(input.imageUrl);
+      if (!blob || blob.size === 0) {
+        const response = await fetch(input.imageUrl, { referrerPolicy: "no-referrer" });
+        if (response.ok) blob = await response.blob();
+      }
+      if (!blob || blob.size === 0) return input;
+      const processed = await convertToWebp(blob, this.options.localCacheMaxEdge);
+      const cachePath = localCachePath(this.options.localCacheRoot, this.options.localCachePathTemplate, {
+        sourceUrl: input.imageUrl,
+        maxEdge: this.options.localCacheMaxEdge,
+        site: input.site,
+        postId: input.postId,
+      });
+      await ensureSyncIgnore(this.options.localCacheRoot);
+      if (!await this.uploadToLocalCache(processed, cachePath)) return input;
+      await updateLocalCacheIndex(this.options.localCacheRoot, {
+        path: cachePath,
+        sourceUrl: input.imageUrl,
+        createdAt: new Date().toISOString(),
+        maxEdge: this.options.localCacheMaxEdge,
+        quality: LOCAL_CACHE_QUALITY,
+        site: input.site,
+        postId: input.postId,
+        width: input.width ? Number(input.width) : undefined,
+        height: input.height ? Number(input.height) : undefined,
+        size: processed.size,
+      });
+      return { ...input, cachePath };
+    } catch (error) {
+      log.warn("Failed to cache explicitly favorited cover:", error);
+      return input;
+    }
+  }
+
+  private async toggleCoverFavorite(root: HTMLElement, background: HTMLElement, button: HTMLElement): Promise<void> {
+    const rawInput = await this.getCoverFavoriteInput(root, background);
+    if (!rawInput) {
+      showMessage("当前题头图没有可保存的图片地址");
+      return;
+    }
+    const favorites = await loadCoverFavorites();
+    const existing = favorites.find((item) => coverFavoriteKey(item) === coverFavoriteKey(rawInput));
+    if (existing) {
+      await removeCoverFavorite(existing.id);
+      showMessage("已取消收藏题头图");
+    } else {
+      const input = await this.ensureFavoriteCache(rawInput);
+      await upsertCoverFavorite(input);
+      showMessage(input.cachePath
+        ? "题头图已收藏，网址、文档和本地缓存信息已保存"
+        : "题头图已收藏，网址和文档信息已保存");
+    }
+    await this.refreshFavoriteButton(root, background, button);
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(FAVORITES_CHANGED_EVENT));
   }
 
   private initVideoBackground(background: HTMLElement): () => void {

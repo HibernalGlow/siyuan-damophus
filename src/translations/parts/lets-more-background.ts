@@ -132,6 +132,13 @@ export const en = {
   "lets-more-background.confirmRemoveCoverTitle": "Confirm removing a cover",
   "lets-more-background.confirmRemoveCoverDescription": "Show a confirmation before SiYuan removes a document title cover.",
   "lets-more-background.openSetting": "Open settings",
+  "lets-more-background.favoritesTab": "Cover Favorites",
+  "lets-more-background.favoritesTitle": "Cover Favorites",
+  "lets-more-background.favoritesDescription": "Favorites are stored in a separate workspace file and include the image URL, post metadata, document, and local cache path.",
+  "lets-more-background.refreshFavorites": "Refresh",
+  "lets-more-background.loadingFavorites": "Loading favorites...",
+  "lets-more-background.emptyFavorites": "No cover favorites yet. Click the star in the title-cover toolbar to save one.",
+  "lets-more-background.favoriteRating": "Rating",
 };
 
 export const zhCN: typeof en = {
@@ -268,4 +275,11 @@ export const zhCN: typeof en = {
   "lets-more-background.confirmRemoveCoverTitle": "删除题头图前确认",
   "lets-more-background.confirmRemoveCoverDescription": "思源删除文档题头图前先显示确认提示，避免误触导致题头图消失。",
   "lets-more-background.openSetting": "打开设置",
+  "lets-more-background.favoritesTab": "题头图收藏",
+  "lets-more-background.favoritesTitle": "题头图收藏",
+  "lets-more-background.favoritesDescription": "收藏独立保存于工作区文件，包含图片网址、原帖元数据、关联文档和本地缓存路径。",
+  "lets-more-background.refreshFavorites": "刷新收藏",
+  "lets-more-background.loadingFavorites": "正在读取收藏...",
+  "lets-more-background.emptyFavorites": "还没有收藏题头图。在题头图工具条点击星标即可保存。",
+  "lets-more-background.favoriteRating": "评分",
 };
