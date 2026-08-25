@@ -21,6 +21,11 @@ export interface ColumnBindingConfig {
   rules: ColumnBindingRule[];
 }
 
+export interface NativeFilterLeaf {
+  column: string;
+  operator: NativeFilterOperator;
+}
+
 export interface AttributeViewKey {
   id: string;
   name: string;
@@ -72,10 +77,12 @@ export function normalizeBindingRules(value: unknown): ColumnBindingRule[] {
   return raw.flatMap((item): ColumnBindingRule[] => {
     if (!item || typeof item !== "object") return [];
     const candidate = item as Record<string, unknown>;
-    const sourceColumn = String(candidate.sourceColumn ?? "").trim();
+    const filter = candidate.filter && typeof candidate.filter === "object" ? candidate.filter as Record<string, unknown> : undefined;
+    const sourceColumn = String(candidate.sourceColumn ?? filter?.column ?? "").trim();
     const targetColumn = String(candidate.targetColumn ?? "").trim();
-    const operator = NATIVE_FILTER_OPERATORS.includes(candidate.operator as NativeFilterOperator)
-      ? candidate.operator as NativeFilterOperator
+    const rawOperator = candidate.operator ?? filter?.operator;
+    const operator = NATIVE_FILTER_OPERATORS.includes(rawOperator as NativeFilterOperator)
+      ? rawOperator as NativeFilterOperator
       : "Is true";
     const generator = candidate.generator === DATE_NOW_GENERATOR ? DATE_NOW_GENERATOR : null;
     if (!sourceColumn || !targetColumn || !generator) return [];
@@ -88,7 +95,15 @@ export function parseBindingConfig(value: unknown): ColumnBindingConfig {
 }
 
 export function serializeBindingConfig(rules: readonly ColumnBindingRule[]): string {
-  return JSON.stringify({ version: BINDING_RULES_VERSION, rules: normalizeBindingRules({ rules }) });
+  const normalized = normalizeBindingRules({ rules });
+  return JSON.stringify({
+    version: BINDING_RULES_VERSION,
+    rules: normalized.map((rule) => ({
+      filter: { column: rule.sourceColumn, operator: rule.operator } satisfies NativeFilterLeaf,
+      targetColumn: rule.targetColumn,
+      generator: rule.generator,
+    })),
+  });
 }
 
 export function resolveColumn(columns: readonly AttributeViewKey[], reference: string): AttributeViewKey | undefined {
@@ -162,6 +177,7 @@ export class AvColumnBindingManager {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly pending = new Set<string>();
   private listening = false;
+  private scanTimer: ReturnType<typeof setInterval> | null = null;
 
   updateOptions(options: { enabled: boolean }): void {
     this.enabled = options.enabled;
@@ -173,7 +189,8 @@ export class AvColumnBindingManager {
     this.listening = true;
     document.addEventListener("input", this.handleDomSignal, true);
     document.addEventListener("change", this.handleDomSignal, true);
-    document.querySelectorAll<HTMLElement>(".av[data-av-id]").forEach((element) => this.schedule(element.dataset.avId || "", element.dataset.nodeId || ""));
+    this.scanRenderedViews();
+    this.scanTimer = setInterval(() => this.scanRenderedViews(), 1000);
   }
 
   stop(): void {
@@ -181,6 +198,8 @@ export class AvColumnBindingManager {
     document.removeEventListener("input", this.handleDomSignal, true);
     document.removeEventListener("change", this.handleDomSignal, true);
     this.listening = false;
+    if (this.scanTimer) clearInterval(this.scanTimer);
+    this.scanTimer = null;
     this.clearTimers();
     this.pending.clear();
   }
@@ -195,6 +214,13 @@ export class AvColumnBindingManager {
     const target = event.target instanceof Element ? event.target.closest<HTMLElement>(".av[data-av-id]") : null;
     this.schedule(target?.dataset.avId || "", target?.dataset.nodeId || "");
   };
+
+  private scanRenderedViews(): void {
+    if (!this.enabled || typeof document === "undefined") return;
+    document.querySelectorAll<HTMLElement>(".av[data-av-id][data-node-id]").forEach((element) => {
+      this.schedule(element.dataset.avId || "", element.dataset.nodeId || "");
+    });
+  }
 
   private schedule(databaseId: string, blockId: string): void {
     if (!databaseId || !blockId) return;
@@ -214,6 +240,7 @@ export class AvColumnBindingManager {
       if (!rules.rules.length) return;
       const response = await requestStrict<{ av: RawAttributeView }>("/api/av/getAttributeView", { id: databaseId });
       const actions = planDateBindingActions(response.av, rules.rules, Date.now());
+      log.debug("column binding plan", { databaseId, blockId, rules: rules.rules.length, actions: actions.length });
       for (const action of actions) {
         const key = `${action.databaseId}:${action.targetColumnId}:${action.itemId}`;
         if (this.pending.has(key)) continue;
@@ -228,7 +255,16 @@ export class AvColumnBindingManager {
   }
 
   async saveConfig(blockId: string, rules: readonly ColumnBindingRule[]): Promise<void> {
-    await setBlockAttrs(blockId, { [COLUMN_BINDINGS_ATTR]: serializeBindingConfig(rules) });
+    const serialized = serializeBindingConfig(rules);
+    await setBlockAttrs(blockId, { [COLUMN_BINDINGS_ATTR]: serialized });
+    const saved = await getBlockAttrsStrict(blockId);
+    if (saved[COLUMN_BINDINGS_ATTR] !== serialized) {
+      throw new Error("Column binding configuration was not persisted");
+    }
+  }
+
+  refresh(databaseId: string, blockId: string): void {
+    if (this.enabled) void this.process(databaseId, blockId);
   }
 
   private clearTimers(): void {

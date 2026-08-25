@@ -37,7 +37,7 @@ describe("database column bindings", () => {
   it("serializes a versioned database attribute", () => {
     expect(JSON.parse(serializeBindingConfig([{ sourceColumn: "source", operator: "Is true", targetColumn: "target", generator: "dateNow" }]))).toEqual({
       version: 1,
-      rules: [{ sourceColumn: "source", operator: "Is true", targetColumn: "target", generator: "dateNow" }],
+      rules: [{ filter: { column: "source", operator: "Is true" }, targetColumn: "target", generator: "dateNow" }],
     });
   });
 

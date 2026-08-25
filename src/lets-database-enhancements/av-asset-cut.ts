@@ -32,6 +32,11 @@ export class AvAssetCutManager {
 
   public constructor(private readonly getLabel: () => string) {}
 
+  updateOptions(options: { enabled: boolean }): void {
+    if (options.enabled) this.start();
+    else this.stop();
+  }
+
   start(): void {
     if (this.started || typeof document === "undefined") return;
     this.started = true;

@@ -8,7 +8,6 @@ import { AvAssetCutManager } from "./av-asset-cut";
 import {
   DATE_NOW_GENERATOR,
   COLUMN_BINDINGS_ATTR,
-  NATIVE_FILTER_OPERATORS,
   parseBindingConfig,
   type AttributeViewKey,
   type ColumnBindingRule,
@@ -26,7 +25,9 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
   private documentCleanup: (() => void) | null = null;
 
   override onload(): void {
-    this.assetCutManager.start();
+    this.assetCutManager.updateOptions({
+      enabled: this.isAssetCutEnabled(),
+    });
     this.columnBindingManager.updateOptions({
       enabled: this.isColumnBindingEnabled(),
     });
@@ -45,6 +46,9 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
   }
 
   onDataChanged(): void {
+    this.assetCutManager.updateOptions({
+      enabled: this.isAssetCutEnabled(),
+    });
     this.columnBindingManager.updateOptions({
       enabled: this.isColumnBindingEnabled(),
     });
@@ -81,6 +85,10 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
 
   private isColumnBindingEnabled(): boolean {
     return this.getSetting("columnBindingEnabled") === true;
+  }
+
+  private isAssetCutEnabled(): boolean {
+    return this.getSetting("assetCutEnabled") !== false;
   }
 
   private startServices(): void {
@@ -203,15 +211,20 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
   }
 
   private renderColumnBindingDialog(columns: AttributeViewKey[], rules: ColumnBindingRule[]): string {
+    const operatorOptions = (selected: string, sourceId: string): string => {
+      const sourceType = columns.find((column) => column.id === sourceId)?.type;
+      const operators = sourceType === "checkbox" ? ["Is true", "Is false"] : ["Is not empty", "Is empty"];
+      return operators.map((operator) => `<option value="${operator}"${operator === selected ? " selected" : ""}>${operator}</option>`).join("");
+    };
     const optionHtml = (selected: string, target = false): string => columns
       .filter((column) => !target || column.type === "date")
-      .map((column) => `<option value="${this.escapeHtml(column.id)}"${column.id === selected ? " selected" : ""}>${this.escapeHtml(column.name)}</option>`)
+      .map((column) => `<option value="${this.escapeHtml(column.id)}"${column.id === selected ? " selected" : ""}>${this.escapeHtml(column.name)} (${column.type})</option>`)
       .join("");
-    const rows = rules.map((rule, index) => `<div class="damophus-column-binding-row" data-rule-index="${index}" style="display:flex;align-items:center;gap:8px;margin:8px 0">
-      <select class="b3-select" data-field="source">${optionHtml(rule.sourceColumn)}</select>
-      <select class="b3-select" data-field="operator">${NATIVE_FILTER_OPERATORS.map((operator) => `<option value="${operator}"${operator === rule.operator ? " selected" : ""}>${operator}</option>`).join("")}</select>
-      <select class="b3-select" data-field="target">${optionHtml(rule.targetColumn, true)}</select>
-      <span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.generatorDateNow"))}</span>
+    const rows = rules.map((rule, index) => `<div class="damophus-column-binding-row" data-rule-index="${index}" style="display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap">
+      <span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.bindingIf"))}</span><select class="b3-select" data-field="source">${optionHtml(rule.sourceColumn)}</select>
+      <select class="b3-select" data-field="operator">${operatorOptions(rule.operator, rule.sourceColumn)}</select>
+      <span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.bindingThen"))}</span><select class="b3-select" data-field="target">${optionHtml(rule.targetColumn, true)}</select>
+      <span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.bindingAction"))}</span><select class="b3-select" data-field="generator"><option value="dateNow">${this.escapeHtml(this.t("lets-database-enhancements.generatorDateNow"))}</option></select>
       <button class="b3-button b3-button--cancel" data-action="remove" type="button">${this.escapeHtml(this.t("lets-database-enhancements.removeRule"))}</button>
     </div>`).join("");
     return `<div class="b3-dialog__content">
@@ -225,13 +238,15 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
     </div>`;
   }
 
-  private bindColumnBindingDialog(dialog: Dialog, blockId: string, _databaseId: string, columns: AttributeViewKey[]): void {
+  private bindColumnBindingDialog(dialog: Dialog, blockId: string, databaseId: string, columns: AttributeViewKey[]): void {
     const rulesRoot = dialog.element.querySelector<HTMLElement>("[data-rules]");
     const addButton = dialog.element.querySelector<HTMLButtonElement>('[data-action="add"]');
     addButton?.addEventListener("click", () => {
       if (!rulesRoot) return;
       const index = rulesRoot.querySelectorAll("[data-rule-index]").length;
-      const sourceOptions = columns.map((column) => `<option value="${this.escapeHtml(column.id)}">${this.escapeHtml(column.name)}</option>`).join("");
+      const defaultSource = columns.find((column) => column.type === "checkbox")?.id || columns[0]?.id || "";
+      const sourceOptions = columns.map((column) => `<option value="${this.escapeHtml(column.id)}"${column.id === defaultSource ? " selected" : ""}>${this.escapeHtml(column.name)} (${column.type})</option>`).join("");
+      const defaultOperators = columns.find((column) => column.id === defaultSource)?.type === "checkbox" ? ["Is true", "Is false"] : ["Is not empty", "Is empty"];
       const targetOptions = columns.filter((column) => column.type === "date").map((column) => `<option value="${this.escapeHtml(column.id)}">${this.escapeHtml(column.name)}</option>`).join("");
       const empty = rulesRoot.querySelector(".b3-label");
       empty?.remove();
@@ -239,8 +254,15 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
       row.className = "damophus-column-binding-row";
       row.style.cssText = "display:flex;align-items:center;gap:8px;margin:8px 0";
       row.dataset.ruleIndex = String(index);
-      row.innerHTML = `<select class="b3-select" data-field="source">${sourceOptions}</select><select class="b3-select" data-field="operator">${NATIVE_FILTER_OPERATORS.map((operator) => `<option value="${operator}">${operator}</option>`).join("")}</select><select class="b3-select" data-field="target">${targetOptions}</select><span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.generatorDateNow"))}</span><button class="b3-button b3-button--cancel" data-action="remove" type="button">${this.escapeHtml(this.t("lets-database-enhancements.removeRule"))}</button>`;
+      row.innerHTML = `<span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.bindingIf"))}</span><select class="b3-select" data-field="source">${sourceOptions}</select><select class="b3-select" data-field="operator">${defaultOperators.map((operator) => `<option value="${operator}">${operator}</option>`).join("")}</select><span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.bindingThen"))}</span><select class="b3-select" data-field="target">${targetOptions}</select><span class="b3-label">${this.escapeHtml(this.t("lets-database-enhancements.bindingAction"))}</span><select class="b3-select" data-field="generator"><option value="dateNow">${this.escapeHtml(this.t("lets-database-enhancements.generatorDateNow"))}</option></select><button class="b3-button b3-button--cancel" data-action="remove" type="button">${this.escapeHtml(this.t("lets-database-enhancements.removeRule"))}</button>`;
       row.querySelector<HTMLButtonElement>('[data-action="remove"]')?.addEventListener("click", () => row.remove());
+      row.querySelector<HTMLSelectElement>('[data-field="source"]')?.addEventListener("change", (event) => {
+        const sourceId = (event.target as HTMLSelectElement).value;
+        const sourceType = columns.find((column) => column.id === sourceId)?.type;
+        const operators = sourceType === "checkbox" ? ["Is true", "Is false"] : ["Is not empty", "Is empty"];
+        const select = row.querySelector<HTMLSelectElement>('[data-field="operator"]');
+        if (select) select.innerHTML = operators.map((operator) => `<option value="${operator}">${operator}</option>`).join("");
+      });
       rulesRoot.append(row);
     });
     dialog.element.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
@@ -249,9 +271,13 @@ export default class DatabaseEnhancementsPlugin extends SubPluginBase {
         const sourceColumn = row.querySelector<HTMLSelectElement>('[data-field="source"]')?.value || "";
         const operator = row.querySelector<HTMLSelectElement>('[data-field="operator"]')?.value || "Is true";
         const targetColumn = row.querySelector<HTMLSelectElement>('[data-field="target"]')?.value || "";
-        return sourceColumn && targetColumn && sourceColumn !== targetColumn ? [{ sourceColumn, operator: operator as ColumnBindingRule["operator"], targetColumn, generator: DATE_NOW_GENERATOR }] : [];
+        const generator = row.querySelector<HTMLSelectElement>('[data-field="generator"]')?.value;
+        return sourceColumn && targetColumn && sourceColumn !== targetColumn && generator === DATE_NOW_GENERATOR ? [{ sourceColumn, operator: operator as ColumnBindingRule["operator"], targetColumn, generator: DATE_NOW_GENERATOR }] : [];
       });
-      void this.columnBindingManager.saveConfig(blockId, currentRules).then(() => dialog.destroy()).catch(() => showMessage(this.t("lets-database-enhancements.columnBindingSaveFailed"), 5000, "error"));
+      void this.columnBindingManager.saveConfig(blockId, currentRules).then(() => {
+        this.columnBindingManager.refresh(databaseId, blockId);
+        dialog.destroy();
+      }).catch(() => showMessage(this.t("lets-database-enhancements.columnBindingSaveFailed"), 5000, "error"));
     });
     dialog.element.querySelectorAll<HTMLButtonElement>('[data-action="remove"]').forEach((button) => button.addEventListener("click", () => { button.closest("[data-rule-index]")?.remove(); }));
   }

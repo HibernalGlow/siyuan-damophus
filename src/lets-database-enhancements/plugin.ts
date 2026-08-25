@@ -36,6 +36,13 @@ export const pluginMetadata: PluginMetadata = {
       key: "columnBindingEnabled",
       value: false,
     },
+    {
+      type: "checkbox",
+      title: "lets-database-enhancements.assetCutTitle",
+      description: "lets-database-enhancements.assetCutDescription",
+      key: "assetCutEnabled",
+      value: true,
+    },
   ],
 };
 
