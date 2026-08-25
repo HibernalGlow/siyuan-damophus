@@ -13,7 +13,10 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-async function render() {
+async function render(
+  onLoadOpenDocuments = vi.fn(async () => []),
+  onReviewScope = vi.fn(),
+) {
   const runtime = new FlashcardRuntime(() => undefined, vi.fn());
   vi.spyOn(runtime, "getReadablePath").mockImplementation(async (id) => `/法考/闪卡/${id === "20260823120000-aaaaaaa" ? "债权人代位权" : "复习文档"}`);
   vi.spyOn(Date, "now").mockReturnValue(new Date("2026-08-23T12:00:00+08:00").getTime());
@@ -36,9 +39,10 @@ async function render() {
     target,
     props: {
       runtime,
+      onLoadOpenDocuments,
       onReviewGroup: vi.fn(), onReviewAll: vi.fn(), onViewResults: vi.fn(),
       onOpenRaw: vi.fn(), onOpenFiltered: vi.fn(), onBatchPriority: vi.fn(), onImportSfp: vi.fn(),
-      onReviewScope: vi.fn(), onLocateCard: vi.fn(), onUnregisterCard: vi.fn(),
+      onReviewScope, onLocateCard: vi.fn(), onUnregisterCard: vi.fn(),
       onSetCardPriority: vi.fn(), onSettingsChanged: vi.fn(),
       onOptimizeReviewLog: vi.fn(), onApplyFsrsWeights: vi.fn(),
     },
@@ -75,6 +79,32 @@ describe("flashcard workbench", () => {
     await vi.waitFor(() => expect(target.textContent).toContain("/法考/闪卡/债权人代位权"));
     expect(target.querySelector('[title="定位原块"]')).not.toBeNull();
     expect(target.querySelector('[title="取消闪卡登记"]')).not.toBeNull();
+  });
+
+  it("shows every open document path and exposes direct document-group review actions", async () => {
+    const onReviewScope = vi.fn();
+    const onLoadOpenDocuments = vi.fn(async () => [{
+      documentId: "20260823120000-aaaaaaa",
+      title: "09 诉讼时效",
+      path: "/Note-3.2/法考/客观/民法/09 诉讼时效",
+      active: true,
+    }]);
+    const target = await render(onLoadOpenDocuments, onReviewScope);
+    await vi.waitFor(() => expect(target.querySelector('[data-testid="open-documents-panel"] .open-document-row')).not.toBeNull());
+    const row = target.querySelector<HTMLElement>('[data-testid="open-documents-panel"] .open-document-row');
+
+    expect(row?.textContent).toContain("/Note-3.2/法考/客观/民法/09 诉讼时效");
+    expect(row?.textContent).toContain("当前");
+    const groupButton = [...(row?.querySelectorAll<HTMLButtonElement>("button") ?? [])]
+      .find((button) => button.textContent?.includes("所有闪卡"));
+    expect(groupButton).not.toBeUndefined();
+    groupButton?.click();
+    await vi.waitFor(() => expect(onReviewScope).toHaveBeenCalledWith(expect.objectContaining({
+      type: "document",
+      targetId: "20260823120000-aaaaaaa",
+      groupId: "all-cards",
+      groupName: "所有闪卡",
+    })));
   });
 
   it("keeps workbench controls inside a mobile viewport", async () => {

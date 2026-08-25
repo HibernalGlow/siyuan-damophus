@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { type FlashcardDiagnosticRow, type FlashcardGroup, type FlashcardReviewHistoryItem, type FlashcardReviewScope, type FlashcardReviewStatKey, type FlashcardSettings } from "@/flashcard/types";
+  import type { OpenFlashcardDocument } from "@/flashcard/open-documents";
   import type { RiffCardRecord } from "@/flashcard/siyuan-adapter";
   import type { FlashcardRuntime } from "@/flashcard/runtime";
   import {
@@ -45,6 +46,7 @@
   export let onBatchPriority: (group: FlashcardGroup) => void;
   export let onImportSfp: () => void | Promise<void>;
   export let onReviewScope: (scope: FlashcardReviewScope) => void;
+  export let onLoadOpenDocuments: () => Promise<OpenFlashcardDocument[]> = async () => [];
   export let onLocateCard: (card: RiffCardRecord) => void;
   export let onUnregisterCard: (card: RiffCardRecord) => void;
   export let onSetCardPriority: (card: RiffCardRecord, priority: number) => void;
@@ -100,6 +102,8 @@
   let documentTreeOpen = true;
   let applicationTreeOpen = true;
   let readablePaths: Record<string, string> = {};
+  let openDocuments: OpenFlashcardDocument[] = [];
+  let openDocumentsLoading = false;
   const requestedPathIds = new Set<string>();
   const REVIEW_STAT_LABELS: Record<FlashcardReviewStatKey, string> = {
     reviews: "复习次数",
@@ -199,6 +203,33 @@
 
   function displayBlockPath(blockId: string, paths: Record<string, string>): string {
     return paths[blockId] ?? "当前文档";
+  }
+
+  function openDocumentScope(document: OpenFlashcardDocument, group?: FlashcardGroup): FlashcardReviewScope {
+    return {
+      id: `document:${document.documentId}:${group?.id ?? "all"}`,
+      type: "document",
+      targetId: document.documentId,
+      targetName: document.path || document.title,
+      groupId: group?.id,
+      groupName: group?.name,
+    };
+  }
+
+  function reviewOpenDocument(document: OpenFlashcardDocument, group?: FlashcardGroup): void {
+    onReviewScope(openDocumentScope(document, group));
+  }
+
+  async function loadOpenDocuments(): Promise<void> {
+    openDocumentsLoading = true;
+    try {
+      openDocuments = await onLoadOpenDocuments();
+    } catch (error) {
+      message = `读取当前打开文档失败：${error instanceof Error ? error.message : String(error)}`;
+      openDocuments = [];
+    } finally {
+      openDocumentsLoading = false;
+    }
   }
 
   function groupApplicationScopes(scopes: FlashcardReviewHistoryItem[]): Array<{ name: string; scopes: FlashcardReviewHistoryItem[] }> {
@@ -485,6 +516,7 @@
   onMount(() => {
     currentFsrsWeights = onGetFsrsWeights();
     void loadFsrsHistory();
+    void loadOpenDocuments();
   });
 
   async function ensureReadablePaths(ids: string[]): Promise<void> {
@@ -693,6 +725,32 @@
       </ul>
     </section>
   {:else if activeTab === "recent"}
+    <section class="open-documents-panel" data-testid="open-documents-panel">
+      <div class="section-heading open-documents-heading">
+        <div><h3>当前打开文档</h3><p>直接选择文档和分组开始专项复习</p></div>
+        <Button variant="outline" size="sm" disabled={openDocumentsLoading} onclick={loadOpenDocuments} title="刷新当前打开文档" aria-label="刷新当前打开文档"><RefreshCw class={openDocumentsLoading ? "loading-icon" : ""} /><span>刷新</span></Button>
+      </div>
+      {#if openDocuments.length}
+        <div class="open-documents-list">
+          {#each openDocuments as document (document.documentId)}
+            <article class:open-document-active={document.active} class="open-document-row">
+              <div class="open-document-copy">
+                <div class="open-document-title"><FileText /><strong>{document.title}</strong>{#if document.active}<Badge variant="secondary">当前</Badge>{/if}</div>
+                <span class="open-document-path" title={document.documentId}>{document.path}</span>
+              </div>
+              <div class="open-document-actions">
+                <Button variant="outline" size="sm" onclick={() => reviewOpenDocument(document)} title={`复习 ${document.title} 的全部到期卡`} aria-label={`复习 ${document.title} 的全部到期卡`}><Play /><span>全部</span></Button>
+                {#each config.groups.filter((group) => group.enabled) as group (group.id)}
+                  <Button variant="ghost" size="sm" onclick={() => reviewOpenDocument(document, group)} title={`按 ${group.name} 复习 ${document.title}`} aria-label={`按 ${group.name} 复习 ${document.title}`}><Layers3 /><span>{group.name}</span></Button>
+                {/each}
+              </div>
+            </article>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty">当前没有可识别的打开文档。</p>
+      {/if}
+    </section>
     <section class="section-heading">
       <div><h3>最近使用与置顶范围</h3><p>按置顶、使用次数和最近使用排序</p></div>
     </section>
@@ -1194,6 +1252,20 @@
   label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 12px; }
   .inline-switch { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; color: var(--foreground, var(--b3-theme-on-background)); white-space: nowrap; }
   .global-settings, .groups, .diagnostic-list { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .open-documents-panel { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px 12px; border: 1px solid color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 26%, var(--border, var(--b3-border-color))); border-radius: 8px; background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 5%, var(--background, var(--b3-theme-background))); }
+  .open-documents-heading { min-height: 32px; }
+  .open-documents-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .open-document-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 8px 0; border-top: 1px solid color-mix(in srgb, var(--border, var(--b3-border-color)) 75%, transparent); }
+  .open-document-row:first-child { border-top: 0; }
+  .open-document-row.open-document-active { padding-inline: 8px; border-radius: 6px; background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 9%, transparent); }
+  .open-document-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 260px; }
+  .open-document-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .open-document-title :global(svg) { width: 15px; height: 15px; flex: 0 0 auto; color: var(--primary, var(--b3-theme-primary)); }
+  .open-document-title strong, .open-document-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .open-document-title strong { font-size: 13px; }
+  .open-document-path { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .open-document-actions { display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex: 0 1 auto; flex-wrap: wrap; }
+  .open-document-actions :global(button) { max-width: 180px; }
   .settings-section, .group {
     display: flex;
     flex-direction: column;
@@ -1367,6 +1439,9 @@
     .optimizer-title { grid-template-columns: 20px minmax(0, 1fr) auto; }
     .optimizer-title > :global([data-slot="button"]) { grid-column: 1 / -1; width: 100%; }
     .review-log-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .open-document-row { align-items: flex-start; flex-direction: column; gap: 7px; }
+    .open-document-actions { width: 100%; justify-content: flex-start; }
+    .open-document-actions :global(button) { max-width: min(100%, 220px); }
   }
 
   @container (max-width: 390px) {

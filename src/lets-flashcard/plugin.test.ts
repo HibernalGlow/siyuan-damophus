@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import * as siyuan from "siyuan";
 import pluginMetadata from "./plugin";
 import FlashcardPlugin from "./index";
 import { plugin, setPlugin } from "@/utils";
@@ -45,6 +46,8 @@ describe("flashcard plugin metadata", () => {
       "separator",
       "复习：含指定标签",
     ]);
+    (item.submenu?.[0] as { click?: () => void }).click?.();
+    expect(fakePlugin.openSettings).toHaveBeenCalledTimes(1);
   });
 
   it("keeps notebook actions out of the plugin menu", () => {
@@ -73,6 +76,27 @@ describe("flashcard plugin metadata", () => {
     expect(item.submenu?.map((child) => child.label)).not.toContain("取消当前笔记本下所有闪卡登记");
   });
 
+  it("opens flashcard settings in its stable custom tab", () => {
+    const previousPlugin = plugin;
+    const app = {};
+    const openTab = vi.spyOn(siyuan, "openTab").mockResolvedValue(undefined);
+    setPlugin({ name: "damophus", app } as never);
+    try {
+      FlashcardPlugin.prototype.openSettings.call({ t: (key: string) => key } as never);
+      expect(openTab).toHaveBeenCalledWith({
+        app,
+        custom: {
+          title: "lets-flashcard.openSettings",
+          icon: "iconRiffCard",
+          id: "damophusdamophus-flashcard-settings",
+        },
+      });
+    } finally {
+      openTab.mockRestore();
+      setPlugin(previousPlugin as never);
+    }
+  });
+
   it("adds scoped flashcard submenus for documents and notebooks", () => {
     vi.stubGlobal("document", {});
     const addItem = vi.fn();
@@ -90,6 +114,7 @@ describe("flashcard plugin metadata", () => {
       reviewGroup,
       unregisterContainers,
       unregisterDocumentTree,
+      reviewDocumentTree: vi.fn(),
       scopeMenuItem: vi.fn((label: string) => ({ label })),
       batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
     });
@@ -108,20 +133,12 @@ describe("flashcard plugin metadata", () => {
     instance.handleDocumentTitleMenu({
       detail: { menu: blockMenu, data: { id: "20260823112002-aaaaaaa", name: "测试文档" } },
     });
-    expect(addItem).toHaveBeenCalledTimes(1);
+    expect(addItem).toHaveBeenCalledTimes(2);
     const documentMenu = addItem.mock.calls[0][0];
-    expect(documentMenu.label).toBe("lets-flashcard.displayName");
-    expect(documentMenu.type).toBe("submenu");
-    expect(documentMenu.submenu.map((item: { type?: string; label?: string }) => item.type ?? item.label)).toEqual([
-      "lets-flashcard.openSettings",
-      "lets-flashcard.reviewAll",
-      "separator",
-      "当前文档专项复习",
-      "取消当前文档下所有闪卡登记",
-      "separator",
-      "复习：含指定标签",
-    ]);
-    documentMenu.submenu.find((item: { label?: string }) => item.label === "取消当前文档下所有闪卡登记")?.click();
+    expect(documentMenu.label).toBe("当前文档专项复习");
+    expect(documentMenu.type).toBeUndefined();
+    expect(addItem.mock.calls[1][0].label).toBe("取消当前文档下所有闪卡登记");
+    addItem.mock.calls[1][0].click();
     expect(unregisterDocumentTree).toHaveBeenCalledWith(["20260823112002-aaaaaaa"], false);
 
     addItem.mockClear();
