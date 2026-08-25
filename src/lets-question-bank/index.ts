@@ -1,7 +1,7 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { isMobile, plugin } from "@/utils";
-import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, setBlockAttrs, sql } from "@/api";
+import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, getHPathByID, setBlockAttrs, sql } from "@/api";
 import { settings } from "@/settings";
 import {
   Dialog,
@@ -64,6 +64,7 @@ import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-c
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 import { bindMenuIdentity } from "@/libs/menu-identity";
 import { openStatisticsCardPreview, type StatisticsCardPreviewRequest } from "./statistics-preview";
+import type { OpenDocumentTab } from "@/libs/open-document-tabs";
 import {
   questionProgressFromAggregate,
   setQuestionProgressLoader,
@@ -140,6 +141,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
       type: questionBankTabType,
       init() {
         const element = this.element as HTMLElement;
+        element.classList.add("damophus-question-bank-tab-host");
         if (owner.getSetting("autoPinTab")) {
           owner.pinTabInstance((this as unknown as { tab?: unknown }).tab);
         }
@@ -478,6 +480,29 @@ export default class QuestionBankPlugin extends SubPluginBase {
     return activeId ?? getAllEditor()[0]?.protyle?.block?.rootID;
   }
 
+  private async openDocumentTabs(): Promise<OpenDocumentTab[]> {
+    if (isMobile) return [];
+    const seen = new Set<string>();
+    const candidates = getAllTabs().flatMap((tab) => {
+      const model = tab.model as unknown as { editor?: { protyle?: { block?: { rootID?: string } } } } | undefined;
+      let documentId = model?.editor?.protyle?.block?.rootID;
+      if (!documentId) {
+        try {
+          const initData = tab.headElement?.getAttribute("data-initdata");
+          const parsed = initData ? JSON.parse(initData) as { instance?: string; rootId?: string; rootID?: string } : undefined;
+          if (parsed?.instance === "Editor") documentId = parsed.rootId ?? parsed.rootID;
+        } catch { /* ignore malformed restored tab metadata */ }
+      }
+      if (!documentId || !/^\d{14}-[a-z0-9]{7}$/u.test(documentId) || seen.has(documentId)) return [];
+      seen.add(documentId);
+      return [{ documentId, title: tab.title || documentId }];
+    });
+    return Promise.all(candidates.map(async (tab) => ({
+      ...tab,
+      path: await getHPathByID(tab.documentId).catch(() => undefined),
+    })));
+  }
+
   private async open(blockId = this.currentDocumentId(), position?: "right" | "bottom"): Promise<void> {
     if (isMobile) {
       let app: ReturnType<typeof mount> | undefined;
@@ -679,6 +704,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         controller,
         initialDocumentId: documentId,
         getCurrentDocumentId: () => this.currentDocumentId(),
+        getOpenDocumentTabs: () => this.openDocumentTabs(),
         translations: plugin.i18n,
         loadTopicDictionary: () => topicDictionaryStore.load(),
         loadSubjectQuestionTotals: async () => {

@@ -4,6 +4,8 @@
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
+  import OpenDocumentTabPicker from "@/components/OpenDocumentTabPicker.svelte";
+  import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
   import type { ScanMessage, TopicNode } from "@/question-bank/core/types";
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
@@ -22,6 +24,7 @@
   export let documentId = "";
   export let validDocument: () => boolean;
   export let useCurrentDocument: () => void;
+  export let getOpenDocumentTabs: OpenDocumentTabLoader | undefined = undefined;
   export let invalidateDocumentTarget: () => void;
   export let busy = false;
   export let preview: QuestionIndexPreview | undefined;
@@ -155,6 +158,14 @@
         <RefreshCw aria-hidden="true" />
       </Button>
     </div>
+    {#if getOpenDocumentTabs}
+      <OpenDocumentTabPicker
+        loadTabs={getOpenDocumentTabs}
+        selectedDocumentId={documentId}
+        label={label}
+        onSelect={(nextDocumentId) => { documentId = nextDocumentId; invalidateDocumentTarget(); }}
+      />
+    {/if}
   </div>
     {#if storedSessions.length > 0}
     <section class="unfinished-sessions" aria-label={label("unfinishedSessions", "Unfinished sessions")}>

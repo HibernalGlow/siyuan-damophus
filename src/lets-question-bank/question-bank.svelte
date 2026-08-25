@@ -72,6 +72,7 @@
     QuestionBankRebindingPreview,
   } from "@/question-bank/adapters/siyuan/binding";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
+  import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
   import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
   import QuestionBankView from "./QuestionBankView.svelte";
   import type { RiffCard } from "@/question-bank/adapters/siyuan/riff";
@@ -100,6 +101,7 @@
   export let loadSubjectQuestionTotals: (() => Promise<unknown>) | undefined = undefined;
   export let initialDocumentId: string | undefined = undefined;
   export let getCurrentDocumentId: (() => string | undefined) | undefined = undefined;
+  export let getOpenDocumentTabs: OpenDocumentTabLoader | undefined = undefined;
   export let translations: Record<string, string> = {};
   export let loadTopicDictionary: (() => Promise<TopicDictionaryDocument>) | undefined = undefined;
   export let reviewThreshold = 2;
@@ -1544,7 +1546,7 @@
   {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles} {toggleIndefinitePracticeMode}
   {pauseOnBlur} {togglePauseOnBlur}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
-  {validDocument} {useCurrentDocument} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
+  {validDocument} {useCurrentDocument} {getOpenDocumentTabs} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
   {questionSetBlueprints} {run} {loadQuestionSetData} {previewSourceSync} {confirmSourceSync} {assembleBlueprint} {saveBlueprint}
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}

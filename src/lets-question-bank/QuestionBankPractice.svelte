@@ -188,19 +188,21 @@
         >{label(rating, rating)}</Button>
       {/each}
     </div>
-  {:else if !revealed && !revealActionBelowOptions}
-	<div class="action-bar" class:timer-enabled={timingEnabled}>
-      {#if timingEnabled}
-        <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
-        <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
-          <RotateCcw size={16} aria-hidden="true" />
+  {:else if !revealed}
+    {#if !revealActionBelowOptions}
+      <div class="action-bar" class:timer-enabled={timingEnabled}>
+        {#if timingEnabled}
+          <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
+          <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
+            <RotateCcw size={16} aria-hidden="true" />
+          </Button>
+        {/if}
+        <Button onclick={revealAnswer}>
+          <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>
+          {label("reveal", "Reveal answer")}
         </Button>
-      {/if}
-      <Button onclick={revealAnswer}>
-        <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>
-        {label("reveal", "Reveal answer")}
-      </Button>
-    </div>
+      </div>
+    {/if}
   {:else}
     {#if durationComparisonPosition === "rating" && durationComparisons.length > 0}
       <div class="rating-duration-row">

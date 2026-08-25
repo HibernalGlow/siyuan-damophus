@@ -156,6 +156,7 @@ describe("duration comparison placement", () => {
     const inlineAction = document.querySelector(".action-bar--inline");
     expect(inlineAction).not.toBeNull();
     expect(document.querySelectorAll(".action-bar")).toHaveLength(1);
+    expect(document.querySelector(".rating-bar")).toBeNull();
     expect(document.querySelector(".options")).not.toBeNull();
   });
 });

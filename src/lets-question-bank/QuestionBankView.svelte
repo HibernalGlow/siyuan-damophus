@@ -11,6 +11,7 @@
   import QuestionBankWorkspace from "./QuestionBankWorkspace.svelte";
   import QuestionBankPractice from "./QuestionBankPractice.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
+  import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
 
   export let rootElement: HTMLElement;
   export let currentQuestion: any;
@@ -49,6 +50,7 @@
   export let documentId: string;
   export let validDocument: any;
   export let useCurrentDocument: any;
+  export let getOpenDocumentTabs: OpenDocumentTabLoader | undefined = undefined;
   export let initializationPreview: any;
   export let previewInitialization: any;
   export let confirmInitialization: any;
@@ -375,6 +377,7 @@
       bind:documentId
       {validDocument}
       {useCurrentDocument}
+      {getOpenDocumentTabs}
       {invalidateDocumentTarget}
       {busy}
       {preview}

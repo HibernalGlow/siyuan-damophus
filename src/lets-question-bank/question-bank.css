@@ -3,6 +3,12 @@
      mobile WebView when a theme supplies duplicate symbol ids. */
   .question-bank, .question-bank * { box-sizing: border-box; }
   .damophus-question-bank-host, .damophus-question-bank-dialog { min-width: 0; min-height: 0; }
+  /* Neo+ IDE reserves 42px above custom-tab content but leaves h-full hosts at
+     their original height. Reduce only the question-bank tab surface so its
+     action and rating rows remain inside the tab viewport. */
+  html.neo-ide .neo-ide-body.body--toolbar-hide .damophus-question-bank-tab-host {
+    height: calc(100% - 42px) !important;
+  }
   .question-bank button, .question-bank input, .question-bank select { font: inherit; letter-spacing: 0; }
   .question-bank .lucide { fill: none !important; stroke: currentColor; stroke-width: 2; }
   .question-bank { width: 100%; min-width: 0; min-height: 0; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; overscroll-behavior-y: contain; }
