@@ -345,18 +345,10 @@ export class NativeReviewCounter {
   }
 
   setQueue(cards: readonly ReviewCounterCard[]): void {
-    const previousRoundComplete = this.queue.length > 0
-      && this.queue.every((card) => this.completed.has(card.cardID));
     const nextIds = new Set(cards.map((card) => card.cardID));
-    for (const cardID of [...this.completed]) {
-      if (!nextIds.has(cardID)) this.completed.delete(cardID);
-    }
-    // A seamless native review can start a new round with the same card IDs
-    // (for example after Again). Those cards must be countable again; the
-    // completed set only belongs to the previous round.
-    if (previousRoundComplete) {
-      for (const cardID of nextIds) this.completed.delete(cardID);
-    }
+    // Each queue supplied by SiYuan is the authoritative pending snapshot.
+    // Cards in it are due now, including cards repeated from a partial round.
+    this.completed.clear();
     this.queue = cards.map((card) => ({ ...card }));
     if (this.activeCardID && !nextIds.has(this.activeCardID)) this.activeCardID = undefined;
     this.animated.clear();

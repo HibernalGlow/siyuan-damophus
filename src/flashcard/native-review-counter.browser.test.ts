@@ -110,6 +110,37 @@ describe("native review priority counter", () => {
     expect(count.closest(".card__main")?.textContent).toContain("共 1");
   });
 
+  it("counts every card in a partially overlapping next-round snapshot", async () => {
+    const count = mountCounter();
+    counter = new NativeReviewCounter({ documentRef: document });
+    counter.setQueue([
+      { cardID: "new-repeat", priority: "P1", isNew: true },
+      { cardID: "old-repeat", priority: "P1", isNew: false },
+      { cardID: "old-pending", priority: "P2", isNew: false },
+    ]);
+    counter.install();
+
+    counter.markReviewed("new-repeat", "1");
+    counter.markReviewed("old-repeat", "1");
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(count.querySelector('[data-priority="P1"] strong')?.textContent).toBe("0");
+
+    counter.setQueue([
+      { cardID: "new-repeat", priority: "P1", isNew: true },
+      { cardID: "old-repeat", priority: "P1", isNew: false },
+      { cardID: "old-pending", priority: "P2", isNew: false },
+    ]);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    const p1 = count.querySelector<HTMLElement>('[data-priority="P1"]')!;
+    expect(p1.dataset.count).toBe("2");
+    expect(p1.dataset.newCount).toBe("1");
+    expect(p1.dataset.oldCount).toBe("1");
+    expect(p1.querySelector("strong")?.textContent).toBe("1+1");
+    expect(count.querySelector('[data-priority="P2"] strong')?.textContent).toBe("1");
+    expect(count.closest(".card__main")?.textContent).toContain("共 3");
+  });
+
   it("splits mixed new and old card counts while keeping single-kind counts compact", async () => {
     const count = mountCounter();
     counter = new NativeReviewCounter({ documentRef: document });
