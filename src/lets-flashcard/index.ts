@@ -20,7 +20,6 @@ import { NativeReviewTimer } from "@/flashcard/native-review-timer";
 import { readReviewCardStats } from "@/flashcard/review-stats";
 import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
-import { ReviewRoundPolicy } from "@/flashcard/review-round-policy";
 import { SiyuanMobileFlashcardSurfaceAdapter } from "@/flashcard/mobile-surface-adapter";
 import {
   FsrsOptimizerLocalService,
@@ -65,7 +64,6 @@ export default class FlashcardPlugin extends SubPluginBase {
   private readonly mobileSurface = new SiyuanMobileFlashcardSurfaceAdapter(Dialog);
   private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
   private readonly reviewCards = new Map<string, RiffCardRecord>();
-  private readonly reviewRoundPolicy = new ReviewRoundPolicy();
   private currentReviewCard?: RiffCardRecord;
   private menuEventsBound = false;
   private mobileNativeEntryBound = false;
@@ -182,7 +180,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = card;
     this.reviewTimer?.handleAction(event.detail?.type ?? "", card.cardID);
-    this.reviewRoundPolicy.markReviewed(card.cardID, event.detail?.type ?? "");
     this.reviewCounter.setActiveCard(card.cardID);
     this.reviewCounter.updateCardStats(card.cardID, readReviewCardStats(card));
     this.compat.refresh();
@@ -456,11 +453,9 @@ export default class FlashcardPlugin extends SubPluginBase {
         const overlapsInitial = cardsData.cards.some((card) => scope.ids.has(card.blockID));
         if (!overlapsInitial && cards.length === 0) {
           this.reviewScope = undefined;
-          this.reviewRoundPolicy.reset();
           return this.orderCardsData(cardsData);
         }
       }
-      cards = this.reviewRoundPolicy.apply(cards, this.nativeReviewMode());
       const ordered = await this.orderCards(cards);
       return {
         cards: ordered,
@@ -544,7 +539,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.optimizerService = undefined;
     this.compat.uninstall();
     this.reviewScope = undefined;
-    this.reviewRoundPolicy.reset();
     this.currentReviewCard = undefined;
     this.reviewCards.clear();
     if (this.mobileSettingsApp) void unmount(this.mobileSettingsApp);
@@ -1310,7 +1304,6 @@ export default class FlashcardPlugin extends SubPluginBase {
 
   private async openNativeReview(_title: string, due: DueCardsData, scope?: FlashcardReviewScope): Promise<void> {
     const orderedDue = await this.orderCardsData(due);
-    this.reviewRoundPolicy.start();
     this.reviewTimer?.startSession(orderedDue.cards[0]?.cardID);
     for (const card of orderedDue.cards) this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = orderedDue.cards[0];
@@ -1328,7 +1321,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!this.mobileSurface.openReview(adapterScope, mobile)) {
       this.reviewTimer?.stopSession();
       this.reviewScope = undefined;
-      this.reviewRoundPolicy.reset();
       showMessage("未找到思源原生闪卡浮窗入口", 5000, "error");
       return;
     }
