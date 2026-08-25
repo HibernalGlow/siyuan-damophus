@@ -52,6 +52,43 @@ describe("exercise focus", () => {
     expect(visibility("outside")).toBeNull();
   });
 
+  it("supports QUESTION callouts while preserving their title and configured stem blocks", () => {
+    const root = renderEditor();
+    root.insertAdjacentHTML("beforeend", `
+      <div class="callout" data-node-id="question-callout" data-type="NodeCallout" data-subtype="QUESTION">
+        <div class="callout-info"><span class="callout-icon">\u270f\ufe0f</span><span class="callout-title">\u68c0\u5bdf\u9662\u63a7\u8bc9\u804c\u80fd\u4e0e\u76d1\u7763\u804c\u80fd\u7684\u533a\u5206</span></div>
+        <div class="callout-content">
+          <div data-node-id="question-stem" data-type="NodeCodeBlock"><div>[\u5224\u65ad] \u2462</div></div>
+          <div data-node-id="question-answer" data-type="NodeParagraph">\u6b63\u786e\u3002\u4f53\u73b0\u6c42\u5211\u3002</div>
+          <div data-node-id="question-list" data-type="NodeList"><div data-node-id="question-item" data-type="NodeListItem">\u89e3\u6790\u7ec6\u8282</div></div>
+        </div>
+        <div class="protyle-attr" contenteditable="false"></div>
+      </div>`);
+
+    applyExerciseFocus(root);
+
+    const callout = root.querySelector<HTMLElement>('[data-node-id="question-callout"]')!;
+    expect(callout.getAttribute(EXERCISE_CONTAINER_ATTRIBUTE)).toBe("true");
+    expect(callout.querySelector(":scope > .callout-info .callout-title")?.textContent).toContain("\u68c0\u5bdf\u9662\u63a7\u8bc9\u804c\u80fd");
+    expect(root.querySelector<HTMLElement>('[data-node-id="question-stem"]')?.getAttribute(EXERCISE_VISIBILITY_ATTRIBUTE)).toBe("visible");
+    expect(root.querySelector<HTMLElement>('[data-node-id="question-answer"]')?.getAttribute(EXERCISE_VISIBILITY_ATTRIBUTE)).toBe("hidden");
+    expect(root.querySelector<HTMLElement>('[data-node-id="question-list"]')?.getAttribute(EXERCISE_VISIBILITY_ATTRIBUTE)).toBe("hidden");
+  });
+
+  it("does not treat other callout types as exercises", () => {
+    const root = renderEditor();
+    root.insertAdjacentHTML("beforeend", `
+      <div class="callout" data-node-id="note-callout" data-type="NodeCallout" data-subtype="NOTE">
+        <div class="callout-info"><span class="callout-title">\u666e\u901a\u7b14\u8bb0</span></div>
+        <div class="callout-content"><div data-node-id="note-body" data-type="NodeParagraph">\u6b63\u6587</div></div>
+      </div>`);
+
+    applyExerciseFocus(root);
+
+    expect(root.querySelector<HTMLElement>('[data-node-id="note-callout"]')?.hasAttribute(EXERCISE_CONTAINER_ATTRIBUTE)).toBe(false);
+    expect(root.querySelector<HTMLElement>('[data-node-id="note-body"]')?.hasAttribute(EXERCISE_VISIBILITY_ATTRIBUTE)).toBe(false);
+  });
+
   it("requires both the configured heading text and level", () => {
     const root = renderEditor();
     applyExerciseFocus(root, { headingLevel: "h5" });

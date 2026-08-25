@@ -11,6 +11,7 @@ export const EXERCISE_EDITING_ATTRIBUTE = "data-damophus-exercise-editing";
 const EDITOR_SELECTOR = ".protyle-wysiwyg";
 const BLOCK_SELECTOR = "[data-node-id]";
 const QUOTE_SELECTOR = '[data-node-id][data-type="NodeBlockquote"]';
+const QUESTION_CALLOUT_SELECTOR = '[data-node-id][data-type="NodeCallout"][data-subtype="QUESTION"]';
 const HEADING_SELECTOR = '[data-node-id][data-type="NodeHeading"]';
 
 export interface ExerciseFocusSettings {
@@ -49,8 +50,16 @@ function isMatchingHeading(element: HTMLElement, settings: ExerciseFocusSettings
   return level === settings.headingLevel && normalizeText(element.textContent ?? "") === settings.headingText;
 }
 
+function isQuestionCallout(element: HTMLElement): boolean {
+  return element.matches(QUESTION_CALLOUT_SELECTOR);
+}
+
 function directContentBlocks(container: HTMLElement): HTMLElement[] {
-  return [...container.querySelectorAll<HTMLElement>(BLOCK_SELECTOR)].filter((block) =>
+  const contentRoot = isQuestionCallout(container)
+    ? container.querySelector<HTMLElement>(":scope > .callout-content")
+    : container;
+  if (!contentRoot) return [];
+  return [...contentRoot.querySelectorAll<HTMLElement>(BLOCK_SELECTOR)].filter((block) =>
     block.parentElement?.closest<HTMLElement>(BLOCK_SELECTOR) === container,
   );
 }
@@ -71,7 +80,7 @@ function clearContainer(container: HTMLElement): void {
 export function applyExerciseFocus(root: ParentNode, input: Partial<ExerciseFocusSettings> = {}): void {
   const settings = normalizeSettings(input);
   const visibleBlockTypes = new Set(settings.visibleBlockTypes);
-  root.querySelectorAll<HTMLElement>(QUOTE_SELECTOR).forEach((container) => {
+  root.querySelectorAll<HTMLElement>(`${QUOTE_SELECTOR}, ${QUESTION_CALLOUT_SELECTOR}`).forEach((container) => {
     const previousMaskStates = new Map<string, { revealed: boolean; editing: boolean }>();
     container.querySelectorAll<HTMLElement>(`[${EXERCISE_MASK_GROUP_ATTRIBUTE}]`).forEach((block) => {
       const group = block.getAttribute(EXERCISE_MASK_GROUP_ATTRIBUTE);
@@ -83,14 +92,15 @@ export function applyExerciseFocus(root: ParentNode, input: Partial<ExerciseFocu
     });
     clearContainer(container);
     const blocks = directContentBlocks(container);
-    const heading = blocks.find((block) => isMatchingHeading(block, settings));
-    if (!heading) return;
+    const questionCallout = isQuestionCallout(container);
+    const heading = questionCallout ? undefined : blocks.find((block) => isMatchingHeading(block, settings));
+    if (!questionCallout && !heading) return;
 
     container.setAttribute(EXERCISE_CONTAINER_ATTRIBUTE, "true");
     let maskGroup = 0;
     let previousHidden = false;
     blocks.forEach((block) => {
-      const visible = block === heading || visibleBlockTypes.has(block.dataset.type ?? "");
+      const visible = (!questionCallout && block === heading) || visibleBlockTypes.has(block.dataset.type ?? "");
       block.setAttribute(EXERCISE_VISIBILITY_ATTRIBUTE, visible ? "visible" : "hidden");
       if (visible) {
         previousHidden = false;
