@@ -27,6 +27,7 @@ const rendererFlags: Record<FlashcardRenderer, string> = {
 
 export class FlashcardRendererCompat {
   private readonly rendererByBlockId = new Map<string, FlashcardRenderer | "unknown">();
+  private readonly ignoredBlockIds = new Set<string>();
   private originalFetch?: typeof window.fetch;
   private installed = false;
   private activeBlockId?: string;
@@ -51,13 +52,52 @@ export class FlashcardRendererCompat {
   }
 
   preload(blockId: string, renderer: FlashcardRenderer): void {
+    this.ignoredBlockIds.delete(blockId);
     this.rendererByBlockId.set(blockId, renderer);
   }
 
   preloadMany(entries: readonly { blockId: string; renderer: FlashcardRenderer | "unknown" }[]): void {
     for (const entry of entries) {
+      this.ignoredBlockIds.delete(entry.blockId);
       this.rendererByBlockId.set(entry.blockId, entry.renderer);
     }
+  }
+
+  /**
+   * Stop applying DAMO renderer policy to a card that was removed from the
+   * Riff deck. The source IAL intentionally remains in the document, so an
+   * explicit tombstone is needed to keep the MutationObserver from treating
+   * the old metadata as an active registered card.
+   */
+  forget(blockIds: readonly string[]): void {
+    for (const blockId of blockIds) {
+      this.rendererByBlockId.delete(blockId);
+      this.ignoredBlockIds.add(blockId);
+      this.initializedAnswerByBlockId.delete(blockId);
+      this.initialAnswerByBlockId.delete(blockId);
+      if (this.activeBlockId === blockId) this.activeBlockId = undefined;
+      if (this.notifiedBlockId === blockId) this.notifiedBlockId = undefined;
+    }
+    for (const block of this.forgettableBlocks(blockIds)) {
+      const original = this.forcedAnswerActions.get(block);
+      const actions = block.parentElement?.querySelectorAll<HTMLElement>(".card__action") ?? [];
+      if (original) {
+        if (actions[0]) actions[0].classList.toggle("fn__none", original.firstHidden);
+        if (actions[1]) actions[1].classList.toggle("fn__none", original.secondHidden);
+        this.forcedAnswerActions.delete(block);
+      }
+      block.classList.remove(
+        "card__block--hidemark",
+        "card__block--hideli",
+        "card__block--hideh",
+        "card__block--hidesb",
+        "damophus-card--hideblockquote",
+        "damophus-card--hidecallout",
+        "damophus-card--hidetag",
+        "damophus-card--hidetopicrelations",
+      );
+    }
+    this.applyNativeVisibilityFallback();
   }
 
   install(): RendererCompatStatus {
@@ -110,6 +150,7 @@ export class FlashcardRendererCompat {
     this.initializedAnswerByBlockId.clear();
     this.initialAnswerByBlockId.clear();
     this.rendererByBlockId.clear();
+    this.ignoredBlockIds.clear();
     this.installed = false;
   }
 
@@ -132,7 +173,7 @@ export class FlashcardRendererCompat {
       const candidateRoots = [
         ...(block.matches("[data-node-id]") ? [block] : []),
         ...block.querySelectorAll<HTMLElement>("[data-node-id]"),
-      ];
+      ].filter((candidate) => !this.ignoredBlockIds.has(candidate.dataset.nodeId ?? ""));
       const root = candidateRoots.find((candidate) => {
         const mapped = candidate.dataset.nodeId ? this.rendererByBlockId.get(candidate.dataset.nodeId) : undefined;
         return Boolean(mapped && Object.prototype.hasOwnProperty.call(rendererFlags, mapped));
@@ -272,6 +313,14 @@ export class FlashcardRendererCompat {
     this.forcedAnswerActions.clear();
     this.initializedAnswerByBlockId.clear();
     this.initialAnswerByBlockId.clear();
+  }
+
+  private forgettableBlocks(blockIds: readonly string[]): HTMLElement[] {
+    const ids = new Set(blockIds);
+    return [...document.querySelectorAll<HTMLElement>(".card__block")].filter((block) => {
+      if (block.dataset.nodeId && ids.has(block.dataset.nodeId)) return true;
+      return [...block.querySelectorAll<HTMLElement>("[data-node-id]")].some((root) => ids.has(root.dataset.nodeId ?? ""));
+    });
   }
 
   private ensureVisibilityStyle(): void {

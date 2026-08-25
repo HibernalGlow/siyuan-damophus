@@ -151,6 +151,34 @@ describe("flashcard renderer compatibility browser guard", () => {
     compat.uninstall();
   });
 
+  it("stops overriding native rendering after a card is unregistered", async () => {
+    const card = document.createElement("div");
+    card.className = "card__block";
+    const root = document.createElement("div");
+    root.dataset.nodeId = "20260823130238-card008";
+    root.setAttribute("custom-dm-card-renderer", "list");
+    const list = document.createElement("div");
+    list.className = "list";
+    root.append(list);
+    card.append(root);
+    document.body.append(card);
+
+    const compat = new FlashcardRendererCompat();
+    compat.preload(root.dataset.nodeId, "list");
+    compat.install();
+    await vi.waitFor(() => expect(card.classList.contains("card__block--hideli")).toBe(true));
+
+    compat.forget([root.dataset.nodeId]);
+    expect(card.classList.contains("card__block--hideli")).toBe(false);
+    root.setAttribute("data-render-cycle", "native");
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(card.classList.contains("card__block--hideli")).toBe(false);
+
+    compat.preload(root.dataset.nodeId, "list");
+    await vi.waitFor(() => expect(card.classList.contains("card__block--hideli")).toBe(true));
+    compat.uninstall();
+  });
+
   it("forces the first renderer card back to its question state", async () => {
     const card = document.createElement("div");
     card.className = "card__block";

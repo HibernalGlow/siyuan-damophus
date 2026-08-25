@@ -1,10 +1,11 @@
-import { Dialog, Menu, confirm, getActiveTab, getAllEditor, openMobileFileById, openTab, showMessage, type IEventBusMap, type IMenu, type IProtyle } from "siyuan";
+import { Dialog, Menu, confirm, getActiveTab, getAllEditor, getAllTabs, openMobileFileById, openTab, showMessage, type IEventBusMap, type IMenu, type IProtyle } from "siyuan";
 import { mount, unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { isMobileEntryFrontend } from "@/libs/plugin-entry-settings";
 import { getLogger } from "@/libs/logger";
 import { isMobile, plugin } from "@/utils";
+import { getHPathByID } from "@/api";
 import FlashcardSettings from "./FlashcardSettings.svelte";
 import FlashcardResults from "./FlashcardResults.svelte";
 import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
@@ -38,6 +39,7 @@ import {
   type FsrsWeightHistoryStorage,
 } from "@/flashcard/fsrs-weight-history";
 import type { RiffReviewLogEntry } from "@/flashcard/review-log-export";
+import type { OpenFlashcardDocument } from "@/flashcard/open-documents";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -663,11 +665,9 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!this.isEntryEnabled("contextMenu")) return;
     const documentId = event.detail.data.id;
     if (!documentId) return;
-    event.detail.menu.addItem(this.contextScopeMenuItem(
-      "document",
-      [documentId],
-      event.detail.data.name ?? documentId,
-    ));
+    const targetName = event.detail.data.name ?? documentId;
+    event.detail.menu.addItem(this.documentReviewMenuItem(documentId, targetName));
+    event.detail.menu.addItem(this.documentUnregisterMenuItem(documentId));
   };
 
   private readonly handleDocumentTreeMenu = (
@@ -686,12 +686,37 @@ export default class FlashcardPlugin extends SubPluginBase {
       : (isNotebook
         ? window.siyuan?.notebooks?.find((notebook) => notebook.id === ids[0])?.name
         : event.detail.elements[0]?.dataset.name) ?? ids[0];
-    event.detail.menu.addItem(this.contextScopeMenuItem(
-      isNotebook ? "notebook" : "document",
-      ids,
-      targetName,
-    ));
+    if (isNotebook) {
+      event.detail.menu.addItem(this.contextScopeMenuItem("notebook", ids, targetName));
+      return;
+    }
+    event.detail.menu.addItem({
+      icon: "iconRiffCard",
+      label: ids.length > 1 ? "所选文档专项复习" : "当前文档专项复习",
+      click: () => void this.reviewDocumentTree(ids, false, targetName),
+    });
+    event.detail.menu.addItem({
+      icon: "iconCloseRound",
+      label: ids.length > 1 ? "取消所选文档下所有闪卡登记" : "取消当前文档下所有闪卡登记",
+      click: () => void this.unregisterDocumentTree(ids, false),
+    });
   };
+
+  private documentReviewMenuItem(documentId: string, targetName: string): IMenu {
+    return {
+      icon: "iconRiffCard",
+      label: "当前文档专项复习",
+      click: () => this.reviewDocumentScope(documentId, targetName),
+    };
+  }
+
+  private documentUnregisterMenuItem(documentId: string): IMenu {
+    return {
+      icon: "iconCloseRound",
+      label: "取消当前文档下所有闪卡登记",
+      click: () => void this.unregisterDocumentTree([documentId], false),
+    };
+  }
 
   private contextScopeMenuItem(
     type: "document" | "notebook",
@@ -855,6 +880,42 @@ export default class FlashcardPlugin extends SubPluginBase {
     return { documentId, documentName, notebookId, notebookName: notebook?.name };
   }
 
+  private async listOpenDocuments(): Promise<OpenFlashcardDocument[]> {
+    const activeContext = this.currentReviewContext();
+    if (isMobile && activeContext?.documentId) {
+      return [{
+        documentId: activeContext.documentId,
+        title: activeContext.documentName,
+        path: await getHPathByID(activeContext.documentId).catch(() => activeContext.documentName),
+        active: true,
+      }];
+    }
+    const activeDocumentId = activeContext?.documentId;
+    const seen = new Set<string>();
+    const candidates = getAllTabs().flatMap((tab) => {
+      const model = tab.model as unknown as { editor?: { protyle?: { block?: { rootID?: string } } } } | undefined;
+      let documentId = model?.editor?.protyle?.block?.rootID;
+      if (!documentId) {
+        try {
+          const initData = tab.headElement?.getAttribute("data-initdata");
+          const parsed = initData ? JSON.parse(initData) as { instance?: string; rootId?: string; rootID?: string } : undefined;
+          if (parsed?.instance === "Editor") documentId = parsed.rootId ?? parsed.rootID;
+        } catch {
+          // Restored tabs may contain malformed init data; skip their fallback ID.
+        }
+      }
+      if (!documentId || !/^\d{14}-[a-z0-9]{7}$/u.test(documentId) || seen.has(documentId)) return [];
+      seen.add(documentId);
+      return [{ documentId, title: tab.title || documentId }];
+    });
+    return Promise.all(candidates.map(async ({ documentId, title }) => ({
+      documentId,
+      title,
+      path: await getHPathByID(documentId).catch(() => title),
+      active: documentId === activeDocumentId,
+    })));
+  }
+
   private mountSettings(target: HTMLElement): ReturnType<typeof mount> {
     target.classList.add("damophus-theme-root", "damophus-flashcard-settings-host", "h-full", "min-h-0");
     return mount(FlashcardSettings, {
@@ -869,6 +930,7 @@ export default class FlashcardPlugin extends SubPluginBase {
         onBatchPriority: (group: FlashcardGroup) => void this.batchPriority(group),
         onImportSfp: () => this.importSfpConfig(),
         onReviewScope: (scope: FlashcardReviewScope) => void this.reviewScopeCards(scope),
+        onLoadOpenDocuments: () => this.listOpenDocuments(),
         onLocateCard: (card: RiffCardRecord) => void this.locateCard(card),
         onUnregisterCard: (card: RiffCardRecord) => void this.unregisterCard(card),
         onSetCardPriority: (card: RiffCardRecord, priority: number) => void this.runtime.adapter.setPriority([card], priority),
@@ -1285,11 +1347,14 @@ export default class FlashcardPlugin extends SubPluginBase {
   private async unregisterCard(card: RiffCardRecord): Promise<boolean> {
     const approved = await this.confirmUnregister(
       "取消闪卡登记",
-      "这会从当前牌组移除 1 张闪卡，但不会删除正文、IAL、优先级标签或复习内容。确认执行取消登记吗？",
+      "这会从当前牌组移除 1 张闪卡，保留正文和原有属性，并将优先级标签移到不可用命名空间。确认执行取消登记吗？",
     );
     if (!approved) return false;
     await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, [card.blockID]);
     this.reviewCards.delete(card.blockID);
+    this.compat.forget([card.blockID]);
+    this.compat.refresh();
+    await this.runtime.adapter.markCardsUnregistered([card.blockID]);
     showMessage("已取消闪卡登记，原笔记块保持不变", 4000, "info");
     return true;
   }
@@ -1324,11 +1389,14 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
     const approved = await this.confirmUnregister(
       "批量取消闪卡登记",
-      `即将从思源原生牌组移除 ${selected.length} 张闪卡。正文、IAL、优先级标签和复习内容都会保留。确认执行批量取消登记吗？`,
+      `即将从思源原生牌组移除 ${selected.length} 张闪卡。正文和原有属性会保留，优先级标签会移到不可用命名空间。确认执行批量取消登记吗？`,
     );
     if (!approved) return;
     await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, selected.map((card) => card.blockID));
     for (const card of selected) this.reviewCards.delete(card.blockID);
+    this.compat.forget(selected.map((card) => card.blockID));
+    this.compat.refresh();
+    await this.runtime.adapter.markCardsUnregistered(selected.map((card) => card.blockID));
     if (selected.some((card) => card.blockID === this.currentReviewCard?.blockID)) {
       this.currentReviewCard = undefined;
     }

@@ -26,8 +26,11 @@ Status: accepted contract; DAMO implementation baseline is in `src/flashcard/` a
 | `custom-qb-note-topic-id` | 笔记 provider 锚点 | 该块为一个考点提供材料；不保存 provider 块 ID |
 | `custom-qb-question-topic-ids` | 卡片/题目根 | 逗号分隔的稳定考点 ID；不保存目标块 ID |
 | `custom-riff-decks` | Riff 登记后的容器根 | 当前适配结果的牌组标识；为空或缺失不代表制卡成功 |
+| `custom-dm-card-status` | 闪卡容器根 | `unregistered` 表示曾登记但已主动取消登记；属性保留用于历史和重新绑定，不能作为当前 Riff 登记成功依据 |
 
 属性必须放在容器根块的 IAL 中，不得放进代码围栏或可能脱离根块范围的普通段落。一个根块的内容范围由其容器类型和子树确定；标题可以是根块，但标题层级不构成稳定身份。
+
+取消登记时不删除正文或原有卡片 IAL；DAMO 追加 `custom-dm-card-status="unregistered"`，并把 `#闪卡/优先级/Px#` 转为 `#闪卡/已取消登记/优先级/Px#`。后者保留历史优先级，但不再匹配 DAMO 的活动优先级解析和标准优先级 SQL。重新登记时恢复活动标签并清除该状态。
 
 ## Container policy
 

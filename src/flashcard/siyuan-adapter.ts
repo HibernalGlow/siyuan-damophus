@@ -11,7 +11,7 @@ import {
   resolveCardRoots,
   toFlashcardRoot,
 } from "./types";
-import { replacePriorityTag } from "./priority-tags";
+import { deactivatePriorityTags, reactivatePriorityTags, replacePriorityTag } from "./priority-tags";
 
 const log = getLogger("flashcard-adapter");
 const nodeId = /^\d{14}-[a-z0-9]{7}$/u;
@@ -313,6 +313,7 @@ export class FlashcardSiyuanAdapter {
   async addAndVerify(deckId: string, blockIds: readonly string[]): Promise<CardRegistrationResult[]> {
     const ids = dedupeIds(blockIds);
     if (ids.length === 0) return [];
+    await this.reactivateCards(ids);
     const existing = new Set((await this.getCardsByBlockIds(ids)).map((card) => card.blockID));
     const pending = ids.filter((id) => !existing.has(id));
     if (pending.length > 0) {
@@ -328,6 +329,34 @@ export class FlashcardSiyuanAdapter {
     const ids = dedupeIds(blockIds);
     if (ids.length === 0) return;
     await requestStrict<unknown>("/api/riff/removeRiffCards", { deckID: deckId, blockIDs: ids });
+  }
+
+  async markCardsUnregistered(blockIds: readonly string[]): Promise<void> {
+    const ids = dedupeIds(blockIds);
+    for (const id of ids) {
+      const current = await getBlockKramdownStrict(id);
+      const markdown = typeof current?.kramdown === "string" ? current.kramdown : "";
+      const next = deactivatePriorityTags(markdown);
+      if (next !== markdown) await updateBlockStrict("markdown", next, id);
+      await requestStrict<unknown>("/api/attr/setBlockAttrs", {
+        id,
+        attrs: { "custom-dm-card-status": "unregistered" },
+      });
+    }
+  }
+
+  private async reactivateCards(blockIds: readonly string[]): Promise<void> {
+    const ids = dedupeIds(blockIds);
+    for (const id of ids) {
+      const current = await getBlockKramdownStrict(id);
+      const markdown = typeof current?.kramdown === "string" ? current.kramdown : "";
+      const next = reactivatePriorityTags(markdown);
+      if (next !== markdown) await updateBlockStrict("markdown", next, id);
+      await requestStrict<unknown>("/api/attr/setBlockAttrs", {
+        id,
+        attrs: { "custom-dm-card-status": "" },
+      });
+    }
   }
 
   async resetDeck(deckId: string, blockIds: readonly string[] = []): Promise<void> {

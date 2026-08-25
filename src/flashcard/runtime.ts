@@ -289,7 +289,7 @@ export class FlashcardRuntime {
     const rawBlockIds = rawRows.map((row) => row.id).filter(Boolean);
     const roots = (await this.adapter.inspectRows(rawRows, {
       maxResolveDepth: this.settings.maxResolveDepth,
-    })).map((root) => root.blockId);
+    })).filter((root) => root.status !== "unregistered").map((root) => root.blockId);
     const next = { blockIds: roots, rawBlockIds, updatedAt: Date.now(), query: group.sqlQuery };
     this.cache.set(group.id, next);
     await this.saveCache();

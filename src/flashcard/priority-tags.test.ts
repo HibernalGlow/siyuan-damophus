@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { priorityTag, readPriorityTags, replacePriorityTag } from "./priority-tags";
+import { deactivatePriorityTags, priorityTag, readPriorityTags, reactivatePriorityTags, replacePriorityTag } from "./priority-tags";
 
 describe("portable flashcard priority tags", () => {
   it("maps runtime priorities to P1-P4", () => {
@@ -35,5 +35,14 @@ describe("portable flashcard priority tags", () => {
     const result = replacePriorityTag(source, 75);
     expect(result).toContain("- 问题 #闪卡/优先级/P2#");
     expect(result).toContain("子卡 #闪卡/优先级/P4#");
+  });
+
+  it("moves priority tags outside the active SQL namespace while preserving their level", () => {
+    const source = "问题 #闪卡/优先级/P2#\n    - 答案 #闪卡/优先级/P1#";
+    const inactive = deactivatePriorityTags(source);
+    expect(inactive).toContain("#闪卡/已取消登记/优先级/P2#");
+    expect(inactive).toContain("#闪卡/已取消登记/优先级/P1#");
+    expect(readPriorityTags(inactive)).toEqual({ tags: [], conflict: false });
+    expect(reactivatePriorityTags(inactive)).toBe(source);
   });
 });

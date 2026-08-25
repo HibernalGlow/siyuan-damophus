@@ -101,6 +101,22 @@ describe("flashcard SiYuan adapter", () => {
     expect(status).toBe("pending");
   });
 
+  it("marks an unregistered card without deleting its portable attributes", async () => {
+    requestStrict.mockClear();
+    getBlockKramdownStrict.mockResolvedValue({ kramdown: "- 问题\n#闪卡/优先级/P2#" });
+    updateBlockStrict.mockClear();
+    await new FlashcardSiyuanAdapter().markCardsUnregistered(["20260823031431-rql6ii7"]);
+    expect(updateBlockStrict).toHaveBeenCalledWith(
+      "markdown",
+      "- 问题\n#闪卡/已取消登记/优先级/P2#",
+      "20260823031431-rql6ii7",
+    );
+    expect(requestStrict).toHaveBeenCalledWith("/api/attr/setBlockAttrs", {
+      id: "20260823031431-rql6ii7",
+      attrs: { "custom-dm-card-status": "unregistered" },
+    });
+  });
+
   it("does not treat an unregistered block placeholder as a Riff card", async () => {
     requestStrict.mockResolvedValueOnce({
       blocks: [{ id: "20260823112001-stts5qv", riffCardID: "", content: "不存在符合条件的内容块" }],

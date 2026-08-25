@@ -18,6 +18,7 @@
 | Compatibility layer / 兼容层 | 预渲染阶段读取当前卡片 renderer，临时选择 `window.siyuan.config.flashcard` 的原生配置；失败时保持原始全局配置，卸载时恢复 descriptor/interceptor。 | DAMO SiYuan adapter |
 | Dynamic review list / 动态复习列表 | SFP 基线的 SQL 候选、向上传递到卡根、Riff 到期交集和 renderer 预加载流水线；评分后下一轮重新执行 SQL。 | DAMO runtime |
 | Legacy card / 遗留卡片 | 已登记且拥有既有复习历史的卡；默认保留根块、答案边界和旧 renderer，不自动迁移身份或重置调度。 | DAMO migration policy |
+| Unregistered card / 已取消登记卡 | 保留卡片 IAL 但带 `custom-dm-card-status="unregistered"` 的历史卡；不进入活动 SQL 分组或复习队列，重新登记时恢复状态。 | DAMO registration lifecycle |
 | Pending registration / 待制卡 | Riff API 缺失、登记验证失败或版本 capability 不匹配时的明确状态；不得报告为成功。 | DAMO UI / adapter |
 | SFP baseline / SFP 基线 | `PearlLin2000/Specialized-Flashcard-Plugin@aa3bb02c8ed68164ddda53b87daa391822a1b7be`；DAMO 迁移其用户可见动态汇总、分组、缓存、自动化和结果查看能力，不复制独立插件壳。 | Reference only |
 
@@ -29,6 +30,8 @@
 #法考/民法/债法/债的保全/债权人代位权/成立要件#
 #闪卡/优先级/P1#
 ```
+
+取消登记后的优先级标签使用 `#闪卡/已取消登记/优先级/P1#` 形式保留历史，但不属于活动优先级命名空间；重新登记时恢复为活动标签。
 
 标签用于浏览和 SQL 筛选；topic ID 用于稳定语义关联；`custom-riff-decks`
 只是当前 Riff 登记结果，不是内容来源或制卡成功的唯一依据。

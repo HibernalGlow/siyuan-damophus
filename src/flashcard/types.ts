@@ -11,6 +11,7 @@ export const FLASHCARD_RENDERERS = [
 
 export type FlashcardRenderer = (typeof FLASHCARD_RENDERERS)[number];
 export type FlashcardKind = "basic" | "cloze";
+export type FlashcardCardStatus = "unregistered";
 
 export interface FlashcardAttributes {
   "custom-dm-source-key"?: string;
@@ -21,6 +22,7 @@ export interface FlashcardAttributes {
   "custom-qb-note-topic-id"?: string;
   "custom-qb-question-topic-ids"?: string;
   "custom-riff-decks"?: string;
+  "custom-dm-card-status"?: string;
   bookmark?: string;
   "custom-card-priority-stop"?: string;
   [key: string]: string | undefined;
@@ -47,6 +49,7 @@ export interface FlashcardRoot {
   attributes: FlashcardAttributes;
   priority?: "P1" | "P2" | "P3" | "P4";
   priorityConflict?: boolean;
+  status?: FlashcardCardStatus;
 }
 
 export interface FlashcardGroup {
@@ -275,6 +278,9 @@ export function toFlashcardRoot(row: FlashcardBlockRow): FlashcardRoot | undefin
     ? declaredKind
     : renderer === "mark" ? "cloze" : renderer === "unknown" ? "unknown" : "basic";
   const priorityInfo = readPriorityTags(normalized.content ?? "");
+  const status = normalized.attributes?.["custom-dm-card-status"] === "unregistered"
+    ? "unregistered"
+    : undefined;
   return {
     blockId: normalized.id,
     renderer,
@@ -284,6 +290,7 @@ export function toFlashcardRoot(row: FlashcardBlockRow): FlashcardRoot | undefin
     attributes: normalized.attributes ?? {},
     priority: priorityInfo.tags[0],
     priorityConflict: priorityInfo.conflict,
+    status,
   };
 }
 

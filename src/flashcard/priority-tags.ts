@@ -11,6 +11,8 @@ export function priorityTag(priority: number): FlashcardPriorityTag {
 
 const PRIORITY_TAG_PREFIX = "#\u95ea\u5361/\u4f18\u5148\u7ea7/";
 export const PRIORITY_TAG_PATTERN = /#\u95ea\u5361\/\u4f18\u5148\u7ea7\/P[1-4]#/gu;
+const INACTIVE_PRIORITY_TAG_PREFIX = "#\u95ea\u5361/\u5df2\u53d6\u6d88\u767b\u8bb0/\u4f18\u5148\u7ea7/";
+const INACTIVE_PRIORITY_TAG_PATTERN = /#\u95ea\u5361\/\u5df2\u53d6\u6d88\u767b\u8bb0\/\u4f18\u5148\u7ea7\/P[1-4]#/gu;
 
 export interface PriorityTagInfo {
   tags: FlashcardPriorityTag[];
@@ -57,4 +59,16 @@ export function replacePriorityTag(markdown: string, priority: number): string {
   }
   const trimmed = markdown.replace(/\n+$/u, "");
   return trimmed ? `${trimmed}\n${replacement}` : replacement;
+}
+
+/** Moves priority tags outside the active namespace while preserving history. */
+export function deactivatePriorityTags(markdown: string): string {
+  PRIORITY_TAG_PATTERN.lastIndex = 0;
+  return markdown.replace(PRIORITY_TAG_PATTERN, (tag) => `${INACTIVE_PRIORITY_TAG_PREFIX}${tag.slice(-3, -1)}#`);
+}
+
+/** Restores a previously deactivated priority tag when a card is registered again. */
+export function reactivatePriorityTags(markdown: string): string {
+  INACTIVE_PRIORITY_TAG_PATTERN.lastIndex = 0;
+  return markdown.replace(INACTIVE_PRIORITY_TAG_PATTERN, (tag) => `${PRIORITY_TAG_PREFIX}${tag.slice(-3, -1)}#`);
 }
