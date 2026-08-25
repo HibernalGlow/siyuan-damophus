@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { applyCoverLayout } from "./more-background";
+import { applyCoverLayout, MoreBackgroundController, type MoreBackgroundOptions } from "./more-background";
 
 function renderHeader(): HTMLElement {
   document.body.innerHTML = `
@@ -77,5 +77,17 @@ describe("more-background cover layout", () => {
     expect(root.dataset.damophusCoverLayer).toBe("raised");
     expect(root.dataset.damophusCoverBreadcrumb).toBe("cover");
     expect(root.dataset.damophusCoverMenu).toBe("preserve");
+  });
+
+  it("moves fixed database view tabs below Neo+ IDE document tabs", () => {
+    document.body.classList.add("neo-ide-body", "body--toolbar-hide");
+    const views = document.createElement("div");
+    views.className = "av__views av__views--fixed";
+    views.style.top = "0px";
+    document.body.append(views);
+
+    const controller = new MoreBackgroundController({} as MoreBackgroundOptions);
+    expect(getComputedStyle(views).top).toBe("42px");
+    controller.dispose();
   });
 });

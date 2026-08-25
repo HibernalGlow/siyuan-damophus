@@ -78,8 +78,11 @@ export interface MoreBackgroundHandle {
 const coverLayoutCss = `
 .protyle[data-damophus-cover-layer="raised"] > .protyle-breadcrumb { position: relative; z-index: auto; }
 .protyle[data-damophus-cover-layer="raised"] .protyle-background { z-index: 2; }
-.protyle[data-damophus-cover-layer="raised"] .av__header,
-.protyle[data-damophus-cover-layer="raised"] .av__views { position: relative !important; z-index: 3 !important; }
+.protyle[data-damophus-cover-layer="raised"] .av__header { position: relative !important; z-index: 3 !important; }
+.protyle[data-damophus-cover-layer="raised"] .av__views { z-index: 3 !important; }
+/* Neo+ IDE hides the native toolbar and reserves the first 42px for document tabs.
+   Attribute-view tabs are fixed to the viewport, so keep them below that tab strip. */
+.neo-ide-body.body--toolbar-hide .av__views--fixed { top: 42px !important; }
 .protyle[data-damophus-cover-breadcrumb="preserve"] > .protyle-breadcrumb > .protyle-breadcrumb__bar,
 .protyle[data-damophus-cover-breadcrumb="preserve"] > .protyle-breadcrumb > .protyle-breadcrumb__space { position: relative; z-index: 3; }
 .protyle[data-damophus-cover-menu="preserve"] > .protyle-breadcrumb > [data-type="readonly"],
