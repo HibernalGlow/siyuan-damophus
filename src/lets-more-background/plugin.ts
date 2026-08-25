@@ -65,6 +65,13 @@ export const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "checkbox",
+      title: "lets-more-background.purgeCacheOnCoverChangeTitle",
+      description: "lets-more-background.purgeCacheOnCoverChangeDescription",
+      key: "purgeCacheOnCoverChange",
+      value: false,
+    },
+    {
       type: "textinput",
       title: "lets-more-background.localCacheRootTitle",
       description: "lets-more-background.localCacheRootDescription",

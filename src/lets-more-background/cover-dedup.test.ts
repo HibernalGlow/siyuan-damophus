@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectUsedCoverUrls, normalizeCoverUrl } from "./cover-dedup";
+import { collectHistoryCoverUrls, collectUsedCoverUrls, normalizeCoverUrl } from "./cover-dedup";
 
 describe("cover deduplication", () => {
   it("normalizes direct and title image URLs", () => {
@@ -19,6 +19,23 @@ describe("cover deduplication", () => {
     expect([...urls]).toEqual([
       "https://safebooru.org/images/1/a.jpg",
       "https://safebooru.org/images/2/b.jpg",
+    ]);
+  });
+
+  it("collects remote cover urls from history entries including removed or replaced covers", () => {
+    const urls = collectHistoryCoverUrls([
+      { imageUrl: "https://safebooru.org/images/3/c.jpg" },
+      { imageUrl: "background-image:url('https://safebooru.org/images/4/d.jpg')" },
+      { imageUrl: "https://safebooru.org/images/3/c.jpg#view" },
+      { imageUrl: "assets/local.webp" },
+      { imageUrl: "data:image/png;base64,xxx" },
+      { imageUrl: "" },
+      {},
+    ]);
+
+    expect([...urls]).toEqual([
+      "https://safebooru.org/images/3/c.jpg",
+      "https://safebooru.org/images/4/d.jpg",
     ]);
   });
 });

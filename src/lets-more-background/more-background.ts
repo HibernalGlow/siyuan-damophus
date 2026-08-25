@@ -23,7 +23,8 @@ import {
   maintainDocumentTree,
   type LegacyCoverMaintenanceResult,
 } from "./local-cover-cache-maintenance";
-import { loadUsedCoverUrls } from "./cover-dedup";
+import { loadUsedCoverUrls, collectHistoryCoverUrls, normalizeCoverUrl } from "./cover-dedup";
+import { sql } from "@/api";
 
 const log = getLogger("lets-more-background");
 const BUTTON_ATTR = "data-damophus-more-background";
@@ -47,6 +48,7 @@ export interface MoreBackgroundOptions {
   writeToAssets: boolean;
   localCache: boolean;
   autoCacheLegacyCovers: boolean;
+  purgeCacheOnCoverChange?: boolean;
   localCacheRoot: string;
   localCachePathTemplate: string;
   localCacheMaxEdge: "none" | "1280" | "1920" | "2560";
@@ -325,6 +327,28 @@ async function updateLocalCacheIndex(root: string, entry: LocalCacheIndexEntry):
   }
   const next = [entry, ...entries.filter((item) => item.path !== entry.path)].slice(0, 1000);
   await putTextFile(indexPath, `${JSON.stringify(next, null, 2)}\n`);
+}
+
+async function removeLocalCacheIndexEntry(root: string, path: string): Promise<void> {
+  const cacheRoot = normalizeLocalCacheRoot(root);
+  const indexPath = `${cacheRoot}/${LOCAL_CACHE_INDEX_NAME}`;
+  const raw = await readTextFile(indexPath);
+  let entries: LocalCacheIndexEntry[] = [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) entries = parsed as LocalCacheIndexEntry[];
+  } catch {
+    return;
+  }
+  const next = entries.filter((item) => item.path !== path);
+  if (next.length === entries.length) return;
+  await putTextFile(indexPath, `${JSON.stringify(next, null, 2)}\n`);
+}
+
+async function loadDedupCoverUrls(): Promise<Set<string>> {
+  const urls = await loadUsedCoverUrls();
+  for (const url of collectHistoryCoverUrls(getCoverHistory())) urls.add(url);
+  return urls;
 }
 
 function displayLocalCache(image: HTMLImageElement, blob: Blob): void {
@@ -607,6 +631,107 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     return cleanupLocalCoverCache(this.options.localCacheRoot);
   }
 
+  private async purgeCoverCacheFile(cachePath: string, exceptBlockId?: string): Promise<void> {
+    if (!cachePath) return;
+    try {
+      const escaped = cachePath.replace(/'/g, "''");
+      const blockFilter = exceptBlockId
+        ? ` AND block_id != '${exceptBlockId.replace(/'/g, "''")}'`
+        : "";
+      const rows = await sql(
+        `SELECT block_id FROM attributes WHERE name = '${COVER_CACHE_ATTRIBUTE}' AND value = '${escaped}'${blockFilter}`,
+      );
+      if (Array.isArray(rows) && rows.length > 0) {
+        log.debug("Skip purging cover cache still referenced by other documents:", cachePath);
+        return;
+      }
+      const response = await fetch("/api/file/removeFile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: cachePath }),
+      });
+      const data = await response.json();
+      if (data?.code === 0) {
+        await removeLocalCacheIndexEntry(this.options.localCacheRoot, cachePath);
+        log.info("Purged local cover cache file:", cachePath);
+      }
+    } catch (error) {
+      log.warn("Failed to purge local cover cache file:", error);
+    }
+  }
+
+  private async reconcileCoverCache(background: HTMLElement): Promise<void> {
+    if (!this.options.localCache) return;
+    if (!background.isConnected) return;
+    const blockId =
+      background.getAttribute("data-node-id") ||
+      background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
+    if (!blockId) return;
+    try {
+      const response = await fetch("/api/attr/getBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: blockId }),
+      });
+      const data = await response.json();
+      const attrs = (data?.data || {}) as Record<string, string>;
+      const sourceUrl = attrs[COVER_SOURCE_ATTRIBUTE] || "";
+      const cachePath = attrs[COVER_CACHE_ATTRIBUTE] || "";
+      if (!sourceUrl && !cachePath) return;
+      const titleUrl = normalizeCoverUrl(attrs["title-img"] || "");
+      const sourceNorm = normalizeCoverUrl(sourceUrl);
+      if (titleUrl && sourceNorm && titleUrl === sourceNorm) return;
+      // title cover was removed or replaced via native controls → custom attrs are stale
+      await fetch("/api/attr/setBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: blockId,
+          attrs: {
+            [COVER_SOURCE_ATTRIBUTE]: "",
+            [COVER_CACHE_ATTRIBUTE]: "",
+            "custom-damophus-post-tags": "",
+            "custom-damophus-post-site": "",
+            "custom-damophus-post-id": "",
+            "custom-damophus-post-url": "",
+            "custom-damophus-post-score": "",
+            "custom-damophus-post-dimensions": "",
+          },
+        }),
+      });
+      log.info("Cleared stale cover metadata after native title cover change:", blockId);
+      if (cachePath && this.options.purgeCacheOnCoverChange) {
+        await this.purgeCoverCacheFile(cachePath, blockId);
+      }
+    } catch (error) {
+      log.debug("Failed to reconcile cover cache:", error);
+    }
+  }
+
+  private initCoverCacheReconciler(background: HTMLElement): () => void {
+    const targets = new Set<Element>();
+    const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+    const imgContainer = background.querySelector<HTMLElement>(".protyle-background__img");
+    if (img) targets.add(img);
+    if (imgContainer) targets.add(imgContainer);
+    if (targets.size === 0) return () => {};
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const observer = new MutationObserver(() => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void this.reconcileCoverCache(background);
+      }, 600);
+    });
+    for (const target of targets) {
+      observer.observe(target, { attributes: true, attributeFilter: ["src", "class"] });
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+      observer.disconnect();
+    };
+  }
+
   scanRoot(root: HTMLElement): void {
     if (!root || !root.isConnected) return;
     this.disposeRoot(root);
@@ -626,6 +751,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     if (background) {
       const bgCleanup = this.initVideoBackground(background);
       cleanups.push(bgCleanup);
+      const cacheReconcileCleanup = this.initCoverCacheReconciler(background);
+      cleanups.push(cacheReconcileCleanup);
       const posCleanup = this.initCoverPositionControls(background);
       cleanups.push(posCleanup);
       const tagOverlayCleanup = this.initCoverTagOverlay(root);
@@ -1191,6 +1318,25 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       },
     });
 
+    if (this.options.localCache) {
+      const isPurgeEnabled = this.options.purgeCacheOnCoverChange === true;
+      menu.addItem({
+        label: `${isPurgeEnabled ? "✓ " : ""}${this.options.t("lets-more-background.purgeCacheOnCoverChange")}`,
+        icon: "iconTrashcan",
+        click: () => {
+          const nextVal = !isPurgeEnabled;
+          this.options.purgeCacheOnCoverChange = nextVal;
+          try {
+            settings.setBySpace("moreBackground", "purgeCacheOnCoverChange", nextVal);
+            void settings.save();
+          } catch {}
+          showMessage(this.options.t(nextVal
+            ? "lets-more-background.purgeCacheOnCoverChangeEnabled"
+            : "lets-more-background.purgeCacheOnCoverChangeDisabled"));
+        },
+      });
+    }
+
     menu.addSeparator();
 
     menu.addItem({
@@ -1302,7 +1448,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       if (isBooruSource(url)) {
         if (this.options.deduplicateNewCovers !== false && !deduplicationUrls) {
           try {
-            deduplicationUrls = await loadUsedCoverUrls();
+            deduplicationUrls = await loadDedupCoverUrls();
           } catch (error) {
             log.warn("Failed to load used cover URLs:", error);
             deduplicationUrls = new Set();
@@ -1506,13 +1652,36 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       finalVal = finalVal.replace(/^\/+/, "");
     }
 
+    let previousSourceUrl = "";
+    let previousCachePath = "";
+    if (this.options.localCache) {
+      try {
+        const previous = await fetch("/api/attr/getBlockAttrs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: blockId }),
+        });
+        const prevData = await previous.json();
+        previousSourceUrl = prevData?.data?.[COVER_SOURCE_ATTRIBUTE] || "";
+        previousCachePath = prevData?.data?.[COVER_CACHE_ATTRIBUTE] || "";
+      } catch (error) {
+        log.debug("Failed to read previous cover attrs:", error);
+      }
+    }
+
+    const sourceChanged =
+      normalizeCoverUrl(urlOrPath) !== normalizeCoverUrl(previousSourceUrl);
+
     const attrs: Record<string, string> = {
       "title-img": `background-image:url("${finalVal}")`,
     };
     if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
       attrs[COVER_SOURCE_ATTRIBUTE] = urlOrPath;
+    } else if (previousSourceUrl) {
+      attrs[COVER_SOURCE_ATTRIBUTE] = "";
     }
     if (cachePath) attrs[COVER_CACHE_ATTRIBUTE] = cachePath;
+    else if (previousCachePath && sourceChanged) attrs[COVER_CACHE_ATTRIBUTE] = "";
 
     const tags = background.getAttribute("data-damophus-post-tags");
     if (tags) attrs["custom-damophus-post-tags"] = tags;
@@ -1535,6 +1704,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         attrs,
       }),
     });
+
+    // 更换题头图后清理旧封面在本设备的缓存文件
+    if (this.options.purgeCacheOnCoverChange && sourceChanged && previousCachePath && previousCachePath !== cachePath) {
+      await this.purgeCoverCacheFile(previousCachePath, blockId);
+    }
 
     // 记录到历史记录
     try {

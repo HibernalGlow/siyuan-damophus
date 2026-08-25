@@ -84,6 +84,7 @@
   export let writeToAssets = false;
   export let localCache = false;
   export let autoCacheLegacyCovers = false;
+  export let purgeCacheOnCoverChange = false;
   export let localCacheRoot = "/storage/petal/siyuan-damophus/more-background/covers";
   export let localCachePathTemplate = "{year}/{month}/{hash}.webp";
   export let localCacheMaxEdge: "none" | "1280" | "1920" | "2560" = "1920";
@@ -1796,6 +1797,14 @@
               <p class="text-[11px] text-muted-foreground">{t("lets-more-background.autoCacheLegacyCoversDescription")}</p>
             </div>
             <Switch disabled={!localCache} checked={autoCacheLegacyCovers} onCheckedChange={(val) => handleBasicChange("autoCacheLegacyCovers", val)} />
+          </div>
+
+          <div class="flex items-center justify-between gap-3">
+            <div class="space-y-0.5">
+              <div class="font-medium text-foreground">{t("lets-more-background.purgeCacheOnCoverChangeTitle")}</div>
+              <p class="text-[11px] text-muted-foreground">{t("lets-more-background.purgeCacheOnCoverChangeDescription")}</p>
+            </div>
+            <Switch disabled={!localCache} checked={purgeCacheOnCoverChange} onCheckedChange={(val) => handleBasicChange("purgeCacheOnCoverChange", val)} />
           </div>
 
           <div class="space-y-1.5">

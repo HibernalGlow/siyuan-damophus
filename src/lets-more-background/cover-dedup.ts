@@ -51,3 +51,16 @@ export async function loadUsedCoverUrls(): Promise<Set<string>> {
   );
   return collectUsedCoverUrls(rows as CoverAttributeRow[]);
 }
+
+export interface CoverHistoryUrlEntry {
+  imageUrl?: string;
+}
+
+export function collectHistoryCoverUrls(entries: CoverHistoryUrlEntry[]): Set<string> {
+  const urls = new Set<string>();
+  for (const entry of entries || []) {
+    const normalized = normalizeCoverUrl(entry.imageUrl || "");
+    if (normalized) urls.add(normalized);
+  }
+  return urls;
+}
