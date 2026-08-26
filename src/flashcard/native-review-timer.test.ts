@@ -60,6 +60,18 @@ describe("native review timer", () => {
     expect(timer.getDisplay()).toMatchObject({ enabled: false, totalMs: 1_000, cardMs: 1_000 });
   });
 
+  it("starts once for native review callbacks and preserves the running round", () => {
+    let now = 0;
+    const timer = activeTimer = new NativeReviewTimer({
+      now: () => now,
+      getSettings: () => ({ enabled: true, continueAfterAnswer: false }),
+    });
+    timer.ensureSession("a");
+    now = 2_000;
+    timer.ensureSession("b");
+    expect(timer.getDisplay()).toMatchObject({ totalMs: 2_000, cardMs: 2_000, paused: false });
+  });
+
   it("refreshes the toolbar once per running tick", () => {
     vi.useFakeTimers();
     let now = 0;

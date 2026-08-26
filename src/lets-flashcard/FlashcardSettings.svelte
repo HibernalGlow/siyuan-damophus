@@ -715,6 +715,7 @@
       <Button variant={workbenchMode === "review" ? "default" : "outline"} size="sm" aria-pressed={workbenchMode === "review"} onclick={() => workbenchMode = "review"} title="复习模式"><Play /><span>复习</span></Button>
     </div>
     <label class="workbench-auto-review"><span>登记后自动复习</span><Switch size="sm" checked={config.autoReviewAfterRegistration} onCheckedChange={(value) => { config.autoReviewAfterRegistration = value; saveGlobalOnChange(); }} aria-label="登记后自动复习" /></label>
+    <label class="workbench-timer"><span>复习计时</span><Switch size="sm" checked={config.reviewTimerEnabled} onCheckedChange={(value) => { config.reviewTimerEnabled = value; saveGlobalOnChange(); }} aria-label="复习计时" /></label>
     <div class="flashcard-header-actions">
       <Button size="sm" onclick={onReviewAll} title="打开全部到期卡" aria-label="打开全部到期卡"><Play /><span>全部到期</span></Button>
       <Button variant="outline" size="sm" onclick={clearCache} title="清除 SQL 缓存" aria-label="清除 SQL 缓存"><RefreshCw /><span>刷新缓存</span></Button>
@@ -1225,7 +1226,7 @@
   .settings-title :global(svg), .section-title > :global(svg) { width: 17px; height: 17px; color: var(--primary, var(--b3-theme-primary)); }
   .workbench-mode-toggle { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 7px; background: color-mix(in srgb, var(--muted, var(--b3-list-hover)) 45%, transparent); }
   .workbench-mode-toggle :global([data-slot="button"]) { min-width: 70px; }
-  .workbench-auto-review { display: inline-flex; align-items: center; gap: 6px; min-width: max-content; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .workbench-auto-review, .workbench-timer { display: inline-flex; align-items: center; gap: 6px; min-width: max-content; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
   .flashcard-header-actions {
     display: flex !important;
     flex: 0 0 auto;
@@ -1442,7 +1443,7 @@
     .flashcard-settings { gap: 10px; padding: 10px 10px 20px; }
     .settings-header { top: -10px; min-height: 38px; }
     .settings-title strong { font-size: 13px; }
-    .workbench-mode-toggle :global([data-slot="button"] span), .workbench-auto-review span { display: none; }
+    .workbench-mode-toggle :global([data-slot="button"] span), .workbench-auto-review span, .workbench-timer span { display: none; }
     .workbench-mode-toggle :global([data-slot="button"]) { width: 28px; min-width: 28px; padding: 0; }
     .flashcard-header-actions :global([data-slot="button"] span) { display: none; }
     .flashcard-header-actions :global([data-slot="button"]) { width: 28px; padding: 0; }

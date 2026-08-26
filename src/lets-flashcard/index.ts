@@ -88,6 +88,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     documentRef: document,
     getStatsSettings: () => this.runtime.getSettings().reviewStats,
     getTimerDisplay: () => this.reviewTimer.getDisplay(),
+    onReviewSurfaceClosed: () => this.reviewTimer.stopSession(),
   });
   private readonly priorityControls = new NativePriorityControls({
     documentRef: document,
@@ -457,6 +458,10 @@ export default class FlashcardPlugin extends SubPluginBase {
         }
       }
       const ordered = await this.orderCards(cards);
+      // Native review can be opened from SiYuan's own menu, bypassing
+      // openNativeReview(). Start the timer from that callback as well, while
+      // keeping subsequent round refreshes on the same session.
+      this.reviewTimer.ensureSession(ordered[0]?.cardID);
       return {
         cards: ordered,
         unreviewedCount: ordered.length,

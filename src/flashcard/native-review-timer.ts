@@ -47,6 +47,13 @@ export class NativeReviewTimer {
     this.options.onChange?.();
   }
 
+  /** Starts a session for a native review entry without resetting an existing round. */
+  ensureSession(cardID?: string, at = this.now()): void {
+    if (this.sessionActive) return;
+    if (!cardID) return;
+    this.startSession(cardID, at);
+  }
+
   setActiveCard(cardID: string | undefined, at = this.now()): void {
     if (!this.sessionActive) return;
     const next = cardID || undefined;

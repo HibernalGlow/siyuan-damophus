@@ -130,6 +130,16 @@ describe("flashcard workbench", () => {
     expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ autoReviewAfterRegistration: false });
   });
 
+  it("exposes a quick toggle for review timing", async () => {
+    const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
+    const target = await render();
+    const toggle = target.querySelector<HTMLButtonElement>('[aria-label="复习计时"]');
+    expect(toggle?.getAttribute("aria-checked")).toBe("true");
+    toggle?.click();
+    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalled());
+    expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ reviewTimerEnabled: false });
+  });
+
   it("keeps workbench controls inside a mobile viewport", async () => {
     await page.viewport(390, 760);
     const target = await render();

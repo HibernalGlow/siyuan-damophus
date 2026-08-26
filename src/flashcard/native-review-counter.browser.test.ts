@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NativeReviewCounter } from "./native-review-counter";
 import type { FlashcardReviewStatsSettings } from "./types";
 
@@ -242,6 +242,18 @@ describe("native review priority counter", () => {
     await new Promise<void>((resolve) => queueMicrotask(resolve));
     expect(root.querySelector('[data-timer="card"]')?.getAttribute("data-paused")).toBe("true");
     expect(root.querySelector('[data-timer="total"]')?.textContent).toContain("01:10");
+  });
+
+  it("notifies the owner when an opened review surface is closed", async () => {
+    const root = mountCounter();
+    const onReviewSurfaceClosed = vi.fn();
+    counter = new NativeReviewCounter({ documentRef: document, onReviewSurfaceClosed });
+    counter.setQueue([{ cardID: "close-a", priority: "P1" }]);
+    counter.install();
+
+    root.remove();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(onReviewSurfaceClosed).toHaveBeenCalledOnce();
   });
 
   it("moves the complete mobile counter into a right-aligned second row", async () => {

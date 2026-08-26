@@ -18,6 +18,7 @@ export interface NativeReviewCounterOptions {
   documentRef: Document;
   getStatsSettings?: () => FlashcardReviewStatsSettings;
   getTimerDisplay?: () => NativeReviewTimerDisplay;
+  onReviewSurfaceClosed?: () => void;
 }
 
 const PRIORITIES: readonly ReviewPriorityBucket[] = ["P1", "P2", "P3", "P4", "other"];
@@ -329,6 +330,7 @@ export class NativeReviewCounter {
   private activeCardID?: string;
   private lastCounts = new Map<ReviewPriorityBucket, PriorityCount>();
   private renderQueued = false;
+  private reviewSurfacePresent = false;
 
   constructor(private readonly options: NativeReviewCounterOptions) {}
 
@@ -398,6 +400,7 @@ export class NativeReviewCounter {
     this.activeCardID = undefined;
     this.animated.clear();
     this.lastCounts.clear();
+    this.reviewSurfacePresent = false;
     this.options.documentRef.getElementById(STYLE_ID)?.remove();
   }
 
@@ -411,6 +414,15 @@ export class NativeReviewCounter {
   }
 
   private render(): void {
+    const hasReviewSurface = this.options.documentRef.querySelector<HTMLElement>(
+      '.card__main [data-type="count"]',
+    ) !== null;
+    if (hasReviewSurface) {
+      this.reviewSurfacePresent = true;
+    } else if (this.reviewSurfacePresent) {
+      this.reviewSurfacePresent = false;
+      this.options.onReviewSurfaceClosed?.();
+    }
     const counts = this.counts();
     const completedPriorities = new Set<ReviewPriorityBucket>();
     for (const priority of PRIORITIES) {
