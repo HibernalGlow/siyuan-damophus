@@ -120,6 +120,8 @@ describe("flashcard plugin metadata", () => {
       openSettings: vi.fn(),
       reviewAll,
       reviewGroup,
+      reviewScopeCards: vi.fn(),
+      openMakeScope: vi.fn(),
       unregisterContainers,
       unregisterDocumentTree,
       reviewDocumentTree: vi.fn(),
@@ -141,13 +143,24 @@ describe("flashcard plugin metadata", () => {
     instance.handleDocumentTitleMenu({
       detail: { menu: blockMenu, data: { id: "20260823112002-aaaaaaa", name: "测试文档" } },
     });
-    expect(addItem).toHaveBeenCalledTimes(2);
-    const documentMenu = addItem.mock.calls[0][0];
-    expect(documentMenu.label).toBe("当前文档专项复习");
-    expect(documentMenu.type).toBeUndefined();
-    expect(addItem.mock.calls[1][0].label).toBe("取消当前文档下所有闪卡登记");
-    addItem.mock.calls[1][0].click();
-    expect(unregisterDocumentTree).toHaveBeenCalledWith(["20260823112002-aaaaaaa"], false);
+    expect(addItem).toHaveBeenCalledTimes(4);
+    expect(addItem.mock.calls.map(([item]) => item.label)).toEqual([
+      "制作当前文档闪卡 · 全部",
+      "复习当前文档闪卡 · 全部到期",
+      "制作当前文档闪卡 · 含指定标签",
+      "复习当前文档闪卡 · 含指定标签",
+    ]);
+    addItem.mock.calls[0][0].click();
+    expect(instance.openMakeScope).toHaveBeenCalledWith(expect.objectContaining({
+      type: "document",
+      targetId: "20260823112002-aaaaaaa",
+    }));
+    addItem.mock.calls[3][0].click();
+    expect(instance.reviewScopeCards).toHaveBeenCalledWith(expect.objectContaining({
+      type: "document",
+      targetId: "20260823112002-aaaaaaa",
+      groupId: "group-1",
+    }));
 
     addItem.mockClear();
     vi.stubGlobal("window", { siyuan: { notebooks: [{ id: "notebook-1", name: "测试笔记本" }] } });
@@ -159,6 +172,17 @@ describe("flashcard plugin metadata", () => {
     expect(notebookMenu.submenu.map((item: { type?: string; label?: string }) => item.type ?? item.label)).toContain("当前笔记本专项复习");
     notebookMenu.submenu.find((item: { label?: string }) => item.label === "取消当前笔记本下所有闪卡登记")?.click();
     expect(unregisterDocumentTree).toHaveBeenCalledWith(["notebook-1"], true);
+
+    addItem.mockClear();
+    instance.handleDocumentTreeMenu({
+      detail: { menu: blockMenu, type: "document", elements: [{ dataset: { nodeId: "document-1", name: "测试文档" } }] },
+    });
+    expect(addItem.mock.calls.map(([item]) => item.label)).toEqual([
+      "制作当前文档闪卡 · 全部",
+      "复习当前文档闪卡 · 全部到期",
+      "制作当前文档闪卡 · 含指定标签",
+      "复习当前文档闪卡 · 含指定标签",
+    ]);
   });
 
   it("prefers the official mobile pop editor over desktop tabs and DOM", () => {

@@ -689,8 +689,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     const documentId = event.detail.data.id;
     if (!documentId) return;
     const targetName = event.detail.data.name ?? documentId;
-    event.detail.menu.addItem(this.documentReviewMenuItem(documentId, targetName));
-    event.detail.menu.addItem(this.documentUnregisterMenuItem(documentId));
+    for (const item of this.documentScopeMenuItems(documentId, targetName)) event.detail.menu.addItem(item);
   };
 
   private readonly handleDocumentTreeMenu = (
@@ -713,32 +712,34 @@ export default class FlashcardPlugin extends SubPluginBase {
       event.detail.menu.addItem(this.contextScopeMenuItem("notebook", ids, targetName));
       return;
     }
+    if (ids.length === 1) {
+      for (const item of this.documentScopeMenuItems(ids[0], targetName)) event.detail.menu.addItem(item);
+      return;
+    }
     event.detail.menu.addItem({
       icon: "iconRiffCard",
-      label: ids.length > 1 ? "所选文档专项复习" : "当前文档专项复习",
+      label: "复习所选文档闪卡",
       click: () => void this.reviewDocumentTree(ids, false, targetName),
-    });
-    event.detail.menu.addItem({
-      icon: "iconCloseRound",
-      label: ids.length > 1 ? "取消所选文档下所有闪卡登记" : "取消当前文档下所有闪卡登记",
-      click: () => void this.unregisterDocumentTree(ids, false),
     });
   };
 
-  private documentReviewMenuItem(documentId: string, targetName: string): IMenu {
-    return {
-      icon: "iconRiffCard",
-      label: "当前文档专项复习",
-      click: () => this.reviewDocumentScope(documentId, targetName),
-    };
-  }
-
-  private documentUnregisterMenuItem(documentId: string): IMenu {
-    return {
-      icon: "iconCloseRound",
-      label: "取消当前文档下所有闪卡登记",
-      click: () => void this.unregisterDocumentTree([documentId], false),
-    };
+  private documentScopeMenuItems(documentId: string, targetName: string): IMenu[] {
+    const scopes = [
+      this.makeScope("document", documentId, targetName),
+      ...this.runtime.getEnabledGroups().map((group) => this.makeScope("document", documentId, targetName, group)),
+    ];
+    return scopes.flatMap((scope) => [
+      {
+        icon: "iconRiffCard",
+        label: scope.groupName ? `制作当前文档闪卡 · ${scope.groupName}` : "制作当前文档闪卡 · 全部",
+        click: () => void this.openMakeScope(scope),
+      },
+      {
+        icon: "iconRiffCard",
+        label: scope.groupName ? `复习当前文档闪卡 · ${scope.groupName}` : "复习当前文档闪卡 · 全部到期",
+        click: () => void this.reviewScopeCards(scope),
+      },
+    ]);
   }
 
   private contextScopeMenuItem(
