@@ -18,7 +18,12 @@ import { NativePriorityControls, type ReviewToolbarKey } from "@/flashcard/nativ
 import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/native-review-counter";
 import { NativeReviewTimer } from "@/flashcard/native-review-timer";
 import { readReviewCardStats } from "@/flashcard/review-stats";
-import type { DueCardsData, RiffCardRecord } from "@/flashcard/siyuan-adapter";
+import type {
+  DueCardsData,
+  FlashcardUnregisterAudit,
+  FlashcardUnregisterScope,
+  RiffCardRecord,
+} from "@/flashcard/siyuan-adapter";
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
 import { SiyuanMobileFlashcardSurfaceAdapter } from "@/flashcard/mobile-surface-adapter";
 import {
@@ -48,6 +53,10 @@ const BREADCRUMB_BUTTON_ICON = "iconRiffCard";
 
 function settingsTabId(): string {
   return `${plugin.name}${SETTINGS_TAB_TYPE}`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
 }
 
 export default class FlashcardPlugin extends SubPluginBase {
@@ -639,7 +648,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (context) {
       submenu.push({ type: "separator" });
       submenu.push(this.scopeMenuItem("当前文档专项复习", "document", context.documentId, context.documentName));
-      submenu.push(this.batchUnregisterScopeMenuItem("取消当前文档下所有闪卡登记", "document", context.documentId));
+      submenu.push(this.documentUnregisterMenuItem([context.documentId], "当前文档"));
     }
     const groups = this.runtime.getEnabledGroups();
     if (groups.length > 0) submenu.push({ type: "separator" });
@@ -730,6 +739,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       label: "复习所选文档闪卡",
       click: () => void this.reviewDocumentTree(ids, false, targetName),
     });
+    event.detail.menu.addItem(this.documentUnregisterMenuItem(ids, "所选文档"));
   };
 
   private documentScopeMenuItems(documentId: string, targetName: string): IMenu[] {
@@ -737,7 +747,8 @@ export default class FlashcardPlugin extends SubPluginBase {
       this.makeScope("document", documentId, targetName),
       ...this.runtime.getEnabledGroups().map((group) => this.makeScope("document", documentId, targetName, group)),
     ];
-    return scopes.flatMap((scope) => [
+    return [
+      ...scopes.flatMap((scope) => [
       {
         icon: "iconRiffCard",
         label: scope.groupName ? `制作当前文档闪卡 · ${scope.groupName}` : "制作当前文档闪卡 · 全部",
@@ -748,7 +759,9 @@ export default class FlashcardPlugin extends SubPluginBase {
         label: scope.groupName ? `复习当前文档闪卡 · ${scope.groupName}` : "复习当前文档闪卡 · 全部到期",
         click: () => void this.reviewScopeCards(scope),
       },
-    ]);
+      ]),
+      this.documentUnregisterMenuItem([documentId], "当前文档"),
+    ];
   }
 
   private contextScopeMenuItem(
@@ -781,13 +794,13 @@ export default class FlashcardPlugin extends SubPluginBase {
         label: scopeLabel,
         click: () => void this.reviewDocumentTree(targetIds, type === "notebook", targetName),
       });
-    submenu.push({
-      icon: "iconCloseRound",
-      label: type === "notebook"
-        ? `取消${singleTarget ? "当前" : "所选"}笔记本下所有闪卡登记`
-        : `取消${singleTarget ? "当前" : "所选"}文档下所有闪卡登记`,
-      click: () => void this.unregisterDocumentTree(targetIds, type === "notebook"),
-    });
+    submenu.push(type === "notebook"
+      ? {
+        icon: "iconCloseRound",
+        label: `取消${singleTarget ? "当前" : "所选"}笔记本下所有闪卡登记`,
+        click: () => void this.unregisterDocumentTree(targetIds, true, this.createUnregisterAudit("notebook")),
+      }
+      : this.documentUnregisterMenuItem(targetIds, singleTarget ? "当前文档" : "所选文档"));
     const groups = this.runtime.getEnabledGroups();
     if (groups.length > 0) submenu.push({ type: "separator" });
     for (const group of groups) {
@@ -816,15 +829,11 @@ export default class FlashcardPlugin extends SubPluginBase {
     };
   }
 
-  private batchUnregisterScopeMenuItem(
-    label: string,
-    type: "document" | "notebook",
-    targetId: string,
-  ): IMenu {
+  private documentUnregisterMenuItem(targetIds: readonly string[], label: string): IMenu {
     return {
       icon: "iconCloseRound",
-      label,
-      click: () => void this.unregisterDocumentTree([targetId], type === "notebook"),
+      label: `取消${label}闪卡登记`,
+      click: () => this.openDocumentUnregisterDialog(targetIds, label),
     };
   }
 
@@ -1485,7 +1494,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewCards.delete(card.blockID);
     this.compat.forget([card.blockID]);
     this.compat.refresh();
-    await this.runtime.adapter.markCardsUnregistered([card.blockID]);
+    await this.runtime.adapter.markCardsUnregistered([card.blockID], this.createUnregisterAudit("card"));
     showMessage("已取消闪卡登记，原笔记块保持不变", 4000, "info");
     return true;
   }
@@ -1494,24 +1503,84 @@ export default class FlashcardPlugin extends SubPluginBase {
     try {
       const candidates = await this.runtime.adapter.getContainerBlockIds(containerIds);
       const cards = await this.runtime.adapter.getCardsByBlockIds(candidates);
-      await this.confirmAndUnregister(cards, label);
+      await this.confirmAndUnregister(cards, label, this.createUnregisterAudit("container"));
     } catch (error) {
       this.reportError("查询容器内闪卡失败", error);
     }
   }
 
-  private async unregisterDocumentTree(ids: readonly string[], notebook: boolean): Promise<void> {
+  private openDocumentUnregisterDialog(targetIds: readonly string[], label: string): void {
+    const dialog = new Dialog({
+      title: this.t("lets-flashcard.unregisterDialogTitle"),
+      width: "min(460px, 92vw)",
+      content: `
+        <div class="b3-dialog__content">
+          <label class="fn__flex fn__flex-1 fn__flex-center">
+            <input type="checkbox" data-field="include-subdocuments">
+            <span class="fn__space--left">${escapeHtml(this.t("lets-flashcard.unregisterIncludeSubdocuments"))}</span>
+          </label>
+          <label class="fn__flex fn__flex-1 fn__flex-center fn__space--top">
+            <input type="checkbox" data-field="write-audit" checked>
+            <span class="fn__space--left">${escapeHtml(this.t("lets-flashcard.unregisterWriteAudit"))}</span>
+          </label>
+          <div class="b3-label fn__space--top">${escapeHtml(this.t("lets-flashcard.unregisterAuditDescription"))}</div>
+        </div>
+        <div class="b3-dialog__action">
+          <button class="b3-button b3-button--cancel" data-action="cancel" type="button">${escapeHtml(this.t("lets-flashcard.cancel"))}</button>
+          <button class="b3-button b3-button--text" data-action="unregister" type="button">${escapeHtml(this.t("lets-flashcard.unregisterConfirm"))}</button>
+        </div>
+      `,
+    });
+    const includeSubdocuments = dialog.element.querySelector<HTMLInputElement>('[data-field="include-subdocuments"]');
+    const writeAudit = dialog.element.querySelector<HTMLInputElement>('[data-field="write-audit"]');
+    const unregisterButton = dialog.element.querySelector<HTMLButtonElement>('[data-action="unregister"]');
+    dialog.element.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
+    unregisterButton?.addEventListener("click", () => {
+      unregisterButton.disabled = true;
+      const include = includeSubdocuments?.checked === true;
+      const audit = writeAudit?.checked === true
+        ? this.createUnregisterAudit(include ? "document-tree" : "document")
+        : undefined;
+      dialog.destroy();
+      void this.unregisterDocumentScope(targetIds, include, label, audit);
+    });
+  }
+
+  private async unregisterDocumentScope(
+    ids: readonly string[],
+    includeSubdocuments: boolean,
+    label: string,
+    audit?: FlashcardUnregisterAudit,
+  ): Promise<void> {
     try {
-      const cards = notebook
-        ? (await Promise.all(ids.map((id) => this.runtime.adapter.getNotebookCards(id))).then((all) => all.flat()))
-        : (await Promise.all(ids.map((id) => this.runtime.adapter.getTreeCards(id))).then((all) => all.flat()));
-      await this.confirmAndUnregister(cards, notebook ? "所选笔记本" : "所选文档");
+      const cards = (await Promise.all(ids.map((id) => this.runtime.adapter.getDocumentCards(id, includeSubdocuments))))
+        .flat();
+      await this.confirmAndUnregister(cards, label, audit);
     } catch (error) {
       this.reportError("查询文档范围闪卡失败", error);
     }
   }
 
-  private async confirmAndUnregister(cards: readonly RiffCardRecord[], label: string): Promise<void> {
+  private async unregisterDocumentTree(
+    ids: readonly string[],
+    notebook: boolean,
+    audit?: FlashcardUnregisterAudit,
+  ): Promise<void> {
+    try {
+      const cards = notebook
+        ? (await Promise.all(ids.map((id) => this.runtime.adapter.getNotebookCards(id))).then((all) => all.flat()))
+        : (await Promise.all(ids.map((id) => this.runtime.adapter.getDocumentCards(id, true))).then((all) => all.flat()));
+      await this.confirmAndUnregister(cards, notebook ? "所选笔记本" : "所选文档", audit);
+    } catch (error) {
+      this.reportError("查询文档范围闪卡失败", error);
+    }
+  }
+
+  private async confirmAndUnregister(
+    cards: readonly RiffCardRecord[],
+    label: string,
+    audit?: FlashcardUnregisterAudit,
+  ): Promise<void> {
     const byBlockId = new Map(cards.map((card) => [card.blockID, card]));
     const selected = [...byBlockId.values()];
     if (selected.length === 0) {
@@ -1527,7 +1596,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     for (const card of selected) this.reviewCards.delete(card.blockID);
     this.compat.forget(selected.map((card) => card.blockID));
     this.compat.refresh();
-    await this.runtime.adapter.markCardsUnregistered(selected.map((card) => card.blockID));
+    await this.runtime.adapter.markCardsUnregistered(selected.map((card) => card.blockID), audit);
     if (selected.some((card) => card.blockID === this.currentReviewCard?.blockID)) {
       this.currentReviewCard = undefined;
     }
@@ -1542,6 +1611,14 @@ export default class FlashcardPlugin extends SubPluginBase {
     return new Promise<boolean>((resolve) => {
       confirm(title, message, () => resolve(true), () => resolve(false));
     });
+  }
+
+  private createUnregisterAudit(scope: FlashcardUnregisterScope): FlashcardUnregisterAudit {
+    return {
+      lastUnregisteredAt: new Date().toISOString(),
+      deckId: this.runtime.getSettings().deckId,
+      scope,
+    };
   }
 
   private reportError(message: string, error: unknown): void {

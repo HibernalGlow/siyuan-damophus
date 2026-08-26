@@ -1,14 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import { FlashcardSiyuanAdapter } from "./siyuan-adapter";
 
-const { requestStrict, getBlockKramdownStrict, getChildBlocksStrict, updateBlockStrict } = vi.hoisted(() => ({
+const { requestStrict, getBlockKramdownStrict, getChildBlocksStrict, getPathByID, listDocTree, updateBlockStrict } = vi.hoisted(() => ({
   requestStrict: vi.fn(async () => []),
   getBlockKramdownStrict: vi.fn(async () => ({ kramdown: "" })),
   getChildBlocksStrict: vi.fn(async () => []),
+  getPathByID: vi.fn(async () => ({ notebook: "notebook-1", path: "/20260823112000-docaaaa.sy" })),
+  listDocTree: vi.fn(async () => []),
   updateBlockStrict: vi.fn(async () => []),
 }));
 
-vi.mock("@/api", () => ({ requestStrict, getBlockKramdownStrict, getChildBlocksStrict, updateBlockStrict }));
+vi.mock("@/api", () => ({
+  requestStrict,
+  getBlockKramdownStrict,
+  getChildBlocksStrict,
+  getPathByID,
+  listDocTree,
+  updateBlockStrict,
+}));
 
 describe("flashcard SiYuan adapter", () => {
   it("batches large block loads for SFP dynamic groups", async () => {
@@ -117,6 +126,25 @@ describe("flashcard SiYuan adapter", () => {
     });
   });
 
+  it("records an optional portable unregistration audit after a card is removed", async () => {
+    requestStrict.mockClear();
+    getBlockKramdownStrict.mockResolvedValue({ kramdown: "- 问题" });
+    await new FlashcardSiyuanAdapter().markCardsUnregistered(["20260823112001-stts5qv"], {
+      lastUnregisteredAt: "2026-08-27T00:00:00.000Z",
+      deckId: "20230218211946-2kw8jgx",
+      scope: "document-tree",
+    });
+    expect(requestStrict).toHaveBeenCalledWith("/api/attr/setBlockAttrs", {
+      id: "20260823112001-stts5qv",
+      attrs: {
+        "custom-dm-card-status": "unregistered",
+        "custom-dm-card-last-unregistered-at": "2026-08-27T00:00:00.000Z",
+        "custom-dm-card-last-unregistered-deck-id": "20230218211946-2kw8jgx",
+        "custom-dm-card-last-unregister-scope": "document-tree",
+      },
+    });
+  });
+
   it("does not treat an unregistered block placeholder as a Riff card", async () => {
     requestStrict.mockResolvedValueOnce({
       blocks: [{ id: "20260823112001-stts5qv", riffCardID: "", content: "不存在符合条件的内容块" }],
@@ -220,6 +248,28 @@ describe("flashcard SiYuan adapter", () => {
     expect(requestStrict).toHaveBeenNthCalledWith(2, "/api/riff/getNotebookRiffCards", {
       id: "notebook-1", page: 1, pageSize: 1000,
     });
+  });
+
+  it("distinguishes one document from its child-document tree", async () => {
+    const adapter = new FlashcardSiyuanAdapter();
+    const paginatedSql = vi.spyOn(adapter, "paginatedSql").mockResolvedValue([{ id: "20260823112001-stts5qv" }]);
+    const getCardsByBlockIds = vi.spyOn(adapter, "getCardsByBlockIds").mockResolvedValue([]);
+
+    await adapter.getDocumentCards("20260823112000-docaaaa");
+    expect(getCardsByBlockIds).toHaveBeenLastCalledWith([
+      "20260823112000-docaaaa",
+      "20260823112001-stts5qv",
+    ]);
+
+    getPathByID.mockResolvedValueOnce({ notebook: "notebook-1", path: "/20260823112000-docaaaa.sy" });
+    listDocTree.mockResolvedValueOnce([{ id: "20260823113000-docbbbb", children: [{ id: "20260823114000-doccccc" }] }]);
+    await adapter.getDocumentCards("20260823112000-docaaaa", true);
+    expect(paginatedSql).toHaveBeenCalledTimes(4);
+    expect(getCardsByBlockIds).toHaveBeenLastCalledWith(expect.arrayContaining([
+      "20260823112000-docaaaa",
+      "20260823113000-docbbbb",
+      "20260823114000-doccccc",
+    ]));
   });
 
   it("expands arbitrary containers through SiYuan's child-block API", async () => {

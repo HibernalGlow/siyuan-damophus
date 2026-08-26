@@ -23,6 +23,9 @@ export interface FlashcardAttributes {
   "custom-qb-question-topic-ids"?: string;
   "custom-riff-decks"?: string;
   "custom-dm-card-status"?: string;
+  "custom-dm-card-last-unregistered-at"?: string;
+  "custom-dm-card-last-unregistered-deck-id"?: string;
+  "custom-dm-card-last-unregister-scope"?: string;
   bookmark?: string;
   "custom-card-priority-stop"?: string;
   [key: string]: string | undefined;

@@ -6,6 +6,12 @@ export const en = {
   "lets-flashcard.openSettingsDescription": "Open the full DAMO flashcard settings surface.",
   "lets-flashcard.reviewAll": "Review all due flashcards",
   "lets-flashcard.reviewCurrentDocument": "Review flashcards in the current document",
+  "lets-flashcard.unregisterDialogTitle": "Unregister flashcards",
+  "lets-flashcard.unregisterIncludeSubdocuments": "Include child documents",
+  "lets-flashcard.unregisterWriteAudit": "Record unregistration information",
+  "lets-flashcard.unregisterAuditDescription": "The record keeps the latest unregistration time, deck, and scope on each affected block.",
+  "lets-flashcard.cancel": "Cancel",
+  "lets-flashcard.unregisterConfirm": "Unregister",
 };
 
 export const zhCN: typeof en = {
@@ -16,4 +22,10 @@ export const zhCN: typeof en = {
   "lets-flashcard.openSettingsDescription": "打开 DAMO 闪卡的完整设置界面。",
   "lets-flashcard.reviewAll": "复习全部到期闪卡",
   "lets-flashcard.reviewCurrentDocument": "复习当前文档闪卡",
+  "lets-flashcard.unregisterDialogTitle": "取消闪卡登记",
+  "lets-flashcard.unregisterIncludeSubdocuments": "包含子文档",
+  "lets-flashcard.unregisterWriteAudit": "记录取消登记信息",
+  "lets-flashcard.unregisterAuditDescription": "将在每个受影响块上保留最近一次取消登记的时间、原牌组和操作范围。",
+  "lets-flashcard.cancel": "取消",
+  "lets-flashcard.unregisterConfirm": "取消登记",
 };

@@ -1,4 +1,12 @@
-import { getBlockKramdownStrict, getChildBlocksStrict, requestStrict, updateBlockStrict } from "@/api";
+import {
+  getBlockKramdownStrict,
+  getChildBlocksStrict,
+  getPathByID,
+  listDocTree,
+  requestStrict,
+  updateBlockStrict,
+  type IResDocTreeItem,
+} from "@/api";
 import { getLogger } from "@/libs/logger";
 import type {
   FlashcardBlockRow,
@@ -43,6 +51,14 @@ export interface CardRegistrationResult {
   blockId: string;
   status: "registered" | "already-registered" | "pending";
   reason?: string;
+}
+
+export type FlashcardUnregisterScope = "card" | "container" | "document" | "document-tree" | "notebook";
+
+export interface FlashcardUnregisterAudit {
+  lastUnregisteredAt: string;
+  deckId: string;
+  scope: FlashcardUnregisterScope;
 }
 
 function sqlQuote(value: string): string {
@@ -93,6 +109,13 @@ function todayString(): string {
     String(today.getMonth() + 1).padStart(2, "0"),
     String(today.getDate()).padStart(2, "0"),
   ].join("");
+}
+
+function flattenDocumentTree(nodes: readonly IResDocTreeItem[], output: string[]): void {
+  for (const node of nodes) {
+    output.push(node.id);
+    if (node.children?.length) flattenDocumentTree(node.children, output);
+  }
 }
 
 export class FlashcardSiyuanAdapter {
@@ -211,6 +234,20 @@ export class FlashcardSiyuanAdapter {
     return this.getScopedCards("/api/riff/getNotebookRiffCards", notebookId, pageSize);
   }
 
+  /** Returns registered cards in one document, optionally including its child documents. */
+  async getDocumentCards(rootId: string, includeSubdocuments = false): Promise<RiffCardRecord[]> {
+    const documentIds = includeSubdocuments
+      ? await this.getDocumentTreeIds(rootId)
+      : [rootId];
+    const blockRows = await Promise.all(documentIds.map((documentId) => this.paginatedSql(
+      `SELECT id FROM blocks WHERE root_id = ${sqlQuote(documentId)}`,
+    )));
+    return this.getCardsByBlockIds([
+      ...documentIds,
+      ...blockRows.flat().map((row) => row.id),
+    ]);
+  }
+
   private async getScopedCards(url: string, id: string, pageSize: number): Promise<RiffCardRecord[]> {
     const cards: RiffCardRecord[] = [];
     for (let page = 1; page <= 100; page += 1) {
@@ -223,6 +260,15 @@ export class FlashcardSiyuanAdapter {
       if (page >= pageCount || batch.length < pageSize) break;
     }
     return cards;
+  }
+
+  private async getDocumentTreeIds(rootId: string): Promise<string[]> {
+    const { notebook, path } = await getPathByID(rootId);
+    const tree = await listDocTree(notebook, path.replace(/^\/+/, ""));
+    const descendants: string[] = [];
+    flattenDocumentTree(tree, descendants);
+    const documentId = path.replace(/\\/gu, "/").split("/").pop()?.replace(/\.sy$/iu, "") || rootId;
+    return dedupeIds([documentId, ...descendants]);
   }
 
   /** Returns a selected container and all registered-card candidates below it. */
@@ -406,7 +452,7 @@ export class FlashcardSiyuanAdapter {
     await requestStrict<unknown>("/api/riff/removeRiffCards", { deckID: deckId, blockIDs: ids });
   }
 
-  async markCardsUnregistered(blockIds: readonly string[]): Promise<void> {
+  async markCardsUnregistered(blockIds: readonly string[], audit?: FlashcardUnregisterAudit): Promise<void> {
     const ids = dedupeIds(blockIds);
     for (const id of ids) {
       const current = await getBlockKramdownStrict(id);
@@ -415,7 +461,16 @@ export class FlashcardSiyuanAdapter {
       if (next !== markdown) await updateBlockStrict("markdown", next, id);
       await requestStrict<unknown>("/api/attr/setBlockAttrs", {
         id,
-        attrs: { "custom-dm-card-status": "unregistered" },
+        attrs: {
+          "custom-dm-card-status": "unregistered",
+          ...(audit
+            ? {
+              "custom-dm-card-last-unregistered-at": audit.lastUnregisteredAt,
+              "custom-dm-card-last-unregistered-deck-id": audit.deckId,
+              "custom-dm-card-last-unregister-scope": audit.scope,
+            }
+            : {}),
+        },
       });
     }
   }

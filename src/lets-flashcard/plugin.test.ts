@@ -24,14 +24,17 @@ describe("flashcard plugin metadata", () => {
     const fakePlugin = {
       isEntryEnabled: () => true,
       t: (key: string) => key,
-      runtime: { getEnabledGroups: () => [{ id: "group-1", name: "含指定标签" }] },
+      runtime: {
+        getEnabledGroups: () => [{ id: "group-1", name: "含指定标签" }],
+        getSettings: () => ({ deckId: "20230218211946-2kw8jgx" }),
+      },
       openSettings: vi.fn(),
       reviewAll: vi.fn(),
       reviewGroup: vi.fn(),
       openMakeScope: vi.fn(),
       currentReviewContext: () => undefined,
       scopeMenuItem: vi.fn((label: string) => ({ label })),
-      batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
+      documentUnregisterMenuItem: vi.fn((targetIds: string[], label: string) => ({ label: `取消${label}闪卡登记`, targetIds })),
     };
 
     FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
@@ -143,12 +146,13 @@ describe("flashcard plugin metadata", () => {
     instance.handleDocumentTitleMenu({
       detail: { menu: blockMenu, data: { id: "20260823112002-aaaaaaa", name: "测试文档" } },
     });
-    expect(addItem).toHaveBeenCalledTimes(4);
+    expect(addItem).toHaveBeenCalledTimes(5);
     expect(addItem.mock.calls.map(([item]) => item.label)).toEqual([
       "制作当前文档闪卡 · 全部",
       "复习当前文档闪卡 · 全部到期",
       "制作当前文档闪卡 · 含指定标签",
       "复习当前文档闪卡 · 含指定标签",
+      "取消当前文档闪卡登记",
     ]);
     addItem.mock.calls[0][0].click();
     expect(instance.openMakeScope).toHaveBeenCalledWith(expect.objectContaining({
@@ -171,7 +175,11 @@ describe("flashcard plugin metadata", () => {
     const notebookMenu = addItem.mock.calls[0][0];
     expect(notebookMenu.submenu.map((item: { type?: string; label?: string }) => item.type ?? item.label)).toContain("当前笔记本专项复习");
     notebookMenu.submenu.find((item: { label?: string }) => item.label === "取消当前笔记本下所有闪卡登记")?.click();
-    expect(unregisterDocumentTree).toHaveBeenCalledWith(["notebook-1"], true);
+    expect(unregisterDocumentTree).toHaveBeenCalledWith(
+      ["notebook-1"],
+      true,
+      expect.objectContaining({ scope: "notebook", deckId: "20230218211946-2kw8jgx" }),
+    );
 
     addItem.mockClear();
     instance.handleDocumentTreeMenu({
@@ -182,6 +190,7 @@ describe("flashcard plugin metadata", () => {
       "复习当前文档闪卡 · 全部到期",
       "制作当前文档闪卡 · 含指定标签",
       "复习当前文档闪卡 · 含指定标签",
+      "取消当前文档闪卡登记",
     ]);
   });
 
