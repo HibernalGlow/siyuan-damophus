@@ -2,22 +2,22 @@ import { describe, expect, it } from "vitest";
 import { isEmptyParagraphDom } from "./empty-paragraphs";
 
 describe("empty paragraph DOM validation", () => {
-  it("accepts a paragraph containing only whitespace and editor caret markers", () => {
+  it("accepts persisted paragraph DOM containing only whitespace", () => {
     expect(isEmptyParagraphDom(`
-      <div data-type="NodeParagraph"><div contenteditable="true"> \n<wbr><br></div>
-      <div class="protyle-attr" contenteditable="false"></div></div>
+      <div data-node-id="paragraph" data-type="NodeParagraph"> \n<wbr><br>
+      <div class="protyle-attr"></div></div>
     `)).toBe(true);
   });
 
   it("preserves paragraph blocks that contain embedded content", () => {
     expect(isEmptyParagraphDom(`
-      <div data-type="NodeParagraph"><div contenteditable="true"><span data-type="img"></span></div></div>
+      <div data-type="NodeParagraph"><span data-type="img"></span></div>
     `)).toBe(false);
     expect(isEmptyParagraphDom(`
-      <div data-type="NodeParagraph"><div contenteditable="true"><span data-type="inline-math"></span></div></div>
+      <div data-type="NodeParagraph"><span data-type="inline-math"></span></div>
     `)).toBe(false);
     expect(isEmptyParagraphDom(`
-      <div data-type="NodeParagraph"><div contenteditable="true"><span data-type="block-ref"></span></div></div>
+      <div data-type="NodeParagraph"><span data-type="block-ref"></span></div>
     `)).toBe(false);
   });
 });

@@ -10,13 +10,6 @@ const pluginMetadata: PluginMetadata = {
   icon: "sparkles",
   settings: [
     ...createEntrySettings({ menu: true, contextMenu: true, command: true }, { central: true }),
-    {
-      type: "checkbox",
-      title: "lets-document-format.removeContainerParagraphsTitle",
-      description: "lets-document-format.removeContainerParagraphsDescription",
-      key: "removeContainerParagraphs",
-      value: true,
-    },
   ],
 };
 

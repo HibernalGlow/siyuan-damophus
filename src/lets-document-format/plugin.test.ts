@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import pluginMetadata from "./plugin";
 
 describe("document format settings", () => {
-  it("removes empty container paragraphs by default", () => {
-    expect(pluginMetadata.settings?.find((setting) => setting.key === "removeContainerParagraphs")?.value).toBe(true);
+  it("does not persist the container cleanup choice", () => {
+    expect(pluginMetadata.settings?.some((setting) => setting.key === "removeContainerParagraphs")).toBe(false);
   });
 });

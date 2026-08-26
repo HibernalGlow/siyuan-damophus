@@ -44,13 +44,11 @@ export function isEmptyParagraphDom(dom: string): boolean {
   template.innerHTML = dom;
   const block = template.content.firstElementChild;
   if (!block) return false;
-  const editable = block.matches('[contenteditable="true"]')
-    ? block
-    : block.querySelector<HTMLElement>('[contenteditable="true"]');
-  if (!editable) return false;
-  if (editable.querySelector(EMBEDDED_CONTENT)) return false;
+  const content = block.cloneNode(true) as HTMLElement;
+  content.querySelectorAll(".protyle-attr, br, wbr").forEach((node) => node.remove());
+  if (content.querySelector(EMBEDDED_CONTENT)) return false;
 
-  const text = editable.textContent?.replace(/[\u200b\u200c\u200d\ufeff]/gu, "") ?? "";
+  const text = content.textContent?.replace(/[\u200b\u200c\u200d\ufeff]/gu, "") ?? "";
   return isEmptyText(text);
 }
 
