@@ -16,6 +16,7 @@ afterEach(async () => {
 async function render(
   onLoadOpenDocuments = vi.fn(async () => []),
   onReviewScope = vi.fn(),
+  onMakeScope = vi.fn(),
 ) {
   const runtime = new FlashcardRuntime(() => undefined, vi.fn());
   vi.spyOn(runtime, "getReadablePath").mockImplementation(async (id) => `/法考/闪卡/${id === "20260823120000-aaaaaaa" ? "债权人代位权" : "复习文档"}`);
@@ -43,6 +44,7 @@ async function render(
       onReviewGroup: vi.fn(), onReviewAll: vi.fn(), onViewResults: vi.fn(),
       onOpenRaw: vi.fn(), onOpenFiltered: vi.fn(), onBatchPriority: vi.fn(), onImportSfp: vi.fn(),
       onReviewScope, onLocateCard: vi.fn(), onUnregisterCard: vi.fn(),
+      onMakeScope,
       onSetCardPriority: vi.fn(), onSettingsChanged: vi.fn(),
       onOptimizeReviewLog: vi.fn(), onApplyFsrsWeights: vi.fn(),
     },
@@ -81,15 +83,16 @@ describe("flashcard workbench", () => {
     expect(target.querySelector('[title="取消闪卡登记"]')).not.toBeNull();
   });
 
-  it("shows every open document path and exposes direct document-group review actions", async () => {
+  it("defaults to card-making mode for open document groups and can switch to review", async () => {
     const onReviewScope = vi.fn();
+    const onMakeScope = vi.fn();
     const onLoadOpenDocuments = vi.fn(async () => [{
       documentId: "20260823120000-aaaaaaa",
       title: "09 诉讼时效",
       path: "/Note-3.2/法考/客观/民法/09 诉讼时效",
       active: true,
     }]);
-    const target = await render(onLoadOpenDocuments, onReviewScope);
+    const target = await render(onLoadOpenDocuments, onReviewScope, onMakeScope);
     await vi.waitFor(() => expect(target.querySelector('[data-testid="open-documents-panel"] .open-document-row')).not.toBeNull());
     const row = target.querySelector<HTMLElement>('[data-testid="open-documents-panel"] .open-document-row');
 
@@ -99,12 +102,32 @@ describe("flashcard workbench", () => {
       .find((button) => button.textContent?.includes("所有闪卡"));
     expect(groupButton).not.toBeUndefined();
     groupButton?.click();
+    await vi.waitFor(() => expect(onMakeScope).toHaveBeenCalledWith(expect.objectContaining({
+      type: "document",
+      targetId: "20260823120000-aaaaaaa",
+      groupId: "all-cards",
+      groupName: "所有闪卡",
+    })));
+    expect(onReviewScope).not.toHaveBeenCalled();
+
+    target.querySelector<HTMLButtonElement>('[title="复习模式"]')?.click();
+    groupButton?.click();
     await vi.waitFor(() => expect(onReviewScope).toHaveBeenCalledWith(expect.objectContaining({
       type: "document",
       targetId: "20260823120000-aaaaaaa",
       groupId: "all-cards",
       groupName: "所有闪卡",
     })));
+  });
+
+  it("exposes a quick toggle for auto-review after registration", async () => {
+    const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
+    const target = await render();
+    const toggle = target.querySelector<HTMLButtonElement>('[aria-label="登记后自动复习"]');
+    expect(toggle?.getAttribute("aria-checked")).toBe("true");
+    toggle?.click();
+    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalled());
+    expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ autoReviewAfterRegistration: false });
   });
 
   it("keeps workbench controls inside a mobile viewport", async () => {

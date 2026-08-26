@@ -625,6 +625,17 @@ export default class FlashcardPlugin extends SubPluginBase {
     for (const group of groups) {
       submenu.push({
         icon: "iconRiffCard",
+        label: `检测：${group.name}`,
+        click: () => void this.openMakeScope({
+          id: `group:${group.id}`,
+          type: "group",
+          targetName: group.name,
+          groupId: group.id,
+          groupName: group.name,
+        }),
+      });
+      submenu.push({
+        icon: "iconRiffCard",
         label: `复习：${group.name}`,
         click: () => void this.reviewGroup(group),
       });
@@ -760,6 +771,17 @@ export default class FlashcardPlugin extends SubPluginBase {
     for (const group of groups) {
       submenu.push({
         icon: "iconRiffCard",
+        label: `检测：${group.name}`,
+        click: () => void this.openMakeScope({
+          id: `group:${group.id}`,
+          type: "group",
+          targetName: group.name,
+          groupId: group.id,
+          groupName: group.name,
+        }),
+      });
+      submenu.push({
+        icon: "iconRiffCard",
         label: `复习：${group.name}`,
         click: () => void this.reviewGroup(group),
       });
@@ -833,11 +855,18 @@ export default class FlashcardPlugin extends SubPluginBase {
     return {
       icon: type === "document" ? "iconFile" : "iconNotebook",
       label,
-      submenu: scopes.map((scope) => ({
-        icon: "iconRiffCard",
-        label: scope.groupName ? `应用分组：${scope.groupName}` : "全部到期卡",
-        click: () => void this.reviewScopeCards(scope),
-      })),
+      submenu: scopes.flatMap((scope) => [
+        {
+          icon: "iconRiffCard",
+          label: scope.groupName ? `检测：${scope.groupName}` : "检测全部闪卡",
+          click: () => void this.openMakeScope(scope),
+        },
+        {
+          icon: "iconRiffCard",
+          label: scope.groupName ? `应用分组：${scope.groupName}` : "全部到期卡",
+          click: () => void this.reviewScopeCards(scope),
+        },
+      ]),
     };
   }
 
@@ -930,6 +959,7 @@ export default class FlashcardPlugin extends SubPluginBase {
         onBatchPriority: (group: FlashcardGroup) => void this.batchPriority(group),
         onImportSfp: () => this.importSfpConfig(),
         onReviewScope: (scope: FlashcardReviewScope) => void this.reviewScopeCards(scope),
+        onMakeScope: (scope: FlashcardReviewScope) => void this.openMakeScope(scope),
         onLoadOpenDocuments: () => this.listOpenDocuments(),
         onLocateCard: (card: RiffCardRecord) => void this.locateCard(card),
         onUnregisterCard: (card: RiffCardRecord) => void this.unregisterCard(card),
@@ -1146,11 +1176,52 @@ export default class FlashcardPlugin extends SubPluginBase {
     });
   }
 
+  private async openMakeScope(scope: FlashcardReviewScope): Promise<void> {
+    try {
+      const settings = this.runtime.getSettings();
+      const autoReviewAfterRegistration = settings.autoReviewAfterRegistration !== false;
+      const label = scope.groupName && scope.type !== "group"
+        ? `${scope.targetName} · ${scope.groupName}`
+        : scope.groupName ?? scope.targetName;
+      const ids = await this.runtime.provideScopeBlockIds(scope, true);
+      const roots = await this.runtime.adapter.inspectRoots(ids, settings);
+      if (roots.length === 0) {
+        showMessage(`范围“${label}”未找到符合条件的闪卡根块`, 5000, "info");
+        return;
+      }
+      const rows: FlashcardBlockRow[] = roots.map((root) => ({
+        id: root.blockId,
+        content: root.content,
+        type: root.renderer,
+        attributes: root.attributes,
+      }));
+      const due = await this.runtime.adapter.buildDueCardsData(
+        settings.deckId,
+        roots.map((root) => root.blockId),
+        settings.maxReviewCards,
+      );
+      await this.openRegistrationResults({
+        title: `${label} · 制卡检测`,
+        rows,
+        roots,
+        due,
+        continueToReview: autoReviewAfterRegistration,
+        onRegistered: async () => {
+          await this.runtime.recordScope(scope);
+          if (autoReviewAfterRegistration) await this.reviewScopeCards(scope, true);
+        },
+      });
+    } catch (error) {
+      this.reportError(`检测制卡范围“${scope.targetName}”失败`, error);
+    }
+  }
+
   private async openRegistrationResults(options: {
     title: string;
     rows: FlashcardBlockRow[];
     roots: FlashcardRoot[];
     due?: DueCardsData;
+    continueToReview?: boolean;
     onRegistered: () => void | Promise<void>;
   }): Promise<void> {
     let app: ReturnType<typeof mount> | undefined;
@@ -1176,11 +1247,14 @@ export default class FlashcardPlugin extends SubPluginBase {
         onRegister: async () => {
           try {
             const ids = options.roots.map((root) => root.blockId);
+            const continueToReview = options.continueToReview !== false;
             if (this.runtime.getSettings().confirmBeforeAutoRegister) {
               const approved = await new Promise<boolean>((resolve) => {
                 confirm(
-                  "登记并开始复习",
-                  `预览包含 ${ids.length} 个卡片根块。登记并验证成功后将直接打开原生闪卡复习，确认继续？`,
+                  continueToReview ? "登记并开始复习" : "登记闪卡",
+                  continueToReview
+                    ? `预览包含 ${ids.length} 个卡片根块。登记并验证成功后将直接打开原生闪卡复习，确认继续？`
+                    : `预览包含 ${ids.length} 个卡片根块。确认调用 Riff 登记并保留已有调度状态？`,
                   () => resolve(true),
                   () => resolve(false),
                 );
@@ -1193,7 +1267,11 @@ export default class FlashcardPlugin extends SubPluginBase {
               showMessage(`${pending} 张闪卡登记或验证失败，请保留此窗口后重试`, 6000, "error");
               return;
             }
-            showMessage(`已登记并验证 ${ids.length} 张闪卡，正在打开复习`, 4000, "info");
+            showMessage(
+              continueToReview ? `已登记并验证 ${ids.length} 张闪卡，正在打开复习` : `已登记并验证 ${ids.length} 张闪卡`,
+              4000,
+              "info",
+            );
             dialog.destroy();
             await options.onRegistered();
           } catch (error) {

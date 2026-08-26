@@ -14,12 +14,19 @@ describe("flashcard runtime SFP parity", () => {
   it("disables the extra registration confirmation by default and preserves an explicit opt-in", () => {
     const defaults = new FlashcardRuntime(() => ({}), vi.fn());
     expect(defaults.getSettings().confirmBeforeAutoRegister).toBe(false);
+    expect(defaults.getSettings().autoReviewAfterRegistration).toBe(true);
 
     const confirmed = new FlashcardRuntime(
       (key) => key === "config" ? { confirmBeforeAutoRegister: true } : undefined,
       vi.fn(),
     );
     expect(confirmed.getSettings().confirmBeforeAutoRegister).toBe(true);
+
+    const noAutoReview = new FlashcardRuntime(
+      (key) => key === "config" ? { autoReviewAfterRegistration: false } : undefined,
+      vi.fn(),
+    );
+    expect(noAutoReview.getSettings().autoReviewAfterRegistration).toBe(false);
   });
 
   it("defaults the document breadcrumb review button to enabled and preserves an explicit off state", () => {

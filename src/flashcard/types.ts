@@ -124,6 +124,7 @@ export interface FlashcardSettings {
   postponeEnabled: boolean;
   postponeDays: number;
   confirmBeforeAutoRegister: boolean;
+  autoReviewAfterRegistration: boolean;
   groups: FlashcardGroup[];
   categories: FlashcardCategory[];
   rendererInterceptionEnabled: boolean;
@@ -166,6 +167,7 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   postponeEnabled: false,
   postponeDays: 2,
   confirmBeforeAutoRegister: false,
+  autoReviewAfterRegistration: true,
   rendererInterceptionEnabled: true,
   rendererVisibility: { mark: true, list: true, heading: true, superBlock: true, blockquote: true, callout: true, tag: false, topicRelations: false },
   randomInterleaveEnabled: false,

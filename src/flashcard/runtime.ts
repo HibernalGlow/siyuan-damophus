@@ -54,6 +54,7 @@ function mergeSettings(value: unknown): FlashcardSettings {
     postponeEnabled: input.postponeEnabled === true,
     postponeDays: Math.max(0, Number(input.postponeDays ?? DEFAULT_FLASHCARD_SETTINGS.postponeDays)),
     confirmBeforeAutoRegister: input.confirmBeforeAutoRegister === true,
+    autoReviewAfterRegistration: input.autoReviewAfterRegistration !== false,
     rendererInterceptionEnabled: input.rendererInterceptionEnabled !== false,
     rendererVisibility: {
       ...DEFAULT_FLASHCARD_SETTINGS.rendererVisibility,

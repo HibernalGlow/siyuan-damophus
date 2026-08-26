@@ -46,6 +46,7 @@
   export let onBatchPriority: (group: FlashcardGroup) => void;
   export let onImportSfp: () => void | Promise<void>;
   export let onReviewScope: (scope: FlashcardReviewScope) => void;
+  export let onMakeScope: (scope: FlashcardReviewScope) => void = () => undefined;
   export let onLoadOpenDocuments: () => Promise<OpenFlashcardDocument[]> = async () => [];
   export let onLocateCard: (card: RiffCardRecord) => void;
   export let onUnregisterCard: (card: RiffCardRecord) => void;
@@ -63,6 +64,7 @@
   let config: FlashcardSettings = runtime.getSettings();
   let message = "";
   let saving = false;
+  let workbenchMode: "make" | "review" = "make";
   let activeTab: "instructions" | "recent" | "groups" | "browser" | "revlog" | "global" = "recent";
   let activeCategoryId = config.categories[0]?.id ?? "default";
   let editingCategoryId: string | undefined;
@@ -217,7 +219,19 @@
   }
 
   function reviewOpenDocument(document: OpenFlashcardDocument, group?: FlashcardGroup): void {
-    onReviewScope(openDocumentScope(document, group));
+    const scope = openDocumentScope(document, group);
+    if (workbenchMode === "make") onMakeScope(scope);
+    else onReviewScope(scope);
+  }
+
+  function openHistoryScope(scope: FlashcardReviewScope): void {
+    if (workbenchMode === "make") onMakeScope(scope);
+    else onReviewScope(scope);
+  }
+
+  function openGroup(group: FlashcardGroup): void {
+    if (workbenchMode === "make") onViewResults(group, true);
+    else onReviewGroup(group);
   }
 
   async function loadOpenDocuments(): Promise<void> {
@@ -695,6 +709,11 @@
 <div class="flashcard-settings damophus-theme-root damophus-question-bank-theme" data-testid="flashcard-settings">
   <header class="settings-header">
     <div class="settings-title"><Layers3 aria-hidden="true" /><strong>专项闪卡</strong></div>
+    <div class="workbench-mode-toggle" role="group" aria-label="工作台模式">
+      <Button variant={workbenchMode === "make" ? "default" : "outline"} size="sm" aria-pressed={workbenchMode === "make"} onclick={() => workbenchMode = "make"} title="制卡模式"><Pencil /><span>制卡</span></Button>
+      <Button variant={workbenchMode === "review" ? "default" : "outline"} size="sm" aria-pressed={workbenchMode === "review"} onclick={() => workbenchMode = "review"} title="复习模式"><Play /><span>复习</span></Button>
+    </div>
+    <label class="workbench-auto-review"><span>登记后自动复习</span><Switch size="sm" checked={config.autoReviewAfterRegistration} onCheckedChange={(value) => { config.autoReviewAfterRegistration = value; saveGlobalOnChange(); }} aria-label="登记后自动复习" /></label>
     <div class="flashcard-header-actions">
       <Button size="sm" onclick={onReviewAll} title="打开全部到期卡" aria-label="打开全部到期卡"><Play /><span>全部到期</span></Button>
       <Button variant="outline" size="sm" onclick={clearCache} title="清除 SQL 缓存" aria-label="清除 SQL 缓存"><RefreshCw /><span>刷新缓存</span></Button>
@@ -727,7 +746,7 @@
   {:else if activeTab === "recent"}
     <section class="open-documents-panel" data-testid="open-documents-panel">
       <div class="section-heading open-documents-heading">
-        <div><h3>当前打开文档</h3><p>直接选择文档和分组开始专项复习</p></div>
+        <div><h3>当前打开文档</h3><p>{workbenchMode === "make" ? "选择文档和分组检测闪卡并开始制卡" : "直接选择文档和分组开始专项复习"}</p></div>
         <Button variant="outline" size="sm" disabled={openDocumentsLoading} onclick={loadOpenDocuments} title="刷新当前打开文档" aria-label="刷新当前打开文档"><RefreshCw class={openDocumentsLoading ? "loading-icon" : ""} /><span>刷新</span></Button>
       </div>
       {#if openDocuments.length}
@@ -739,9 +758,9 @@
                 <span class="open-document-path" title={document.documentId}>{document.path}</span>
               </div>
               <div class="open-document-actions">
-                <Button variant="outline" size="sm" onclick={() => reviewOpenDocument(document)} title={`复习 ${document.title} 的全部到期卡`} aria-label={`复习 ${document.title} 的全部到期卡`}><Play /><span>全部</span></Button>
+                <Button variant="outline" size="sm" onclick={() => reviewOpenDocument(document)} title={workbenchMode === "make" ? `检测 ${document.title} 的全部闪卡` : `复习 ${document.title} 的全部到期卡`} aria-label={workbenchMode === "make" ? `检测 ${document.title} 的全部闪卡` : `复习 ${document.title} 的全部到期卡`}><Play /><span>{workbenchMode === "make" ? "检测" : "全部"}</span></Button>
                 {#each config.groups.filter((group) => group.enabled) as group (group.id)}
-                  <Button variant="ghost" size="sm" onclick={() => reviewOpenDocument(document, group)} title={`按 ${group.name} 复习 ${document.title}`} aria-label={`按 ${group.name} 复习 ${document.title}`}><Layers3 /><span>{group.name}</span></Button>
+                  <Button variant="ghost" size="sm" onclick={() => reviewOpenDocument(document, group)} title={workbenchMode === "make" ? `检测 ${document.title} 的 ${group.name}` : `按 ${group.name} 复习 ${document.title}`} aria-label={workbenchMode === "make" ? `检测 ${document.title} 的 ${group.name}` : `按 ${group.name} 复习 ${document.title}`}><Layers3 /><span>{workbenchMode === "make" ? `检测 · ${group.name}` : group.name}</span></Button>
                 {/each}
               </div>
             </article>
@@ -761,7 +780,7 @@
             {#each documentHistory as scope (scope.id)}
               <article class="tree-leaf-row">
                 <Button variant="ghost" size="icon-sm" title={scope.pinned ? "取消置顶" : "置顶"} aria-label={scope.pinned ? "取消置顶" : "置顶"} onclick={() => togglePinned(scope)}>{#if scope.pinned}<PinOff />{:else}<Pin />{/if}</Button>
-                <TreeView.File class="tree-leaf" name={displayScopeName(scope, readablePaths)} title={`${displayScopeName(scope, readablePaths)}\n${fullLastUsed(scope.lastUsedAt)}`} onclick={() => onReviewScope(scope)} />
+                <TreeView.File class="tree-leaf" name={displayScopeName(scope, readablePaths)} title={`${displayScopeName(scope, readablePaths)}\n${fullLastUsed(scope.lastUsedAt)}`} onclick={() => openHistoryScope(scope)} />
                 <Badge variant="secondary" title={fullLastUsed(scope.lastUsedAt)}>{formatLastUsed(scope.lastUsedAt)} · {scope.useCount} 次</Badge>
                 <Button variant="ghost" size="icon-sm" title="移除最近记录" aria-label="移除最近记录" onclick={() => removeHistory(scope.id)}><Trash2 /></Button>
               </article>
@@ -775,7 +794,7 @@
                 {#each group.scopes as scope (scope.id)}
                   <article class="tree-leaf-row">
                     <Button variant="ghost" size="icon-sm" title={scope.pinned ? "取消置顶" : "置顶"} aria-label={scope.pinned ? "取消置顶" : "置顶"} onclick={() => togglePinned(scope)}>{#if scope.pinned}<PinOff />{:else}<Pin />{/if}</Button>
-                    <TreeView.File class="tree-leaf" name={displayScopeName(scope, readablePaths)} title={`${displayScopeName(scope, readablePaths)}\n${fullLastUsed(scope.lastUsedAt)}`} onclick={() => onReviewScope(scope)} />
+                    <TreeView.File class="tree-leaf" name={displayScopeName(scope, readablePaths)} title={`${displayScopeName(scope, readablePaths)}\n${fullLastUsed(scope.lastUsedAt)}`} onclick={() => openHistoryScope(scope)} />
                     <Badge variant="secondary" title={fullLastUsed(scope.lastUsedAt)}>{formatLastUsed(scope.lastUsedAt)} · {scope.useCount} 次</Badge>
                     <Button variant="ghost" size="icon-sm" title="移除最近记录" aria-label="移除最近记录" onclick={() => removeHistory(scope.id)}><Trash2 /></Button>
                   </article>
@@ -956,7 +975,7 @@
                   </Tooltip.Root>
                   <div class="fsrs-parameter-copy"><strong>{parameter[0]} · {parameter[1]}</strong><span>{parameter[2]}</span></div>
                 </div>
-                <div class:increased class:decreased class="fsrs-parameter-values" aria-label={changed ? `从 ${Number(current.toPrecision(7))} 变为 ${Number(optimized.toPrecision(7))}` : `当前值 ${Number(current.toPrecision(7))}`}>
+                <div class:increased={delta > 1e-7} class:decreased={delta < -1e-7} class="fsrs-parameter-values" aria-label={changed ? `从 ${Number(current.toPrecision(7))} 变为 ${Number(optimized.toPrecision(7))}` : `当前值 ${Number(current.toPrecision(7))}`}>
                   {#if changed}
                     <div class="fsrs-value-diff">
                       <del class="fsrs-value-old">{Number(current.toPrecision(7))}</del>
@@ -1148,7 +1167,7 @@
           </Select.Root>
           <Button variant="ghost" size="icon-sm" onclick={() => moveGroup(group, "up")} title="上移" aria-label="分组上移"><ArrowUp /></Button>
           <Button variant="ghost" size="icon-sm" onclick={() => moveGroup(group, "down")} title="下移" aria-label="分组下移"><ArrowDown /></Button>
-          <Button size="sm" onclick={() => onReviewGroup(group)}><Play />复习到期卡</Button>
+           <Button size="sm" onclick={() => openGroup(group)} aria-label={workbenchMode === "make" ? `检测分组 ${group.name}` : `复习分组 ${group.name}`}><svelte:component this={workbenchMode === "make" ? Search : Play} />{workbenchMode === "make" ? "检测" : "复习到期卡"}</Button>
           <div class="group-action-strip" aria-label="分组操作">
             <Button variant="ghost" size="icon-sm" title="查看原始结果" aria-label="查看原始结果" onclick={() => onViewResults(group, false)}><Eye /></Button>
             <Button variant="ghost" size="icon-sm" title="查看过滤结果" aria-label="查看过滤结果" onclick={() => onViewResults(group, true)}><Filter /></Button>
@@ -1203,6 +1222,9 @@
   }
   .settings-title { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; }
   .settings-title :global(svg), .section-title > :global(svg) { width: 17px; height: 17px; color: var(--primary, var(--b3-theme-primary)); }
+  .workbench-mode-toggle { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 7px; background: color-mix(in srgb, var(--muted, var(--b3-list-hover)) 45%, transparent); }
+  .workbench-mode-toggle :global([data-slot="button"]) { min-width: 70px; }
+  .workbench-auto-review { display: inline-flex; align-items: center; gap: 6px; min-width: max-content; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
   .flashcard-header-actions {
     display: flex !important;
     flex: 0 0 auto;
@@ -1419,6 +1441,8 @@
     .flashcard-settings { gap: 10px; padding: 10px 10px 20px; }
     .settings-header { top: -10px; min-height: 38px; }
     .settings-title strong { font-size: 13px; }
+    .workbench-mode-toggle :global([data-slot="button"] span), .workbench-auto-review span { display: none; }
+    .workbench-mode-toggle :global([data-slot="button"]) { width: 28px; min-width: 28px; padding: 0; }
     .flashcard-header-actions :global([data-slot="button"] span) { display: none; }
     .flashcard-header-actions :global([data-slot="button"]) { width: 28px; padding: 0; }
     .flashcard-settings :global(.flashcard-workbench-tabs) { height: 34px; }

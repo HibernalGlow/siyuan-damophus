@@ -24,10 +24,11 @@ describe("flashcard plugin metadata", () => {
     const fakePlugin = {
       isEntryEnabled: () => true,
       t: (key: string) => key,
-      runtime: { getEnabledGroups: () => [{ name: "含指定标签" }] },
+      runtime: { getEnabledGroups: () => [{ id: "group-1", name: "含指定标签" }] },
       openSettings: vi.fn(),
       reviewAll: vi.fn(),
       reviewGroup: vi.fn(),
+      openMakeScope: vi.fn(),
       currentReviewContext: () => undefined,
       scopeMenuItem: vi.fn((label: string) => ({ label })),
       batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
@@ -44,10 +45,17 @@ describe("flashcard plugin metadata", () => {
       "lets-flashcard.openSettings",
       "lets-flashcard.reviewAll",
       "separator",
+      "检测：含指定标签",
       "复习：含指定标签",
     ]);
     (item.submenu?.[0] as { click?: () => void }).click?.();
     expect(fakePlugin.openSettings).toHaveBeenCalledTimes(1);
+    (item.submenu?.find((child) => child.label === "检测：含指定标签") as { click?: () => void })?.click?.();
+    expect(fakePlugin.openMakeScope).toHaveBeenCalledWith(expect.objectContaining({
+      type: "group",
+      groupId: "group-1",
+      groupName: "含指定标签",
+    }));
   });
 
   it("keeps notebook actions out of the plugin menu", () => {
