@@ -275,20 +275,18 @@ export default class FlashcardPlugin extends SubPluginBase {
         },
       },
     }, plugin);
-    this.entry.registerCommand();
-    this.entry.registerDock();
     this.entry.setSurfaces(this.configuredSettingsEntrySurfaces());
+    this.entry.registerCommand();
     this.entry.setEnabled(true);
   }
 
   private configuredSettingsEntrySurfaces() {
-    const dock = this.isEntryEnabled("dock");
     const tab = this.isEntryEnabled("tab");
-    const hasTarget = tab || dock;
+    const hasTarget = tab;
     return {
       menu: hasTarget && this.isEntryEnabled("menu"),
       command: hasTarget && this.isEntryEnabled("command"),
-      dock,
+      dock: false,
     };
   }
 
@@ -1156,11 +1154,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   private openConfiguredSurface(): void {
-    if (this.isEntryEnabled("tab")) {
-      this.openSettings();
-      return;
-    }
-    if (this.isEntryEnabled("dock")) this.entry?.openDock();
+    this.openSettings();
   }
 
   private async reviewAll(): Promise<void> {

@@ -182,7 +182,7 @@ describe("flashcard workbench", () => {
     const tabs = target.querySelector<HTMLElement>('[data-slot="tabs-list"]');
     expect(tabs?.scrollWidth).toBeLessThanOrEqual(tabs?.clientWidth ?? 0);
     const labels = [...target.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"] span')];
-    expect(labels).toHaveLength(6);
+    expect(labels).toHaveLength(5);
     expect(labels.every((label) => getComputedStyle(label).display === "none")).toBe(true);
 
     clickTab(target, "总体配置");
@@ -211,6 +211,22 @@ describe("flashcard workbench", () => {
     expect(copy.getBoundingClientRect().height).toBeLessThan(90);
     expect(actions.getBoundingClientRect().width).toBeLessThanOrEqual(row.clientWidth);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+  });
+
+  it("keeps current documents and recent history in separate flow sections", async () => {
+    const target = await render(vi.fn(async () => [{
+      documentId: "20260823120000-aaaaaaa",
+      title: "09 诉讼时效",
+      path: "/Note-3.2/法考/客观/民法/09 诉讼时效",
+      active: true,
+    }]));
+
+    await vi.waitFor(() => expect(target.querySelector(".recent-history-panel")).not.toBeNull());
+    const documents = target.querySelector<HTMLElement>(".open-documents-panel")!;
+    const history = target.querySelector<HTMLElement>(".recent-history-panel")!;
+    expect(history.getBoundingClientRect().top).toBeGreaterThanOrEqual(documents.getBoundingClientRect().bottom);
+    expect(getComputedStyle(documents).position).toBe("relative");
+    expect(getComputedStyle(history).position).toBe("relative");
   });
 
   it("exposes configurable current-card statistics in the global settings", async () => {
@@ -244,11 +260,11 @@ describe("flashcard workbench", () => {
     await vi.waitFor(() => expect(saveCategory).toHaveBeenCalledWith({ id: "default", name: "重点复习" }));
   });
 
-  it("orders icon tabs by workflow and keeps instructions last", async () => {
+  it("orders the compact workbench tabs by workflow", async () => {
     const target = await render();
     const tabs = [...target.querySelectorAll<HTMLButtonElement>('[data-slot="tabs-trigger"]')];
     expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
-      "最近范围", "SQL 分组", "闪卡浏览器", "复习记录", "总体配置", "使用说明",
+      "最近范围", "SQL 分组", "闪卡浏览器", "复习记录", "总体配置",
     ]);
     expect(tabs.every((tab) => tab.querySelector("svg"))).toBe(true);
   });

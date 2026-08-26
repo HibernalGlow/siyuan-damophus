@@ -5,7 +5,7 @@
   import type { RiffCardRecord } from "@/flashcard/siyuan-adapter";
   import type { FlashcardRuntime } from "@/flashcard/runtime";
   import {
-    Archive, ArrowDown, ArrowUp, BookOpen, Boxes, BrainCircuit, CalendarClock, Check, CheckCircle2, Crosshair, Database, Download,
+    Archive, ArrowDown, ArrowUp, Boxes, BrainCircuit, CalendarClock, Check, CheckCircle2, Crosshair, Database, Download,
     Eye, FileArchive, FileSpreadsheet, FileText, Files, Filter, Focus, Gauge, Heading, Highlighter, History,
     Layers3, LayoutDashboard, ListTree, LocateFixed, Maximize2, MessageSquareText, PanelTop, Pencil, Percent, Pin,
     ExternalLink, PinOff, Play, Plus, Quote, RefreshCw, Repeat2, RotateCcw, Save, Search,
@@ -67,7 +67,7 @@
   let message = "";
   let saving = false;
   let workbenchMode: "make" | "review" = "make";
-  let activeTab: "instructions" | "recent" | "groups" | "browser" | "revlog" | "global" = "recent";
+  let activeTab: "recent" | "groups" | "browser" | "revlog" | "global" = "recent";
   let activeCategoryId = config.categories[0]?.id ?? "default";
   let editingCategoryId: string | undefined;
   let editingCategoryName = "";
@@ -731,22 +731,10 @@
       <Tabs.Trigger value="browser" title="闪卡浏览器" aria-label="闪卡浏览器" onclick={() => { if (diagnosticRows.length === 0) void loadDiagnostics(); }}><Search /><span>闪卡浏览器</span></Tabs.Trigger>
       <Tabs.Trigger value="revlog" title="复习记录" aria-label="复习记录"><Archive /><span>复习记录</span></Tabs.Trigger>
       <Tabs.Trigger value="global" title="总体配置" aria-label="总体配置"><SlidersHorizontal /><span>总体配置</span></Tabs.Trigger>
-      <Tabs.Trigger value="instructions" title="使用说明" aria-label="使用说明"><BookOpen /><span>使用说明</span></Tabs.Trigger>
     </Tabs.List>
   </Tabs.Root>
 
-  {#if activeTab === "instructions"}
-    <section class="instructions" data-testid="flashcard-instructions">
-      <h3>专项闪卡</h3>
-      <p>SQL 只负责产生候选块，DAMO 会沿父链找到最近的显式闪卡根块，再与 Riff 到期卡取交集。</p>
-      <ul>
-        <li>原始结果和过滤结果可以分别查看；批量优先级调整始终先预览再确认。</li>
-        <li>启用“查询优先”可在复习前读取最新 SQL 结果，否则使用缓存以缩短打开时间。</li>
-        <li>自动推迟作用于牌组内今天创建且未暂停的卡；优先级只由 Markdown 中的 P1-P4 标签决定。</li>
-        <li>文档流入口是可选集成；没有文档流插件时，DAMO 的结果查看和原生复习仍可用。</li>
-      </ul>
-    </section>
-  {:else if activeTab === "recent"}
+  {#if activeTab === "recent"}
     <section class="open-documents-panel" data-testid="open-documents-panel">
       <div class="section-heading open-documents-heading">
         <div><h3>当前打开文档</h3><p>{workbenchMode === "make" ? "选择文档和分组检测闪卡并开始制卡" : "直接选择文档和分组开始专项复习"}</p></div>
@@ -773,11 +761,12 @@
         <p class="empty">当前没有可识别的打开文档。</p>
       {/if}
     </section>
-    <section class="section-heading">
-      <div><h3>最近使用与置顶范围</h3><p>按置顶、使用次数和最近使用排序</p></div>
-    </section>
-    {#if history.length}
-      <TreeView.Root class="scope-tree" aria-label="最近复习范围">
+    <section class="recent-history-panel" data-testid="recent-history-panel">
+      <div class="section-heading recent-history-heading">
+        <div><h3>最近使用与置顶范围</h3><p>按置顶、使用次数和最近使用排序</p></div>
+      </div>
+      {#if history.length}
+        <TreeView.Root class="scope-tree" aria-label="最近复习范围">
         {#if documentHistory.length}
           <TreeView.Folder name={`文档范围 (${documentHistory.length})`} bind:open={documentTreeOpen} class="tree-branch">
             {#each documentHistory as scope (scope.id)}
@@ -806,8 +795,9 @@
             {/each}
           </TreeView.Folder>
         {/if}
-      </TreeView.Root>
-    {:else}<p class="empty">从插件菜单或 SQL 分组开始一次复习后，这里会显示最近范围。</p>{/if}
+        </TreeView.Root>
+      {:else}<p class="empty">从插件菜单或 SQL 分组开始一次复习后，这里会显示最近范围。</p>{/if}
+    </section>
   {:else if activeTab === "browser"}
     <section class="browser-toolbar">
       <Input placeholder="搜索内容、路径或分组" bind:value={browserQuery} />
@@ -1233,6 +1223,7 @@
     color: var(--foreground, var(--b3-theme-on-background));
     background: var(--background, var(--b3-theme-background));
   }
+  .flashcard-settings > * { flex: 0 0 auto; min-width: 0; }
   h3, p { margin: 0; }
   h3 { font-size: 14px; font-weight: 650; letter-spacing: 0; }
   .settings-header, .section-heading, .flashcard-header-actions, .toolbar-actions, .browser-toolbar, .group-row, .group-options {
@@ -1272,7 +1263,7 @@
   .flashcard-settings::-webkit-scrollbar-thumb { background: var(--b3-scroll-color, var(--border)); border-radius: 6px; }
   .flashcard-settings :global(.flashcard-workbench-tabs) {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     width: 100%;
     height: 36px;
     padding: 3px;
@@ -1302,13 +1293,10 @@
     line-height: 1.45;
     overflow-wrap: anywhere;
   }
-  .instructions { max-width: 820px; line-height: 1.65; }
-  .instructions p { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); }
-  .instructions li { margin: 7px 0; }
   label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 12px; }
   .inline-switch { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; color: var(--foreground, var(--b3-theme-on-background)); white-space: nowrap; }
   .global-settings, .groups, .diagnostic-list { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  .open-documents-panel { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px 12px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 26%, var(--border, var(--b3-border-color))); border-radius: 8px; background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 5%, var(--background, var(--b3-theme-background))); }
+  .open-documents-panel { position: relative; z-index: 1; display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px 12px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 26%, var(--border, var(--b3-border-color))); border-radius: 8px; background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 5%, var(--background, var(--b3-theme-background))); }
   .open-documents-panel::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 68%, transparent); opacity: .75; }
   .open-documents-heading { align-items: flex-start; min-height: 32px; }
   .open-documents-heading p { margin-top: 2px; }
@@ -1325,6 +1313,8 @@
   .open-document-path { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
   .open-document-actions { display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex: 0 1 auto; flex-wrap: wrap; }
   .open-document-actions :global(button) { max-width: 180px; }
+  .recent-history-panel { position: relative; z-index: 0; display: flex; flex: 0 0 auto; flex-direction: column; gap: 8px; min-width: 0; margin-top: 4px; padding: 12px 2px 16px; border-top: 2px solid color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 28%, var(--border, var(--b3-border-color))); }
+  .recent-history-heading { min-height: 34px; padding-inline: 2px; }
   .settings-section, .group {
     display: flex;
     flex-direction: column;
