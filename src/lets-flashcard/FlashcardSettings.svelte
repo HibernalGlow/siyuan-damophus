@@ -5,7 +5,7 @@
   import type { RiffCardRecord } from "@/flashcard/siyuan-adapter";
   import type { FlashcardRuntime } from "@/flashcard/runtime";
   import {
-    Archive, ArrowDown, ArrowUp, BookOpen, Boxes, BrainCircuit, CalendarClock, CheckCircle2, Crosshair, Database, Download,
+    Archive, ArrowDown, ArrowUp, BookOpen, Boxes, BrainCircuit, CalendarClock, Check, CheckCircle2, Crosshair, Database, Download,
     Eye, FileArchive, FileSpreadsheet, FileText, Files, Filter, Focus, Gauge, Heading, Highlighter, History,
     Layers3, LayoutDashboard, ListTree, LocateFixed, Maximize2, MessageSquareText, PanelTop, Pencil, Percent, Pin,
     ExternalLink, PinOff, Play, Plus, Quote, RefreshCw, Repeat2, RotateCcw, Save, Search,
@@ -1070,8 +1070,16 @@
             }}
             aria-label="分组取卡模式"
           >
-            <ToggleGroup.Item value="exact" title="精确分组" aria-label="精确分组"><Crosshair aria-hidden="true" /><span>精确分组</span></ToggleGroup.Item>
-            <ToggleGroup.Item value="native" title="原生过滤" aria-label="原生过滤"><Filter aria-hidden="true" /><span>原生过滤</span></ToggleGroup.Item>
+            <ToggleGroup.Item value="exact" title="精确分组" aria-label="精确分组">
+              <Crosshair aria-hidden="true" />
+              <span>精确分组</span>
+              {#if config.scopedReviewMode === "exact"}<Check class="review-mode-check" data-review-mode-check="exact" aria-hidden="true" />{/if}
+            </ToggleGroup.Item>
+            <ToggleGroup.Item value="native" title="原生过滤" aria-label="原生过滤">
+              <Filter aria-hidden="true" />
+              <span>原生过滤</span>
+              {#if config.scopedReviewMode === "native"}<Check class="review-mode-check" data-review-mode-check="native" aria-hidden="true" />{/if}
+            </ToggleGroup.Item>
           </ToggleGroup.Root>
         </div>
         <div class="setting-row"><div><strong>自动推迟今日新卡</strong><span>按设定天数延后今天创建的新卡</span></div><Switch checked={config.postponeEnabled} onCheckedChange={(value) => { config.postponeEnabled = value; saveGlobalOnChange(); }} aria-label="自动推迟今日新卡" /></div>
@@ -1330,6 +1338,15 @@
   .review-mode-row { align-items: stretch; flex-direction: column; }
   :global(.review-mode-toggle) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 360px); }
   :global(.review-mode-toggle button) { min-width: 0; }
+  :global(.review-mode-toggle button[data-state="on"]),
+  :global(.review-mode-toggle button[data-state="on"]:hover) {
+    z-index: 1;
+    border: 1px solid var(--primary, var(--b3-theme-primary, #3573f0)) !important;
+    color: var(--primary-foreground, var(--b3-theme-on-primary, #fff)) !important;
+    background: var(--primary, var(--b3-theme-primary, #3573f0)) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-foreground, var(--b3-theme-on-primary, #fff)) 24%, transparent);
+  }
+  :global(.review-mode-toggle .review-mode-check) { width: 14px; height: 14px; margin-left: 2px; stroke-width: 3; }
   .master-row { background: color-mix(in srgb, var(--muted, var(--b3-theme-surface)) 45%, transparent); margin-inline: -12px; padding-inline: 12px; }
   .option-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 18px; padding: 4px 0 8px; }
   .option-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 42px; border-bottom: 1px solid var(--border, var(--b3-border-color)); font-size: 12px; }

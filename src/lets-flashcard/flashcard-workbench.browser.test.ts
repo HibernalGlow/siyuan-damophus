@@ -158,9 +158,18 @@ describe("flashcard workbench", () => {
     clickTab(target, "总体配置");
 
     await vi.waitFor(() => expect(target.querySelector('[aria-label="分组取卡模式"]')).not.toBeNull());
-    expect(target.querySelector('[aria-label="精确分组"]')?.getAttribute("data-state")).toBe("on");
-    target.querySelector<HTMLButtonElement>('[aria-label="原生过滤"]')?.click();
+    const exact = target.querySelector<HTMLButtonElement>('[aria-label="精确分组"]')!;
+    const native = target.querySelector<HTMLButtonElement>('[aria-label="原生过滤"]')!;
+    expect(exact.getAttribute("data-state")).toBe("on");
+    expect(exact.querySelector('[data-review-mode-check="exact"]')).not.toBeNull();
+    expect(native.querySelector('[data-review-mode-check="native"]')).toBeNull();
+    expect(getComputedStyle(exact).backgroundColor).not.toBe(getComputedStyle(native).backgroundColor);
+    native.click();
 
+    await vi.waitFor(() => expect(native.getAttribute("data-state")).toBe("on"));
+    expect(native.querySelector('[data-review-mode-check="native"]')).not.toBeNull();
+    expect(exact.querySelector('[data-review-mode-check="exact"]')).toBeNull();
+    expect(getComputedStyle(native).backgroundColor).not.toBe(getComputedStyle(exact).backgroundColor);
     await vi.waitFor(() => expect(saveSettings).toHaveBeenCalled());
     expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ scopedReviewMode: "native" });
   });
@@ -175,6 +184,13 @@ describe("flashcard workbench", () => {
     const labels = [...target.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"] span')];
     expect(labels).toHaveLength(6);
     expect(labels.every((label) => getComputedStyle(label).display === "none")).toBe(true);
+
+    clickTab(target, "总体配置");
+    await vi.waitFor(() => expect(target.querySelector('.review-mode-toggle')).not.toBeNull());
+    const reviewModeToggle = target.querySelector<HTMLElement>('.review-mode-toggle')!;
+    expect(reviewModeToggle.scrollWidth).toBeLessThanOrEqual(reviewModeToggle.clientWidth);
+    expect([...reviewModeToggle.querySelectorAll<HTMLButtonElement>("button")]
+      .every((button) => button.scrollWidth <= button.clientWidth)).toBe(true);
   });
 
   it("exposes configurable current-card statistics in the global settings", async () => {
