@@ -18,6 +18,10 @@ function isDanbooruFamily(site?: string): boolean {
   return value === "danbooru.donmai.us" || value === "safebooru.donmai.us";
 }
 
+export function supportsCoverFavoriteSync(site?: string): boolean {
+  return isDanbooruFamily(site);
+}
+
 function basicAuthorization(credential: SiteCredential): string | undefined {
   if (!credential.login.trim() || !credential.apiKey.trim()) return undefined;
   try {
@@ -82,4 +86,3 @@ export async function syncCoverFavoriteToSite(
     return { status: "failed", message };
   }
 }
-

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { syncCoverFavoriteToSite } from "./cover-favorite-sync";
+import { supportsCoverFavoriteSync, syncCoverFavoriteToSite } from "./cover-favorite-sync";
 import type { CoverFavorite } from "./cover-favorites";
 
 const favorite: CoverFavorite = {
@@ -35,6 +35,7 @@ describe("cover favorite site sync", () => {
     expect(unsupported.status).toBe("unsupported");
     expect(missing.status).toBe("not-configured");
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(supportsCoverFavoriteSync("safebooru.org")).toBe(false);
+    expect(supportsCoverFavoriteSync("danbooru.donmai.us")).toBe(true);
   });
 });
-

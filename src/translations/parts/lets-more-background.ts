@@ -139,6 +139,7 @@ export const en = {
   "lets-more-background.loadingFavorites": "Loading favorites...",
   "lets-more-background.emptyFavorites": "No cover favorites yet. Click the star in the title-cover toolbar to save one.",
   "lets-more-background.favoriteRating": "Rating",
+  "lets-more-background.localOnlyFavorite": "Local favorite only",
 };
 
 export const zhCN: typeof en = {
@@ -282,4 +283,5 @@ export const zhCN: typeof en = {
   "lets-more-background.loadingFavorites": "正在读取收藏...",
   "lets-more-background.emptyFavorites": "还没有收藏题头图。在题头图工具条点击星标即可保存。",
   "lets-more-background.favoriteRating": "评分",
+  "lets-more-background.localOnlyFavorite": "仅本地收藏",
 };

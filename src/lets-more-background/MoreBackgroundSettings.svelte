@@ -78,7 +78,7 @@
     updateCoverFavorite,
     type CoverFavorite,
   } from "./cover-favorites";
-  import { syncCoverFavoriteToSite } from "./cover-favorite-sync";
+  import { supportsCoverFavoriteSync, syncCoverFavoriteToSite } from "./cover-favorite-sync";
 
   export let group = "moreBackground";
   export let title = "题头图Plus";
@@ -1018,11 +1018,14 @@
                   {#if favorite.postUrl}
                     <a href={favorite.postUrl} target="_blank" rel="noopener noreferrer" class="text-primary hover:underline truncate max-w-[240px]">打开原帖</a>
                   {/if}
-                  {#if favorite.site && favorite.postId}
+                  {#if favorite.site && favorite.postId && supportsCoverFavoriteSync(favorite.site)}
                     <Button variant="outline" size="sm" class="h-7 text-[11px] gap-1" disabled={syncingFavoriteId === favorite.id} onclick={() => syncFavorite(favorite, favorite.remoteSync !== "synced")} title="对支持的站点同步收藏状态">
                       <Globe class="size-3" />
                       <span>{syncingFavoriteId === favorite.id ? "同步中..." : favorite.remoteSync === "synced" ? "取消站点收藏" : "同步站点收藏"}</span>
                     </Button>
+                  {/if}
+                  {#if favorite.site && !supportsCoverFavoriteSync(favorite.site)}
+                    <span class="text-[10px] text-muted-foreground">{t("lets-more-background.localOnlyFavorite", "仅本地收藏")}</span>
                   {/if}
                 </div>
                 {#if favorite.remoteSyncMessage}
