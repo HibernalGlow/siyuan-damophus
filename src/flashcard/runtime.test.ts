@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FlashcardRuntime } from "./runtime";
+import { FlashcardRuntime, scopedGroupQuery } from "./runtime";
 import { DEFAULT_FLASHCARD_SETTINGS } from "./types";
 
 function todayCard(id: string, extra: Record<string, unknown> = {}) {
@@ -246,24 +246,44 @@ describe("flashcard runtime SFP parity", () => {
     older.mockRestore();
   });
 
-  it("intersects a document scope with an SQL group", async () => {
+  it("constrains tag-group SQL to document block IDs before inspection", async () => {
     const stored = structuredClone(DEFAULT_FLASHCARD_SETTINGS);
     const runtime = new FlashcardRuntime((key) => key === "config" ? stored : undefined, vi.fn());
-    vi.spyOn(runtime, "provideGroupBlockIds").mockResolvedValue([
-      "20260823000000-aaaaaaa",
-      "20260823000001-bbbbbbb",
+    const group = {
+      ...stored.groups[0],
+      sqlQuery: "SELECT id FROM blocks WHERE content LIKE '%#闪卡/优先级/P_#%'",
+    };
+    stored.groups = [group];
+    const paginated = vi.spyOn(runtime.adapter, "paginatedSql").mockResolvedValue([
+      { id: "20260823000000-aaaaaaa" },
     ]);
-    vi.spyOn(runtime.adapter, "loadBlocks").mockResolvedValue([
-      { id: "20260823000000-aaaaaaa", root_id: "20260823000009-docaaaa" },
-      { id: "20260823000001-bbbbbbb", root_id: "20260823000008-docbbbb" },
-    ]);
+    vi.spyOn(runtime.adapter, "inspectRows").mockResolvedValue([{
+      blockId: "20260823000000-aaaaaaa",
+      renderer: "list",
+      kind: "basic",
+      attributes: {},
+    }]);
 
     await expect(runtime.provideScopeBlockIds({
       id: "document:doc:group",
       type: "document",
       targetId: "20260823000009-docaaaa",
       targetName: "Current document",
-      groupId: stored.groups[0].id,
+      groupId: group.id,
     }, true)).resolves.toEqual(["20260823000000-aaaaaaa"]);
+    expect(paginated).toHaveBeenCalledWith(scopedGroupQuery(group.sqlQuery, {
+      type: "document",
+      targetId: "20260823000009-docaaaa",
+    }));
+  });
+
+  it("keeps ID-only group queries valid when restricting a document", () => {
+    expect(scopedGroupQuery("SELECT id FROM blocks WHERE tag LIKE '%#指定标签#%'", {
+      type: "document",
+      targetId: "20260823000009-docaaaa",
+    })).toBe(
+      "SELECT * FROM (SELECT id FROM blocks WHERE tag LIKE '%#指定标签#%') AS flashcard_group_candidates "
+      + "WHERE id = '20260823000009-docaaaa' OR id IN (SELECT id FROM blocks WHERE root_id = '20260823000009-docaaaa')",
+    );
   });
 });

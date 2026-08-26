@@ -22,6 +22,21 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+function sqlQuote(value: string): string {
+  return `'${value.replace(/'/gu, "''")}'`;
+}
+
+export function scopedGroupQuery(groupQuery: string, scope: Pick<FlashcardReviewScope, "type" | "targetId">): string {
+  const query = groupQuery.trim().replace(/;\s*$/u, "");
+  const targetId = sqlQuote(scope.targetId ?? "");
+  const scopePredicate = scope.type === "document"
+    ? `id = ${targetId} OR id IN (SELECT id FROM blocks WHERE root_id = ${targetId})`
+    : `id IN (SELECT id FROM blocks WHERE box = ${targetId})`;
+  // User groups commonly select only `id`; filtering candidate IDs keeps those
+  // queries valid while allowing SQLite to constrain the blocks table first.
+  return `SELECT * FROM (${query}) AS flashcard_group_candidates WHERE ${scopePredicate}`;
+}
+
 function mergeSettings(value: unknown): FlashcardSettings {
   const input = value && typeof value === "object" ? value as Partial<FlashcardSettings> : {};
   const groups = Array.isArray(input.groups) ? input.groups : DEFAULT_FLASHCARD_SETTINGS.groups;
@@ -343,6 +358,11 @@ export class FlashcardRuntime {
     return this.adapter.buildDueCardsData(settings.deckId, roots, settings.maxReviewCards, settings.scopedReviewMode);
   }
 
+  private async inspectScopedGroupCandidates(group: FlashcardGroup, scope: FlashcardReviewScope): Promise<FlashcardRoot[]> {
+    const rows = await this.adapter.paginatedSql(scopedGroupQuery(group.sqlQuery, scope));
+    return this.adapter.inspectRows(rows, { maxResolveDepth: this.settings.maxResolveDepth });
+  }
+
   async provideScopeBlockIds(scope: FlashcardReviewScope, forceUpdate = false): Promise<string[]> {
     const group = scope.groupId ? this.getGroups().find((candidate) => candidate.id === scope.groupId) : undefined;
     if (scope.type === "group") {
@@ -350,6 +370,12 @@ export class FlashcardRuntime {
       return this.provideGroupBlockIds(group, forceUpdate);
     }
     if (!scope.targetId) return [];
+    if (group && (scope.type === "document" || scope.type === "notebook")) {
+      const roots = await this.inspectScopedGroupCandidates(group, scope);
+      return roots
+        .filter((root) => root.status !== "unregistered")
+        .map((root) => root.blockId);
+    }
     const candidates = group
       ? await this.provideGroupBlockIds(group, forceUpdate)
       : (await this.getAllDeckCards()).map((card) => card.blockID);
