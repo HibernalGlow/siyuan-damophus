@@ -6,7 +6,6 @@ import { confirm, Dialog, getAllEditor, showMessage, type ICommand, type IEventB
 import {
   createEmptyParagraphCleanupPlan,
   isEmptyParagraphDom,
-  isEmptyText,
   type DocumentFormatBlock,
 } from "./empty-paragraphs";
 import { createSelfReferenceCleanupPlan } from "./self-references";
@@ -33,9 +32,26 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     });
   };
 
+  private readonly handleBlockMenu = (
+    event: CustomEvent<IEventBusMap["click-blockicon"]>,
+  ): void => {
+    if (!this.isEntryEnabled("contextMenu") || !event.detail.protyle.block.rootID) return;
+    event.detail.menu.addItem({
+      icon: "iconSparkles",
+      label: this.t("lets-document-format.removeEmptyParagraphs"),
+      click: () => void this.removeEmptyParagraphs(event.detail.protyle),
+    });
+    event.detail.menu.addItem({
+      icon: "iconSparkles",
+      label: this.t("lets-document-format.removeSelfReferences"),
+      click: () => void this.removeSelfReferences(event.detail.protyle),
+    });
+  };
+
   override onload(): void {
     this.syncCommand();
     if (this.listening) return;
+    plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
     this.listening = true;
   }
@@ -47,6 +63,7 @@ export default class DocumentFormatPlugin extends SubPluginBase {
   override onunload(): void {
     this.removeCommand();
     if (!this.listening) return;
+    plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     this.listening = false;
   }
@@ -130,7 +147,7 @@ export default class DocumentFormatPlugin extends SubPluginBase {
 
     try {
       const blocks = await this.loadDocumentBlocks(documentId);
-      const candidates = blocks.filter((block) => block.type === "p" && isEmptyText(block.content));
+      const candidates = blocks.filter((block) => block.type === "p");
       const domById = candidates.length > 0 ? await getBlockDOMsStrict(candidates.map((block) => block.id)) : {};
       const verifiedDomById = Object.fromEntries(Object.entries(domById)
         .filter(([, dom]) => isEmptyParagraphDom(dom))) as Record<string, string>;

@@ -35,8 +35,8 @@ export function isEmptyText(value: string | undefined): boolean {
 }
 
 /**
- * SQL identifies likely empty paragraphs, while the persisted DOM prevents
- * media-only paragraphs from being mistaken for blank text.
+ * The persisted DOM is the source of truth: block index content can retain
+ * nonempty text even when the saved paragraph DOM is blank.
  */
 export function isEmptyParagraphDom(dom: string): boolean {
   if (typeof document === "undefined") return false;
@@ -71,7 +71,6 @@ export function createEmptyParagraphCleanupPlan(
 
   const selected = blocks
     .filter((block) => block.type === "p")
-    .filter((block) => isEmptyText(block.content))
     .filter((block) => includeContainerParagraphs || block.parent_id === documentId)
     .filter((block) => typeof domById[block.id] === "string" && domById[block.id].length > 0)
     .sort((left, right) => left.sort - right.sort || left.id.localeCompare(right.id));

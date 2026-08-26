@@ -55,13 +55,13 @@ describe("empty paragraph cleanup", () => {
     expect(plan.doOperations).toEqual([{ action: "delete", id: "top-empty" }]);
   });
 
-  it("does not delete non-empty paragraphs or rows without persisted DOM", () => {
+  it("uses persisted DOM rather than indexed block content", () => {
     const plan = createEmptyParagraphCleanupPlan(documentId, [
-      block({ id: "text", content: "Text", sort: 1 }),
+      block({ id: "empty-dom", content: "stale indexed text", sort: 1 }),
       block({ id: "missing-dom", sort: 2 }),
-    ], {}, true);
+    ], { "empty-dom": "<div></div>" }, true);
 
-    expect(plan.count).toBe(0);
-    expect(plan.undoOperations).toEqual([]);
+    expect(plan.count).toBe(1);
+    expect(plan.doOperations).toEqual([{ action: "delete", id: "empty-dom" }]);
   });
 });
