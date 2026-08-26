@@ -12,8 +12,8 @@ describe("flashcard plugin metadata", () => {
       ["menu", true],
       ["contextMenu", true],
       ["command", true],
-      ["desktopDock", false],
-      ["mobileDock", false],
+      ["desktopDock", true],
+      ["mobileDock", true],
       ["tab", true],
     ]);
     expect(pluginMetadata.settings?.some((setting) => setting.key === "openSettingsButton")).toBe(false);
