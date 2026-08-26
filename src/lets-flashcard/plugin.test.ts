@@ -33,8 +33,11 @@ describe("flashcard plugin metadata", () => {
       reviewGroup: vi.fn(),
       openMakeScope: vi.fn(),
       currentReviewContext: () => undefined,
-      scopeMenuItem: vi.fn((label: string) => ({ label })),
-      documentUnregisterMenuItem: vi.fn((targetIds: string[], label: string) => ({ label: `取消${label}闪卡登记`, targetIds })),
+      makeScope: FlashcardPlugin.prototype.makeScope,
+      actionCategory: FlashcardPlugin.prototype.actionCategory,
+      reviewCategory: FlashcardPlugin.prototype.reviewCategory,
+      cancelCategory: FlashcardPlugin.prototype.cancelCategory,
+      scopeActionLabel: FlashcardPlugin.prototype.scopeActionLabel,
     };
 
     FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
@@ -44,16 +47,22 @@ describe("flashcard plugin metadata", () => {
     expect(item.label).toBe("lets-flashcard.displayName");
     expect(item.type).toBe("submenu");
     expect(item.click).toBeUndefined();
-    expect(item.submenu?.map((child) => child.type ?? child.label)).toEqual([
+    expect(item.submenu?.map((child) => child.label ?? child.type)).toEqual([
       "lets-flashcard.openSettings",
-      "lets-flashcard.reviewAll",
       "separator",
-      "检测：含指定标签",
-      "复习：含指定标签",
+      "检测",
+      "应用",
+      "复习",
     ]);
+    const detectMenu = item.submenu?.find((child) => child.label === "检测") as { submenu?: Array<{ label?: string }> };
+    const applyMenu = item.submenu?.find((child) => child.label === "应用") as { submenu?: Array<{ label?: string }> };
+    const reviewMenu = item.submenu?.find((child) => child.label === "复习") as { submenu?: Array<{ label?: string }> };
+    expect(detectMenu.submenu?.map((child) => child.label)).toEqual(["含指定标签"]);
+    expect(applyMenu.submenu?.map((child) => child.label)).toEqual(["含指定标签"]);
+    expect(reviewMenu.submenu?.map((child) => child.label)).toEqual(["lets-flashcard.reviewAll", "含指定标签"]);
     (item.submenu?.[0] as { click?: () => void }).click?.();
     expect(fakePlugin.openSettings).toHaveBeenCalledTimes(1);
-    (item.submenu?.find((child) => child.label === "检测：含指定标签") as { click?: () => void })?.click?.();
+    detectMenu.submenu?.[0].click?.();
     expect(fakePlugin.openMakeScope).toHaveBeenCalledWith(expect.objectContaining({
       type: "group",
       groupId: "group-1",
@@ -76,8 +85,11 @@ describe("flashcard plugin metadata", () => {
         notebookId: "box-1",
         notebookName: "测试笔记本",
       }),
-      scopeMenuItem: vi.fn((label: string) => ({ label })),
-      batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
+      makeScope: FlashcardPlugin.prototype.makeScope,
+      actionCategory: FlashcardPlugin.prototype.actionCategory,
+      reviewCategory: FlashcardPlugin.prototype.reviewCategory,
+      cancelCategory: FlashcardPlugin.prototype.cancelCategory,
+      scopeActionLabel: FlashcardPlugin.prototype.scopeActionLabel,
     };
 
     FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
@@ -119,7 +131,10 @@ describe("flashcard plugin metadata", () => {
     Object.assign(instance, {
       isEntryEnabled: () => true,
       t: (key: string) => key,
-      runtime: { getEnabledGroups: () => [{ id: "group-1", name: "含指定标签" }] },
+      runtime: {
+        getEnabledGroups: () => [{ id: "group-1", name: "含指定标签" }],
+        getSettings: () => ({ deckId: "20230218211946-2kw8jgx" }),
+      },
       openSettings: vi.fn(),
       reviewAll,
       reviewGroup,
@@ -128,8 +143,12 @@ describe("flashcard plugin metadata", () => {
       unregisterContainers,
       unregisterDocumentTree,
       reviewDocumentTree: vi.fn(),
-      scopeMenuItem: vi.fn((label: string) => ({ label })),
-      batchUnregisterScopeMenuItem: vi.fn((label: string) => ({ label })),
+      openDocumentUnregisterDialog: vi.fn(),
+      makeScope: FlashcardPlugin.prototype.makeScope,
+      actionCategory: FlashcardPlugin.prototype.actionCategory,
+      reviewCategory: FlashcardPlugin.prototype.reviewCategory,
+      cancelCategory: FlashcardPlugin.prototype.cancelCategory,
+      scopeActionLabel: FlashcardPlugin.prototype.scopeActionLabel,
     });
     const blockMenu = { addItem };
 
@@ -146,25 +165,37 @@ describe("flashcard plugin metadata", () => {
     instance.handleDocumentTitleMenu({
       detail: { menu: blockMenu, data: { id: "20260823112002-aaaaaaa", name: "测试文档" } },
     });
-    expect(addItem).toHaveBeenCalledTimes(5);
-    expect(addItem.mock.calls.map(([item]) => item.label)).toEqual([
-      "制作当前文档闪卡 · 全部",
-      "复习当前文档闪卡 · 全部到期",
-      "制作当前文档闪卡 · 含指定标签",
-      "复习当前文档闪卡 · 含指定标签",
-      "取消当前文档闪卡登记",
+    expect(addItem).toHaveBeenCalledTimes(1);
+    const documentMenu = addItem.mock.calls[0][0] as { submenu?: Array<{ label?: string; type?: string; submenu?: Array<{ label?: string; click?: () => void }> }> };
+    expect(documentMenu.submenu?.map((item) => item.label ?? item.type)).toEqual([
+      "lets-flashcard.openSettings",
+      "separator",
+      "检测",
+      "应用",
+      "复习",
+      "取消",
     ]);
-    addItem.mock.calls[0][0].click();
+    const documentDetect = documentMenu.submenu?.find((item) => item.label === "检测")!;
+    const documentApply = documentMenu.submenu?.find((item) => item.label === "应用")!;
+    const documentReview = documentMenu.submenu?.find((item) => item.label === "复习")!;
+    const documentCancel = documentMenu.submenu?.find((item) => item.label === "取消")!;
+    expect(documentDetect.submenu?.map((item) => item.label)).toEqual(["测试文档 · 全部闪卡", "测试文档 · 含指定标签"]);
+    expect(documentApply.submenu?.map((item) => item.label)).toEqual(["测试文档 · 全部闪卡", "测试文档 · 含指定标签"]);
+    expect(documentReview.submenu?.map((item) => item.label)).toEqual(["测试文档 · 全部到期卡"]);
+    expect(documentCancel.submenu?.map((item) => item.label)).toEqual(["当前文档下所有闪卡登记"]);
+    documentDetect.submenu?.[0].click?.();
     expect(instance.openMakeScope).toHaveBeenCalledWith(expect.objectContaining({
       type: "document",
       targetId: "20260823112002-aaaaaaa",
     }));
-    addItem.mock.calls[3][0].click();
+    documentApply.submenu?.[1].click?.();
     expect(instance.reviewScopeCards).toHaveBeenCalledWith(expect.objectContaining({
       type: "document",
       targetId: "20260823112002-aaaaaaa",
       groupId: "group-1",
     }));
+    documentCancel.submenu?.[0].click?.();
+    expect(instance.openDocumentUnregisterDialog).toHaveBeenCalledWith(["20260823112002-aaaaaaa"], "当前文档");
 
     addItem.mockClear();
     vi.stubGlobal("window", { siyuan: { notebooks: [{ id: "notebook-1", name: "测试笔记本" }] } });
@@ -173,8 +204,15 @@ describe("flashcard plugin metadata", () => {
     });
     expect(addItem).toHaveBeenCalledTimes(1);
     const notebookMenu = addItem.mock.calls[0][0];
-    expect(notebookMenu.submenu.map((item: { type?: string; label?: string }) => item.type ?? item.label)).toContain("当前笔记本专项复习");
-    notebookMenu.submenu.find((item: { label?: string }) => item.label === "取消当前笔记本下所有闪卡登记")?.click();
+    expect(notebookMenu.submenu.map((item: { type?: string; label?: string }) => item.label ?? item.type)).toEqual([
+      "lets-flashcard.openSettings",
+      "separator",
+      "检测",
+      "应用",
+      "复习",
+      "取消",
+    ]);
+    notebookMenu.submenu.find((item: { label?: string; submenu?: Array<{ label?: string; click?: () => void }> }) => item.label === "取消")?.submenu?.[0].click?.();
     expect(unregisterDocumentTree).toHaveBeenCalledWith(
       ["notebook-1"],
       true,
@@ -185,13 +223,12 @@ describe("flashcard plugin metadata", () => {
     instance.handleDocumentTreeMenu({
       detail: { menu: blockMenu, type: "document", elements: [{ dataset: { nodeId: "document-1", name: "测试文档" } }] },
     });
-    expect(addItem.mock.calls.map(([item]) => item.label)).toEqual([
-      "制作当前文档闪卡 · 全部",
-      "复习当前文档闪卡 · 全部到期",
-      "制作当前文档闪卡 · 含指定标签",
-      "复习当前文档闪卡 · 含指定标签",
-      "取消当前文档闪卡登记",
-    ]);
+    expect(addItem).toHaveBeenCalledTimes(1);
+    const treeDocumentMenu = addItem.mock.calls[0][0] as { submenu?: Array<{ label?: string }> };
+    expect(treeDocumentMenu.submenu?.map((item) => item.label)).toContain("检测");
+    expect(treeDocumentMenu.submenu?.map((item) => item.label)).toContain("应用");
+    expect(treeDocumentMenu.submenu?.map((item) => item.label)).toContain("复习");
+    expect(treeDocumentMenu.submenu?.map((item) => item.label)).toContain("取消");
   });
 
   it("prefers the official mobile pop editor over desktop tabs and DOM", () => {

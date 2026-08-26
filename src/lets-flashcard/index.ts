@@ -639,35 +639,27 @@ export default class FlashcardPlugin extends SubPluginBase {
         click: () => this.openSettings(),
       });
     }
-    submenu.push({
-      icon: "iconRiffCard",
-      label: this.t("lets-flashcard.reviewAll"),
-      click: () => void this.reviewAll(),
-    });
     const context = this.currentReviewContext();
-    if (context) {
-      submenu.push({ type: "separator" });
-      submenu.push(this.scopeMenuItem("当前文档专项复习", "document", context.documentId, context.documentName));
-      submenu.push(this.documentUnregisterMenuItem([context.documentId], "当前文档"));
-    }
     const groups = this.runtime.getEnabledGroups();
-    if (groups.length > 0) submenu.push({ type: "separator" });
-    for (const group of groups) {
+    const contextScopes = context
+      ? [
+        this.makeScope("document", context.documentId, "当前文档"),
+        ...groups.map((group) => this.makeScope("document", context.documentId, "当前文档", group)),
+      ]
+      : [];
+    const groupScopes = groups.map((group) => this.makeScope("group", group.id, group.name, group));
+    const scopedActions = [...contextScopes, ...groupScopes];
+    if (scopedActions.length > 0) {
+      submenu.push({ type: "separator" });
+      submenu.push(this.actionCategory("检测", scopedActions, "detect"));
+      submenu.push(this.actionCategory("应用", scopedActions, "apply"));
+      submenu.push(this.reviewCategory(context, groups));
+      if (context) submenu.push(this.cancelCategory([context.documentId], "当前文档"));
+    } else {
       submenu.push({
         icon: "iconRiffCard",
-        label: `检测：${group.name}`,
-        click: () => void this.openMakeScope({
-          id: `group:${group.id}`,
-          type: "group",
-          targetName: group.name,
-          groupId: group.id,
-          groupName: group.name,
-        }),
-      });
-      submenu.push({
-        icon: "iconRiffCard",
-        label: `复习：${group.name}`,
-        click: () => void this.reviewGroup(group),
+        label: this.t("lets-flashcard.reviewAll"),
+        click: () => void this.reviewAll(),
       });
     }
     // Keep one DAMO top-level entry. The row itself opens the settings
@@ -734,12 +726,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       for (const item of this.documentScopeMenuItems(ids[0], targetName)) event.detail.menu.addItem(item);
       return;
     }
-    event.detail.menu.addItem({
-      icon: "iconRiffCard",
-      label: "复习所选文档闪卡",
-      click: () => void this.reviewDocumentTree(ids, false, targetName),
-    });
-    event.detail.menu.addItem(this.documentUnregisterMenuItem(ids, "所选文档"));
+    event.detail.menu.addItem(this.contextScopeMenuItem("document", ids, targetName));
   };
 
   private documentScopeMenuItems(documentId: string, targetName: string): IMenu[] {
@@ -748,19 +735,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       ...this.runtime.getEnabledGroups().map((group) => this.makeScope("document", documentId, targetName, group)),
     ];
     return [
-      ...scopes.flatMap((scope) => [
-      {
-        icon: "iconRiffCard",
-        label: scope.groupName ? `制作当前文档闪卡 · ${scope.groupName}` : "制作当前文档闪卡 · 全部",
-        click: () => void this.openMakeScope(scope),
-      },
-      {
-        icon: "iconRiffCard",
-        label: scope.groupName ? `复习当前文档闪卡 · ${scope.groupName}` : "复习当前文档闪卡 · 全部到期",
-        click: () => void this.reviewScopeCards(scope),
-      },
-      ]),
-      this.documentUnregisterMenuItem([documentId], "当前文档"),
+      this.contextScopeMenuItem("document", [documentId], targetName, scopes),
     ];
   }
 
@@ -768,11 +743,9 @@ export default class FlashcardPlugin extends SubPluginBase {
     type: "document" | "notebook",
     targetIds: readonly string[],
     targetName: string,
+    providedScopes?: FlashcardReviewScope[],
   ): IMenu {
     const singleTarget = targetIds.length === 1;
-    const scopeLabel = type === "notebook"
-      ? (singleTarget ? "当前笔记本专项复习" : "所选笔记本专项复习")
-      : (singleTarget ? "当前文档专项复习" : "所选文档专项复习");
     const submenu: IMenu[] = [];
     if (this.isEntryEnabled("tab")) {
       submenu.push({
@@ -780,53 +753,132 @@ export default class FlashcardPlugin extends SubPluginBase {
         label: this.t("lets-flashcard.openSettings"),
         click: () => this.openSettings(),
       });
+      submenu.push({ type: "separator" });
     }
-    submenu.push({
-      icon: "iconRiffCard",
-      label: this.t("lets-flashcard.reviewAll"),
-      click: () => void this.reviewAll(),
-    });
-    submenu.push({ type: "separator" });
-    submenu.push(singleTarget
-      ? this.scopeMenuItem(scopeLabel, type, targetIds[0], targetName)
-      : {
-        icon: type === "notebook" ? "iconNotebook" : "iconFile",
-        label: scopeLabel,
-        click: () => void this.reviewDocumentTree(targetIds, type === "notebook", targetName),
-      });
-    submenu.push(type === "notebook"
-      ? {
-        icon: "iconCloseRound",
-        label: `取消${singleTarget ? "当前" : "所选"}笔记本下所有闪卡登记`,
-        click: () => void this.unregisterDocumentTree(targetIds, true, this.createUnregisterAudit("notebook")),
-      }
-      : this.documentUnregisterMenuItem(targetIds, singleTarget ? "当前文档" : "所选文档"));
-    const groups = this.runtime.getEnabledGroups();
-    if (groups.length > 0) submenu.push({ type: "separator" });
-    for (const group of groups) {
+    const scopes = providedScopes ?? (singleTarget
+      ? [
+        this.makeScope(type, targetIds[0], targetName),
+        ...this.runtime.getEnabledGroups().map((group) => this.makeScope(type, targetIds[0], targetName, group)),
+      ]
+      : []);
+    if (scopes.length > 0) {
+      submenu.push(this.actionCategory("检测", scopes, "detect"));
+      submenu.push(this.actionCategory("应用", scopes, "apply"));
+    }
+    if (singleTarget) {
+      submenu.push(this.reviewCategory(
+        { documentId: targetIds[0], documentName: targetName },
+        this.runtime.getEnabledGroups(),
+        type === "notebook" ? targetIds : undefined,
+        false,
+        false,
+      ));
+    } else {
       submenu.push({
-        icon: "iconRiffCard",
-        label: `检测：${group.name}`,
-        click: () => void this.openMakeScope({
-          id: `group:${group.id}`,
-          type: "group",
-          targetName: group.name,
-          groupId: group.id,
-          groupName: group.name,
-        }),
-      });
-      submenu.push({
-        icon: "iconRiffCard",
-        label: `复习：${group.name}`,
-        click: () => void this.reviewGroup(group),
+        icon: "iconPlay",
+        label: "复习",
+        type: "submenu",
+        submenu: [{
+          icon: type === "notebook" ? "iconNotebook" : "iconFile",
+          label: `${targetName} · 全部到期卡`,
+          click: () => void this.reviewDocumentTree(targetIds, type === "notebook", targetName),
+        }],
       });
     }
+    submenu.push(this.cancelCategory(
+      targetIds,
+      type === "notebook" ? (singleTarget ? "当前笔记本" : "所选笔记本") : (singleTarget ? "当前文档" : "所选文档"),
+      type === "notebook",
+    ));
     return {
       icon: "iconRiffCard",
       label: this.t("lets-flashcard.displayName"),
       type: "submenu",
       submenu,
     };
+  }
+
+  private actionCategory(
+    label: string,
+    scopes: readonly FlashcardReviewScope[],
+    action: "detect" | "apply",
+  ): IMenu {
+    return {
+      icon: action === "detect" ? "iconSearch" : "iconRiffCard",
+      label,
+      type: "submenu",
+      submenu: scopes.map((scope) => ({
+        icon: action === "detect" ? "iconSearch" : "iconRiffCard",
+        label: this.scopeActionLabel(scope),
+        click: () => void (action === "detect" ? this.openMakeScope(scope) : this.reviewScopeCards(scope)),
+      })),
+    };
+  }
+
+  private reviewCategory(
+    context: { documentId: string; documentName: string } | undefined,
+    groups: readonly FlashcardGroup[],
+    notebookIds?: readonly string[],
+    includeGlobal = true,
+    includeGroups = true,
+  ): IMenu {
+    const submenu: IMenu[] = [];
+    if (includeGlobal) {
+      submenu.push({
+        icon: "iconRiffCard",
+        label: this.t("lets-flashcard.reviewAll"),
+        click: () => void this.reviewAll(),
+      });
+    }
+    if (context) {
+      submenu.push({
+        icon: "iconFile",
+        label: `${context.documentName} · 全部到期卡`,
+        click: () => void this.reviewDocumentTree(
+          notebookIds ?? [context.documentId],
+          Boolean(notebookIds),
+          context.documentName,
+        ),
+      });
+    }
+    if (includeGroups) {
+      for (const group of groups) {
+        submenu.push({
+          icon: "iconRiffCard",
+          label: group.name,
+          click: () => void this.reviewGroup(group),
+        });
+      }
+    }
+    return { icon: "iconPlay", label: "复习", type: "submenu", submenu };
+  }
+
+  private cancelCategory(
+    targetIds: readonly string[],
+    label: string,
+    notebook = false,
+  ): IMenu {
+    return {
+      icon: "iconCloseRound",
+      label: "取消",
+      type: "submenu",
+      submenu: [{
+        icon: "iconCloseRound",
+        label: `${label}下所有闪卡登记`,
+        click: () => {
+          if (notebook) {
+            void this.unregisterDocumentTree(targetIds, true, this.createUnregisterAudit("notebook"));
+            return;
+          }
+          void this.openDocumentUnregisterDialog(targetIds, label);
+        },
+      }],
+    };
+  }
+
+  private scopeActionLabel(scope: FlashcardReviewScope): string {
+    if (scope.type === "group") return scope.groupName ?? scope.targetName;
+    return scope.groupName ? `${scope.targetName} · ${scope.groupName}` : `${scope.targetName} · 全部闪卡`;
   }
 
   private documentUnregisterMenuItem(targetIds: readonly string[], label: string): IMenu {
@@ -876,29 +928,6 @@ export default class FlashcardPlugin extends SubPluginBase {
     } catch (error) {
       this.reportError("获取文档范围闪卡失败", error);
     }
-  }
-
-  private scopeMenuItem(label: string, type: "document" | "notebook", targetId: string, targetName: string): IMenu {
-    const scopes = [
-      this.makeScope(type, targetId, targetName),
-      ...this.runtime.getEnabledGroups().map((group) => this.makeScope(type, targetId, targetName, group)),
-    ];
-    return {
-      icon: type === "document" ? "iconFile" : "iconNotebook",
-      label,
-      submenu: scopes.flatMap((scope) => [
-        {
-          icon: "iconRiffCard",
-          label: scope.groupName ? `检测：${scope.groupName}` : "检测全部闪卡",
-          click: () => void this.openMakeScope(scope),
-        },
-        {
-          icon: "iconRiffCard",
-          label: scope.groupName ? `应用分组：${scope.groupName}` : "全部到期卡",
-          click: () => void this.reviewScopeCards(scope),
-        },
-      ]),
-    };
   }
 
   private makeScope(type: "document" | "notebook", targetId: string, targetName: string, group?: FlashcardGroup): FlashcardReviewScope {
