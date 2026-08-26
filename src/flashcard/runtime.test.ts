@@ -29,6 +29,17 @@ describe("flashcard runtime SFP parity", () => {
     expect(noAutoReview.getSettings().autoReviewAfterRegistration).toBe(false);
   });
 
+  it("defaults legacy settings to exact scoped review and preserves native filtering", () => {
+    const legacy = new FlashcardRuntime(() => ({}), vi.fn());
+    expect(legacy.getSettings().scopedReviewMode).toBe("exact");
+
+    const native = new FlashcardRuntime(
+      (key) => key === "config" ? { scopedReviewMode: "native" } : undefined,
+      vi.fn(),
+    );
+    expect(native.getSettings().scopedReviewMode).toBe("native");
+  });
+
   it("defaults the document breadcrumb review button to enabled and preserves an explicit off state", () => {
     const disabled = new FlashcardRuntime(
       (key) => key === "config" ? { showBreadcrumbReviewButton: false } : undefined,
@@ -166,6 +177,12 @@ describe("flashcard runtime SFP parity", () => {
     await runtime.buildGroupDueCards(group, true);
 
     expect(paginated).toHaveBeenCalledTimes(2);
+    expect(runtime.adapter.buildDueCardsData).toHaveBeenCalledWith(
+      stored.deckId,
+      ["20260823000001-bbbbbbb"],
+      stored.maxReviewCards,
+      "exact",
+    );
   });
 
   it("reuses inspected group candidates within the configured cache window", async () => {

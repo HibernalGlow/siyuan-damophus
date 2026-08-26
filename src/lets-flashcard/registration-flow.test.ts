@@ -218,6 +218,39 @@ describe("flashcard scope registration flow", () => {
     expect(fakePlugin.reviewScope).toBeDefined();
   });
 
+  it("injects the exact scoped queue only into the first native callback", async () => {
+    const exact = { blockID: "20260823130238-card001", cardID: "exact-1", state: 0 };
+    const nextRound = { blockID: "20260823130238-card002", cardID: "exact-2", state: 1 };
+    const scope = { id: "group:test", type: "group", targetName: "Test", groupId: "test" } as const;
+    const fakePlugin = {
+      pendingExactReview: { cards: [exact], unreviewedCount: 1, unreviewedNewCardCount: 1, unreviewedOldCardCount: 0 },
+      reviewCards: new Map(),
+      reviewTimer: { ensureSession: vi.fn() },
+      reviewScope: { scope, ids: new Set([exact.blockID]) },
+      runtime: { provideScopeBlockIds: vi.fn().mockResolvedValue([exact.blockID, nextRound.blockID]) },
+      orderCards: vi.fn(async (cards: unknown[]) => cards),
+      orderCardsData: vi.fn(),
+    };
+
+    const first = await (FlashcardPlugin.prototype as any).updateCards.call(fakePlugin, {
+      cards: [{ blockID: "global", cardID: "global", state: 1 }],
+      unreviewedCount: 1,
+      unreviewedNewCardCount: 0,
+      unreviewedOldCardCount: 1,
+    });
+    const second = await (FlashcardPlugin.prototype as any).updateCards.call(fakePlugin, {
+      cards: [nextRound],
+      unreviewedCount: 1,
+      unreviewedNewCardCount: 0,
+      unreviewedOldCardCount: 1,
+    });
+
+    expect(first.cards).toEqual([exact]);
+    expect(second.cards).toEqual([nextRound]);
+    expect(fakePlugin.pendingExactReview).toBeUndefined();
+    expect(fakePlugin.runtime.provideScopeBlockIds).toHaveBeenCalledTimes(1);
+  });
+
   it("clears a pending scope when the native review entry cannot be opened", async () => {
     const due = {
       cards: [{ blockID: "20260823130238-card001", cardID: "card-1", state: 1 }],
@@ -231,11 +264,12 @@ describe("flashcard scope registration flow", () => {
       priorityControls: { refresh: vi.fn() },
       runtime: {
         adapter: { inspectRoots: vi.fn().mockResolvedValue([]) },
-        getSettings: vi.fn().mockReturnValue({}),
+        getSettings: vi.fn().mockReturnValue({ maxReviewCards: 200, scopedReviewMode: "exact" }),
       },
       compat: { preloadMany: vi.fn(), refresh: vi.fn() },
       mobileSurface: { openReview: vi.fn().mockReturnValue(false) },
       reviewScope: undefined,
+      pendingExactReview: undefined,
     };
 
     await (FlashcardPlugin.prototype as any).openNativeReview.call(
@@ -246,6 +280,8 @@ describe("flashcard scope registration flow", () => {
     );
 
     expect(fakePlugin.mobileSurface.openReview).toHaveBeenCalled();
+    expect(fakePlugin.orderCardsData).toHaveBeenCalledWith(due, 200);
     expect(fakePlugin.reviewScope).toBeUndefined();
+    expect(fakePlugin.pendingExactReview).toBeUndefined();
   });
 });

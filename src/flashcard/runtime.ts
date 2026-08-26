@@ -50,6 +50,7 @@ function mergeSettings(value: unknown): FlashcardSettings {
   return {
     deckId: String(input.deckId ?? DEFAULT_FLASHCARD_SETTINGS.deckId),
     maxReviewCards: Math.max(1, Number(input.maxReviewCards ?? DEFAULT_FLASHCARD_SETTINGS.maxReviewCards)),
+    scopedReviewMode: input.scopedReviewMode === "native" ? "native" : "exact",
     maxResolveDepth: Math.max(1, Number(input.maxResolveDepth ?? DEFAULT_FLASHCARD_SETTINGS.maxResolveDepth)),
     cacheUpdateInterval: Math.max(1, Number(input.cacheUpdateInterval ?? DEFAULT_FLASHCARD_SETTINGS.cacheUpdateInterval)),
     scanInterval: Math.max(1, Number(input.scanInterval ?? DEFAULT_FLASHCARD_SETTINGS.scanInterval)),
@@ -337,8 +338,9 @@ export class FlashcardRuntime {
   }
 
   async buildGroupDueCards(group: FlashcardGroup, forceUpdate = false): Promise<DueCardsData> {
+    const settings = this.load();
     const roots = await this.provideGroupBlockIds(group, forceUpdate);
-    return this.adapter.buildDueCardsData(this.load().deckId, roots, this.load().maxReviewCards);
+    return this.adapter.buildDueCardsData(settings.deckId, roots, settings.maxReviewCards, settings.scopedReviewMode);
   }
 
   async provideScopeBlockIds(scope: FlashcardReviewScope, forceUpdate = false): Promise<string[]> {
@@ -367,7 +369,7 @@ export class FlashcardRuntime {
       return this.adapter.getNotebookDueCards(scope.targetId);
     }
     const roots = await this.provideScopeBlockIds(scope, forceUpdate);
-    return this.adapter.buildDueCardsData(settings.deckId, roots, settings.maxReviewCards);
+    return this.adapter.buildDueCardsData(settings.deckId, roots, settings.maxReviewCards, settings.scopedReviewMode);
   }
 
   async buildDiagnostics(): Promise<FlashcardDiagnosticRow[]> {

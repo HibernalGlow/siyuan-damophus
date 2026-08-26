@@ -145,6 +145,47 @@ describe("flashcard SiYuan adapter", () => {
     expect(result.registeredCount).toBe(1);
   });
 
+  it("builds an exact scoped queue from document due-card endpoints without the global deck query", async () => {
+    const adapter = new FlashcardSiyuanAdapter();
+    const registered = [
+      { blockID: "20260823112001-stts5qv", cardID: "registered-1", state: 0, rootID: "20260823112000-docaaaa" },
+      { blockID: "20260823112002-aaaaaaa", cardID: "registered-2", state: 1, rootID: "20260823112000-docaaaa" },
+      { blockID: "20260823112003-bbbbbbb", cardID: "registered-3", state: 1, rootID: "20260823113000-docbbbb" },
+    ];
+    const dueCards = registered.map((card) => ({ ...card, cardID: `due-${card.cardID}`, nextDues: { 1: "1 minute" } }));
+    vi.spyOn(adapter, "getCardsByBlockIds").mockResolvedValue(registered);
+    const getDueCards = vi.spyOn(adapter, "getDueCards");
+    vi.spyOn(adapter, "getTreeDueCards")
+      .mockResolvedValueOnce({ cards: dueCards.slice(0, 2), unreviewedCount: 2, unreviewedNewCardCount: 1, unreviewedOldCardCount: 1 })
+      .mockResolvedValueOnce({ cards: [...dueCards.slice(2), { blockID: "outside", cardID: "outside", state: 1 }], unreviewedCount: 2, unreviewedNewCardCount: 0, unreviewedOldCardCount: 2 });
+
+    const result = await adapter.buildDueCardsData("deck", registered.map((card) => card.blockID), 1, "exact");
+
+    expect(result.cards).toEqual(dueCards);
+    expect(result).toMatchObject({ unreviewedCount: 3, unreviewedNewCardCount: 1, unreviewedOldCardCount: 2, candidateCount: 3, registeredCount: 3 });
+    expect(adapter.getTreeDueCards).toHaveBeenCalledTimes(2);
+    expect(getDueCards).not.toHaveBeenCalled();
+  });
+
+  it("keeps native scoped review on the full-deck query and post-filter path", async () => {
+    const adapter = new FlashcardSiyuanAdapter();
+    const allowed = { blockID: "20260823112001-stts5qv", cardID: "card-1", state: 1, rootID: "20260823112000-docaaaa" };
+    vi.spyOn(adapter, "getCardsByBlockIds").mockResolvedValue([allowed]);
+    vi.spyOn(adapter, "getDueCards").mockResolvedValue({
+      cards: [allowed, { blockID: "outside", cardID: "outside", state: 0 }],
+      unreviewedCount: 2,
+      unreviewedNewCardCount: 1,
+      unreviewedOldCardCount: 1,
+    });
+    const getTreeDueCards = vi.spyOn(adapter, "getTreeDueCards");
+
+    const result = await adapter.buildDueCardsData("deck", [allowed.blockID], 20, "native");
+
+    expect(result.cards).toEqual([allowed]);
+    expect(adapter.getDueCards).toHaveBeenCalledWith("deck");
+    expect(getTreeDueCards).not.toHaveBeenCalled();
+  });
+
   it("uses SiYuan's native document and notebook due-card endpoints", async () => {
     requestStrict.mockClear();
     requestStrict.mockResolvedValue({

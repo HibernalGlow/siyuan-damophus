@@ -114,9 +114,12 @@ export interface FlashcardDiagnosticRow extends FlashcardRoot {
   groupNames: string[];
 }
 
+export type FlashcardScopedReviewMode = "exact" | "native";
+
 export interface FlashcardSettings {
   deckId: string;
   maxReviewCards: number;
+  scopedReviewMode: FlashcardScopedReviewMode;
   maxResolveDepth: number;
   cacheUpdateInterval: number;
   /** SFP compatibility field; retained for migrated settings. */
@@ -162,6 +165,7 @@ export interface FlashcardSettings {
 export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   deckId: "20230218211946-2kw8jgx",
   maxReviewCards: 200,
+  scopedReviewMode: "exact",
   maxResolveDepth: 8,
   cacheUpdateInterval: 30,
   scanInterval: 15,

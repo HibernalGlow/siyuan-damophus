@@ -63,6 +63,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   private mobileSettingsApp?: ReturnType<typeof mount>;
   private readonly mobileSurface = new SiyuanMobileFlashcardSurfaceAdapter(Dialog);
   private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
+  private pendingExactReview?: DueCardsData;
   private readonly reviewCards = new Map<string, RiffCardRecord>();
   private currentReviewCard?: RiffCardRecord;
   private menuEventsBound = false;
@@ -442,6 +443,13 @@ export default class FlashcardPlugin extends SubPluginBase {
     unreviewedNewCardCount: number;
     unreviewedOldCardCount: number;
   }): Promise<typeof cardsData> {
+    const pendingExactReview = this.pendingExactReview;
+    if (pendingExactReview) {
+      this.pendingExactReview = undefined;
+      for (const card of pendingExactReview.cards) this.reviewCards.set(card.blockID, card);
+      this.reviewTimer?.ensureSession(pendingExactReview.cards[0]?.cardID);
+      return pendingExactReview;
+    }
     for (const card of cardsData.cards ?? []) {
       if (card?.blockID) this.reviewCards.set(card.blockID, card);
     }
@@ -468,7 +476,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       // Native review can be opened from SiYuan's own menu, bypassing
       // openNativeReview(). Start the timer from that callback as well, while
       // keeping subsequent round refreshes on the same session.
-      this.reviewTimer.ensureSession(ordered[0]?.cardID);
+      this.reviewTimer?.ensureSession(ordered[0]?.cardID);
       return {
         cards: ordered,
         unreviewedCount: ordered.length,
@@ -487,8 +495,8 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private async orderCardsData(cardsData: DueCardsData): Promise<DueCardsData> {
-    const cards = await this.orderCards(cardsData.cards);
+  private async orderCardsData(cardsData: DueCardsData, limit?: number): Promise<DueCardsData> {
+    const cards = await this.orderCards(cardsData.cards, limit);
     return {
       ...cardsData,
       cards,
@@ -498,7 +506,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     };
   }
 
-  private async orderCards(cards: readonly RiffCardRecord[]): Promise<RiffCardRecord[]> {
+  private async orderCards(cards: readonly RiffCardRecord[], limit?: number): Promise<RiffCardRecord[]> {
     const roots = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
     this.compat.preloadMany(roots);
     const ordered = orderCardsByPriority(cards, roots, {
@@ -506,14 +514,15 @@ export default class FlashcardPlugin extends SubPluginBase {
       samePriorityShuffle: this.runtime.getSettings().samePriorityShuffleEnabled,
       reviewMode: this.nativeReviewMode(),
     });
+    const limited = limit === undefined ? ordered : ordered.slice(0, Math.max(1, limit));
     const rootsById = new Map(roots.map((root) => [root.blockId, root]));
-    this.reviewCounter.setQueue(ordered.map((card) => {
+    this.reviewCounter.setQueue(limited.map((card) => {
       const root = rootsById.get(card.blockID);
       const priority: ReviewPriorityBucket = root?.priority && !root.priorityConflict ? root.priority : "other";
       return { cardID: card.cardID, priority, isNew: card.state === 0, stats: readReviewCardStats(card) };
     }));
-    this.reviewTimer?.setQueue(ordered.map((card) => card.cardID));
-    return ordered;
+    this.reviewTimer?.setQueue(limited.map((card) => card.cardID));
+    return limited;
   }
 
   private nativeReviewMode(): 0 | 1 | 2 {
@@ -1323,7 +1332,12 @@ export default class FlashcardPlugin extends SubPluginBase {
         ? await this.runtime.adapter.inspectRows(rows, this.runtime.getSettings())
         : [];
       const due = filtered
-        ? await this.runtime.adapter.buildDueCardsData(this.runtime.getSettings().deckId, roots.map((root) => root.blockId), this.runtime.getSettings().maxReviewCards)
+        ? await this.runtime.adapter.buildDueCardsData(
+          this.runtime.getSettings().deckId,
+          roots.map((root) => root.blockId),
+          this.runtime.getSettings().maxReviewCards,
+          this.runtime.getSettings().scopedReviewMode,
+        )
         : undefined;
       let app: ReturnType<typeof mount> | undefined;
       const dialog = new Dialog({
@@ -1415,7 +1429,8 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   private async openNativeReview(_title: string, due: DueCardsData, scope?: FlashcardReviewScope): Promise<void> {
-    const orderedDue = await this.orderCardsData(due);
+    const settings = this.runtime.getSettings();
+    const orderedDue = await this.orderCardsData(due, settings.maxReviewCards);
     this.reviewTimer?.startSession(orderedDue.cards[0]?.cardID);
     for (const card of orderedDue.cards) this.reviewCards.set(card.blockID, card);
     this.currentReviewCard = orderedDue.cards[0];
@@ -1425,6 +1440,9 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewScope = scope
       ? { scope, ids: new Set(orderedDue.cards.map((card) => card.blockID)) }
       : undefined;
+    this.pendingExactReview = scope?.groupId && settings.scopedReviewMode === "exact"
+      ? orderedDue
+      : undefined;
     const mobile = isMobileEntryFrontend();
     const nativeScope = scope && !scope.groupId && scope.type !== "group" ? scope : undefined;
     const adapterScope = nativeScope?.type === "document"
@@ -1433,6 +1451,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!this.mobileSurface.openReview(adapterScope, mobile)) {
       this.reviewTimer?.stopSession();
       this.reviewScope = undefined;
+      this.pendingExactReview = undefined;
       showMessage("未找到思源原生闪卡浮窗入口", 5000, "error");
       return;
     }

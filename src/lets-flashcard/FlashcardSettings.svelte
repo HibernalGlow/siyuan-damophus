@@ -18,6 +18,7 @@
   import { Switch } from "@/components/ui/switch";
   import * as Tabs from "@/components/ui/tabs";
   import * as Select from "@/components/ui/select";
+  import * as ToggleGroup from "@/components/ui/toggle-group";
   import * as TreeView from "@/components/ui/tree-view";
   import * as Tooltip from "@/components/ui/tooltip";
   import { Badge } from "@/components/ui/badge";
@@ -1055,6 +1056,24 @@
           <label>缓存扫描（分钟）<Input type="number" min="1" max="1440" bind:value={config.scanInterval} onchange={saveGlobalOnChange} /></label>
           <label>推迟天数<Input type="number" min="1" max="30" bind:value={config.postponeDays} onchange={saveGlobalOnChange} disabled={!config.postponeEnabled} /></label>
         </div>
+        <div class="setting-row review-mode-row">
+          <div><strong>分组取卡模式</strong><span>用于 SQL 分组及其文档、笔记本组合范围</span></div>
+          <ToggleGroup.Root
+            type="single"
+            variant="outline"
+            class="review-mode-toggle"
+            value={config.scopedReviewMode}
+            onValueChange={(value) => {
+              if (!value) return;
+              config.scopedReviewMode = value === "native" ? "native" : "exact";
+              saveGlobalOnChange();
+            }}
+            aria-label="分组取卡模式"
+          >
+            <ToggleGroup.Item value="exact" title="精确分组" aria-label="精确分组"><Crosshair aria-hidden="true" /><span>精确分组</span></ToggleGroup.Item>
+            <ToggleGroup.Item value="native" title="原生过滤" aria-label="原生过滤"><Filter aria-hidden="true" /><span>原生过滤</span></ToggleGroup.Item>
+          </ToggleGroup.Root>
+        </div>
         <div class="setting-row"><div><strong>自动推迟今日新卡</strong><span>按设定天数延后今天创建的新卡</span></div><Switch checked={config.postponeEnabled} onCheckedChange={(value) => { config.postponeEnabled = value; saveGlobalOnChange(); }} aria-label="自动推迟今日新卡" /></div>
         <div class="setting-row"><div><strong>登记前额外确认</strong><span>预览界面始终显示；开启后点击制卡还会再弹出一次确认</span></div><Switch checked={config.confirmBeforeAutoRegister} onCheckedChange={(value) => { config.confirmBeforeAutoRegister = value; saveGlobalOnChange(); }} aria-label="登记前额外确认" /></div>
         <div class="section-actions"><Button size="sm" onclick={updateGlobal} disabled={saving}><Save />保存并应用</Button></div>
@@ -1308,6 +1327,9 @@
   .setting-row + .setting-row { border-top: 1px solid var(--border, var(--b3-border-color)); }
   .setting-row > div { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
   .setting-row strong { font-size: 13px; font-weight: 550; }
+  .review-mode-row { align-items: stretch; flex-direction: column; }
+  :global(.review-mode-toggle) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 360px); }
+  :global(.review-mode-toggle button) { min-width: 0; }
   .master-row { background: color-mix(in srgb, var(--muted, var(--b3-theme-surface)) 45%, transparent); margin-inline: -12px; padding-inline: 12px; }
   .option-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 18px; padding: 4px 0 8px; }
   .option-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 42px; border-bottom: 1px solid var(--border, var(--b3-border-color)); font-size: 12px; }

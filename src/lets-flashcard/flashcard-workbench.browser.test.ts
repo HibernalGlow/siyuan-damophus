@@ -152,6 +152,19 @@ describe("flashcard workbench", () => {
     expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ reviewTimerPauseOnBlur: false });
   });
 
+  it("switches SQL scope review between exact and native filtering", async () => {
+    const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
+    const target = await render();
+    clickTab(target, "总体配置");
+
+    await vi.waitFor(() => expect(target.querySelector('[aria-label="分组取卡模式"]')).not.toBeNull());
+    expect(target.querySelector('[aria-label="精确分组"]')?.getAttribute("data-state")).toBe("on");
+    target.querySelector<HTMLButtonElement>('[aria-label="原生过滤"]')?.click();
+
+    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalled());
+    expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ scopedReviewMode: "native" });
+  });
+
   it("keeps workbench controls inside a mobile viewport", async () => {
     await page.viewport(390, 760);
     const target = await render();

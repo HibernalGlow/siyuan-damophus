@@ -3,6 +3,7 @@ import { getLogger } from "@/libs/logger";
 import type {
   FlashcardBlockRow,
   FlashcardRoot,
+  FlashcardScopedReviewMode,
   FlashcardSettings,
 } from "./types";
 import {
@@ -279,7 +280,12 @@ export class FlashcardSiyuanAdapter {
     return cards;
   }
 
-  async buildDueCardsData(deckId: string, blockIds: readonly string[], limit: number): Promise<DueCardsData> {
+  async buildDueCardsData(
+    deckId: string,
+    blockIds: readonly string[],
+    _limit: number,
+    mode: FlashcardScopedReviewMode = "native",
+  ): Promise<DueCardsData> {
     const allowed = new Set(dedupeIds(blockIds));
     let registered: RiffCardRecord[] = [];
     let registeredCount: number | undefined;
@@ -290,6 +296,18 @@ export class FlashcardSiyuanAdapter {
       // Registration diagnostics must not make the native due-card path fail.
       log.warn("riff.registration-diagnostic-unavailable", error);
     }
+    if (mode === "exact" && registeredCount !== undefined) {
+      return this.buildExactDueCardsData(deckId, allowed, registered);
+    }
+    return this.buildNativeDueCardsData(deckId, allowed, registered, registeredCount);
+  }
+
+  private async buildNativeDueCardsData(
+    deckId: string,
+    allowed: ReadonlySet<string>,
+    registered: readonly RiffCardRecord[],
+    registeredCount: number | undefined,
+  ): Promise<DueCardsData> {
     const due = await this.getDueCards(deckId);
     const dueCards = due.cards.filter((card) => allowed.has(card.blockID));
     const dueIds = new Set(dueCards.map((card) => card.blockID));
@@ -299,7 +317,7 @@ export class FlashcardSiyuanAdapter {
     const missingNewCards = registered.filter((card) =>
       allowed.has(card.blockID) && card.state === 0 && !dueIds.has(card.blockID),
     );
-    const cards = [...dueCards, ...missingNewCards].slice(0, Math.max(1, limit));
+    const cards = [...dueCards, ...missingNewCards];
     return {
       cards,
       unreviewedCount: cards.length,
@@ -307,6 +325,63 @@ export class FlashcardSiyuanAdapter {
       unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
       candidateCount: allowed.size,
       registeredCount,
+    };
+  }
+
+  private async buildExactDueCardsData(
+    deckId: string,
+    allowed: ReadonlySet<string>,
+    registered: readonly RiffCardRecord[],
+  ): Promise<DueCardsData> {
+    const rootsByBlockId = new Map<string, string>();
+    const missingRootIds: string[] = [];
+    for (const card of registered) {
+      const rootId = String(card.rootID ?? card.root_id ?? "");
+      if (rootId) rootsByBlockId.set(card.blockID, rootId);
+      else missingRootIds.push(card.blockID);
+    }
+    if (missingRootIds.length > 0) {
+      for (const row of await this.loadBlocks(missingRootIds)) {
+        const rootId = String(row.root_id ?? row.id ?? "");
+        if (rootId) rootsByBlockId.set(row.id, rootId);
+      }
+    }
+
+    const rootIds = dedupeIds([...rootsByBlockId.values()]);
+    if (registered.length > 0 && rootIds.length === 0) {
+      log.warn("riff.exact-scope-root-unavailable");
+      return this.buildNativeDueCardsData(deckId, allowed, registered, registered.length);
+    }
+
+    const results = await Promise.allSettled(rootIds.map((rootId) => this.getTreeDueCards(rootId)));
+    const cardsByBlockId = new Map<string, RiffCardRecord>();
+    let failed = false;
+    for (const result of results) {
+      if (result.status === "rejected") {
+        failed = true;
+        log.warn("riff.exact-scope-document-unavailable", result.reason);
+        continue;
+      }
+      for (const card of result.value.cards) {
+        if (allowed.has(card.blockID)) cardsByBlockId.set(card.blockID, card);
+      }
+    }
+    if (failed) {
+      const fallback = await this.getDueCards(deckId);
+      for (const card of fallback.cards) {
+        if (allowed.has(card.blockID) && !cardsByBlockId.has(card.blockID)) {
+          cardsByBlockId.set(card.blockID, card);
+        }
+      }
+    }
+    const cards = [...cardsByBlockId.values()];
+    return {
+      cards,
+      unreviewedCount: cards.length,
+      unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
+      unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
+      candidateCount: allowed.size,
+      registeredCount: registered.length,
     };
   }
 
