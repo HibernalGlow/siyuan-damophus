@@ -323,6 +323,11 @@ export async function getBlockKramdownsStrict(ids: readonly BlockId[]): Promise<
     return requestStrict<Record<string, string>>('/api/block/getBlockKramdowns', { ids, mode: 'md' });
 }
 
+/** Returns the persisted DOM for each requested block, including unloaded blocks. */
+export async function getBlockDOMsStrict(ids: readonly BlockId[]): Promise<Record<string, string>> {
+    return requestStrict<Record<string, string>>('/api/block/getBlockDOMs', { ids });
+}
+
 export interface DocHistoryPage {
     histories: string[];
     pageCount: number;
