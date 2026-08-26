@@ -145,16 +145,15 @@ describe("flashcard scope registration flow", () => {
     const roots = [{ blockId: "20260823130238-card001", renderer: "list", kind: "basic", attributes: {}, content: "测试闪卡" }];
     const recordScope = vi.fn().mockResolvedValue(undefined);
     const reviewScopeCards = vi.fn().mockResolvedValue(undefined);
+    const buildDueCardsData = vi.fn();
     const openRegistrationResults = vi.fn(async (options: { onRegistered: () => Promise<void> }) => {
       await options.onRegistered();
     });
     const fakePlugin = {
       runtime: {
-        provideScopeBlockIds: vi.fn().mockResolvedValue([roots[0].blockId]),
-        adapter: {
-          inspectRoots: vi.fn().mockResolvedValue(roots),
-          buildDueCardsData: vi.fn().mockResolvedValue({ cards: [], unreviewedCount: 0, unreviewedNewCardCount: 0, unreviewedOldCardCount: 0 }),
-        },
+        getGroups: vi.fn().mockReturnValue([{ id: "test", name: "测试" }]),
+        inspectGroupCandidates: vi.fn().mockResolvedValue({ rows: [{ id: roots[0].blockId }], roots }),
+        adapter: { buildDueCardsData },
         getSettings: vi.fn().mockReturnValue({ deckId: "deck", maxReviewCards: 200 }),
         recordScope,
       },
@@ -169,6 +168,7 @@ describe("flashcard scope registration flow", () => {
       title: "测试 · 制卡检测",
       roots,
     }));
+    expect(buildDueCardsData).not.toHaveBeenCalled();
     expect(recordScope).toHaveBeenCalledWith(scope);
     expect(reviewScopeCards).toHaveBeenCalledWith(scope, true);
   });

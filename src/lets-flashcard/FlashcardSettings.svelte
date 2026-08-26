@@ -39,6 +39,7 @@
 
   export let runtime: FlashcardRuntime;
   export let onReviewGroup: (group: FlashcardGroup) => void;
+  export let onMakeGroup: (group: FlashcardGroup) => void = () => undefined;
   export let onReviewAll: () => void;
   export let onViewResults: (group: FlashcardGroup, filtered: boolean) => void;
   export let onOpenRaw: (group: FlashcardGroup) => void;
@@ -230,7 +231,7 @@
   }
 
   function openGroup(group: FlashcardGroup): void {
-    if (workbenchMode === "make") onViewResults(group, true);
+    if (workbenchMode === "make") onMakeGroup(group);
     else onReviewGroup(group);
   }
 

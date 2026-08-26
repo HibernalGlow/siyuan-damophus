@@ -3,8 +3,10 @@ import {
   cacheIsFresh,
   DEFAULT_FLASHCARD_SETTINGS,
   FLASHCARD_REVIEW_STAT_KEYS,
+  type FlashcardBlockRow,
   type FlashcardGroup,
   type FlashcardGroupCache,
+  type FlashcardRoot,
   type FlashcardReviewStatKey,
   type FlashcardReviewHistoryItem,
   type FlashcardReviewScope,
@@ -104,6 +106,12 @@ export class FlashcardRuntime {
   readonly adapter = new FlashcardSiyuanAdapter();
   private settings: FlashcardSettings = clone(DEFAULT_FLASHCARD_SETTINGS);
   private cache = new Map<string, FlashcardGroupCache>();
+  private groupInspectionCache = new Map<string, {
+    rows: FlashcardBlockRow[];
+    roots: FlashcardRoot[];
+    updatedAt: number;
+    query: string;
+  }>();
   private timer?: number;
   private loaded = false;
   private historyLoaded = false;
@@ -266,8 +274,13 @@ export class FlashcardRuntime {
   }
 
   async clearCache(groupId?: string): Promise<void> {
-    if (groupId) this.cache.delete(groupId);
-    else this.cache.clear();
+    if (groupId) {
+      this.cache.delete(groupId);
+      this.groupInspectionCache.delete(groupId);
+    } else {
+      this.cache.clear();
+      this.groupInspectionCache.clear();
+    }
     await this.saveCache();
   }
 
@@ -283,18 +296,43 @@ export class FlashcardRuntime {
   async provideGroupBlockIds(group: FlashcardGroup, forceUpdate = false): Promise<string[]> {
     this.load();
     const current = this.getCache(group.id);
-    if (!forceUpdate && !group.queryFirst && cacheIsFresh(current, Date.now(), group.cacheMinutes)) {
-      return current?.blockIds ?? [];
+    if (!forceUpdate && !group.queryFirst && current?.query === group.sqlQuery && cacheIsFresh(current, Date.now(), group.cacheMinutes)) {
+      return current.blockIds;
     }
-    const rawRows = await this.adapter.paginatedSql(group.sqlQuery);
-    const rawBlockIds = rawRows.map((row) => row.id).filter(Boolean);
-    const roots = (await this.adapter.inspectRows(rawRows, {
-      maxResolveDepth: this.settings.maxResolveDepth,
-    })).filter((root) => root.status !== "unregistered").map((root) => root.blockId);
-    const next = { blockIds: roots, rawBlockIds, updatedAt: Date.now(), query: group.sqlQuery };
-    this.cache.set(group.id, next);
-    await this.saveCache();
-    return roots;
+    const inspection = await this.inspectGroupCandidates(group, forceUpdate);
+    return inspection.roots.filter((root) => root.status !== "unregistered").map((root) => root.blockId);
+  }
+
+  async inspectGroupCandidates(group: FlashcardGroup, forceUpdate = false): Promise<{ rows: FlashcardBlockRow[]; roots: FlashcardRoot[] }> {
+    this.load();
+    const now = Date.now();
+    const memory = this.groupInspectionCache.get(group.id);
+    if (!forceUpdate && !group.queryFirst && memory?.query === group.sqlQuery && now - memory.updatedAt <= group.cacheMinutes * 60_000) {
+      return { rows: clone(memory.rows), roots: clone(memory.roots) };
+    }
+
+    const persisted = this.getCache(group.id);
+    const canReusePersisted = !forceUpdate
+      && !group.queryFirst
+      && persisted?.query === group.sqlQuery
+      && cacheIsFresh(persisted, now, group.cacheMinutes);
+    const rows = canReusePersisted
+      ? await this.adapter.loadBlocks(persisted.rawBlockIds)
+      : await this.adapter.paginatedSql(group.sqlQuery);
+    const roots = await this.adapter.inspectRows(rows, { maxResolveDepth: this.settings.maxResolveDepth });
+    const updatedAt = canReusePersisted ? persisted.updatedAt : now;
+    this.groupInspectionCache.set(group.id, { rows: clone(rows), roots: clone(roots), updatedAt, query: group.sqlQuery });
+
+    if (!canReusePersisted) {
+      this.cache.set(group.id, {
+        blockIds: roots.filter((root) => root.status !== "unregistered").map((root) => root.blockId),
+        rawBlockIds: rows.map((row) => row.id).filter(Boolean),
+        updatedAt,
+        query: group.sqlQuery,
+      });
+      await this.saveCache();
+    }
+    return { rows: clone(rows), roots: clone(roots) };
   }
 
   async buildGroupDueCards(group: FlashcardGroup, forceUpdate = false): Promise<DueCardsData> {

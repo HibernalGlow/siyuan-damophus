@@ -952,6 +952,13 @@ export default class FlashcardPlugin extends SubPluginBase {
       props: {
         runtime: this.runtime,
         onReviewGroup: (group: FlashcardGroup) => void this.reviewGroup(group),
+        onMakeGroup: (group: FlashcardGroup) => void this.openMakeScope({
+          id: `group:${group.id}`,
+          type: "group",
+          targetName: group.name,
+          groupId: group.id,
+          groupName: group.name,
+        }),
         onReviewAll: () => void this.reviewAll(),
         onViewResults: (group: FlashcardGroup, filtered: boolean) => void this.viewResults(group, filtered),
         onOpenRaw: (group: FlashcardGroup) => this.openRawFlow(group),
@@ -1183,28 +1190,42 @@ export default class FlashcardPlugin extends SubPluginBase {
       const label = scope.groupName && scope.type !== "group"
         ? `${scope.targetName} · ${scope.groupName}`
         : scope.groupName ?? scope.targetName;
-      const ids = await this.runtime.provideScopeBlockIds(scope, true);
-      const roots = await this.runtime.adapter.inspectRoots(ids, settings);
+      let rows: FlashcardBlockRow[];
+      let roots: FlashcardRoot[];
+      const group = scope.groupId
+        ? this.runtime.getGroups().find((candidate) => candidate.id === scope.groupId)
+        : undefined;
+      if (group) {
+        const inspection = await this.runtime.inspectGroupCandidates(group);
+        if (scope.type === "group") {
+          ({ rows, roots } = inspection);
+        } else {
+          const rootRows = await this.runtime.adapter.loadBlocks(inspection.roots.map((root) => root.blockId));
+          const allowed = new Set(rootRows.filter((row) => scope.type === "document"
+            ? row.id === scope.targetId || row.root_id === scope.targetId
+            : row.box === scope.targetId,
+          ).map((row) => row.id));
+          roots = inspection.roots.filter((root) => allowed.has(root.blockId));
+          rows = rootRows.filter((row) => allowed.has(row.id));
+        }
+      } else {
+        const ids = await this.runtime.provideScopeBlockIds(scope);
+        roots = await this.runtime.adapter.inspectRoots(ids, settings);
+        rows = roots.map((root) => ({
+          id: root.blockId,
+          content: root.content,
+          type: root.renderer,
+          attributes: root.attributes,
+        }));
+      }
       if (roots.length === 0) {
         showMessage(`范围“${label}”未找到符合条件的闪卡根块`, 5000, "info");
         return;
       }
-      const rows: FlashcardBlockRow[] = roots.map((root) => ({
-        id: root.blockId,
-        content: root.content,
-        type: root.renderer,
-        attributes: root.attributes,
-      }));
-      const due = await this.runtime.adapter.buildDueCardsData(
-        settings.deckId,
-        roots.map((root) => root.blockId),
-        settings.maxReviewCards,
-      );
       await this.openRegistrationResults({
         title: `${label} · 制卡检测`,
         rows,
         roots,
-        due,
         continueToReview: autoReviewAfterRegistration,
         onRegistered: async () => {
           await this.runtime.recordScope(scope);

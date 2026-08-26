@@ -159,6 +159,50 @@ describe("flashcard runtime SFP parity", () => {
     expect(paginated).toHaveBeenCalledTimes(2);
   });
 
+  it("reuses inspected group candidates within the configured cache window", async () => {
+    const stored = structuredClone(DEFAULT_FLASHCARD_SETTINGS);
+    const runtime = new FlashcardRuntime(
+      (key) => key === "config" ? stored : undefined,
+      vi.fn(),
+    );
+    const group = stored.groups[0];
+    const rows = [{ id: "20260823000000-aaaaaaa" }];
+    const roots = [{
+      blockId: rows[0].id,
+      renderer: "list" as const,
+      kind: "basic" as const,
+      attributes: {},
+    }];
+    const paginated = vi.spyOn(runtime.adapter, "paginatedSql").mockResolvedValue(rows);
+    const inspectRows = vi.spyOn(runtime.adapter, "inspectRows").mockResolvedValue(roots);
+
+    await runtime.inspectGroupCandidates(group);
+    await runtime.inspectGroupCandidates(group);
+
+    expect(paginated).toHaveBeenCalledTimes(1);
+    expect(inspectRows).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the review path on persisted root IDs when the group cache is fresh", async () => {
+    const stored = structuredClone(DEFAULT_FLASHCARD_SETTINGS);
+    const group = stored.groups[0];
+    const cachedId = "20260823000000-aaaaaaa";
+    const runtime = new FlashcardRuntime(
+      (key) => key === "config"
+        ? stored
+        : key === "cache"
+          ? { [group.id]: { blockIds: [cachedId], rawBlockIds: [cachedId], updatedAt: Date.now(), query: group.sqlQuery } }
+          : undefined,
+      vi.fn(),
+    );
+    const paginated = vi.spyOn(runtime.adapter, "paginatedSql");
+    const inspectRows = vi.spyOn(runtime.adapter, "inspectRows");
+
+    await expect(runtime.provideGroupBlockIds(group)).resolves.toEqual([cachedId]);
+    expect(paginated).not.toHaveBeenCalled();
+    expect(inspectRows).not.toHaveBeenCalled();
+  });
+
   it("persists and orders pinned recent review scopes", async () => {
     const writes = vi.fn();
     const runtime = new FlashcardRuntime(() => undefined, writes);
