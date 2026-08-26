@@ -2,18 +2,19 @@ import { getBlockDOMsStrict, sqlStrict } from "@/api";
 import { getLogger } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { plugin } from "@/utils";
-import { Dialog, getAllEditor, showMessage, type ICommand, type IEventBusMap, type IProtyle, type Menu } from "siyuan";
+import { confirm, Dialog, getAllEditor, showMessage, type ICommand, type IEventBusMap, type IProtyle, type Menu } from "siyuan";
 import {
   createEmptyParagraphCleanupPlan,
   isEmptyParagraphDom,
   isEmptyText,
   type DocumentFormatBlock,
 } from "./empty-paragraphs";
+import { createSelfReferenceCleanupPlan } from "./self-references";
 
 const log = getLogger("lets-document-format");
 
 export default class DocumentFormatPlugin extends SubPluginBase {
-  private command?: ICommand;
+  private commands: ICommand[] = [];
   private listening = false;
 
   private readonly handleDocumentTitleMenu = (
@@ -24,6 +25,11 @@ export default class DocumentFormatPlugin extends SubPluginBase {
       icon: "iconSparkles",
       label: this.t("lets-document-format.removeEmptyParagraphs"),
       click: () => void this.removeEmptyParagraphs(event.detail.protyle),
+    });
+    event.detail.menu.addItem({
+      icon: "iconSparkles",
+      label: this.t("lets-document-format.removeSelfReferences"),
+      click: () => void this.removeSelfReferences(event.detail.protyle),
     });
   };
 
@@ -59,29 +65,51 @@ export default class DocumentFormatPlugin extends SubPluginBase {
         void this.removeEmptyParagraphs(protyle);
       },
     });
+    menu.addItem({
+      icon: "iconSparkles",
+      label: this.t("lets-document-format.removeSelfReferences"),
+      click: () => {
+        const protyle = this.currentProtyle();
+        if (!protyle) {
+          showMessage(this.t("lets-document-format.noDocument"), 5000, "error");
+          return;
+        }
+        void this.removeSelfReferences(protyle);
+      },
+    });
   }
 
   private syncCommand(): void {
     if (this.isEntryEnabled("command")) {
-      if (this.command) return;
-      this.command = {
-        langKey: "lets-document-format.commandRemoveEmptyParagraphs",
-        hotkey: "",
-        editorCallback: (protyle) => {
-          if (this.enabled) void this.removeEmptyParagraphs(protyle);
+      if (this.commands.length > 0) return;
+      this.commands = [
+        {
+          langKey: "lets-document-format.commandRemoveEmptyParagraphs",
+          hotkey: "",
+          editorCallback: (protyle) => {
+            if (this.enabled) void this.removeEmptyParagraphs(protyle);
+          },
         },
-      };
-      plugin.addCommand(this.command);
+        {
+          langKey: "lets-document-format.commandRemoveSelfReferences",
+          hotkey: "",
+          editorCallback: (protyle) => {
+            if (this.enabled) void this.removeSelfReferences(protyle);
+          },
+        },
+      ];
+      this.commands.forEach((command) => plugin.addCommand(command));
       return;
     }
     this.removeCommand();
   }
 
   private removeCommand(): void {
-    if (!this.command) return;
-    const index = plugin.commands.indexOf(this.command);
-    if (index >= 0) plugin.commands.splice(index, 1);
-    this.command = undefined;
+    this.commands.forEach((command) => {
+      const index = plugin.commands.indexOf(command);
+      if (index >= 0) plugin.commands.splice(index, 1);
+    });
+    this.commands = [];
   }
 
   private currentProtyle(): IProtyle | undefined {
@@ -127,6 +155,56 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     const escapedDocumentId = documentId.replace(/'/gu, "''");
     return sqlStrict<DocumentFormatBlock[]>(
       `SELECT id, parent_id, root_id, type, content, sort FROM blocks WHERE root_id = '${escapedDocumentId}'`,
+    );
+  }
+
+  private async removeSelfReferences(protyle: IProtyle): Promise<void> {
+    const documentId = protyle.block.rootID;
+    if (!documentId) {
+      showMessage(this.t("lets-document-format.noDocument"), 5000, "error");
+      return;
+    }
+
+    try {
+      const candidateIds = await this.loadSelfReferenceCandidateIds(documentId);
+      const domById = candidateIds.length > 0 ? await getBlockDOMsStrict(candidateIds) : {};
+      const plan = createSelfReferenceCleanupPlan(documentId, domById);
+      if (plan.referenceCount === 0) {
+        showMessage(this.t("lets-document-format.noSelfReferences"), 3500, "info");
+        return;
+      }
+      this.confirmSelfReferenceRemoval(protyle, plan);
+    } catch (error) {
+      log.error("remove-self-references.failed", error);
+      showMessage(this.t("lets-document-format.selfReferencesFailed"), 7000, "error");
+    }
+  }
+
+  private async loadSelfReferenceCandidateIds(documentId: string): Promise<string[]> {
+    const escapedDocumentId = documentId.replace(/'/gu, "''");
+    const rows = await sqlStrict<Array<{ id: string }>>(
+      `SELECT id FROM blocks WHERE root_id = '${escapedDocumentId}' AND type IN ('p', 'h', 't') AND markdown LIKE '%${escapedDocumentId}%'`,
+    );
+    return rows.map((row) => row.id);
+  }
+
+  private confirmSelfReferenceRemoval(
+    protyle: IProtyle,
+    plan: ReturnType<typeof createSelfReferenceCleanupPlan>,
+  ): void {
+    confirm(
+      this.t("lets-document-format.confirmSelfReferencesTitle"),
+      this.t("lets-document-format.confirmSelfReferencesDescription")
+        .replace("{count}", String(plan.referenceCount))
+        .replace("{blocks}", String(plan.blockCount)),
+      () => {
+        protyle.getInstance().transaction(plan.doOperations, plan.undoOperations);
+        showMessage(
+          this.t("lets-document-format.selfReferencesRemoved").replace("{count}", String(plan.referenceCount)),
+          3500,
+          "info",
+        );
+      },
     );
   }
 

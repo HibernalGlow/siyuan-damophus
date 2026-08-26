@@ -3,6 +3,8 @@ export const en = {
   "lets-document-format.description": "Format documents with focused cleanup tools",
   "lets-document-format.removeEmptyParagraphs": "Remove empty text blocks",
   "lets-document-format.commandRemoveEmptyParagraphs": "Remove empty text blocks from the current document",
+  "lets-document-format.removeSelfReferences": "Remove document self references",
+  "lets-document-format.commandRemoveSelfReferences": "Remove self references from the current document",
   "lets-document-format.noDocument": "Open a document before formatting it.",
   "lets-document-format.noEmptyParagraphs": "No empty text blocks were found.",
   "lets-document-format.confirmTitle": "Remove empty text blocks",
@@ -12,6 +14,11 @@ export const en = {
   "lets-document-format.remove": "Remove",
   "lets-document-format.removed": "Removed {count} empty text blocks",
   "lets-document-format.failed": "Could not remove empty text blocks. The document was not changed.",
+  "lets-document-format.noSelfReferences": "No references to this document were found.",
+  "lets-document-format.confirmSelfReferencesTitle": "Remove document self references",
+  "lets-document-format.confirmSelfReferencesDescription": "Remove {count} references from {blocks} text blocks?",
+  "lets-document-format.selfReferencesRemoved": "Removed {count} document self references",
+  "lets-document-format.selfReferencesFailed": "Could not remove document self references. The document was not changed.",
 };
 
 export const zhCN: typeof en = {
@@ -19,6 +26,8 @@ export const zhCN: typeof en = {
   "lets-document-format.description": "提供可逐步扩展的文档整理功能",
   "lets-document-format.removeEmptyParagraphs": "删除空文本块",
   "lets-document-format.commandRemoveEmptyParagraphs": "删除当前文档中的空文本块",
+  "lets-document-format.removeSelfReferences": "清理文档自身引用",
+  "lets-document-format.commandRemoveSelfReferences": "清理当前文档中的自身引用",
   "lets-document-format.noDocument": "请先打开要格式化的文档。",
   "lets-document-format.noEmptyParagraphs": "未发现空文本块。",
   "lets-document-format.confirmTitle": "删除空文本块",
@@ -28,4 +37,9 @@ export const zhCN: typeof en = {
   "lets-document-format.remove": "删除",
   "lets-document-format.removed": "已删除 {count} 个空文本块",
   "lets-document-format.failed": "无法删除空文本块，文档未被修改。",
+  "lets-document-format.noSelfReferences": "未发现指向当前文档的引用。",
+  "lets-document-format.confirmSelfReferencesTitle": "清理文档自身引用",
+  "lets-document-format.confirmSelfReferencesDescription": "将从 {blocks} 个文本块中清理 {count} 个自身引用，是否继续？",
+  "lets-document-format.selfReferencesRemoved": "已清理 {count} 个文档自身引用",
+  "lets-document-format.selfReferencesFailed": "无法清理文档自身引用，文档未被修改。",
 };
