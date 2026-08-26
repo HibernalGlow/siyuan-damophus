@@ -10,6 +10,20 @@ const pluginMetadata: PluginMetadata = {
   icon: "sparkles",
   settings: [
     ...createEntrySettings({ menu: true, contextMenu: true, command: true }, { central: true }),
+    {
+      type: "checkbox",
+      title: "lets-document-format.enableEmptyParagraphCleanup",
+      description: "lets-document-format.enableEmptyParagraphCleanupDescription",
+      key: "enableEmptyParagraphCleanup",
+      value: true,
+    },
+    {
+      type: "checkbox",
+      title: "lets-document-format.enableSelfReferenceCleanup",
+      description: "lets-document-format.enableSelfReferenceCleanupDescription",
+      key: "enableSelfReferenceCleanup",
+      value: true,
+    },
   ],
 };
 

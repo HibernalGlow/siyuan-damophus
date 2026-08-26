@@ -1,6 +1,10 @@
 export const en = {
   "lets-document-format.displayName": "Document format",
   "lets-document-format.description": "Format documents with focused cleanup tools",
+  "lets-document-format.enableEmptyParagraphCleanup": "Enable empty text block cleanup",
+  "lets-document-format.enableEmptyParagraphCleanupDescription": "Show the command to remove empty text blocks.",
+  "lets-document-format.enableSelfReferenceCleanup": "Enable document self reference cleanup",
+  "lets-document-format.enableSelfReferenceCleanupDescription": "Show the command to remove references to the current document.",
   "lets-document-format.removeEmptyParagraphs": "Remove empty text blocks",
   "lets-document-format.commandRemoveEmptyParagraphs": "Remove empty text blocks from the current document",
   "lets-document-format.removeSelfReferences": "Remove document self references",
@@ -24,6 +28,10 @@ export const en = {
 export const zhCN: typeof en = {
   "lets-document-format.displayName": "文档格式化",
   "lets-document-format.description": "提供可逐步扩展的文档整理功能",
+  "lets-document-format.enableEmptyParagraphCleanup": "启用空文本块清理",
+  "lets-document-format.enableEmptyParagraphCleanupDescription": "显示删除空文本块的功能入口。",
+  "lets-document-format.enableSelfReferenceCleanup": "启用文档自身引用清理",
+  "lets-document-format.enableSelfReferenceCleanupDescription": "显示清理指向当前文档引用的功能入口。",
   "lets-document-format.removeEmptyParagraphs": "删除空文本块",
   "lets-document-format.commandRemoveEmptyParagraphs": "删除当前文档中的空文本块",
   "lets-document-format.removeSelfReferences": "清理文档自身引用",

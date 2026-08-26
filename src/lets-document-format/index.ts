@@ -20,32 +20,14 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
   ): void => {
     if (!this.isEntryEnabled("contextMenu") || !event.detail.data.id) return;
-    event.detail.menu.addItem({
-      icon: "iconSparkles",
-      label: this.t("lets-document-format.removeEmptyParagraphs"),
-      click: () => void this.removeEmptyParagraphs(event.detail.protyle),
-    });
-    event.detail.menu.addItem({
-      icon: "iconSparkles",
-      label: this.t("lets-document-format.removeSelfReferences"),
-      click: () => void this.removeSelfReferences(event.detail.protyle),
-    });
+    this.addDocumentContextMenuItems(event.detail.menu, event.detail.protyle);
   };
 
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
     if (!this.isEntryEnabled("contextMenu") || !event.detail.protyle.block.rootID) return;
-    event.detail.menu.addItem({
-      icon: "iconSparkles",
-      label: this.t("lets-document-format.removeEmptyParagraphs"),
-      click: () => void this.removeEmptyParagraphs(event.detail.protyle),
-    });
-    event.detail.menu.addItem({
-      icon: "iconSparkles",
-      label: this.t("lets-document-format.removeSelfReferences"),
-      click: () => void this.removeSelfReferences(event.detail.protyle),
-    });
+    this.addDocumentContextMenuItems(event.detail.menu, event.detail.protyle);
   };
 
   override onload(): void {
@@ -70,36 +52,27 @@ export default class DocumentFormatPlugin extends SubPluginBase {
 
   addMenuItem(menu: Menu): void {
     if (!this.isEntryEnabled("menu")) return;
-    menu.addItem({
-      icon: "iconSparkles",
-      label: this.t("lets-document-format.removeEmptyParagraphs"),
-      click: () => {
-        const protyle = this.currentProtyle();
-        if (!protyle) {
-          showMessage(this.t("lets-document-format.noDocument"), 5000, "error");
-          return;
-        }
-        void this.removeEmptyParagraphs(protyle);
-      },
-    });
-    menu.addItem({
-      icon: "iconSparkles",
-      label: this.t("lets-document-format.removeSelfReferences"),
-      click: () => {
-        const protyle = this.currentProtyle();
-        if (!protyle) {
-          showMessage(this.t("lets-document-format.noDocument"), 5000, "error");
-          return;
-        }
-        void this.removeSelfReferences(protyle);
-      },
-    });
+    if (this.isEmptyParagraphCleanupEnabled()) {
+      menu.addItem({
+        icon: "iconSparkles",
+        label: this.t("lets-document-format.removeEmptyParagraphs"),
+        click: () => void this.runInCurrentDocument((protyle) => this.removeEmptyParagraphs(protyle)),
+      });
+    }
+    if (this.isSelfReferenceCleanupEnabled()) {
+      menu.addItem({
+        icon: "iconSparkles",
+        label: this.t("lets-document-format.removeSelfReferences"),
+        click: () => void this.runInCurrentDocument((protyle) => this.removeSelfReferences(protyle)),
+      });
+    }
   }
 
   private syncCommand(): void {
-    if (this.isEntryEnabled("command")) {
-      if (this.commands.length > 0) return;
-      this.commands = [
+    this.removeCommand();
+    if (!this.isEntryEnabled("command")) return;
+    this.commands = [
+      ...(this.isEmptyParagraphCleanupEnabled() ? [
         {
           langKey: "lets-document-format.commandRemoveEmptyParagraphs",
           hotkey: "",
@@ -107,6 +80,8 @@ export default class DocumentFormatPlugin extends SubPluginBase {
             if (this.enabled) void this.removeEmptyParagraphs(protyle);
           },
         },
+      ] : []),
+      ...(this.isSelfReferenceCleanupEnabled() ? [
         {
           langKey: "lets-document-format.commandRemoveSelfReferences",
           hotkey: "",
@@ -114,11 +89,9 @@ export default class DocumentFormatPlugin extends SubPluginBase {
             if (this.enabled) void this.removeSelfReferences(protyle);
           },
         },
-      ];
-      this.commands.forEach((command) => plugin.addCommand(command));
-      return;
-    }
-    this.removeCommand();
+      ] : []),
+    ];
+    this.commands.forEach((command) => plugin.addCommand(command));
   }
 
   private removeCommand(): void {
@@ -136,6 +109,40 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     const editors = getAllEditor();
     return editors.find((editor) => editor.protyle.block.rootID === activeDocumentId)?.protyle
       ?? editors[0]?.protyle;
+  }
+
+  private isEmptyParagraphCleanupEnabled(): boolean {
+    return this.getSetting("enableEmptyParagraphCleanup") !== false;
+  }
+
+  private isSelfReferenceCleanupEnabled(): boolean {
+    return this.getSetting("enableSelfReferenceCleanup") !== false;
+  }
+
+  private addDocumentContextMenuItems(menu: Menu, protyle: IProtyle): void {
+    if (this.isEmptyParagraphCleanupEnabled()) {
+      menu.addItem({
+        icon: "iconSparkles",
+        label: this.t("lets-document-format.removeEmptyParagraphs"),
+        click: () => void this.removeEmptyParagraphs(protyle),
+      });
+    }
+    if (this.isSelfReferenceCleanupEnabled()) {
+      menu.addItem({
+        icon: "iconSparkles",
+        label: this.t("lets-document-format.removeSelfReferences"),
+        click: () => void this.removeSelfReferences(protyle),
+      });
+    }
+  }
+
+  private async runInCurrentDocument(action: (protyle: IProtyle) => Promise<void>): Promise<void> {
+    const protyle = this.currentProtyle();
+    if (!protyle) {
+      showMessage(this.t("lets-document-format.noDocument"), 5000, "error");
+      return;
+    }
+    await action(protyle);
   }
 
   private async removeEmptyParagraphs(protyle: IProtyle): Promise<void> {
