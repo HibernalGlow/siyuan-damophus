@@ -8,6 +8,8 @@ import {
   matchesCondition,
   findSiteCredential,
   resolveBooruImageInfo,
+  parseBooruPostUrl,
+  resolveManualBooruUrl,
 } from "./booru";
 import { resolveSite, sites } from "@himeka/booru";
 
@@ -88,6 +90,41 @@ describe("booru API client, condition templates & ratio filter", () => {
     expect(isBooruSource("booru:sb?tags=wallpaper")).toBe(true);
     expect(isBooruSource("https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1")).toBe(true);
     expect(isBooruSource("https://picsum.photos/1920/1080")).toBe(false);
+  });
+
+  it("parses compatible manual Booru post links", () => {
+    expect(parseBooruPostUrl("https://safebooru.org/index.php?page=post&s=view&id=123"))
+      .toEqual({ site: "safebooru.org", postId: "123", postUrl: "https://safebooru.org/index.php?page=post&s=view&id=123" });
+    expect(parseBooruPostUrl("https://yande.re/post/show/456")?.postId).toBe("456");
+    expect(parseBooruPostUrl("https://example.com/images/123/photo.jpg")).toBeNull();
+  });
+
+  it("resolves a manual Safebooru post URL and returns metadata", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      json: async () => ({
+        code: 0,
+        data: {
+          status: 200,
+          body: JSON.stringify({
+            id: 123,
+            file_url: "https://safebooru.org/images/1/manual.jpg",
+            width: 1920,
+            height: 1080,
+            score: 8,
+            tags: "scenery wallpaper",
+          }),
+        },
+      }),
+    } as Response);
+    const resolved = await resolveManualBooruUrl("https://safebooru.org/index.php?page=post&s=view&id=123");
+    expect(resolved).toMatchObject({
+      imageUrl: "https://safebooru.org/images/1/manual.jpg",
+      postId: 123,
+      site: "safebooru.org",
+      tags: ["scenery", "wallpaper"],
+      width: 1920,
+      height: 1080,
+    });
   });
 
   it("cleans @ and spaces from artist tags", () => {

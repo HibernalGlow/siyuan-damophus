@@ -165,6 +165,31 @@ export function extractPostDetailUrl(siteDomain: string, postId: string | number
   return `https://${domain}/posts/${idStr}`;
 }
 
+export interface BooruPostReference {
+  site: string;
+  postId: string;
+  postUrl: string;
+}
+
+/** Parse a compatible Booru post page URL (for manual cover selection). */
+export function parseBooruPostUrl(value: string): BooruPostReference | null {
+  const raw = String(value || "").trim();
+  if (!/^https?:\/\//i.test(raw)) return null;
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    const site = resolveSite(host) || host;
+    const knownSite = Boolean(sites[site]);
+    const queryId = parsed.searchParams.get("id") || parsed.searchParams.get("post_id");
+    const pathId = parsed.pathname.match(/\/(?:posts?|post\/(?:show|view))\/(\d+)(?:\D|$)/i)?.[1];
+    const postId = (queryId || pathId || "").trim();
+    if (!postId || (!knownSite && !/(booru|e621|yande\.re|konachan|tbib)/i.test(host))) return null;
+    return { site, postId, postUrl: raw };
+  } catch {
+    return null;
+  }
+}
+
 export interface BooruResolveDiagnostic {
   totalFetched: number;
   filteredCount: number;
@@ -630,6 +655,86 @@ async function fetchGenericBooruPosts(
     credentials: credentialsQuery ? { query: credentialsQuery } : undefined,
   });
   return Array.from(directResults || []);
+}
+
+async function fetchBooruPostByApi(
+  reference: BooruPostReference,
+  credentials?: SiteCredential[],
+): Promise<any | null> {
+  const site = sites[reference.site] as GenericBooruSite & { api?: { postView?: string } } | undefined;
+  if (!site?.domain || !site.api?.postView || site.api.postView.includes("/posts/")) return null;
+  const credential = findSiteCredential(reference.site, credentials);
+  const query = credential?.login && credential?.apiKey
+    ? `login=${encodeURIComponent(credential.login)}&api_key=${encodeURIComponent(credential.apiKey)}`
+    : credential?.apiKey
+    ? `api_key=${encodeURIComponent(credential.apiKey)}`
+    : "";
+  const protocol = site.insecure ? "http" : "https";
+  const separator = site.api.postView.includes("?") ? "&" : "?";
+  const url = `${protocol}://${site.domain}${site.api.postView}${reference.postId}${query ? separator + query : ""}`;
+  try {
+    const response = await fetch("/api/network/forwardProxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        method: "GET",
+        timeout: 15000,
+        contentType: "application/json",
+        responseEncoding: "text",
+        headers: ["Accept: application/json"],
+      }),
+    });
+    const data = await response.json();
+    if (data?.code !== 0 || data.data?.status !== 200 || typeof data.data?.body !== "string") return null;
+    const parsed = JSON.parse(data.data.body);
+    return Array.isArray(parsed) ? parsed[0] || null : parsed?.post?.[0] || parsed?.post || parsed;
+  } catch (error) {
+    log.debug("Failed to fetch Booru post detail API:", error);
+    return null;
+  }
+}
+
+/** Resolve a manually supplied Booru post page or direct image URL. */
+export async function resolveManualBooruUrl(
+  value: string,
+  siteCredentials?: SiteCredential[],
+): Promise<BooruResolvedInfo | null> {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const reference = parseBooruPostUrl(raw);
+  if (!reference) return /^https?:\/\//i.test(raw) || raw.startsWith("data:") ? { imageUrl: raw } : null;
+
+  const credential = findSiteCredential(reference.site, siteCredentials);
+  let post: any | null = await fetchBooruPostByApi(reference, siteCredentials);
+  if (!post) {
+    const isDanbooruFamily = reference.site.includes("donmai.us");
+    if (isDanbooruFamily) {
+      const result = await fetchDanbooruPosts(reference.site, [`id:${reference.postId}`], credential?.login, credential?.apiKey, 1);
+      post = result.success ? result.posts[0] || null : null;
+    } else {
+      const credentialQuery = credential?.login && credential?.apiKey
+        ? `login=${encodeURIComponent(credential.login)}&api_key=${encodeURIComponent(credential.apiKey)}`
+        : credential?.apiKey ? `api_key=${encodeURIComponent(credential.apiKey)}` : undefined;
+      const posts = await fetchGenericBooruPosts(reference.site, [`id:${reference.postId}`], 1, false, credentialQuery);
+      post = posts.find((item) => String(item?.id) === reference.postId) || posts[0] || null;
+    }
+  }
+  if (!post) return null;
+  const normalized = normalizeBooruPost(post);
+  const imageUrl = extractImageUrlFromPost(normalized);
+  if (!imageUrl) return null;
+  const postId = normalized.id || reference.postId;
+  return {
+    imageUrl,
+    postUrl: raw,
+    postId,
+    site: reference.site,
+    tags: normalized.tags,
+    width: normalized.width || undefined,
+    height: normalized.height || undefined,
+    score: normalized.score,
+  };
 }
 
 async function fetchDanbooruPosts(

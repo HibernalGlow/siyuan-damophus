@@ -15,7 +15,7 @@ import {
   sanitizeAssetsPath,
   type SiteCredential,
 } from "./sources";
-import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo, type BooruResolvedInfo } from "./booru";
+import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo, resolveManualBooruUrl, type BooruResolvedInfo } from "./booru";
 import { settings } from "@/settings";
 import {
   cleanupLocalCoverCache,
@@ -1511,6 +1511,12 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     menu.addSeparator();
 
     menu.addItem({
+      label: this.options.t("lets-more-background.manualCoverUrl"),
+      icon: "iconLink",
+      click: () => { void this.applyManualCoverUrl(background); },
+    });
+
+    menu.addItem({
       label: this.options.t("lets-more-background.uploadFromClipboard"),
       icon: "iconCopy",
       click: () => this.applyFromClipboard(root, background),
@@ -1552,6 +1558,51 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     triggerRandomIfNoImg(root);
     await this.fetchAndSetBackground(url, background);
+  }
+
+  private async applyManualCoverUrl(background: HTMLElement): Promise<void> {
+    const input = typeof window !== "undefined"
+      ? window.prompt(this.options.t("lets-more-background.manualCoverPrompt"), "")?.trim()
+      : "";
+    if (!input) return;
+    if (!/^https?:\/\//i.test(input) && !input.startsWith("data:")) {
+      showMessage(this.options.t("lets-more-background.manualCoverInvalid"));
+      return;
+    }
+    background.style.cursor = "wait";
+    try {
+      const info = await resolveManualBooruUrl(input, this.options.siteCredentials);
+      if (!info?.imageUrl) {
+        showMessage(this.options.t("lets-more-background.manualCoverFailed"));
+        return;
+      }
+      this.applyPostMetadata(background, info);
+      await this.fetchAndSetBackground(info.imageUrl, background, 1, 1, undefined, info);
+      showMessage(this.options.t("lets-more-background.manualCoverSuccess"));
+    } catch (error) {
+      log.warn("Failed to apply manually selected cover:", error);
+      showMessage(this.options.t("lets-more-background.manualCoverFailed"));
+    } finally {
+      background.style.cursor = "";
+    }
+  }
+
+  private applyPostMetadata(background: HTMLElement, postInfo: BooruResolvedInfo): void {
+    const targets = [background, background.querySelector<HTMLImageElement>(".protyle-background__img img")].filter(Boolean) as HTMLElement[];
+    const metadata: Record<string, string> = {
+      "data-damophus-post-url": postInfo.postUrl || "",
+      "data-damophus-post-site": postInfo.site || "",
+      "data-damophus-post-id": postInfo.postId === undefined ? "" : String(postInfo.postId),
+      "data-damophus-post-score": postInfo.score === undefined ? "" : String(postInfo.score),
+      "data-damophus-post-dimensions": postInfo.width && postInfo.height ? `${postInfo.width} × ${postInfo.height}` : "",
+      "data-damophus-post-tags": postInfo.tags ? (Array.isArray(postInfo.tags) ? postInfo.tags.join(" ") : String(postInfo.tags)) : "",
+    };
+    for (const target of targets) {
+      for (const [name, value] of Object.entries(metadata)) {
+        if (value) target.setAttribute(name, value);
+        else target.removeAttribute(name);
+      }
+    }
   }
 
   private async applyFromClipboard(root: HTMLElement, background: HTMLElement): Promise<void> {
@@ -1606,6 +1657,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     attempt = 1,
     maxRetries = 10,
     excludedCoverUrls?: ReadonlySet<string>,
+    resolvedPostInfo?: BooruResolvedInfo | null,
   ): Promise<void> {
     background.style.cursor = "wait";
     const autoRetry = this.options.autoRetryOnFailure !== false;
@@ -1614,9 +1666,9 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     try {
       let finalImageUrl = url;
-      let postInfo: BooruResolvedInfo | null = null;
+      let postInfo: BooruResolvedInfo | null = resolvedPostInfo || null;
 
-      if (isBooruSource(url)) {
+      if (isBooruSource(url) && !postInfo) {
         if (this.options.deduplicateNewCovers !== false && !deduplicationUrls) {
           try {
             deduplicationUrls = await loadDedupCoverUrls();
@@ -1854,18 +1906,18 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     if (cachePath) attrs[COVER_CACHE_ATTRIBUTE] = cachePath;
     else if (previousCachePath && sourceChanged) attrs[COVER_CACHE_ATTRIBUTE] = "";
 
-    const tags = background.getAttribute("data-damophus-post-tags");
-    if (tags) attrs["custom-damophus-post-tags"] = tags;
-    const site = background.getAttribute("data-damophus-post-site");
-    if (site) attrs["custom-damophus-post-site"] = site;
-    const postId = background.getAttribute("data-damophus-post-id");
-    if (postId) attrs["custom-damophus-post-id"] = postId;
-    const postUrl = background.getAttribute("data-damophus-post-url");
-    if (postUrl) attrs["custom-damophus-post-url"] = postUrl;
-    const score = background.getAttribute("data-damophus-post-score");
-    if (score) attrs["custom-damophus-post-score"] = score;
-    const dimensions = background.getAttribute("data-damophus-post-dimensions");
-    if (dimensions) attrs["custom-damophus-post-dimensions"] = dimensions;
+    const tags = background.getAttribute("data-damophus-post-tags") || "";
+    const site = background.getAttribute("data-damophus-post-site") || "";
+    const postId = background.getAttribute("data-damophus-post-id") || "";
+    const postUrl = background.getAttribute("data-damophus-post-url") || "";
+    const score = background.getAttribute("data-damophus-post-score") || "";
+    const dimensions = background.getAttribute("data-damophus-post-dimensions") || "";
+    attrs["custom-damophus-post-tags"] = tags;
+    attrs["custom-damophus-post-site"] = site;
+    attrs["custom-damophus-post-id"] = postId;
+    attrs["custom-damophus-post-url"] = postUrl;
+    attrs["custom-damophus-post-score"] = score;
+    attrs["custom-damophus-post-dimensions"] = dimensions;
 
     await fetch("/api/attr/setBlockAttrs", {
       method: "POST",
