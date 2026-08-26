@@ -140,6 +140,18 @@ describe("flashcard workbench", () => {
     expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ reviewTimerEnabled: false });
   });
 
+  it("exposes smart timer pause in the review timing settings", async () => {
+    const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
+    const target = await render();
+    clickTab(target, "总体配置");
+    await vi.waitFor(() => expect(target.querySelector('[aria-label="显示复习计时"]')).not.toBeNull());
+    const toggle = target.querySelector<HTMLButtonElement>('[aria-label="智能暂停与恢复"]');
+    expect(toggle?.getAttribute("aria-checked")).toBe("true");
+    toggle?.click();
+    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalled());
+    expect(saveSettings.mock.calls.at(-1)?.[0]).toMatchObject({ reviewTimerPauseOnBlur: false });
+  });
+
   it("keeps workbench controls inside a mobile viewport", async () => {
     await page.viewport(390, 760);
     const target = await render();

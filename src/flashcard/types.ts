@@ -143,6 +143,7 @@ export interface FlashcardSettings {
   reviewStats: FlashcardReviewStatsSettings;
   reviewTimerEnabled: boolean;
   reviewTimerContinueAfterAnswer: boolean;
+  reviewTimerPauseOnBlur: boolean;
   reviewToolbarEnabled: boolean;
   reviewToolbarLocate: boolean;
   reviewToolbarUnregister: boolean;
@@ -185,6 +186,7 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   },
   reviewTimerEnabled: true,
   reviewTimerContinueAfterAnswer: false,
+  reviewTimerPauseOnBlur: true,
   reviewToolbarEnabled: true,
   reviewToolbarLocate: true,
   reviewToolbarUnregister: true,

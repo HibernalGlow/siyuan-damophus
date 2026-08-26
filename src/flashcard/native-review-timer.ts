@@ -1,6 +1,19 @@
 export interface NativeReviewTimerSettings {
   enabled: boolean;
   continueAfterAnswer: boolean;
+  pauseOnBlur: boolean;
+}
+
+interface ActivityEventTarget {
+  addEventListener(type: string, listener: EventListener): void;
+  removeEventListener(type: string, listener: EventListener): void;
+}
+
+interface ActivityWindow extends ActivityEventTarget {}
+
+interface ActivityDocument extends ActivityEventTarget {
+  readonly hidden?: boolean;
+  readonly activeElement?: EventTarget | null;
 }
 
 export interface NativeReviewTimerDisplay {
@@ -30,6 +43,11 @@ export class NativeReviewTimer {
   private activeSince?: number;
   private answerRevealed = false;
   private interval?: number;
+  private activityCleanup?: () => void;
+  private activityWindowFocused = true;
+  private activityDocumentVisible = true;
+  private autoPausedByActivity = false;
+  private isInsideReviewSurface?: (target: EventTarget | null) => boolean;
 
   constructor(private readonly options: NativeReviewTimerOptions) {
     this.now = options.now ?? (() => Date.now());
@@ -42,7 +60,11 @@ export class NativeReviewTimer {
     this.currentCardMs = 0;
     this.totalMs = 0;
     this.answerRevealed = false;
-    this.activeSince = cardID && this.options.getSettings().enabled ? finiteNow(at) : undefined;
+    this.autoPausedByActivity = false;
+    this.activeSince = cardID && this.options.getSettings().enabled && this.activityCanRun()
+      ? finiteNow(at)
+      : undefined;
+    if (cardID && this.options.getSettings().enabled && !this.activityCanRun()) this.autoPausedByActivity = true;
     this.syncInterval();
     this.options.onChange?.();
   }
@@ -54,6 +76,51 @@ export class NativeReviewTimer {
     this.startSession(cardID, at);
   }
 
+  installActivityTracking(
+    windowRef: ActivityWindow,
+    documentRef: ActivityDocument,
+    isInsideReviewSurface?: (target: EventTarget | null) => boolean,
+  ): void {
+    this.activityCleanup?.();
+    this.isInsideReviewSurface = isInsideReviewSurface;
+    this.activityWindowFocused = true;
+    this.activityDocumentVisible = documentRef.hidden !== true;
+    const handleWindowBlur = (): void => {
+      this.activityWindowFocused = false;
+      this.pauseForActivity();
+    };
+    const handleWindowFocus = (): void => {
+      this.activityWindowFocused = true;
+      if (!this.isInsideReviewSurface || this.isInsideReviewSurface(documentRef.activeElement)) this.resumeAfterActivity();
+    };
+    const handleDocumentActivity = (event: Event): void => {
+      if (!this.isInsideReviewSurface) return;
+      if (this.isInsideReviewSurface(event.target)) this.resumeAfterActivity();
+      else this.pauseForActivity();
+    };
+    const handleVisibilityChange = (): void => {
+      this.activityDocumentVisible = documentRef.hidden !== true;
+      if (this.activityDocumentVisible
+        && (!this.isInsideReviewSurface || this.isInsideReviewSurface(documentRef.activeElement))) {
+        this.resumeAfterActivity();
+      }
+      else this.pauseForActivity();
+    };
+    windowRef.addEventListener("blur", handleWindowBlur);
+    windowRef.addEventListener("focus", handleWindowFocus);
+    documentRef.addEventListener("visibilitychange", handleVisibilityChange);
+    documentRef.addEventListener("pointerdown", handleDocumentActivity);
+    documentRef.addEventListener("focusin", handleDocumentActivity);
+    this.activityCleanup = () => {
+      windowRef.removeEventListener("blur", handleWindowBlur);
+      windowRef.removeEventListener("focus", handleWindowFocus);
+      documentRef.removeEventListener("visibilitychange", handleVisibilityChange);
+      documentRef.removeEventListener("pointerdown", handleDocumentActivity);
+      documentRef.removeEventListener("focusin", handleDocumentActivity);
+      this.activityCleanup = undefined;
+    };
+  }
+
   setActiveCard(cardID: string | undefined, at = this.now()): void {
     if (!this.sessionActive) return;
     const next = cardID || undefined;
@@ -63,8 +130,18 @@ export class NativeReviewTimer {
     this.currentCardMs = 0;
     this.answerRevealed = false;
     this.activeSince = next && this.options.getSettings().enabled ? finiteNow(at) : undefined;
+    this.autoPausedByActivity = false;
+    if (next && this.options.getSettings().enabled && !this.activityCanRun()) {
+      this.activeSince = undefined;
+      this.autoPausedByActivity = true;
+    }
     this.syncInterval();
     this.options.onChange?.();
+  }
+
+  /** Allows the renderer to mark the newly materialized review card as active. */
+  markReviewSurfaceActive(at = this.now()): void {
+    this.resumeAfterActivity(at);
   }
 
   setQueue(cardIDs: readonly string[], at = this.now()): void {
@@ -99,7 +176,16 @@ export class NativeReviewTimer {
     this.commit(at);
     if (!settings.enabled) {
       this.activeSince = undefined;
-    } else if (this.currentCardID && (!this.answerRevealed || settings.continueAfterAnswer)) {
+    } else if (!settings.pauseOnBlur && this.autoPausedByActivity) {
+      this.autoPausedByActivity = false;
+      this.activeSince = this.currentCardID && (!this.answerRevealed || settings.continueAfterAnswer)
+        ? finiteNow(at)
+        : undefined;
+    } else if (settings.pauseOnBlur && !this.activityCanRun() && this.currentCardID && !this.answerRevealed) {
+      this.commit(at);
+      this.activeSince = undefined;
+      this.autoPausedByActivity = true;
+    } else if (this.currentCardID && (!this.answerRevealed || settings.continueAfterAnswer) && !this.autoPausedByActivity) {
       this.activeSince = finiteNow(at);
     } else {
       this.activeSince = undefined;
@@ -115,6 +201,7 @@ export class NativeReviewTimer {
     this.currentCardID = undefined;
     this.activeSince = undefined;
     this.answerRevealed = false;
+    this.autoPausedByActivity = false;
     this.stopInterval();
     this.options.onChange?.();
   }
@@ -133,6 +220,9 @@ export class NativeReviewTimer {
 
   dispose(): void {
     this.stopInterval();
+    this.activityCleanup?.();
+    this.isInsideReviewSurface = undefined;
+    this.autoPausedByActivity = false;
     this.sessionActive = false;
   }
 
@@ -151,6 +241,31 @@ export class NativeReviewTimer {
     } else if (!shouldRun) {
       this.stopInterval();
     }
+  }
+
+  private activityCanRun(): boolean {
+    const settings = this.options.getSettings();
+    return !settings.pauseOnBlur || (this.activityWindowFocused && this.activityDocumentVisible);
+  }
+
+  private pauseForActivity(at = this.now()): void {
+    if (!this.options.getSettings().pauseOnBlur || !this.sessionActive || this.answerRevealed || this.activeSince === undefined) return;
+    this.commit(at);
+    this.activeSince = undefined;
+    this.autoPausedByActivity = true;
+    this.syncInterval();
+    this.options.onChange?.();
+  }
+
+  private resumeAfterActivity(at = this.now()): void {
+    if (!this.autoPausedByActivity || !this.sessionActive || !this.activityCanRun()) return;
+    this.autoPausedByActivity = false;
+    const settings = this.options.getSettings();
+    if (settings.enabled && this.currentCardID && (!this.answerRevealed || settings.continueAfterAnswer)) {
+      this.activeSince = finiteNow(at);
+    }
+    this.syncInterval();
+    this.options.onChange?.();
   }
 
   private stopInterval(): void {

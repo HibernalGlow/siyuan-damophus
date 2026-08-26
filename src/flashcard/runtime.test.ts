@@ -41,12 +41,21 @@ describe("flashcard runtime SFP parity", () => {
 
   it("defaults review timing to question-only and preserves both timing switches", () => {
     const defaults = new FlashcardRuntime(() => ({}), vi.fn());
-    expect(defaults.getSettings()).toMatchObject({ reviewTimerEnabled: true, reviewTimerContinueAfterAnswer: false });
+    expect(defaults.getSettings()).toMatchObject({
+      reviewTimerEnabled: true,
+      reviewTimerContinueAfterAnswer: false,
+      reviewTimerPauseOnBlur: true,
+    });
     const configured = new FlashcardRuntime((key) => key === "config" ? {
       reviewTimerEnabled: false,
       reviewTimerContinueAfterAnswer: true,
+      reviewTimerPauseOnBlur: false,
     } : undefined, vi.fn());
-    expect(configured.getSettings()).toMatchObject({ reviewTimerEnabled: false, reviewTimerContinueAfterAnswer: true });
+    expect(configured.getSettings()).toMatchObject({
+      reviewTimerEnabled: false,
+      reviewTimerContinueAfterAnswer: true,
+      reviewTimerPauseOnBlur: false,
+    });
   });
 
   it("keeps native filter and fullscreen visible for legacy settings unless explicitly hidden", () => {

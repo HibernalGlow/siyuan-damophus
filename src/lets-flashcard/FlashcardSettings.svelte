@@ -1107,6 +1107,7 @@
         <div class="section-title"><Timer /><div><h3>复习计时</h3><p>在原生复习顶栏显示本轮与当前卡片用时</p></div></div>
         <div class="setting-row master-row"><div><strong>显示复习计时</strong><span>显示本轮总计时和当前闪卡计时</span></div><Switch checked={config.reviewTimerEnabled} onCheckedChange={(value) => { config.reviewTimerEnabled = value; saveGlobalOnChange(); }} aria-label="显示复习计时" /></div>
         {#if config.reviewTimerEnabled}
+          <div class="setting-row"><div><strong>智能暂停与恢复</strong><span>切换到其他窗口或页面隐藏时自动暂停，返回后继续计时</span></div><Switch checked={config.reviewTimerPauseOnBlur} onCheckedChange={(value) => { config.reviewTimerPauseOnBlur = value; saveGlobalOnChange(); }} aria-label="智能暂停与恢复" /></div>
           <div class="setting-row"><div><strong>显示答案后继续计时</strong><span>关闭时只统计查看题目的时间（默认）</span></div><Switch checked={config.reviewTimerContinueAfterAnswer} onCheckedChange={(value) => { config.reviewTimerContinueAfterAnswer = value; saveGlobalOnChange(); }} aria-label="显示答案后继续计时" /></div>
         {/if}
       </section>

@@ -80,6 +80,7 @@ export default class FlashcardPlugin extends SubPluginBase {
       return {
         enabled: settings.reviewTimerEnabled,
         continueAfterAnswer: settings.reviewTimerContinueAfterAnswer,
+        pauseOnBlur: settings.reviewTimerPauseOnBlur,
       };
     },
     onChange: () => this.reviewCounter.refresh(),
@@ -166,6 +167,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (!card) return;
     this.currentReviewCard = card;
     this.reviewTimer?.setActiveCard(card.cardID);
+    this.reviewTimer?.markReviewSurfaceActive();
     this.reviewCounter.setActiveCard(card.cardID);
     this.reviewCounter.updateCardStats(card.cardID, readReviewCardStats(card));
     this.compat.refresh();
@@ -210,6 +212,11 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onload(): void {
+    this.reviewTimer.installActivityTracking(
+      window,
+      document,
+      (target) => target instanceof Element && Boolean(target.closest('[data-key="dialog-opencard"], .card__main')),
+    );
     this.compat.onCardRender = this.handleCardRender;
     plugin.eventBus.on("click-flashcard-action", this.handleFlashcardAction);
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);

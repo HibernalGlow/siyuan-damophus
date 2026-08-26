@@ -71,6 +71,7 @@ function mergeSettings(value: unknown): FlashcardSettings {
     },
     reviewTimerEnabled: input.reviewTimerEnabled !== false,
     reviewTimerContinueAfterAnswer: input.reviewTimerContinueAfterAnswer === true,
+    reviewTimerPauseOnBlur: input.reviewTimerPauseOnBlur !== false,
     reviewToolbarEnabled: input.reviewToolbarEnabled !== false,
     reviewToolbarLocate: input.reviewToolbarLocate !== false,
     reviewToolbarUnregister: input.reviewToolbarUnregister !== false,
