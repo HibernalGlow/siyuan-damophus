@@ -193,6 +193,26 @@ describe("flashcard workbench", () => {
       .every((button) => button.scrollWidth <= button.clientWidth)).toBe(true);
   });
 
+  it("keeps open-document actions compact on narrow workbench widths", async () => {
+    await page.viewport(390, 760);
+    const target = await render(vi.fn(async () => [{
+      documentId: "20260823120000-aaaaaaa",
+      title: "09 诉讼时效",
+      path: "/Note-3.2/法考/客观/民法/09 诉讼时效",
+      active: true,
+    }]));
+
+    await vi.waitFor(() => expect(target.querySelector('[data-testid="open-documents-panel"] .open-document-row')).not.toBeNull());
+    const row = target.querySelector<HTMLElement>('[data-testid="open-documents-panel"] .open-document-row')!;
+    const copy = row.querySelector<HTMLElement>(".open-document-copy")!;
+    const actions = row.querySelector<HTMLElement>(".open-document-actions")!;
+
+    expect(row.getBoundingClientRect().height).toBeLessThan(180);
+    expect(copy.getBoundingClientRect().height).toBeLessThan(90);
+    expect(actions.getBoundingClientRect().width).toBeLessThanOrEqual(row.clientWidth);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+  });
+
   it("exposes configurable current-card statistics in the global settings", async () => {
     const saveSettings = vi.spyOn(FlashcardRuntime.prototype, "saveSettings").mockResolvedValue();
     const target = await render();
