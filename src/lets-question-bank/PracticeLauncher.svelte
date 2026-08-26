@@ -28,7 +28,10 @@
   export let progressQuestionCount = 0;
   export let attemptedQuestions = 0;
   export let untouchedQuestions = 0;
+  export let wrongQuestions = 0;
   export let reviewQuestions = 0;
+  export let reviewAgainQuestions = 0;
+  export let reviewHardQuestions = 0;
   export let bookmarkedQuestions = 0;
   export let syncComplete = false;
   export let busy = false;
@@ -64,7 +67,14 @@
       <div><dt>{label("questions", "题")}</dt><dd>{progressQuestionCount}</dd></div>
       <div><dt>{label("attempted", "已作答")}</dt><dd>{attemptedQuestions}</dd></div>
       <div><dt>{label("untouched", "未作答")}</dt><dd>{untouchedQuestions}</dd></div>
-      <div><dt>{label("review", "待复习")}</dt><dd>{reviewQuestions}</dd></div>
+      <div><dt>{label("wrong", "错题")}</dt><dd>{wrongQuestions}</dd></div>
+      <div>
+        <dt>{label("review", "待复习")}</dt>
+        <dd>
+          <span>{reviewQuestions}</span>
+          <small>{label("again", "Again")} {reviewAgainQuestions} · {label("hard", "Hard")} {reviewHardQuestions}</small>
+        </dd>
+      </div>
       <div><dt>{label("bookmarked", "已收藏")}</dt><dd>{bookmarkedQuestions}</dd></div>
     </dl>
   </header>
@@ -269,7 +279,7 @@
     min-width: min(100%, 360px);
     margin: 0;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0;
   }
 
@@ -293,6 +303,16 @@
     font-size: 18px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+  }
+
+  .practice-launcher-stats dd small {
+    display: block;
+    margin-top: 2px;
+    color: var(--b3-theme-on-surface);
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.2;
+    white-space: nowrap;
   }
 
   .session-recovery {
@@ -447,7 +467,7 @@
     .practice-launcher-stats {
       flex-basis: 100%;
       min-width: 0;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       row-gap: 0;
     }
 

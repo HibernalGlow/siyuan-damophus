@@ -49,7 +49,10 @@
   export let completionPercent = 0;
   export let attemptedQuestions = 0;
   export let untouchedQuestions = 0;
+  export let wrongQuestions = 0;
   export let reviewQuestions = 0;
+  export let reviewAgainQuestions = 0;
+  export let reviewHardQuestions = 0;
   export let pendingSync = false;
   export let syncComplete = false;
   export let autoSyncIndex = false;
@@ -212,7 +215,10 @@
       progressQuestionCount={progressQuestions.length}
       {attemptedQuestions}
       {untouchedQuestions}
+      {wrongQuestions}
       {reviewQuestions}
+      {reviewAgainQuestions}
+      {reviewHardQuestions}
       {bookmarkedQuestions}
       {syncComplete}
       {busy}

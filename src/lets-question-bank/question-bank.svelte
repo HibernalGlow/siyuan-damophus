@@ -418,8 +418,25 @@
     (question) => (aggregates.get(question.id)?.attempts ?? 0) > 0,
   ).length;
   $: untouchedQuestions = Math.max(0, progressQuestions.length - attemptedQuestions);
+  $: wrongQuestions = progressQuestions.filter(
+    (question) => (aggregates.get(question.id)?.objectiveIncorrect ?? 0) > 0,
+  ).length;
   $: reviewQuestions = progressQuestions.filter(
     (question) => (aggregates.get(question.id)?.consecutiveReviewCount ?? 0) >= reviewThreshold,
+  ).length;
+  $: reviewAgainQuestions = progressQuestions.filter(
+    (question) => {
+      const aggregate = aggregates.get(question.id);
+      return aggregate?.latestRating === "again"
+        && aggregate.consecutiveReviewCount >= reviewThreshold;
+    },
+  ).length;
+  $: reviewHardQuestions = progressQuestions.filter(
+    (question) => {
+      const aggregate = aggregates.get(question.id);
+      return aggregate?.latestRating === "hard"
+        && aggregate.consecutiveReviewCount >= reviewThreshold;
+    },
   ).length;
   $: completionPercent = progressQuestions.length === 0
     ? 0
@@ -1553,7 +1570,7 @@
   {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {subjectTotalsSaveStatus} {statisticsLayout} {changeStatisticsLayout} {openStatisticsCardPreview} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
   {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
   {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
-  {completionPercent} {attemptedQuestions} {untouchedQuestions} {reviewQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
+  {completionPercent} {attemptedQuestions} {untouchedQuestions} {wrongQuestions} {reviewQuestions} {reviewAgainQuestions} {reviewHardQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
   {scanMessageGroups} {sourceTypeLabel} {completionStatusLabel} {messageContext} {messageClipboardText} {scanLogText} {copyText}
   {confirmSync} {toggleAutoSyncIndex} topicAssignmentCount={topicAssignments.length} {topicRelationMode} {topicRelationPreview}
   {topicRelationReady} {setTopicRelationMode} {previewTopicRelations} {confirmTopicRelations}

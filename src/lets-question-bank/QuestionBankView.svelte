@@ -129,7 +129,10 @@
   export let completionPercent: number;
   export let attemptedQuestions: number;
   export let untouchedQuestions: number;
+  export let wrongQuestions: number;
   export let reviewQuestions: number;
+  export let reviewAgainQuestions: number;
+  export let reviewHardQuestions: number;
   export let pendingSync: boolean;
   export let syncComplete: boolean;
   export let autoSyncIndex: boolean;
@@ -402,7 +405,10 @@
       {completionPercent}
       {attemptedQuestions}
       {untouchedQuestions}
+      {wrongQuestions}
       {reviewQuestions}
+      {reviewAgainQuestions}
+      {reviewHardQuestions}
       {pendingSync}
       {syncComplete}
       {autoSyncIndex}
