@@ -15,6 +15,7 @@
     Eye,
     FileJson,
     Globe,
+    History,
     GripVertical,
     HardDrive,
     Image,
@@ -55,7 +56,13 @@
     type SiteCredential,
     type TagEntry,
     type TagPool,
+    type CoverHistoryEntry,
   } from "./sources";
+  import {
+    clearCoverHistory,
+    getCoverHistory,
+    removeCoverHistoryEntry,
+  } from "./more-background";
   import {
     formatTagLine,
     parseTagLine,
@@ -112,6 +119,7 @@
   let favorites: CoverFavorite[] = [];
   let favoritesLoading = false;
   let syncingFavoriteId: string | null = null;
+  let coverHistory: CoverHistoryEntry[] = [];
 
   const dispatch = createEventDispatcher();
 
@@ -215,6 +223,19 @@
     favorites = await removeCoverFavorite(id);
   }
 
+  function reloadCoverHistory() {
+    coverHistory = getCoverHistory();
+  }
+
+  function removeHistoryEntry(id: string) {
+    coverHistory = removeCoverHistoryEntry(id);
+  }
+
+  function clearHistory() {
+    clearCoverHistory();
+    coverHistory = [];
+  }
+
   async function setFavoriteRating(id: string, value: string) {
     const updated = await updateCoverFavorite(id, { rating: Number(value) || 0 });
     if (updated) favorites = favorites.map((item) => (item.id === id ? updated : item));
@@ -240,6 +261,7 @@
     const handleFavoritesChanged = () => void reloadFavorites();
     window.addEventListener("damophus-cover-favorites-changed", handleFavoritesChanged);
     void reloadFavorites();
+    reloadCoverHistory();
     void (async () => {
       try {
         const loaded = await loadTagPoolsFromStorage();
@@ -943,6 +965,15 @@
         <span class="hidden sm:inline truncate">{t("lets-more-background.favoritesTab", "题头图收藏")}</span>
       </Tabs.Trigger>
       <Tabs.Trigger
+        value="history"
+        class="gap-1.5 py-1.5 sm:py-2 text-xs"
+        title={t("lets-more-background.coverHistory", "题头图历史")}
+        aria-label={t("lets-more-background.coverHistory", "题头图历史")}
+      >
+        <History class="size-4 shrink-0" />
+        <span class="hidden sm:inline truncate">{t("lets-more-background.coverHistory", "题头图历史")}</span>
+      </Tabs.Trigger>
+      <Tabs.Trigger
         value="cache"
         class="gap-1.5 py-1.5 sm:py-2 text-xs"
         title={t("lets-more-background.localCacheTab", "本地缓存")}
@@ -952,6 +983,71 @@
         <span class="hidden sm:inline truncate">{t("lets-more-background.localCacheTab", "本地缓存")}</span>
       </Tabs.Trigger>
     </Tabs.List>
+
+    <Tabs.Content value="history" class="space-y-3.5 sm:space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 sm:p-3.5">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="flex size-7.5 sm:size-8 items-center justify-center rounded-lg bg-muted text-primary shrink-0 border border-border">
+            <History class="size-4" />
+          </div>
+          <div class="space-y-0.5">
+            <div class="font-semibold text-sm text-foreground flex items-center gap-2">
+              <span>{t("lets-more-background.coverHistory", "题头图历史")}</span>
+              <Badge variant="secondary" class="text-[10px] font-mono">{coverHistory.length}</Badge>
+            </div>
+            <p class="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+              {t("lets-more-background.coverHistoryDescription", "最近使用的题头图")}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 self-end sm:self-auto">
+          <Button variant="outline" size="sm" onclick={reloadCoverHistory} class="h-7.5 sm:h-8 text-xs gap-1.5">
+            <RefreshCw class="size-3.5" />
+            <span>{t("lets-more-background.refreshFavorites", "刷新")}</span>
+          </Button>
+          {#if coverHistory.length > 0}
+            <Button variant="outline" size="sm" onclick={clearHistory} class="h-7.5 sm:h-8 text-xs gap-1.5 text-destructive hover:text-destructive">
+              <Trash2 class="size-3.5" />
+              <span>{t("lets-more-background.clearCoverHistory", "清空历史")}</span>
+            </Button>
+          {/if}
+        </div>
+      </div>
+
+      {#if coverHistory.length === 0}
+        <div class="rounded-lg border border-dashed border-border p-10 text-center text-xs text-muted-foreground">
+          <History class="size-7 mx-auto mb-2 opacity-40" />
+          <p>{t("lets-more-background.emptyCoverHistory", "暂无题头图历史记录。")}</p>
+        </div>
+      {:else}
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
+          {#each coverHistory as entry (entry.id)}
+            <article class="damophus-card overflow-hidden flex gap-3 p-3">
+              <div class="w-28 aspect-video shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                <img src={entry.imageUrl} alt={entry.docTitle || "题头图历史"} class="size-full object-cover" loading="lazy" referrerpolicy="no-referrer" />
+              </div>
+              <div class="min-w-0 flex-1 space-y-1.5">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0 font-medium text-sm truncate">{entry.docTitle || t("lets-more-background.currentDocument", "当前文档")}</div>
+                  <Button variant="ghost" size="icon-sm" class="size-7 shrink-0 text-muted-foreground hover:text-destructive" onclick={() => removeHistoryEntry(entry.id)} title={t("lets-more-background.removeCoverHistory", "删除")}>
+                    <Trash2 class="size-3.5" />
+                  </Button>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                  {#if entry.site}<Badge variant="secondary" class="text-[10px]">{entry.site}</Badge>{/if}
+                  {#if entry.postId}<span class="font-mono">#{entry.postId}</span>{/if}
+                  <span>{new Date(entry.appliedAt).toLocaleString()}</span>
+                </div>
+                {#if entry.tags?.length}
+                  <div class="text-[10px] text-muted-foreground truncate" title={entry.tags.join(" ")}>{entry.tags.slice(0, 8).join(" ")}</div>
+                {/if}
+                <div class="text-[10px] text-muted-foreground/80 truncate" title={entry.imageUrl}>{entry.imageUrl}</div>
+              </div>
+            </article>
+          {/each}
+        </div>
+      {/if}
+    </Tabs.Content>
 
     <Tabs.Content value="favorites" class="space-y-3.5 sm:space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 sm:p-3.5">
