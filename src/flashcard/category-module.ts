@@ -175,6 +175,7 @@ export class FlashcardCategoryModule {
       icon: "iconTags",
       label: "闪卡分类",
       source: "flashcard-category",
+      isEnabled: () => this.config.enabled,
       execute: async (context) => {
         const card = await context.resolveCard();
         if (!card) return;

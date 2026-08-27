@@ -268,7 +268,9 @@ export class NativePriorityControls {
       "native.fullscreen": settings.showFullscreen !== false,
     };
     const all = new Map(fallback.map((action) => [action.id, action]));
-    for (const action of getReviewToolbarActions()) all.set(action.id, action);
+    for (const action of getReviewToolbarActions()) {
+      if (action.isEnabled?.() !== false) all.set(action.id, action);
+    }
     const order = settings.reviewToolbarActionOrder?.length
       ? settings.reviewToolbarActionOrder
       : ["locate", "unregister", "priority", "renderer", "workbench"];

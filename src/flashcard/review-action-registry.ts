@@ -15,6 +15,7 @@ export interface ReviewToolbarAction {
   icon: string;
   label: string;
   source?: string;
+  isEnabled?: () => boolean;
   execute(context: ReviewToolbarActionContext): void | Promise<void>;
 }
 

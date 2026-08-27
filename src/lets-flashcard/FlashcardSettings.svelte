@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { type FlashcardDiagnosticRow, type FlashcardGroup, type FlashcardReviewHistoryItem, type FlashcardReviewScope, type FlashcardReviewStatKey, type FlashcardSettings } from "@/flashcard/types";
+  import type { FlashcardCategoryConfig, FlashcardCategoryRule } from "@/flashcard/category-module";
   import type { OpenFlashcardDocument } from "@/flashcard/open-documents";
   import type { RiffCardRecord } from "@/flashcard/siyuan-adapter";
   import type { FlashcardRuntime } from "@/flashcard/runtime";
+  import { getReviewToolbarActions, type ReviewToolbarAction } from "@/flashcard/review-action-registry";
   import {
     Archive, ArrowDown, ArrowUp, Boxes, BrainCircuit, CalendarClock, Check, CheckCircle2, Crosshair, Database, Download,
     Eye, FileArchive, FileSpreadsheet, FileText, Files, Filter, Focus, Gauge, Heading, Highlighter, History,
@@ -62,9 +64,12 @@
   export let onGetFsrsWeights: () => number[] = () => [];
   export let onLoadFsrsHistory: () => Promise<FsrsWeightHistoryEntry[]> = async () => [];
   export let onUndoFsrsWeights: (entry: FsrsWeightHistoryEntry) => Promise<boolean> = async () => false;
+  export let categoryConfig: FlashcardCategoryConfig | undefined;
+  export let onSaveCategoryConfig: (config: FlashcardCategoryConfig) => void | Promise<void> = () => undefined;
 
   let config: FlashcardSettings = runtime.getSettings();
-  let reviewToolbarActionOrderText = config.reviewToolbarActionOrder.join("\\n");
+  let toolbarActions: ReviewToolbarAction[] = getReviewToolbarActions();
+  const STYLE_TAG = "style";
   let message = "";
   let saving = false;
   let workbenchMode: "make" | "review" = "make";
@@ -127,6 +132,16 @@
     ["reviewToolbarShowExitFocus", "显示退出聚焦", Focus], ["reviewToolbarShowBrand", "显示闪卡标题", PanelTop],
     ["reviewToolbarShowFilter", "显示原生筛选", Filter], ["reviewToolbarShowFullscreen", "显示原生全屏", Maximize2],
   ] as const;
+
+  $: toolbarActionRows = (() => {
+    const byId = new Map(toolbarActions.map((action) => [action.id, action]));
+    const configured = config.reviewToolbarActionOrder.filter((id) => byId.has(id));
+    const missing = toolbarActions.map((action) => action.id).filter((id) => !configured.includes(id));
+    return [...configured, ...missing].map((id) => ({
+      action: byId.get(id)!,
+      enabled: configured.includes(id),
+    }));
+  })();
   const REVIEW_STAT_ICONS = {
     reviews: Repeat2,
     lastReview: CalendarClock,
@@ -531,9 +546,15 @@
   }
 
   onMount(() => {
+    toolbarActions = getReviewToolbarActions();
+    const refreshToolbarActions = window.setInterval(() => {
+      const next = getReviewToolbarActions();
+      if (next.map((action) => action.id).join("\0") !== toolbarActions.map((action) => action.id).join("\0")) toolbarActions = next;
+    }, 1000);
     currentFsrsWeights = onGetFsrsWeights();
     void loadFsrsHistory();
     void loadOpenDocuments();
+    return () => window.clearInterval(refreshToolbarActions);
   });
 
   async function ensureReadablePaths(ids: string[]): Promise<void> {
@@ -668,8 +689,45 @@
     runtime.startAutomation();
   }
 
+  function saveCategoryConfig(): void {
+    if (categoryConfig) void onSaveCategoryConfig(categoryConfig);
+  }
+
+  function moveCategory(rule: FlashcardCategoryRule, direction: "up" | "down"): void {
+    if (!categoryConfig) return;
+    const ordered = [...categoryConfig.rules].sort((left, right) => left.reviewOrder - right.reviewOrder);
+    const index = ordered.findIndex((item) => item.name === rule.name);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || target < 0 || target >= ordered.length) return;
+    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    categoryConfig.rules = categoryConfig.rules.map((item) => ({ ...item, reviewOrder: ordered.findIndex((candidate) => candidate.name === item.name) }));
+    saveCategoryConfig();
+  }
+
   function setBooleanSetting(key: typeof TOOLBAR_OPTIONS[number][0], value: boolean): void {
     (config as unknown as Record<string, unknown>)[key] = value;
+    saveGlobalOnChange();
+  }
+
+  function setToolbarActionEnabled(id: string, enabled: boolean): void {
+    const order = config.reviewToolbarActionOrder.filter((item) => item !== id);
+    if (enabled) order.push(id);
+    config = { ...config, reviewToolbarActionOrder: order };
+    saveGlobalOnChange();
+  }
+
+  function moveToolbarAction(id: string, direction: "up" | "down"): void {
+    const order = [...config.reviewToolbarActionOrder];
+    const index = order.indexOf(id);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    config = { ...config, reviewToolbarActionOrder: order };
+    saveGlobalOnChange();
+  }
+
+  function resetToolbarActions(): void {
+    config = { ...config, reviewToolbarActionOrder: ["locate", "unregister", "priority", "renderer", "workbench"] };
     saveGlobalOnChange();
   }
 
@@ -1100,6 +1158,17 @@
         <div class="section-title"><RefreshCw /><div><h3>复习顺序</h3><p>优先级队列中的随机策略</p></div></div>
         <div class="setting-row"><div><strong>随机穿插</strong><span>将约 5% 的较低优先级卡插入高优先级区段</span></div><Switch checked={config.randomInterleaveEnabled} onCheckedChange={(value) => { config.randomInterleaveEnabled = value; saveGlobalOnChange(); }} aria-label="随机穿插" /></div>
         <div class="setting-row"><div><strong>同级随机</strong><span>每轮打乱同一优先级内的卡片顺序</span></div><Switch checked={config.samePriorityShuffleEnabled} onCheckedChange={(value) => { config.samePriorityShuffleEnabled = value; saveGlobalOnChange(); }} aria-label="同级随机" /></div>
+        {#if categoryConfig}
+          <div class="setting-row master-row"><div><strong>启用闪卡分类</strong><span>使用 #闪卡/分类/名称# 管理分类；关闭后不影响 P1-P4 优先级。</span></div><Switch checked={categoryConfig.enabled} onCheckedChange={(value) => { categoryConfig.enabled = value; saveCategoryConfig(); }} aria-label="启用闪卡分类" /></div>
+          {#if categoryConfig.enabled}
+            <div class="setting-row"><div><strong>分类参与复习排序</strong><span>仅改变已到期卡的顺序，不修改 FSRS 到期时间。</span></div><Switch checked={categoryConfig.reviewEnabled} onCheckedChange={(value) => { categoryConfig.reviewEnabled = value; saveCategoryConfig(); }} aria-label="分类参与复习排序" /></div>
+            <div class="sortable-list" data-testid="flashcard-category-options">
+              {#each [...categoryConfig.rules].sort((left, right) => left.reviewOrder - right.reviewOrder) as rule, index (rule.name)}
+                <div class="sortable-row"><Tags aria-hidden="true" /><Input aria-label={`分类名称 ${rule.name}`} bind:value={rule.name} onchange={saveCategoryConfig} /><Switch size="sm" checked={rule.participatesInReview} onCheckedChange={(value) => { rule.participatesInReview = value; saveCategoryConfig(); }} aria-label={`${rule.name}参与复习排序`} /><Button variant="ghost" size="icon-xs" title="上移" aria-label={`${rule.name}上移`} disabled={index === 0} onclick={() => moveCategory(rule, "up")}><ArrowUp /></Button><Button variant="ghost" size="icon-xs" title="下移" aria-label={`${rule.name}下移`} disabled={index === categoryConfig.rules.length - 1} onclick={() => moveCategory(rule, "down")}><ArrowDown /></Button></div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
       </section>
 
       <section class="settings-section">
@@ -1140,8 +1209,34 @@
               <div class="option-row"><svelte:component this={option[2]} aria-hidden="true" /><span>{option[1]}</span><Switch size="sm" checked={config[option[0]]} onCheckedChange={(value) => setBooleanSetting(option[0], value)} aria-label={option[1]} /></div>
             {/each}
           </div>
-          <div class="setting-row"><div><strong>工具栏动作顺序</strong><span>按动作 ID 排列，支持 DAMO、native.filter、native.fullscreen、native.more 以及其他插件注册的动作</span></div><Textarea aria-label="工具栏动作顺序" bind:value={reviewToolbarActionOrderText} oninput={() => { config.reviewToolbarActionOrder = reviewToolbarActionOrderText.split(/[\\n,]+/u).map((id) => id.trim()).filter(Boolean); saveGlobalOnChange(); }} rows={3} /></div>
-          <div class="setting-row"><div><strong>复习工具栏自定义 CSS</strong><span>只作用于原生闪卡复习界面；可使用 [data-damophus-flashcard-action] 选择具体动作</span></div><Textarea aria-label="复习工具栏自定义 CSS" bind:value={config.reviewToolbarCustomCss} rows={7} oninput={saveGlobalOnChange} /></div>
+          <div class="toolbar-customizer">
+            <div class="toolbar-customizer-heading"><div><strong>工具栏动作</strong><span>直接开关和排序，插件注册的新动作会自动出现在这里</span></div><Button variant="ghost" size="sm" onclick={resetToolbarActions}><RotateCcw />恢复默认</Button></div>
+            <div class="toolbar-action-list">
+              {#each toolbarActionRows as row, index}
+                <div class:toolbar-action-disabled={!row.enabled} class="toolbar-action-row">
+                  <div class="toolbar-action-icon"><svelte:component this={row.action.icon.startsWith("icon") ? Settings2 : Settings2} aria-hidden="true" /></div>
+                  <div class="toolbar-action-copy"><strong>{row.action.label}</strong><span>{row.action.source ?? "插件动作"} · {row.action.id}</span></div>
+                  <div class="toolbar-action-controls">
+                    <Button variant="ghost" size="icon-xs" title="上移" aria-label="上移动作" disabled={!row.enabled || config.reviewToolbarActionOrder.indexOf(row.action.id) === 0} onclick={() => moveToolbarAction(row.action.id, "up")}><ArrowUp /></Button>
+                    <Button variant="ghost" size="icon-xs" title="下移" aria-label="下移动作" disabled={!row.enabled || config.reviewToolbarActionOrder.indexOf(row.action.id) === config.reviewToolbarActionOrder.length - 1} onclick={() => moveToolbarAction(row.action.id, "down")}><ArrowDown /></Button>
+                    <Switch size="sm" checked={row.enabled} onCheckedChange={(value) => setToolbarActionEnabled(row.action.id, value)} aria-label={`显示${row.action.label}`} />
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+          <div class="toolbar-style-editor">
+            <div class="toolbar-customizer-heading"><div><strong>复习工具栏外观</strong><span>在左侧编辑 CSS，右侧立即预览；样式只作用于闪卡复习工具栏</span></div></div>
+            <div class="toolbar-style-grid">
+              <Textarea aria-label="复习工具栏自定义 CSS" bind:value={config.reviewToolbarCustomCss} rows={9} oninput={saveGlobalOnChange} />
+              <div class="toolbar-preview">
+                <svelte:element this={STYLE_TAG}>{config.reviewToolbarCustomCss}</svelte:element>
+                <div class="toolbar-preview-caption">预览</div>
+                <div class="toolbar-preview-bar"><span class="toolbar-preview-brand">闪卡</span><button type="button" data-damophus-flashcard-action="locate">定位</button><button type="button" data-damophus-flashcard-action="priority">优先级</button><button type="button" data-damophus-flashcard-action="workbench">工作台</button></div>
+                <div class="toolbar-preview-card">当前闪卡 · 预览内容</div>
+              </div>
+            </div>
+          </div>
         {/if}
       </section>
     </div>
@@ -1350,6 +1445,30 @@
   :global(.review-mode-toggle .review-mode-check) { width: 14px; height: 14px; margin-left: 2px; stroke-width: 3; }
   .master-row { background: color-mix(in srgb, var(--muted, var(--b3-theme-surface)) 45%, transparent); margin-inline: -12px; padding-inline: 12px; }
   .option-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 18px; padding: 4px 0 8px; }
+  .toolbar-customizer, .toolbar-style-editor { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--border, var(--b3-border-color)); }
+  .toolbar-customizer-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-width: 0; }
+  .toolbar-customizer-heading > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .toolbar-customizer-heading strong { font-size: 13px; }
+  .toolbar-customizer-heading span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; line-height: 1.4; }
+  .toolbar-action-list { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 6px; overflow: hidden; }
+  .toolbar-action-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 46px; padding: 5px 7px; border-bottom: 1px solid var(--border, var(--b3-border-color)); }
+  .toolbar-action-row:last-child { border-bottom: 0; }
+  .toolbar-action-disabled { opacity: .55; }
+  .toolbar-action-icon { display: grid; place-items: center; width: 26px; height: 26px; color: var(--primary, var(--b3-theme-primary)); }
+  .toolbar-action-icon :global(svg) { width: 15px; height: 15px; }
+  .toolbar-action-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .toolbar-action-copy strong, .toolbar-action-copy span { overflow-wrap: anywhere; }
+  .toolbar-action-copy strong { font-size: 12px; }
+  .toolbar-action-copy span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 10px; }
+  .toolbar-action-controls { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
+  .toolbar-style-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 1fr); gap: 10px; min-width: 0; }
+  .toolbar-style-grid :global(textarea) { min-width: 0; width: 100%; box-sizing: border-box; resize: vertical; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.5; }
+  .toolbar-preview { position: relative; display: flex; min-height: 150px; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 6px; background: var(--background, var(--b3-theme-background)); overflow: hidden; }
+  .toolbar-preview-caption { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 10px; text-transform: uppercase; }
+  .toolbar-preview-bar { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 6px; border: 1px solid var(--border, var(--b3-border-color)); background: var(--card, var(--b3-theme-background)); overflow-x: auto; }
+  .toolbar-preview-bar button, .toolbar-preview-brand { flex: 0 0 auto; min-height: 26px; padding: 3px 7px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 4px; color: inherit; background: transparent; font-size: 11px; }
+  .toolbar-preview-brand { border-color: transparent; font-weight: 650; }
+  .toolbar-preview-card { flex: 1; display: grid; place-items: center; min-height: 76px; border: 1px dashed var(--border, var(--b3-border-color)); color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
   .option-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 42px; border-bottom: 1px solid var(--border, var(--b3-border-color)); font-size: 12px; }
   .option-row > :global(svg), .sortable-row > :global(svg) { width: 15px; height: 15px; color: var(--primary, var(--b3-theme-primary)); }
   .option-row:nth-last-child(-n + 2) { border-bottom-color: transparent; }
@@ -1519,6 +1638,9 @@
     .field-grid { grid-template-columns: 1fr; }
     .review-log-filter-grid { grid-template-columns: 1fr; }
     .option-grid, .sortable-list, .fsrs-parameter-grid, .fsrs-reference-grid { grid-template-columns: 1fr; }
+    .toolbar-style-grid { grid-template-columns: 1fr; }
+    .toolbar-action-row { grid-template-columns: 24px minmax(0, 1fr); }
+    .toolbar-action-controls { grid-column: 2; justify-content: flex-end; }
     .setting-row { gap: 10px; }
     .fsrs-parameter-values { min-width: 88px; }
     .toolbar-actions :global([data-slot="button"]), .section-actions :global([data-slot="button"]) { flex: 1; }

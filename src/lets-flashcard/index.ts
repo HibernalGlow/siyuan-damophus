@@ -1108,6 +1108,11 @@ export default class FlashcardPlugin extends SubPluginBase {
         onGetFsrsWeights: () => this.getFsrsWeightsFromSettings(),
         onLoadFsrsHistory: () => this.loadFsrsHistoryFromSettings(),
         onUndoFsrsWeights: (entry: FsrsWeightHistoryEntry) => this.undoFsrsWeightsFromSettings(entry),
+        categoryConfig: this.categories.getConfig(),
+        onSaveCategoryConfig: async (config) => {
+          await this.categories.save(config);
+          this.priorityControls.refresh();
+        },
         onSettingsChanged: () => {
           this.reviewTimer?.refresh();
           this.priorityControls.refresh();
