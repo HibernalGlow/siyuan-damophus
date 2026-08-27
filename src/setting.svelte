@@ -50,6 +50,11 @@
   import { isMobile, plugin } from "./utils";
   import PluginIcon from "./components/plugin-icon.svelte";
   import SettingOverview from "./components/setting-overview.svelte";
+  import {
+    DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
+    DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY,
+    normalizeDocumentPathHighlights,
+  } from "@/libs/document-path-highlights";
 
   export let closeSettings: (() => void) | undefined = undefined;
 
@@ -859,6 +864,13 @@
           onOptimizeReviewLog={(entries) => flashcardModule?.optimizeReviewLogFromSettings?.(entries) ?? Promise.reject(new Error("闪卡模块不可用"))}
           onApplyFsrsWeights={(weights) => flashcardModule?.applyFsrsWeightsFromSettings?.(weights) ?? Promise.resolve(false)}
           onSettingsChanged={() => flashcardModule?.onDataChanged?.()}
+          documentPathHighlights={normalizeDocumentPathHighlights(
+            settings.getBySpace(QUESTION_BANK_PLUGIN, DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY) ?? DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
+          )}
+          onDocumentPathHighlightsChange={(value) => {
+            settings.setBySpace(QUESTION_BANK_PLUGIN, DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY, value.join("\n"));
+            void settings.save();
+          }}
         />
       {:else if showLayoutActionsSettings}
         <LayoutActionsSettings

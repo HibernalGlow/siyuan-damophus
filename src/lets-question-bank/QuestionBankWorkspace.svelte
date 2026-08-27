@@ -25,6 +25,8 @@
   export let validDocument: () => boolean;
   export let useCurrentDocument: () => void;
   export let getOpenDocumentTabs: OpenDocumentTabLoader | undefined = undefined;
+  export let documentPathHighlights: string[] = [];
+  export let onDocumentPathHighlightsChange: (next: string[]) => void = () => {};
   export let invalidateDocumentTarget: () => void;
   export let busy = false;
   export let preview: QuestionIndexPreview | undefined;
@@ -165,6 +167,8 @@
       <OpenDocumentTabPicker
         loadTabs={getOpenDocumentTabs}
         selectedDocumentId={documentId}
+        highlightPatterns={documentPathHighlights}
+        onHighlightPatternsChange={onDocumentPathHighlightsChange}
         label={label}
         onSelect={(nextDocumentId) => { documentId = nextDocumentId; invalidateDocumentTarget(); }}
       />

@@ -64,6 +64,7 @@
       "replaceExistingTab",
       "showPracticeTitle",
       "showPracticeBreadcrumb",
+      "documentPathHighlights",
       "hideEmptyAnswerBlocks",
       "inheritSourceStyles",
       "sourceNavigationMode",

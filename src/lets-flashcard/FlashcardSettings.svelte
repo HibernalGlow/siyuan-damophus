@@ -24,6 +24,8 @@
   import * as TreeView from "@/components/ui/tree-view";
   import * as Tooltip from "@/components/ui/tooltip";
   import { Badge } from "@/components/ui/badge";
+  import DocumentPathHighlightEditor from "@/components/DocumentPathHighlightEditor.svelte";
+  import { DEFAULT_DOCUMENT_PATH_HIGHLIGHTS, documentPathMatchesHighlight } from "@/libs/document-path-highlights";
   import {
     createSiyuanReviewLogReader,
     downloadReviewLog,
@@ -66,6 +68,8 @@
   export let onUndoFsrsWeights: (entry: FsrsWeightHistoryEntry) => Promise<boolean> = async () => false;
   export let categoryConfig: FlashcardCategoryConfig | undefined;
   export let onSaveCategoryConfig: (config: FlashcardCategoryConfig) => void | Promise<void> = () => undefined;
+  export let documentPathHighlights: string[] = [...DEFAULT_DOCUMENT_PATH_HIGHLIGHTS];
+  export let onDocumentPathHighlightsChange: (next: string[]) => void = () => {};
 
   let config: FlashcardSettings = runtime.getSettings();
   let toolbarActions: ReviewToolbarAction[] = getReviewToolbarActions();
@@ -114,6 +118,7 @@
   let readablePaths: Record<string, string> = {};
   let openDocuments: OpenFlashcardDocument[] = [];
   let openDocumentsLoading = false;
+  let highlightPatterns = [...documentPathHighlights];
   const requestedPathIds = new Set<string>();
   const REVIEW_STAT_LABELS: Record<FlashcardReviewStatKey, string> = {
     reviews: "复习次数",
@@ -580,6 +585,11 @@
     }
   }
 
+  function updateDocumentPathHighlights(next: string[]): void {
+    highlightPatterns = [...next];
+    onDocumentPathHighlightsChange(highlightPatterns);
+  }
+
   async function saveConfig(): Promise<void> {
     saving = true;
     try {
@@ -814,10 +824,17 @@
         <div><h3>当前打开文档</h3><p>{workbenchMode === "make" ? "选择文档和分组检测闪卡并开始制卡" : "直接选择文档和分组开始专项复习"}</p></div>
         <Button variant="outline" size="sm" disabled={openDocumentsLoading} onclick={loadOpenDocuments} title="刷新当前打开文档" aria-label="刷新当前打开文档"><RefreshCw class={openDocumentsLoading ? "loading-icon" : ""} /><span>刷新</span></Button>
       </div>
+      <DocumentPathHighlightEditor
+        highlights={highlightPatterns}
+        title="文档路径高亮"
+        description="匹配文档可读路径的项目会高亮显示"
+        placeholder="输入关键词后按回车"
+        onChange={updateDocumentPathHighlights}
+      />
       {#if openDocuments.length}
         <div class="open-documents-list">
           {#each openDocuments as document (document.documentId)}
-            <article class:open-document-active={document.active} class="open-document-row">
+            <article class:open-document-active={document.active} class:open-document-highlighted={documentPathMatchesHighlight(document.path, highlightPatterns)} class="open-document-row">
               <div class="open-document-copy">
                 <div class="open-document-title"><FileText /><strong>{document.title}</strong>{#if document.active}<Badge variant="secondary">当前</Badge>{/if}</div>
                 <span class="open-document-path" title={document.documentId}>{document.path}</span>
@@ -1428,6 +1445,7 @@
   .open-document-row:first-child { border-top-color: transparent; }
   .open-document-row:hover { border-color: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 24%, var(--border, var(--b3-border-color))); background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 5%, transparent); }
   .open-document-row.open-document-active { border-color: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 30%, var(--border, var(--b3-border-color))); background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 9%, transparent); box-shadow: inset 3px 0 0 var(--primary, var(--b3-theme-primary)); }
+  .open-document-row.open-document-highlighted { border-color: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 68%, var(--border, var(--b3-border-color))); background: color-mix(in srgb, var(--primary, var(--b3-theme-primary)) 14%, transparent); box-shadow: inset 3px 0 0 var(--primary, var(--b3-theme-primary)); }
   .open-document-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 260px; }
   .open-document-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .open-document-title :global(svg) { width: 15px; height: 15px; flex: 0 0 auto; color: var(--primary, var(--b3-theme-primary)); }

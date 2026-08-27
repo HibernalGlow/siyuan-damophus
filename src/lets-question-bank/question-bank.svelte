@@ -102,6 +102,8 @@
   export let initialDocumentId: string | undefined = undefined;
   export let getCurrentDocumentId: (() => string | undefined) | undefined = undefined;
   export let getOpenDocumentTabs: OpenDocumentTabLoader | undefined = undefined;
+  export let documentPathHighlights: string[] = [];
+  export let onDocumentPathHighlightsChange: (next: string[]) => void = () => {};
   export let translations: Record<string, string> = {};
   export let loadTopicDictionary: (() => Promise<TopicDictionaryDocument>) | undefined = undefined;
   export let reviewThreshold = 2;
@@ -1557,7 +1559,7 @@
   bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:optionOrder bind:filter
   bind:endConfirmation bind:answerCardOpen
   {currentQuestion} {topicResources} {persistTopicResource} {persistingTopicResourceIdentity} {persistedTopicResourceIdentities}
-  {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices}
+  {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices} {documentPathHighlights} {onDocumentPathHighlightsChange}
   {timingEnabled} {sessionElapsedMs} {questionElapsedMs} {breadcrumbItems} {currentQuestionBlockId} {mobileBreadcrumb} {breadcrumbPriority}
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
   {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles} {toggleIndefinitePracticeMode}

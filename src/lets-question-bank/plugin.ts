@@ -133,6 +133,15 @@ const pluginMetadata: PluginMetadata = {
       value: true,
     },
     {
+      type: "textarea",
+      title: "lets-question-bank.documentPathHighlights",
+      description: "lets-question-bank.documentPathHighlightsDescription",
+      key: "documentPathHighlights",
+      value: "真金题",
+      placeholder: "lets-question-bank.documentPathHighlightsPlaceholder",
+      height: "120px",
+    },
+    {
       type: "checkbox",
       title: "lets-question-bank.indefinitePracticeMode",
       description: "lets-question-bank.indefinitePracticeModeDescription",

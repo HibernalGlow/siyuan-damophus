@@ -2,13 +2,17 @@
   import { onMount } from "svelte";
   import { FileText, LoaderCircle } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
+  import DocumentPathHighlightEditor from "@/components/DocumentPathHighlightEditor.svelte";
   import type { OpenDocumentTab, OpenDocumentTabLoader } from "@/libs/open-document-tabs";
   import { openDocumentTabParentPath, openDocumentTabTitle } from "@/libs/open-document-tabs";
+  import { DEFAULT_DOCUMENT_PATH_HIGHLIGHTS, openDocumentTabMatchesHighlight } from "@/libs/document-path-highlights";
 
   export let loadTabs: OpenDocumentTabLoader;
   export let selectedDocumentId = "";
   export let onSelect: (documentId: string) => void;
   export let label: (key: string, fallback: string) => string;
+  export let highlightPatterns: string[] = [...DEFAULT_DOCUMENT_PATH_HIGHLIGHTS];
+  export let onHighlightPatternsChange: (next: string[]) => void = () => {};
 
   let tabs: OpenDocumentTab[] = [];
   let loading = false;
@@ -50,7 +54,7 @@
         <Button
           variant={tab.documentId === selectedDocumentId ? "secondary" : "outline"}
           size="sm"
-          class="open-document-tab-badge"
+          class={`open-document-tab-badge ${openDocumentTabMatchesHighlight(tab, highlightPatterns) ? "open-document-tab-badge--highlighted" : ""}`}
           aria-pressed={tab.documentId === selectedDocumentId}
           aria-label={`${openDocumentTabTitle(tab)}${openDocumentTabParentPath(tab) ? `，${openDocumentTabParentPath(tab)}` : ""}`}
           title={tab.path?.trim() || openDocumentTabTitle(tab)}
@@ -64,6 +68,13 @@
         </Button>
       {/each}
     </div>
+    <DocumentPathHighlightEditor
+      highlights={highlightPatterns}
+      title={label("documentPathHighlights", "路径高亮")}
+      description={label("documentPathHighlightsDescription", "匹配文档可读路径的项目会高亮显示")}
+      placeholder={label("documentPathHighlightsPlaceholder", "输入关键词后按回车")}
+      onChange={onHighlightPatternsChange}
+    />
   </div>
 {/if}
 
@@ -103,6 +114,11 @@
     gap: 6px;
     padding: 6px 10px;
     text-align: left;
+  }
+  :global(.open-document-tab-badge--highlighted) {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 72%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 15%, var(--b3-theme-background));
+    box-shadow: inset 3px 0 0 var(--b3-theme-primary);
   }
   .open-document-tab-badge__copy {
     display: grid;

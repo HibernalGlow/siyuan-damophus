@@ -51,6 +51,8 @@
   export let validDocument: any;
   export let useCurrentDocument: any;
   export let getOpenDocumentTabs: OpenDocumentTabLoader | undefined = undefined;
+  export let documentPathHighlights: string[] = [];
+  export let onDocumentPathHighlightsChange: (next: string[]) => void = () => {};
   export let initializationPreview: any;
   export let previewInitialization: any;
   export let confirmInitialization: any;
@@ -381,6 +383,8 @@
       {validDocument}
       {useCurrentDocument}
       {getOpenDocumentTabs}
+      {documentPathHighlights}
+      {onDocumentPathHighlightsChange}
       {invalidateDocumentTarget}
       {busy}
       {preview}

@@ -48,6 +48,12 @@ import {
 } from "@/flashcard/fsrs-weight-history";
 import type { RiffReviewLogEntry } from "@/flashcard/review-log-export";
 import type { OpenFlashcardDocument } from "@/flashcard/open-documents";
+import { settings } from "@/settings";
+import {
+  DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
+  DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY,
+  normalizeDocumentPathHighlights,
+} from "@/libs/document-path-highlights";
 
 const log = getLogger("lets-flashcard");
 const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
@@ -1078,6 +1084,17 @@ export default class FlashcardPlugin extends SubPluginBase {
     })));
   }
 
+  private documentPathHighlights(): string[] {
+    return normalizeDocumentPathHighlights(
+      settings.getBySpace("questionBank", DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY) ?? DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
+    );
+  }
+
+  private async saveDocumentPathHighlights(value: string[]): Promise<void> {
+    settings.setBySpace("questionBank", DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY, value.join("\n"));
+    await settings.save();
+  }
+
   private mountSettings(target: HTMLElement): ReturnType<typeof mount> {
     target.classList.add("damophus-theme-root", "damophus-flashcard-settings-host", "h-full", "min-h-0");
     return mount(FlashcardSettings, {
@@ -1101,6 +1118,8 @@ export default class FlashcardPlugin extends SubPluginBase {
         onReviewScope: (scope: FlashcardReviewScope) => void this.reviewScopeCards(scope),
         onMakeScope: (scope: FlashcardReviewScope) => void this.openMakeScope(scope),
         onLoadOpenDocuments: () => this.listOpenDocuments(),
+        documentPathHighlights: this.documentPathHighlights(),
+        onDocumentPathHighlightsChange: (value: string[]) => { void this.saveDocumentPathHighlights(value); },
         onLocateCard: (card: RiffCardRecord) => void this.locateCard(card),
         onUnregisterCard: (card: RiffCardRecord) => void this.unregisterCard(card),
         onSetCardPriority: (card: RiffCardRecord, priority: number) => void this.runtime.adapter.setPriority([card], priority),

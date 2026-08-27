@@ -66,6 +66,11 @@ import { bindMenuIdentity } from "@/libs/menu-identity";
 import { openStatisticsCardPreview, type StatisticsCardPreviewRequest } from "./statistics-preview";
 import type { OpenDocumentTab } from "@/libs/open-document-tabs";
 import {
+  DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY,
+  DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
+  normalizeDocumentPathHighlights,
+} from "@/libs/document-path-highlights";
+import {
   questionProgressFromAggregate,
   setQuestionProgressLoader,
   type QuestionProgress,
@@ -705,6 +710,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
         initialDocumentId: documentId,
         getCurrentDocumentId: () => this.currentDocumentId(),
         getOpenDocumentTabs: () => this.openDocumentTabs(),
+        documentPathHighlights: normalizeDocumentPathHighlights(
+          this.getSetting(DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY) ?? DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
+        ),
         translations: plugin.i18n,
         loadTopicDictionary: () => topicDictionaryStore.load(),
         loadSubjectQuestionTotals: async () => {
@@ -859,6 +867,9 @@ export default class QuestionBankPlugin extends SubPluginBase {
         onAutoScanDocumentChange: (value: boolean) => this.setSetting("autoScanDocument", value),
         onIndefinitePracticeModeChange: (value: boolean) => this.setSetting("indefinitePracticeMode", value),
         onPauseOnBlurChange: (value: boolean) => this.setSetting("pauseOnBlur", value),
+        onDocumentPathHighlightsChange: (value: string[]) => {
+          void this.setSetting(DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY, value.join("\n"));
+        },
         openQuestionSource: (blockId: string) => {
           beforeOpenQuestionSource?.();
           void this.openQuestionSource(blockId);
