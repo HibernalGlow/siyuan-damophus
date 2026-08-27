@@ -250,8 +250,18 @@ function inferredTopicId(path: readonly string[], sourceLine: number | undefined
   return `inferred-${stableHash(`${path.join("\u001f")}\u001f${sourceLine ?? "unknown"}`)}`;
 }
 
-function inferQuestionType(title: string, body: string): QuestionType | undefined {
+function inferQuestionType(
+  title: string,
+  body: string,
+  answerAttribute?: string,
+): QuestionType | undefined {
   const sample = `${title}\n${body}`;
+  // Prefer the persisted machine answer. Legacy sources may omit all type
+  // wording, while a single/multi-letter answer is enough to classify the
+  // ordinary choice question.
+  const answer = answerAttribute?.trim().replace(/[,，、\s]+/gu, "").toUpperCase();
+  if (answer && /^[A-Z]+$/u.test(answer)) return answer.length === 1 ? "single" : "multiple";
+
   if (/(?:题组|材料题|共用题干)/u.test(sample)) return "group";
   if (/(?:主观题|简答题|论述题)/u.test(sample)) return "subjective";
   if (/(?:判断题|正确还是错误|对还是错)/u.test(sample)) return "true-false";
@@ -508,6 +518,7 @@ function buildQuestion(
   const bodyBlocks = blocks.slice(candidate.blockIndex + 1, endIndex);
   const bodyText = bodyBlocks.map((block) => block.raw).join("\n\n");
   const explicitType = candidate.attributes["custom-qb-type"];
+  const answerAttribute = candidate.attributes["custom-qb-answer"];
   if (explicitType !== undefined && !questionTypes.includes(explicitType as QuestionType)) {
     report.issues.push({
       code: "invalid-question-type",
@@ -520,7 +531,7 @@ function buildQuestion(
   }
   let type = explicitType as QuestionType | undefined;
   if (!type) {
-    type = inferQuestionType(title, bodyText);
+    type = inferQuestionType(title, bodyText, answerAttribute);
     if (type) {
       report.inferences.push({
         code: "inferred-question-type",

@@ -53,9 +53,9 @@ describe("question Markdown scanner", () => {
     expect(question.metadata.collection).toBe("gold");
   });
 
-  it("infers an indefinite-choice question and accepts a single correct option", () => {
+  it("accepts a single correct option for an explicitly indefinite question", () => {
     const markdown = `##### 3. 不定项选择题
-{: custom-qb-id="civil-indefinite-3" custom-qb-answer="A"}
+{: custom-qb-id="civil-indefinite-3" custom-qb-type="indefinite" custom-qb-answer="A"}
 
 - 下列说法中，正确的是：
   - [ ] A. 甲说法
@@ -72,10 +72,57 @@ describe("question Markdown scanner", () => {
       type: "indefinite",
       answer: { kind: "options", optionIds: ["A"] },
     });
-    expect(report.ialUpdates).toContainEqual(expect.objectContaining({
-      questionId: "civil-indefinite-3",
-      attributes: { "custom-qb-type": "indefinite" },
+  });
+
+  it("infers choice type from a machine answer when the heading has no type marker", () => {
+    const multiple = scanQuestionMarkdown(`##### 1.
+{: custom-qb-id="answer-inferred-multiple" custom-qb-answer="BCD"}
+
+- 下列说法正确的是：
+  - [ ] A. 甲
+  - [ ] B. 乙
+  - [ ] C. 丙
+  - [ ] D. 丁
+
+正确答案为 BCD。
+{: custom-qb-section="solution"}`);
+    expect(multiple.issues).toEqual([]);
+    expect(multiple.document.questions[0]).toMatchObject({
+      type: "multiple",
+      answer: { kind: "options", optionIds: ["B", "C", "D"] },
+    });
+    expect(multiple.ialUpdates).toContainEqual(expect.objectContaining({
+      questionId: "answer-inferred-multiple",
+      attributes: { "custom-qb-type": "multiple" },
+      reason: "inferred-question-type",
     }));
+
+    const single = scanQuestionMarkdown(`##### 2.
+{: custom-qb-id="answer-inferred-single" custom-qb-answer="A"}
+
+- 下列说法正确的是：
+  - [ ] A. 甲
+  - [ ] B. 乙
+
+正确答案为 A。
+{: custom-qb-section="solution"}`);
+    expect(single.issues).toEqual([]);
+    expect(single.document.questions[0]).toMatchObject({
+      type: "single",
+      answer: { kind: "options", optionIds: ["A"] },
+    });
+
+    const propertyWins = scanQuestionMarkdown(`##### 3. 多选题
+{: custom-qb-id="answer-wins-over-heading" custom-qb-answer="A"}
+
+- 下列说法正确的是：
+  - [ ] A. 甲
+  - [ ] B. 乙
+
+正确答案为 A。
+{: custom-qb-section="solution"}`);
+    expect(propertyWins.issues).toEqual([]);
+    expect(propertyWins.document.questions[0]?.type).toBe("single");
   });
 
   it("removes nested block IAL from real SiYuan getBlockKramdown content", () => {
