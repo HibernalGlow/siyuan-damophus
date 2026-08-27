@@ -24,6 +24,20 @@ const pluginMetadata: PluginMetadata = {
       key: "enableSelfReferenceCleanup",
       value: true,
     },
+    {
+      type: "checkbox",
+      title: "lets-document-format.enableEmptyContainerCleanup",
+      description: "lets-document-format.enableEmptyContainerCleanupDescription",
+      key: "enableEmptyContainerCleanup",
+      value: true,
+    },
+    {
+      type: "checkbox",
+      title: "lets-document-format.enableCodeBlankLineCleanup",
+      description: "lets-document-format.enableCodeBlankLineCleanupDescription",
+      key: "enableCodeBlankLineCleanup",
+      value: true,
+    },
   ],
 };
 

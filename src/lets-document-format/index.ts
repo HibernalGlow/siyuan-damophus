@@ -2,10 +2,13 @@ import { getBlockDOMsStrict, sqlStrict } from "@/api";
 import { getLogger } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { plugin } from "@/utils";
-import { confirm, Dialog, getAllEditor, showMessage, type ICommand, type IEventBusMap, type IProtyle, type Menu } from "siyuan";
+import { confirm, Dialog, getAllEditor, showMessage, type ICommand, type IEventBusMap, type IOperation, type IProtyle, type Menu } from "siyuan";
 import {
   createEmptyParagraphCleanupPlan,
+  createEmptyContainerCleanupPlan,
+  createCodeBlankLineCleanupPlan,
   isEmptyParagraphDom,
+  isEmptyContainerBlockType,
   isEmptyTextBlockType,
   type DocumentFormatBlock,
 } from "./empty-paragraphs";
@@ -64,7 +67,7 @@ export default class DocumentFormatPlugin extends SubPluginBase {
 
   addMenuItem(menu: Menu): void {
     if (!this.isEntryEnabled("menu")) return;
-    if (this.isEmptyParagraphCleanupEnabled()) {
+    if (this.hasDocumentCleanupEnabled()) {
       menu.addItem({
         icon: "iconSparkles",
         label: this.t("lets-document-format.removeEmptyParagraphs"),
@@ -84,7 +87,7 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     this.removeCommand();
     if (!this.isEntryEnabled("command")) return;
     this.commands = [
-      ...(this.isEmptyParagraphCleanupEnabled() ? [
+      ...(this.hasDocumentCleanupEnabled() ? [
         {
           langKey: "lets-document-format.commandRemoveEmptyParagraphs",
           hotkey: "",
@@ -131,11 +134,25 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     return this.getSetting("enableSelfReferenceCleanup") !== false;
   }
 
+  private isEmptyContainerCleanupEnabled(): boolean {
+    return this.getSetting("enableEmptyContainerCleanup") !== false;
+  }
+
+  private isCodeBlankLineCleanupEnabled(): boolean {
+    return this.getSetting("enableCodeBlankLineCleanup") !== false;
+  }
+
+  private hasDocumentCleanupEnabled(): boolean {
+    return this.isEmptyParagraphCleanupEnabled()
+      || this.isEmptyContainerCleanupEnabled()
+      || this.isCodeBlankLineCleanupEnabled();
+  }
+
   private addDocumentContextMenuItems(
     menu: IEventBusMap["click-blockicon"]["menu"],
     protyle: IProtyle,
   ): void {
-    if (this.isEmptyParagraphCleanupEnabled()) {
+    if (this.hasDocumentCleanupEnabled()) {
       menu.addItem({
         icon: "iconSparkles",
         label: this.t("lets-document-format.removeEmptyParagraphs"),
@@ -155,7 +172,7 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     menu: IEventBusMap["open-menu-doctree"]["menu"],
     documentId: string,
   ): void {
-    if (this.isEmptyParagraphCleanupEnabled()) {
+    if (this.hasDocumentCleanupEnabled()) {
       menu.addItem({
         icon: "iconSparkles",
         label: this.t("lets-document-format.removeEmptyParagraphs"),
@@ -201,16 +218,14 @@ export default class DocumentFormatPlugin extends SubPluginBase {
 
     try {
       const blocks = await this.loadDocumentBlocks(documentId);
-      const candidates = blocks.filter((block) => isEmptyTextBlockType(block.type));
+      const candidates = blocks.filter((block) => (
+        (this.isEmptyParagraphCleanupEnabled() && isEmptyTextBlockType(block.type))
+        || (this.isEmptyContainerCleanupEnabled() && isEmptyContainerBlockType(block.type))
+        || (this.isCodeBlankLineCleanupEnabled() && block.type === "c")
+      ));
       const domById = candidates.length > 0 ? await getBlockDOMsStrict(candidates.map((block) => block.id)) : {};
-      const verifiedDomById = Object.fromEntries(Object.entries(domById)
-        .filter(([, dom]) => isEmptyParagraphDom(dom))) as Record<string, string>;
-      const plan = createEmptyParagraphCleanupPlan(
-        documentId,
-        blocks,
-        verifiedDomById,
-        true,
-      );
+      const verifiedDomById = domById as Record<string, string>;
+      const plan = this.buildCleanupPlan(documentId, blocks, verifiedDomById, true, true, true);
       if (plan.count === 0) {
         showMessage(this.t("lets-document-format.noEmptyParagraphs"), 3500, "info");
         return;
@@ -220,6 +235,61 @@ export default class DocumentFormatPlugin extends SubPluginBase {
       log.error("remove-empty-paragraphs.failed", error);
       showMessage(this.t("lets-document-format.failed"), 7000, "error");
     }
+  }
+
+  private buildCleanupPlan(
+    documentId: string,
+    blocks: readonly DocumentFormatBlock[],
+    domById: Readonly<Record<string, string>>,
+    includeContainerParagraphs: boolean,
+    includeEmptyContainers: boolean,
+    cleanCodeBlankLines: boolean,
+  ): { doOperations: IOperation[]; undoOperations: IOperation[]; count: number } {
+    const containerPlan = includeEmptyContainers
+      ? createEmptyContainerCleanupPlan(documentId, blocks, domById)
+      : { doOperations: [], undoOperations: [], count: 0 };
+    const removedContainerIds = new Set(containerPlan.doOperations
+      .filter((operation) => operation.action === "delete")
+      .map((operation) => operation.id));
+    const isDescendantOfRemovedContainer = (block: DocumentFormatBlock): boolean => {
+      const byId = new Map(blocks.map((entry) => [entry.id, entry]));
+      let parentId = block.parent_id;
+      while (parentId) {
+        if (removedContainerIds.has(parentId)) return true;
+        parentId = byId.get(parentId)?.parent_id;
+      }
+      return false;
+    };
+    const textPlan = this.isEmptyParagraphCleanupEnabled()
+      ? createEmptyParagraphCleanupPlan(
+        documentId,
+        blocks,
+        Object.fromEntries(Object.entries(domById).filter(([, dom]) => isEmptyParagraphDom(dom))),
+        includeContainerParagraphs,
+      )
+      : { doOperations: [], undoOperations: [], count: 0 };
+    const filteredTextIds = new Set(blocks
+      .filter((block) => isEmptyTextBlockType(block.type))
+      .filter((block) => !isDescendantOfRemovedContainer(block))
+      .map((block) => block.id));
+    const filteredTextPlan = {
+      doOperations: textPlan.doOperations.filter((operation) => filteredTextIds.has(operation.id)),
+      undoOperations: textPlan.undoOperations.filter((operation) => filteredTextIds.has(operation.id)),
+      count: textPlan.doOperations.filter((operation) => filteredTextIds.has(operation.id)).length,
+    };
+    const deletedTextIds = new Set(filteredTextPlan.doOperations.map((operation) => operation.id));
+    const codePlan = cleanCodeBlankLines && this.isCodeBlankLineCleanupEnabled()
+      ? createCodeBlankLineCleanupPlan(
+        blocks.filter((block) => !isDescendantOfRemovedContainer(block))
+          .filter((block) => !deletedTextIds.has(block.id)),
+        domById,
+      )
+      : { doOperations: [], undoOperations: [], count: 0, removedLineCount: 0 };
+    return {
+      doOperations: [...containerPlan.doOperations, ...filteredTextPlan.doOperations, ...codePlan.doOperations],
+      undoOperations: [...containerPlan.undoOperations, ...filteredTextPlan.undoOperations, ...codePlan.undoOperations],
+      count: containerPlan.count + filteredTextPlan.count + codePlan.count,
+    };
   }
 
   private async loadDocumentBlocks(documentId: string): Promise<DocumentFormatBlock[]> {
@@ -286,8 +356,18 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     domById: Readonly<Record<string, string>>,
     totalCount: number,
   ): void {
-    const containerCount = createEmptyParagraphCleanupPlan(documentId, blocks, domById, true).count
-      - createEmptyParagraphCleanupPlan(documentId, blocks, domById, false).count;
+    const emptyTextDomById = Object.fromEntries(Object.entries(domById)
+      .filter(([, dom]) => isEmptyParagraphDom(dom)));
+    const containerCount = this.isEmptyParagraphCleanupEnabled()
+      ? createEmptyParagraphCleanupPlan(documentId, blocks, emptyTextDomById, true).count
+        - createEmptyParagraphCleanupPlan(documentId, blocks, emptyTextDomById, false).count
+      : 0;
+    const emptyContainerCount = this.isEmptyContainerCleanupEnabled()
+      ? createEmptyContainerCleanupPlan(documentId, blocks, domById).count
+      : 0;
+    const codeCount = this.isCodeBlankLineCleanupEnabled()
+      ? createCodeBlankLineCleanupPlan(blocks, domById).count
+      : 0;
     const dialog = new Dialog({
       title: this.t("lets-document-format.confirmTitle"),
       width: "min(460px, 92vw)",
@@ -298,6 +378,16 @@ export default class DocumentFormatPlugin extends SubPluginBase {
             <input class="b3-switch fn__flex-center" type="checkbox" data-field="include-containers" checked>
             <span class="fn__flex-1">${this.t("lets-document-format.includeContainers").replace("{count}", String(containerCount))}</span>
           </label>
+          ${this.isEmptyContainerCleanupEnabled() ? `
+          <label class="b3-label fn__flex fn__space--top">
+            <input class="b3-switch fn__flex-center" type="checkbox" data-field="include-empty-containers" checked>
+            <span class="fn__flex-1">${this.t("lets-document-format.includeEmptyContainers").replace("{count}", String(emptyContainerCount))}</span>
+          </label>` : ""}
+          ${this.isCodeBlankLineCleanupEnabled() ? `
+          <label class="b3-label fn__flex fn__space--top">
+            <input class="b3-switch fn__flex-center" type="checkbox" data-field="clean-code-blank-lines" checked>
+            <span class="fn__flex-1">${this.t("lets-document-format.cleanCodeBlankLines").replace("{count}", String(codeCount))}</span>
+          </label>` : ""}
         </div>
         <div class="b3-dialog__action">
           <button class="b3-button b3-button--cancel" data-action="cancel">${this.t("lets-document-format.cancel")}</button>
@@ -306,9 +396,18 @@ export default class DocumentFormatPlugin extends SubPluginBase {
       `,
     });
     const checkbox = dialog.element.querySelector<HTMLInputElement>('[data-field="include-containers"]');
+    const emptyContainersCheckbox = dialog.element.querySelector<HTMLInputElement>('[data-field="include-empty-containers"]');
+    const codeBlankLinesCheckbox = dialog.element.querySelector<HTMLInputElement>('[data-field="clean-code-blank-lines"]');
     dialog.element.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
     dialog.element.querySelector<HTMLButtonElement>('[data-action="remove"]')?.addEventListener("click", () => {
-      const plan = createEmptyParagraphCleanupPlan(documentId, blocks, domById, checkbox?.checked ?? true);
+      const plan = this.buildCleanupPlan(
+        documentId,
+        blocks,
+        domById,
+        checkbox?.checked ?? true,
+        emptyContainersCheckbox?.checked ?? false,
+        codeBlankLinesCheckbox?.checked ?? false,
+      );
       dialog.destroy();
       if (plan.count === 0) {
         showMessage(this.t("lets-document-format.noEmptyParagraphs"), 3500, "info");
