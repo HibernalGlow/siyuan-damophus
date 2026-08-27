@@ -1,6 +1,7 @@
 import { Menu, showMessage, type IMenu } from "siyuan";
 import type { RiffCardRecord } from "./siyuan-adapter";
 import { priorityTag } from "./priority-tags";
+import { getReviewToolbarActions, getReviewToolbarActionRevision, type ReviewToolbarAction, type ReviewToolbarActionContext } from "./review-action-registry";
 
 export interface NativeReviewToolbarSettings {
   enabled: boolean;
@@ -14,6 +15,8 @@ export interface NativeReviewToolbarSettings {
   showBrand: boolean;
   showFilter?: boolean;
   showFullscreen?: boolean;
+  reviewToolbarActionOrder?: string[];
+  reviewToolbarCustomCss?: string;
 }
 
 export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock" | "blockquote" | "callout" | "tag" | "topicRelations";
@@ -49,6 +52,7 @@ interface AttachedControl {
 }
 
 const BREADCRUMB_POLICY_STYLE_ID = "damophus-flashcard-breadcrumb-policy";
+const CUSTOM_STYLE_ID = "damophus-flashcard-custom-toolbar-style";
 const BREADCRUMB_POLICY_STYLE = `
 .protyle-breadcrumb[data-damophus-flashcard-breadcrumb]:not([data-damophus-show-exit-focus]) > [data-type="exit-focus"] {
   display: none !important;
@@ -86,6 +90,10 @@ export class NativePriorityControls {
   };
 
   constructor(private readonly options: NativePriorityControlOptions) {}
+
+  openPriorityMenuForAction(trigger: Element, card: RiffCardRecord): void {
+    this.openPriorityMenu(trigger, card);
+  }
 
   install(): void {
     if (this.observer) return;
@@ -130,6 +138,7 @@ export class NativePriorityControls {
     this.clearNativeToolbarPolicies();
     this.controls.clear();
     this.options.documentRef.getElementById(BREADCRUMB_POLICY_STYLE_ID)?.remove();
+    this.options.documentRef.getElementById(CUSTOM_STYLE_ID)?.remove();
   }
 
   private scan(): void {
@@ -139,7 +148,9 @@ export class NativePriorityControls {
       this.clearNativeToolbarPolicies();
       return;
     }
-    const signature = JSON.stringify(settings);
+    const signature = JSON.stringify({ settings, actionRevision: getReviewToolbarActionRevision() });
+    this.applyCustomStyle(settings.reviewToolbarCustomCss ?? "");
+    const actions = this.resolveActions(settings);
     for (const root of this.options.documentRef.querySelectorAll<HTMLElement>(".card__main")) {
       const toolbar = [...root.children].find((child): child is HTMLElement =>
         child.classList.contains("block__icons") || child.classList.contains("toolbar"),
@@ -155,7 +166,7 @@ export class NativePriorityControls {
         for (const element of current.elements) element.remove();
         this.controls.delete(toolbar);
       }
-      this.attach(root, toolbar, settings, signature);
+      this.attach(root, toolbar, actions, signature);
     }
   }
 
@@ -236,32 +247,55 @@ export class NativePriorityControls {
     this.options.documentRef.head.append(style);
   }
 
-  private attach(root: HTMLElement, toolbar: HTMLElement, settings: NativeReviewToolbarSettings, signature: string): void {
-    const elements: Element[] = [];
-    if (settings.locate) elements.push(this.createAction(toolbar, "iconFocus", "定位闪卡原块", async () => {
-      const card = await this.resolveCard(root);
-      if (card) await this.options.locate(card);
-    }));
-    if (settings.unregister) elements.push(this.createAction(toolbar, "iconCloseRound", "取消闪卡登记", async () => {
-      const card = await this.resolveCard(root);
-      if (card && await this.options.unregister(card)) {
-        root.querySelector<HTMLButtonElement>('.card__action:not(.fn__none) button[data-type="-3"]')?.click();
-      }
-    }));
-    if (settings.priority) elements.push(this.createAction(toolbar, "iconSort", "设置闪卡优先级", async (trigger) => {
-      const card = await this.resolveCard(root);
-      if (card) this.openPriorityMenu(trigger, card);
-    }));
-    if (settings.renderer) {
-      const enabled = this.options.isRendererOverrideEnabled();
-      elements.push(this.createAction(
-        toolbar,
-        enabled ? "iconEye" : "iconEyeoff",
-        enabled ? "关闭按卡片渲染" : "启用按卡片渲染",
-        () => this.options.toggleRendererOverride(),
-      ));
+  private resolveActions(settings: NativeReviewToolbarSettings): ReviewToolbarAction[] {
+    const fallback: ReviewToolbarAction[] = [
+      { id: "locate", icon: "iconFocus", label: "定位闪卡原块", source: "DAMO", execute: async (context) => { const card = await context.resolveCard(); if (card) await this.options.locate(card); } },
+      { id: "unregister", icon: "iconCloseRound", label: "取消闪卡登记", source: "DAMO", execute: async (context) => { const card = await context.resolveCard(); if (card && await this.options.unregister(card)) context.click('.card__action:not(.fn__none) button[data-type="-3"]'); } },
+      { id: "priority", icon: "iconSort", label: "设置闪卡优先级", source: "DAMO", execute: async (context) => { const card = await context.resolveCard(); if (card) this.openPriorityMenu(context.trigger, card); } },
+      { id: "renderer", icon: "iconEye", label: "切换按卡片渲染", source: "DAMO", execute: () => this.options.toggleRendererOverride() },
+      { id: "workbench", icon: "iconSettings", label: "打开闪卡工作台", source: "DAMO", execute: () => this.options.openWorkbench() },
+      { id: "native.filter", icon: "iconFilter", label: "原生筛选", source: "思源", execute: (context) => { context.click('[data-type="filter"]'); } },
+      { id: "native.fullscreen", icon: "iconFullscreen", label: "原生全屏", source: "思源", execute: (context) => { context.click('[data-type="fullscreen"]'); } },
+      { id: "native.more", icon: "iconMore", label: "更多", source: "思源", execute: (context) => { context.click('[data-type="more"]'); } },
+    ];
+    const legacyVisibility: Record<string, boolean> = {
+      locate: settings.locate,
+      unregister: settings.unregister,
+      priority: settings.priority,
+      renderer: settings.renderer,
+      workbench: settings.workbench,
+      "native.filter": settings.showFilter !== false,
+      "native.fullscreen": settings.showFullscreen !== false,
+    };
+    const all = new Map(fallback.map((action) => [action.id, action]));
+    for (const action of getReviewToolbarActions()) all.set(action.id, action);
+    const order = settings.reviewToolbarActionOrder?.length
+      ? settings.reviewToolbarActionOrder
+      : ["locate", "unregister", "priority", "renderer", "workbench"];
+    return order
+      .filter((id) => legacyVisibility[id] !== false)
+      .map((id) => all.get(id))
+      .filter((action): action is ReviewToolbarAction => Boolean(action));
+  }
+
+  private applyCustomStyle(css: string): void {
+    const existing = this.options.documentRef.getElementById(CUSTOM_STYLE_ID);
+    if (!css.trim()) {
+      existing?.remove();
+      return;
     }
-    if (settings.workbench) elements.push(this.createAction(toolbar, "iconSettings", "打开闪卡工作台", () => this.options.openWorkbench()));
+    const style = existing ?? this.options.documentRef.createElement("style");
+    style.id = CUSTOM_STYLE_ID;
+    const scopedCss = `@scope (.card__main) {\n${css}\n}`;
+    if (style.textContent !== scopedCss) style.textContent = scopedCss;
+    if (!existing) this.options.documentRef.head.append(style);
+  }
+
+  private attach(root: HTMLElement, toolbar: HTMLElement, actions: ReviewToolbarAction[], signature: string): void {
+    const elements: Element[] = [];
+    for (const action of actions) {
+      elements.push(this.createAction(toolbar, action, root));
+    }
     this.controls.set(toolbar, { root, elements, signature });
   }
 
@@ -376,32 +410,45 @@ export class NativePriorityControls {
 
   private createAction(
     toolbar: HTMLElement,
-    icon: string,
-    label: string,
-    action: (trigger: Element) => void | Promise<void>,
+    action: ReviewToolbarAction,
+    root: HTMLElement,
   ): Element {
     const mobile = toolbar.classList.contains("toolbar");
     const element = mobile
       ? this.options.documentRef.createElementNS("http://www.w3.org/2000/svg", "svg")
       : this.options.documentRef.createElement("button");
     element.setAttribute("class", mobile ? "toolbar__icon" : "block__icon block__icon--show");
-    element.setAttribute("data-damophus-flashcard-tool", icon);
-    element.setAttribute("aria-label", label);
-    element.setAttribute("title", label);
+    element.setAttribute("data-damophus-flashcard-tool", action.icon);
+    element.setAttribute("data-damophus-flashcard-action", action.id);
+    element.setAttribute("aria-label", action.label);
+    element.setAttribute("title", action.label);
     if (mobile) {
       const use = this.options.documentRef.createElementNS("http://www.w3.org/2000/svg", "use");
-      const iconHref = `#${icon}`;
+      const iconHref = `#${action.icon}`;
       // SiYuan's mobile SVG templates still use the SVG 1.1 xlink form.
       use.setAttribute("href", iconHref);
       use.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", iconHref);
       element.append(use);
     } else {
-      element.innerHTML = `<svg><use href="#${icon}"></use></svg>`;
+      element.innerHTML = `<svg><use href="#${action.icon}"></use></svg>`;
     }
     element.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      void action(element);
+      const context: ReviewToolbarActionContext = {
+        root,
+        toolbar,
+        trigger: element,
+        documentRef: this.options.documentRef,
+        resolveCard: () => this.resolveCard(root),
+        click: (selector) => {
+          const target = root.querySelector<HTMLElement>(selector);
+          if (!target) return false;
+          target.click();
+          return true;
+        },
+      };
+      void action.execute(context);
     });
     const filter = toolbar.querySelector('[data-type="filter"]');
     toolbar.insertBefore(element, filter ?? null);

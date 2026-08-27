@@ -64,6 +64,7 @@
   export let onUndoFsrsWeights: (entry: FsrsWeightHistoryEntry) => Promise<boolean> = async () => false;
 
   let config: FlashcardSettings = runtime.getSettings();
+  let reviewToolbarActionOrderText = config.reviewToolbarActionOrder.join("\\n");
   let message = "";
   let saving = false;
   let workbenchMode: "make" | "review" = "make";
@@ -1139,6 +1140,8 @@
               <div class="option-row"><svelte:component this={option[2]} aria-hidden="true" /><span>{option[1]}</span><Switch size="sm" checked={config[option[0]]} onCheckedChange={(value) => setBooleanSetting(option[0], value)} aria-label={option[1]} /></div>
             {/each}
           </div>
+          <div class="setting-row"><div><strong>工具栏动作顺序</strong><span>按动作 ID 排列，支持 DAMO、native.filter、native.fullscreen、native.more 以及其他插件注册的动作</span></div><Textarea aria-label="工具栏动作顺序" bind:value={reviewToolbarActionOrderText} oninput={() => { config.reviewToolbarActionOrder = reviewToolbarActionOrderText.split(/[\\n,]+/u).map((id) => id.trim()).filter(Boolean); saveGlobalOnChange(); }} rows={3} /></div>
+          <div class="setting-row"><div><strong>复习工具栏自定义 CSS</strong><span>只作用于原生闪卡复习界面；可使用 [data-damophus-flashcard-action] 选择具体动作</span></div><Textarea aria-label="复习工具栏自定义 CSS" bind:value={config.reviewToolbarCustomCss} rows={7} oninput={saveGlobalOnChange} /></div>
         {/if}
       </section>
     </div>

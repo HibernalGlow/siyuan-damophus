@@ -109,6 +109,12 @@ function mergeSettings(value: unknown): FlashcardSettings {
       : input.showBreadcrumbReviewButton === false
         ? false
         : DEFAULT_FLASHCARD_SETTINGS.showMobileBreadcrumbReviewButton,
+    reviewToolbarActionOrder: Array.isArray(input.reviewToolbarActionOrder)
+      ? input.reviewToolbarActionOrder.map((id) => String(id).trim()).filter(Boolean)
+      : [...DEFAULT_FLASHCARD_SETTINGS.reviewToolbarActionOrder],
+    reviewToolbarCustomCss: typeof input.reviewToolbarCustomCss === "string"
+      ? input.reviewToolbarCustomCss
+      : DEFAULT_FLASHCARD_SETTINGS.reviewToolbarCustomCss,
     fsrsOptimizerMode: input.fsrsOptimizerMode === "browser" ? "browser" : "internal",
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],

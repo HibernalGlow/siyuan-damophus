@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NativePriorityControls } from "./native-priority-controls";
+import { clearReviewToolbarActions, registerReviewToolbarAction } from "./review-action-registry";
 
 let controls: NativePriorityControls | undefined;
 
 afterEach(() => {
   controls?.uninstall();
   controls = undefined;
+  clearReviewToolbarActions();
   vi.unstubAllGlobals();
   document.body.innerHTML = "";
 });
@@ -38,6 +40,29 @@ function cardRoot(mobile: boolean): HTMLElement {
 }
 
 describe("native flashcard toolbar", () => {
+  it("injects registered external actions according to configured order", async () => {
+    cardRoot(false);
+    const execute = vi.fn();
+    const dispose = registerReviewToolbarAction({ id: "topic-relations.open", icon: "iconLink", label: "打开考点关系", source: "topic-relations", execute });
+    controls = new NativePriorityControls({
+      documentRef: document,
+      getSettings: () => ({ enabled: true, locate: false, unregister: false, priority: false, workbench: false, renderer: false, skipBetween: true, showExitFocus: false, showBrand: true, reviewToolbarActionOrder: ["topic-relations.open"] }),
+      getCurrentCard: () => undefined,
+      setPriority: vi.fn(async () => "native" as const),
+      locate: vi.fn(), unregister: vi.fn(async () => false), openWorkbench: vi.fn(),
+      isRendererOverrideEnabled: () => true, toggleRendererOverride: vi.fn(),
+      getRendererVisibility: () => ({}), toggleRendererVisibility: vi.fn(), toggleToolVisibility: vi.fn(),
+    });
+    controls.install();
+    const action = await vi.waitFor(() => document.querySelector<HTMLElement>('[data-damophus-flashcard-action="topic-relations.open"]'));
+    expect(action?.getAttribute("aria-label")).toBe("打开考点关系");
+    action?.click();
+    expect(execute).toHaveBeenCalledTimes(1);
+    dispose();
+    controls.refresh();
+    await vi.waitFor(() => expect(document.querySelector('[data-damophus-flashcard-action="topic-relations.open"]')).toBeNull());
+  });
+
   it.each([false, true])("attaches native icon actions on %s layout", async (mobile) => {
     cardRoot(mobile);
     const locate = vi.fn();

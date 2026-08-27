@@ -15,6 +15,7 @@ import type { FlashcardBlockRow, FlashcardGroup, FlashcardReviewScope, Flashcard
 import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 import { priorityTag } from "@/flashcard/priority-tags";
 import { NativePriorityControls, type ReviewToolbarKey } from "@/flashcard/native-priority-controls";
+import { registerReviewToolbarAction, type ReviewToolbarAction } from "@/flashcard/review-action-registry";
 import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/native-review-counter";
 import { NativeReviewTimer } from "@/flashcard/native-review-timer";
 import { readReviewCardStats } from "@/flashcard/review-stats";
@@ -25,6 +26,8 @@ import type {
   RiffCardRecord,
 } from "@/flashcard/siyuan-adapter";
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
+import { FlashcardCategoryModule } from "@/flashcard/category-module";
+import { getFlashcardContributions, type FlashcardReviewStage } from "@/flashcard/contribution-registry";
 import { SiyuanMobileFlashcardSurfaceAdapter } from "@/flashcard/mobile-surface-adapter";
 import {
   FsrsOptimizerLocalService,
@@ -71,6 +74,12 @@ export default class FlashcardPlugin extends SubPluginBase {
     (key) => this.getSetting(key),
     (key, value) => this.setSetting(key, value),
   );
+  private readonly categories = new FlashcardCategoryModule({
+    load: async () => plugin.loadData("flashcard/categories.json"),
+    save: async (value) => { await plugin.saveData("flashcard/categories.json", value); },
+  });
+  private disposeCategoryContribution?: () => void;
+  private disposeCategoryToolbar?: () => void;
   private entry?: UnifiedEntryPoint;
   private tabRegistered = false;
   private readonly mounted = new Map<HTMLElement, ReturnType<typeof mount>>();
@@ -85,6 +94,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   private mobileNativeEntryBound = false;
   private mobileReviewButtonObserver?: MutationObserver;
   private breadcrumbButtonRegistered = false;
+  private readonly reviewToolbarActionDisposers: Array<() => void> = [];
   private optimizerService?: FsrsOptimizerLocalService;
   private readonly fsrsHistoryStorage: FsrsWeightHistoryStorage = {
     loadData: (storageName) => plugin.loadData(storageName),
@@ -123,6 +133,8 @@ export default class FlashcardPlugin extends SubPluginBase {
         showBrand: settings.reviewToolbarShowBrand,
         showFilter: settings.reviewToolbarShowFilter,
         showFullscreen: settings.reviewToolbarShowFullscreen,
+        reviewToolbarActionOrder: settings.reviewToolbarActionOrder,
+        reviewToolbarCustomCss: settings.reviewToolbarCustomCss,
       };
     },
     getCurrentCard: () => this.currentReviewCard,
@@ -143,15 +155,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     unregister: (card) => this.unregisterCard(card),
     openWorkbench: () => this.openSettings(),
     isRendererOverrideEnabled: () => this.runtime.getSettings().rendererInterceptionEnabled,
-    toggleRendererOverride: async () => {
-      const settings = this.runtime.getSettings();
-      const enabled = !settings.rendererInterceptionEnabled;
-      await this.runtime.saveSettings({ ...settings, rendererInterceptionEnabled: enabled });
-      if (enabled) this.compat.install();
-      else this.compat.uninstall();
-      this.priorityControls.refresh();
-      showMessage(enabled ? "已启用按卡片 renderer 渲染" : "已关闭按卡片 renderer 渲染", 3000, "info");
-    },
+    toggleRendererOverride: () => this.toggleRendererOverride(),
     getRendererVisibility: () => this.runtime.getSettings().rendererVisibility,
     toggleRendererVisibility: async (key) => {
       const settings = this.runtime.getSettings();
@@ -228,6 +232,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onload(): void {
+    this.registerReviewToolbarActions();
     this.reviewTimer.installActivityTracking(
       window,
       document,
@@ -244,6 +249,13 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewCounter.install();
     this.priorityControls.install();
     this.runtime.load();
+    void this.categories.load().then(() => {
+      this.disposeCategoryContribution?.();
+      this.disposeCategoryContribution = this.categories.registerContribution();
+      this.disposeCategoryToolbar?.();
+      this.disposeCategoryToolbar = this.categories.registerToolbarAction();
+      this.priorityControls.refresh();
+    }).catch((error) => log.warn("flashcard-category-load-failed", error));
     this.syncBreadcrumbButton();
     this.compat.setVisibility(this.runtime.getSettings().rendererVisibility);
     if (this.getSetting("rendererInterceptionEnabled") !== false) {
@@ -528,10 +540,16 @@ export default class FlashcardPlugin extends SubPluginBase {
   private async orderCards(cards: readonly RiffCardRecord[], limit?: number): Promise<RiffCardRecord[]> {
     const roots = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
     this.compat.preloadMany(roots);
+    const stages = getFlashcardContributions("review-stage")
+      .map((item) => item.value as FlashcardReviewStage);
+    const categoryRanks = stages.length
+      ? new Map(roots.map((root) => [root.blockId, Math.min(...stages.map((stage) => stage.getRank(root.blockId, root)))]))
+      : undefined;
     const ordered = orderCardsByPriority(cards, roots, {
       randomInterleave: this.runtime.getSettings().randomInterleaveEnabled,
       samePriorityShuffle: this.runtime.getSettings().samePriorityShuffleEnabled,
       reviewMode: this.nativeReviewMode(),
+      categoryRanksByBlockId: categoryRanks,
     });
     const limited = limit === undefined ? ordered : ordered.slice(0, Math.max(1, limit));
     const rootsById = new Map(roots.map((root) => [root.blockId, root]));
@@ -553,6 +571,11 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onunload(): void {
+    this.disposeCategoryContribution?.();
+    this.disposeCategoryContribution = undefined;
+    this.disposeCategoryToolbar?.();
+    this.disposeCategoryToolbar = undefined;
+    for (const dispose of this.reviewToolbarActionDisposers.splice(0)) dispose();
     this.reviewTimer?.stopSession();
     this.reviewTimer?.dispose();
     this.unbindMobileNativeReviewEntry();
@@ -747,6 +770,45 @@ export default class FlashcardPlugin extends SubPluginBase {
     return [
       this.contextScopeMenuItem("document", [documentId], targetName, scopes),
     ];
+  }
+
+  private registerReviewToolbarActions(): void {
+    const actions: ReviewToolbarAction[] = [
+      {
+        id: "locate", icon: "iconFocus", label: "定位闪卡原块", source: "DAMO",
+        execute: async (context) => { const card = await context.resolveCard(); if (card) await this.locateCard(card); },
+      },
+      {
+        id: "unregister", icon: "iconCloseRound", label: "取消闪卡登记", source: "DAMO",
+        execute: async (context) => {
+          const card = await context.resolveCard();
+          if (card && await this.unregisterCard(card)) context.click('.card__action:not(.fn__none) button[data-type="-3"]');
+        },
+      },
+      {
+        id: "priority", icon: "iconSort", label: "设置闪卡优先级", source: "DAMO",
+        execute: async (context) => { const card = await context.resolveCard(); if (card) this.priorityControls.openPriorityMenuForAction(context.trigger, card); },
+      },
+      {
+        id: "renderer", icon: "iconEye", label: "切换按卡片渲染", source: "DAMO",
+        execute: () => this.toggleRendererOverride(),
+      },
+      { id: "workbench", icon: "iconSettings", label: "打开闪卡工作台", source: "DAMO", execute: () => this.openSettings() },
+      { id: "native.filter", icon: "iconFilter", label: "原生筛选", source: "思源", execute: (context) => { context.click('[data-type="filter"]'); } },
+      { id: "native.fullscreen", icon: "iconFullscreen", label: "原生全屏", source: "思源", execute: (context) => { context.click('[data-type="fullscreen"]'); } },
+      { id: "native.more", icon: "iconMore", label: "更多", source: "思源", execute: (context) => { context.click('[data-type="more"]'); } },
+    ];
+    this.reviewToolbarActionDisposers.push(...actions.map((action) => registerReviewToolbarAction(action)));
+  }
+
+  private async toggleRendererOverride(): Promise<void> {
+    const settings = this.runtime.getSettings();
+    const enabled = !settings.rendererInterceptionEnabled;
+    await this.runtime.saveSettings({ ...settings, rendererInterceptionEnabled: enabled });
+    if (enabled) this.compat.install();
+    else this.compat.uninstall();
+    this.priorityControls.refresh();
+    showMessage(enabled ? "已启用按卡片 renderer 渲染" : "已关闭按卡片 renderer 渲染", 3000, "info");
   }
 
   private contextScopeMenuItem(
