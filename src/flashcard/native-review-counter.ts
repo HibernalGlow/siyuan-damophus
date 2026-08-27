@@ -183,10 +183,6 @@ const COUNTER_STYLE = `
     grid-template-areas: "priority" "details";
     row-gap: 4px;
   }
-  .damophus-mobile-counter-row .damophus-priority-segment {
-    width: 100%;
-    justify-content: space-between;
-  }
   .damophus-mobile-counter-row .damophus-counter-details {
     width: 100%;
     max-width: 100%;
