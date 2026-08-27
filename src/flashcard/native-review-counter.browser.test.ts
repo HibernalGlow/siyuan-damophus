@@ -270,6 +270,8 @@ describe("native review priority counter", () => {
     expect(row).not.toBeNull();
     expect(row?.previousElementSibling).toBe(toolbar);
     expect(row?.querySelector<HTMLElement>(".damophus-priority-segment")).not.toBeNull();
+    expect(getComputedStyle(row!.querySelector<HTMLElement>(".damophus-priority-segment")!).justifyContent)
+      .toBe("space-between");
     expect(row?.querySelector<HTMLElement>(".damophus-counter-details-copy")).toBeNull();
     expect(row?.children).toHaveLength(1);
     expect(count.parentElement).toBe(row);
