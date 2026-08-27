@@ -26,7 +26,7 @@ function createEventBus(): EventBusMock {
 afterEach(() => setPlugin(undefined));
 
 describe("document format document-tree menu", () => {
-  it("adds the empty text block cleanup to a single document menu", () => {
+  it("adds both cleanup actions under the document format submenu", () => {
     const eventBus = createEventBus();
     setPlugin({ eventBus });
     const module = new DocumentFormatPlugin();
@@ -39,9 +39,14 @@ describe("document format document-tree menu", () => {
     module.onload();
     eventBus.emit("open-menu-doctree", { menu: { addItem }, elements: [documentElement], type: "doc" });
 
+    expect(addItem).toHaveBeenCalledTimes(1);
     expect(addItem).toHaveBeenCalledWith(expect.objectContaining({
-      label: "lets-document-format.removeEmptyParagraphs",
+      label: "lets-document-format.menu",
       icon: "iconSparkles",
+      submenu: [
+        expect.objectContaining({ label: "lets-document-format.removeEmptyParagraphs" }),
+        expect.objectContaining({ label: "lets-document-format.removeSelfReferences" }),
+      ],
     }));
     module.onunload();
   });

@@ -2,13 +2,12 @@ import { getBlockDOMsStrict, sqlStrict } from "@/api";
 import { getLogger } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { plugin } from "@/utils";
-import { confirm, Dialog, getAllEditor, showMessage, type ICommand, type IEventBusMap, type IOperation, type IProtyle, type Menu } from "siyuan";
+import { confirm, Dialog, getAllEditor, showMessage, type ICommand, type IEventBusMap, type IOperation, type IProtyle, type Menu, type IMenu } from "siyuan";
 import {
   createEmptyParagraphCleanupPlan,
   createEmptyContainerCleanupPlan,
   createCodeBlankLineCleanupPlan,
   isEmptyParagraphDom,
-  isEmptyContainerBlockType,
   isEmptyTextBlockType,
   type DocumentFormatBlock,
 } from "./empty-paragraphs";
@@ -67,20 +66,14 @@ export default class DocumentFormatPlugin extends SubPluginBase {
 
   addMenuItem(menu: Menu): void {
     if (!this.isEntryEnabled("menu")) return;
-    if (this.hasDocumentCleanupEnabled()) {
-      menu.addItem({
-        icon: "iconSparkles",
-        label: this.t("lets-document-format.removeEmptyParagraphs"),
-        click: () => void this.runInCurrentDocument((protyle) => this.removeEmptyParagraphs(protyle)),
-      });
-    }
-    if (this.isSelfReferenceCleanupEnabled()) {
-      menu.addItem({
-        icon: "iconSparkles",
-        label: this.t("lets-document-format.removeSelfReferences"),
-        click: () => void this.runInCurrentDocument((protyle) => this.removeSelfReferences(protyle)),
-      });
-    }
+    const submenu = this.documentFormatSubmenu((protyle) => {
+      if (protyle) void this.removeEmptyParagraphs(protyle);
+      else void this.runInCurrentDocument((current) => this.removeEmptyParagraphs(current));
+    }, (protyle) => {
+      if (protyle) void this.removeSelfReferences(protyle);
+      else void this.runInCurrentDocument((current) => this.removeSelfReferences(current));
+    });
+    if (submenu.length > 0) menu.addItem({ icon: "iconSparkles", label: this.t("lets-document-format.menu"), submenu });
   }
 
   private syncCommand(): void {
@@ -152,40 +145,40 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     menu: IEventBusMap["click-blockicon"]["menu"],
     protyle: IProtyle,
   ): void {
-    if (this.hasDocumentCleanupEnabled()) {
-      menu.addItem({
-        icon: "iconSparkles",
-        label: this.t("lets-document-format.removeEmptyParagraphs"),
-        click: () => void this.removeEmptyParagraphs(protyle),
-      });
-    }
-    if (this.isSelfReferenceCleanupEnabled()) {
-      menu.addItem({
-        icon: "iconSparkles",
-        label: this.t("lets-document-format.removeSelfReferences"),
-        click: () => void this.removeSelfReferences(protyle),
-      });
-    }
+    const submenu = this.documentFormatSubmenu(
+      () => void this.removeEmptyParagraphs(protyle),
+      () => void this.removeSelfReferences(protyle),
+    );
+    if (submenu.length > 0) menu.addItem({ icon: "iconSparkles", label: this.t("lets-document-format.menu"), submenu });
   }
 
   private addDocumentTreeMenuItems(
     menu: IEventBusMap["open-menu-doctree"]["menu"],
     documentId: string,
   ): void {
-    if (this.hasDocumentCleanupEnabled()) {
-      menu.addItem({
-        icon: "iconSparkles",
-        label: this.t("lets-document-format.removeEmptyParagraphs"),
-        click: () => void this.runInDocumentTree(documentId, (protyle) => this.removeEmptyParagraphs(protyle)),
-      });
-    }
-    if (this.isSelfReferenceCleanupEnabled()) {
-      menu.addItem({
-        icon: "iconSparkles",
-        label: this.t("lets-document-format.removeSelfReferences"),
-        click: () => void this.runInDocumentTree(documentId, (protyle) => this.removeSelfReferences(protyle)),
-      });
-    }
+    const submenu = this.documentFormatSubmenu(
+      () => void this.runInDocumentTree(documentId, (protyle) => this.removeEmptyParagraphs(protyle)),
+      () => void this.runInDocumentTree(documentId, (protyle) => this.removeSelfReferences(protyle)),
+    );
+    if (submenu.length > 0) menu.addItem({ icon: "iconSparkles", label: this.t("lets-document-format.menu"), submenu });
+  }
+
+  private documentFormatSubmenu(
+    removeEmpty: (protyle?: IProtyle) => void,
+    removeReferences: (protyle?: IProtyle) => void,
+  ): IMenu[] {
+    const submenu: IMenu[] = [];
+    if (this.hasDocumentCleanupEnabled()) submenu.push({
+      icon: "iconSparkles",
+      label: this.t("lets-document-format.removeEmptyParagraphs"),
+      click: () => removeEmpty(),
+    });
+    if (this.isSelfReferenceCleanupEnabled()) submenu.push({
+      icon: "iconLink",
+      label: this.t("lets-document-format.removeSelfReferences"),
+      click: () => removeReferences(),
+    });
+    return submenu;
   }
 
   private async runInCurrentDocument(action: (protyle: IProtyle) => Promise<void>): Promise<void> {
@@ -218,12 +211,8 @@ export default class DocumentFormatPlugin extends SubPluginBase {
 
     try {
       const blocks = await this.loadDocumentBlocks(documentId);
-      const candidates = blocks.filter((block) => (
-        (this.isEmptyParagraphCleanupEnabled() && isEmptyTextBlockType(block.type))
-        || (this.isEmptyContainerCleanupEnabled() && isEmptyContainerBlockType(block.type))
-        || (this.isCodeBlankLineCleanupEnabled() && block.type === "c")
-      ));
-      const domById = candidates.length > 0 ? await getBlockDOMsStrict(candidates.map((block) => block.id)) : {};
+      const candidateIds = await this.loadCleanupCandidateIds(documentId);
+      const domById = candidateIds.length > 0 ? await getBlockDOMsStrict(candidateIds) : {};
       const verifiedDomById = domById as Record<string, string>;
       const plan = this.buildCleanupPlan(documentId, blocks, verifiedDomById, true, true, true);
       if (plan.count === 0) {
@@ -297,6 +286,19 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     return sqlStrict<DocumentFormatBlock[]>(
       `SELECT id, parent_id, root_id, type, content, sort FROM blocks WHERE root_id = '${escapedDocumentId}'`,
     );
+  }
+
+  private async loadCleanupCandidateIds(documentId: string): Promise<string[]> {
+    const escapedDocumentId = documentId.replace(/'/gu, "''");
+    const textTypes = this.isEmptyParagraphCleanupEnabled() ? "'p','h','c','m','html'" : "''";
+    const containers = this.isEmptyContainerCleanupEnabled() ? "'b','callout','s','l','i'" : "''";
+    const code = this.isCodeBlankLineCleanupEnabled() ? "'c'" : "''";
+    const rows = await sqlStrict<Array<{ id: string }>>(`
+      SELECT id FROM blocks
+      WHERE root_id = '${escapedDocumentId}'
+        AND type IN (${textTypes}, ${containers}, ${code})
+    `);
+    return rows.map((row) => row.id);
   }
 
   private async removeSelfReferences(protyle: IProtyle): Promise<void> {
