@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyParagraphCleanupPlan, isEmptyText, type DocumentFormatBlock } from "./empty-paragraphs";
+import { createEmptyParagraphCleanupPlan, isEmptyText, isEmptyTextBlockType, type DocumentFormatBlock } from "./empty-paragraphs";
 
 const documentId = "20260827090000-document";
 
@@ -19,6 +19,14 @@ describe("empty paragraph cleanup", () => {
   it("recognizes whitespace and zero-width text as empty", () => {
     expect(isEmptyText(" \n\u00a0\u200b")).toBe(true);
     expect(isEmptyText("content")).toBe(false);
+  });
+
+  it("includes empty leaf text blocks but not structural containers", () => {
+    expect(isEmptyTextBlockType("p")).toBe(true);
+    expect(isEmptyTextBlockType("c")).toBe(true);
+    expect(isEmptyTextBlockType("m")).toBe(true);
+    expect(isEmptyTextBlockType("b")).toBe(false);
+    expect(isEmptyTextBlockType("l")).toBe(false);
   });
 
   it("removes top-level and container paragraphs when enabled", () => {
@@ -58,10 +66,17 @@ describe("empty paragraph cleanup", () => {
   it("uses persisted DOM rather than indexed block content", () => {
     const plan = createEmptyParagraphCleanupPlan(documentId, [
       block({ id: "empty-dom", content: "stale indexed text", sort: 1 }),
+      block({ id: "empty-code", type: "c", content: "stale source", sort: 2 }),
       block({ id: "missing-dom", sort: 2 }),
-    ], { "empty-dom": "<div></div>" }, true);
+    ], {
+      "empty-dom": "<div></div>",
+      "empty-code": "<div></div>",
+    }, true);
 
-    expect(plan.count).toBe(1);
-    expect(plan.doOperations).toEqual([{ action: "delete", id: "empty-dom" }]);
+    expect(plan.count).toBe(2);
+    expect(plan.doOperations).toEqual([
+      { action: "delete", id: "empty-dom" },
+      { action: "delete", id: "empty-code" },
+    ]);
   });
 });

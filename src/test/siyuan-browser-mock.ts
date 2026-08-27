@@ -19,6 +19,9 @@ export class ProtyleMethod {
 }
 
 export function showMessage(): void {}
+export function confirm(_title: string, _content: string, callback?: () => void): void {
+  callback?.();
+}
 export async function openTab(): Promise<void> {}
 export function expandDocTree(): void {}
 export function globalCommand(): void {}

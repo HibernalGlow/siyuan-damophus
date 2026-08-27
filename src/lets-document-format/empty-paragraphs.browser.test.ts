@@ -20,4 +20,10 @@ describe("empty paragraph DOM validation", () => {
       <div data-type="NodeParagraph"><span data-type="block-ref"></span></div>
     `)).toBe(false);
   });
+
+  it("accepts empty persisted code block DOM", () => {
+    expect(isEmptyParagraphDom(`
+      <div data-type="NodeCodeBlock"><div contenteditable="true"><br></div></div>
+    `)).toBe(true);
+  });
 });

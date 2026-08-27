@@ -6,6 +6,7 @@ import { confirm, Dialog, getAllEditor, showMessage, type ICommand, type IEventB
 import {
   createEmptyParagraphCleanupPlan,
   isEmptyParagraphDom,
+  isEmptyTextBlockType,
   type DocumentFormatBlock,
 } from "./empty-paragraphs";
 import { createSelfReferenceCleanupPlan } from "./self-references";
@@ -30,11 +31,21 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     this.addDocumentContextMenuItems(event.detail.menu, event.detail.protyle);
   };
 
+  private readonly handleDocumentTreeMenu = (
+    event: CustomEvent<IEventBusMap["open-menu-doctree"]>,
+  ): void => {
+    if (!this.isEntryEnabled("contextMenu") || event.detail.type !== "doc") return;
+    const documentId = event.detail.elements[0]?.dataset.nodeId;
+    if (!documentId) return;
+    this.addDocumentTreeMenuItems(event.detail.menu, documentId);
+  };
+
   override onload(): void {
     this.syncCommand();
     if (this.listening) return;
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
+    plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
     this.listening = true;
   }
 
@@ -47,6 +58,7 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     if (!this.listening) return;
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
+    plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
     this.listening = false;
   }
 
@@ -136,10 +148,42 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     }
   }
 
+  private addDocumentTreeMenuItems(
+    menu: IEventBusMap["open-menu-doctree"]["menu"],
+    documentId: string,
+  ): void {
+    if (this.isEmptyParagraphCleanupEnabled()) {
+      menu.addItem({
+        icon: "iconSparkles",
+        label: this.t("lets-document-format.removeEmptyParagraphs"),
+        click: () => void this.runInDocumentTree(documentId, (protyle) => this.removeEmptyParagraphs(protyle)),
+      });
+    }
+    if (this.isSelfReferenceCleanupEnabled()) {
+      menu.addItem({
+        icon: "iconSparkles",
+        label: this.t("lets-document-format.removeSelfReferences"),
+        click: () => void this.runInDocumentTree(documentId, (protyle) => this.removeSelfReferences(protyle)),
+      });
+    }
+  }
+
   private async runInCurrentDocument(action: (protyle: IProtyle) => Promise<void>): Promise<void> {
     const protyle = this.currentProtyle();
     if (!protyle) {
       showMessage(this.t("lets-document-format.noDocument"), 5000, "error");
+      return;
+    }
+    await action(protyle);
+  }
+
+  private async runInDocumentTree(
+    documentId: string,
+    action: (protyle: IProtyle) => Promise<void>,
+  ): Promise<void> {
+    const protyle = getAllEditor().find((editor) => editor.protyle.block.rootID === documentId)?.protyle;
+    if (!protyle) {
+      showMessage(this.t("lets-document-format.openSelectedDocument"), 5000, "error");
       return;
     }
     await action(protyle);
@@ -154,7 +198,7 @@ export default class DocumentFormatPlugin extends SubPluginBase {
 
     try {
       const blocks = await this.loadDocumentBlocks(documentId);
-      const candidates = blocks.filter((block) => block.type === "p");
+      const candidates = blocks.filter((block) => isEmptyTextBlockType(block.type));
       const domById = candidates.length > 0 ? await getBlockDOMsStrict(candidates.map((block) => block.id)) : {};
       const verifiedDomById = Object.fromEntries(Object.entries(domById)
         .filter(([, dom]) => isEmptyParagraphDom(dom))) as Record<string, string>;

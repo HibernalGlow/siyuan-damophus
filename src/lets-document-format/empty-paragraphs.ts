@@ -15,6 +15,7 @@ export interface EmptyParagraphCleanupPlan {
   count: number;
 }
 
+const EMPTY_TEXT_BLOCK_TYPES = new Set(["p", "h", "c", "m", "html"]);
 const EMPTY_TEXT = /^[\s\u00a0\u200b\u200c\u200d\ufeff]*$/u;
 const EMBEDDED_CONTENT = [
   '[data-type="img"]',
@@ -32,6 +33,10 @@ const EMBEDDED_CONTENT = [
 
 export function isEmptyText(value: string | undefined): boolean {
   return EMPTY_TEXT.test(value ?? "");
+}
+
+export function isEmptyTextBlockType(type: string): boolean {
+  return EMPTY_TEXT_BLOCK_TYPES.has(type);
 }
 
 /**
@@ -70,7 +75,7 @@ export function createEmptyParagraphCleanupPlan(
   }
 
   const selected = blocks
-    .filter((block) => block.type === "p")
+    .filter((block) => isEmptyTextBlockType(block.type))
     .filter((block) => includeContainerParagraphs || block.parent_id === documentId)
     .filter((block) => typeof domById[block.id] === "string" && domById[block.id].length > 0)
     .sort((left, right) => left.sort - right.sort || left.id.localeCompare(right.id));
