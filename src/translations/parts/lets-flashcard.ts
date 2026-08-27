@@ -12,6 +12,9 @@ export const en = {
   "lets-flashcard.unregisterAuditDescription": "The record keeps the latest unregistration time, deck, and scope on each affected block.",
   "lets-flashcard.cancel": "Cancel",
   "lets-flashcard.unregisterConfirm": "Unregister",
+  "lets-flashcard.unregisterProgressTitle": "Unregistering flashcards",
+  "lets-flashcard.unregisterProgressRemoving": "Removing cards from the deck...",
+  "lets-flashcard.unregisterProgressWriting": "Saving unregistration information...",
 };
 
 export const zhCN: typeof en = {
@@ -28,4 +31,7 @@ export const zhCN: typeof en = {
   "lets-flashcard.unregisterAuditDescription": "将在每个受影响块上保留最近一次取消登记的时间、原牌组和操作范围。",
   "lets-flashcard.cancel": "取消",
   "lets-flashcard.unregisterConfirm": "取消登记",
+  "lets-flashcard.unregisterProgressTitle": "正在取消闪卡登记",
+  "lets-flashcard.unregisterProgressRemoving": "正在从牌组移除闪卡...",
+  "lets-flashcard.unregisterProgressWriting": "正在保存取消登记信息...",
 };

@@ -129,11 +129,16 @@ describe("flashcard SiYuan adapter", () => {
   it("records an optional portable unregistration audit after a card is removed", async () => {
     requestStrict.mockClear();
     getBlockKramdownStrict.mockResolvedValue({ kramdown: "- 问题" });
-    await new FlashcardSiyuanAdapter().markCardsUnregistered(["20260823112001-stts5qv"], {
-      lastUnregisteredAt: "2026-08-27T00:00:00.000Z",
-      deckId: "20230218211946-2kw8jgx",
-      scope: "document-tree",
-    });
+    const progress = vi.fn();
+    await new FlashcardSiyuanAdapter().markCardsUnregistered(
+      ["20260823112001-stts5qv"],
+      {
+        lastUnregisteredAt: "2026-08-27T00:00:00.000Z",
+        deckId: "20230218211946-2kw8jgx",
+        scope: "document-tree",
+      },
+      progress,
+    );
     expect(requestStrict).toHaveBeenCalledWith("/api/attr/setBlockAttrs", {
       id: "20260823112001-stts5qv",
       attrs: {
@@ -143,6 +148,7 @@ describe("flashcard SiYuan adapter", () => {
         "custom-dm-card-last-unregister-scope": "document-tree",
       },
     });
+    expect(progress).toHaveBeenCalledWith(1, 1);
   });
 
   it("does not treat an unregistered block placeholder as a Riff card", async () => {

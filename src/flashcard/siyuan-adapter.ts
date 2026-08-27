@@ -61,6 +61,8 @@ export interface FlashcardUnregisterAudit {
   scope: FlashcardUnregisterScope;
 }
 
+export type FlashcardUnregisterProgress = (completed: number, total: number) => void;
+
 function sqlQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -452,9 +454,13 @@ export class FlashcardSiyuanAdapter {
     await requestStrict<unknown>("/api/riff/removeRiffCards", { deckID: deckId, blockIDs: ids });
   }
 
-  async markCardsUnregistered(blockIds: readonly string[], audit?: FlashcardUnregisterAudit): Promise<void> {
+  async markCardsUnregistered(
+    blockIds: readonly string[],
+    audit?: FlashcardUnregisterAudit,
+    onProgress?: FlashcardUnregisterProgress,
+  ): Promise<void> {
     const ids = dedupeIds(blockIds);
-    for (const id of ids) {
+    for (const [index, id] of ids.entries()) {
       const current = await getBlockKramdownStrict(id);
       const markdown = typeof current?.kramdown === "string" ? current.kramdown : "";
       const next = deactivatePriorityTags(markdown);
@@ -472,6 +478,7 @@ export class FlashcardSiyuanAdapter {
             : {}),
         },
       });
+      onProgress?.(index + 1, ids.length);
     }
   }
 

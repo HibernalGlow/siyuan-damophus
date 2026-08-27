@@ -59,6 +59,12 @@ function escapeHtml(value: string): string {
   return value.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
 }
 
+interface UnregisterProgressDialog {
+  setRemoving(): void;
+  setWriting(completed: number, total: number): void;
+  destroy(): void;
+}
+
 export default class FlashcardPlugin extends SubPluginBase {
   private readonly compat = new FlashcardRendererCompat();
   private readonly runtime = new FlashcardRuntime(
@@ -277,16 +283,18 @@ export default class FlashcardPlugin extends SubPluginBase {
     }, plugin);
     this.entry.setSurfaces(this.configuredSettingsEntrySurfaces());
     this.entry.registerCommand();
+    this.entry.registerDock();
     this.entry.setEnabled(true);
   }
 
   private configuredSettingsEntrySurfaces() {
+    const dock = this.isEntryEnabled("dock");
     const tab = this.isEntryEnabled("tab");
-    const hasTarget = tab;
+    const hasTarget = tab || dock;
     return {
       menu: hasTarget && this.isEntryEnabled("menu"),
       command: hasTarget && this.isEntryEnabled("command"),
-      dock: false,
+      dock,
     };
   }
 
@@ -1154,7 +1162,11 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   private openConfiguredSurface(): void {
-    this.openSettings();
+    if (this.isEntryEnabled("tab")) {
+      this.openSettings();
+      return;
+    }
+    if (this.isEntryEnabled("dock")) this.entry?.openDock();
   }
 
   private async reviewAll(): Promise<void> {
@@ -1615,16 +1627,27 @@ export default class FlashcardPlugin extends SubPluginBase {
       `即将从思源原生牌组移除 ${selected.length} 张闪卡。正文和原有属性会保留，优先级标签会移到不可用命名空间。确认执行批量取消登记吗？`,
     );
     if (!approved) return;
-    await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, selected.map((card) => card.blockID));
-    for (const card of selected) this.reviewCards.delete(card.blockID);
-    this.compat.forget(selected.map((card) => card.blockID));
-    this.compat.refresh();
-    await this.runtime.adapter.markCardsUnregistered(selected.map((card) => card.blockID), audit);
-    if (selected.some((card) => card.blockID === this.currentReviewCard?.blockID)) {
-      this.currentReviewCard = undefined;
+    const progress = selected.length > 1 ? this.openUnregisterProgressDialog(selected.length) : undefined;
+    try {
+      progress?.setRemoving();
+      await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, selected.map((card) => card.blockID));
+      for (const card of selected) this.reviewCards.delete(card.blockID);
+      this.compat.forget(selected.map((card) => card.blockID));
+      this.compat.refresh();
+      progress?.setWriting(0, selected.length);
+      await this.runtime.adapter.markCardsUnregistered(
+        selected.map((card) => card.blockID),
+        audit,
+        (completed, total) => progress?.setWriting(completed, total),
+      );
+      if (selected.some((card) => card.blockID === this.currentReviewCard?.blockID)) {
+        this.currentReviewCard = undefined;
+      }
+      this.priorityControls.refresh();
+      showMessage(`已取消登记 ${selected.length} 张闪卡，原笔记块保持不变`, 5000, "info");
+    } finally {
+      progress?.destroy();
     }
-    this.priorityControls.refresh();
-    showMessage(`已取消登记 ${selected.length} 张闪卡，原笔记块保持不变`, 5000, "info");
   }
 
   private async confirmUnregister(
@@ -1641,6 +1664,40 @@ export default class FlashcardPlugin extends SubPluginBase {
       lastUnregisteredAt: new Date().toISOString(),
       deckId: this.runtime.getSettings().deckId,
       scope,
+    };
+  }
+
+  private openUnregisterProgressDialog(total: number): UnregisterProgressDialog {
+    const dialog = new Dialog({
+      title: this.t("lets-flashcard.unregisterProgressTitle"),
+      width: "min(420px, 92vw)",
+      content: `
+        <div class="b3-dialog__content" aria-live="polite">
+          <strong data-progress-message></strong>
+          <progress class="fn__block fn__space--top" data-progress-bar max="${total}"></progress>
+          <div class="b3-label fn__space--top" data-progress-count></div>
+        </div>
+      `,
+    });
+    const message = dialog.element.querySelector<HTMLElement>("[data-progress-message]");
+    const bar = dialog.element.querySelector<HTMLProgressElement>("[data-progress-bar]");
+    const count = dialog.element.querySelector<HTMLElement>("[data-progress-count]");
+    const setMessage = (text: string, completed?: number, countTotal = total): void => {
+      if (!message || !bar || !count) return;
+      message.textContent = text;
+      if (completed === undefined) {
+        bar.removeAttribute("value");
+        count.textContent = "";
+        return;
+      }
+      bar.max = countTotal;
+      bar.value = completed;
+      count.textContent = `${completed} / ${countTotal}`;
+    };
+    return {
+      setRemoving: () => setMessage(this.t("lets-flashcard.unregisterProgressRemoving")),
+      setWriting: (completed, countTotal) => setMessage(this.t("lets-flashcard.unregisterProgressWriting"), completed, countTotal),
+      destroy: () => dialog.destroy(),
     };
   }
 
