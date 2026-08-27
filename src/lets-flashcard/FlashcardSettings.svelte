@@ -731,6 +731,11 @@
     saveGlobalOnChange();
   }
 
+  function updateToolbarStyle(key: keyof FlashcardSettings["reviewToolbarStyle"], value: string | number): void {
+    config = { ...config, reviewToolbarStyle: { ...config.reviewToolbarStyle, [key]: value } };
+    saveGlobalOnChange();
+  }
+
   function moveReviewStat(key: FlashcardReviewStatKey, direction: "up" | "down"): void {
     const order = [...config.reviewStats.order];
     const index = order.indexOf(key);
@@ -1212,7 +1217,7 @@
           <div class="toolbar-customizer">
             <div class="toolbar-customizer-heading"><div><strong>工具栏动作</strong><span>直接开关和排序，插件注册的新动作会自动出现在这里</span></div><Button variant="ghost" size="sm" onclick={resetToolbarActions}><RotateCcw />恢复默认</Button></div>
             <div class="toolbar-action-list">
-              {#each toolbarActionRows as row, index}
+              {#each toolbarActionRows as row}
                 <div class:toolbar-action-disabled={!row.enabled} class="toolbar-action-row">
                   <div class="toolbar-action-icon"><svelte:component this={row.action.icon.startsWith("icon") ? Settings2 : Settings2} aria-hidden="true" /></div>
                   <div class="toolbar-action-copy"><strong>{row.action.label}</strong><span>{row.action.source ?? "插件动作"} · {row.action.id}</span></div>
@@ -1229,7 +1234,15 @@
             <div class="toolbar-customizer-heading"><div><strong>复习工具栏外观</strong><span>在左侧编辑 CSS，右侧立即预览；样式只作用于闪卡复习工具栏</span></div></div>
             <div class="toolbar-style-grid">
               <Textarea aria-label="复习工具栏自定义 CSS" bind:value={config.reviewToolbarCustomCss} rows={9} oninput={saveGlobalOnChange} />
-              <div class="toolbar-preview">
+              <div class="toolbar-style-controls">
+                <label>工具栏背景色<input type="color" value={config.reviewToolbarStyle.background} oninput={(event) => updateToolbarStyle("background", (event.currentTarget as HTMLInputElement).value)} /></label>
+                <label>文字颜色<input type="color" value={config.reviewToolbarStyle.foreground} oninput={(event) => updateToolbarStyle("foreground", (event.currentTarget as HTMLInputElement).value)} /></label>
+                <label>强调色<input type="color" value={config.reviewToolbarStyle.accent} oninput={(event) => updateToolbarStyle("accent", (event.currentTarget as HTMLInputElement).value)} /></label>
+                <label>圆角 <input type="range" min="0" max="24" value={config.reviewToolbarStyle.radius} oninput={(event) => updateToolbarStyle("radius", Number((event.currentTarget as HTMLInputElement).value))} /><output>{config.reviewToolbarStyle.radius}px</output></label>
+                <label>按钮高度 <input type="range" min="22" max="56" value={config.reviewToolbarStyle.buttonHeight} oninput={(event) => updateToolbarStyle("buttonHeight", Number((event.currentTarget as HTMLInputElement).value))} /><output>{config.reviewToolbarStyle.buttonHeight}px</output></label>
+                <label>按钮间距 <input type="range" min="0" max="24" value={config.reviewToolbarStyle.gap} oninput={(event) => updateToolbarStyle("gap", Number((event.currentTarget as HTMLInputElement).value))} /><output>{config.reviewToolbarStyle.gap}px</output></label>
+              </div>
+              <div class="toolbar-preview card__main" style={`--damophus-toolbar-bg:${config.reviewToolbarStyle.background};--damophus-toolbar-fg:${config.reviewToolbarStyle.foreground};--damophus-toolbar-accent:${config.reviewToolbarStyle.accent};--damophus-toolbar-radius:${config.reviewToolbarStyle.radius}px;--damophus-toolbar-gap:${config.reviewToolbarStyle.gap}px;--damophus-toolbar-button-height:${config.reviewToolbarStyle.buttonHeight}px`}>
                 <svelte:element this={STYLE_TAG}>{config.reviewToolbarCustomCss}</svelte:element>
                 <div class="toolbar-preview-caption">预览</div>
                 <div class="toolbar-preview-bar"><span class="toolbar-preview-brand">闪卡</span><button type="button" data-damophus-flashcard-action="locate">定位</button><button type="button" data-damophus-flashcard-action="priority">优先级</button><button type="button" data-damophus-flashcard-action="workbench">工作台</button></div>
@@ -1462,11 +1475,16 @@
   .toolbar-action-copy span { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 10px; }
   .toolbar-action-controls { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
   .toolbar-style-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 1fr); gap: 10px; min-width: 0; }
+  .toolbar-style-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; min-width: 0; }
+  .toolbar-style-controls label { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
+  .toolbar-style-controls input[type="color"] { width: 30px; height: 26px; padding: 1px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 4px; background: transparent; }
+  .toolbar-style-controls input[type="range"] { min-width: 0; flex: 1; }
+  .toolbar-style-controls output { min-width: 34px; color: inherit; font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; }
   .toolbar-style-grid :global(textarea) { min-width: 0; width: 100%; box-sizing: border-box; resize: vertical; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.5; }
   .toolbar-preview { position: relative; display: flex; min-height: 150px; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 6px; background: var(--background, var(--b3-theme-background)); overflow: hidden; }
   .toolbar-preview-caption { color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 10px; text-transform: uppercase; }
-  .toolbar-preview-bar { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 6px; border: 1px solid var(--border, var(--b3-border-color)); background: var(--card, var(--b3-theme-background)); overflow-x: auto; }
-  .toolbar-preview-bar button, .toolbar-preview-brand { flex: 0 0 auto; min-height: 26px; padding: 3px 7px; border: 1px solid var(--border, var(--b3-border-color)); border-radius: 4px; color: inherit; background: transparent; font-size: 11px; }
+  .toolbar-preview-bar { display: flex; align-items: center; gap: var(--damophus-toolbar-gap, 6px); min-width: 0; padding: 6px; border: 1px solid color-mix(in srgb, var(--damophus-toolbar-accent, var(--primary, #7aa2ff)) 35%, transparent); border-radius: var(--damophus-toolbar-radius, 6px); color: var(--damophus-toolbar-fg, inherit); background: var(--damophus-toolbar-bg, var(--card, var(--b3-theme-background))); overflow-x: auto; }
+  .toolbar-preview-bar button, .toolbar-preview-brand { flex: 0 0 auto; min-height: var(--damophus-toolbar-button-height, 30px); padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--damophus-toolbar-accent, var(--primary, #7aa2ff)) 45%, transparent); border-radius: var(--damophus-toolbar-radius, 6px); color: inherit; background: transparent; font-size: 11px; }
   .toolbar-preview-brand { border-color: transparent; font-weight: 650; }
   .toolbar-preview-card { flex: 1; display: grid; place-items: center; min-height: 76px; border: 1px dashed var(--border, var(--b3-border-color)); color: var(--muted-foreground, var(--b3-theme-on-surface-light)); font-size: 11px; }
   .option-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 42px; border-bottom: 1px solid var(--border, var(--b3-border-color)); font-size: 12px; }
@@ -1639,6 +1657,7 @@
     .review-log-filter-grid { grid-template-columns: 1fr; }
     .option-grid, .sortable-list, .fsrs-parameter-grid, .fsrs-reference-grid { grid-template-columns: 1fr; }
     .toolbar-style-grid { grid-template-columns: 1fr; }
+    .toolbar-style-controls { grid-template-columns: 1fr; }
     .toolbar-action-row { grid-template-columns: 24px minmax(0, 1fr); }
     .toolbar-action-controls { grid-column: 2; justify-content: flex-end; }
     .setting-row { gap: 10px; }

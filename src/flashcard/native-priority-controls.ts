@@ -17,6 +17,7 @@ export interface NativeReviewToolbarSettings {
   showFullscreen?: boolean;
   reviewToolbarActionOrder?: string[];
   reviewToolbarCustomCss?: string;
+  reviewToolbarStyle?: { background: string; foreground: string; accent: string; radius: number; gap: number; buttonHeight: number };
 }
 
 export type RendererVisibilityKey = "mark" | "list" | "heading" | "superBlock" | "blockquote" | "callout" | "tag" | "topicRelations";
@@ -149,7 +150,7 @@ export class NativePriorityControls {
       return;
     }
     const signature = JSON.stringify({ settings, actionRevision: getReviewToolbarActionRevision() });
-    this.applyCustomStyle(settings.reviewToolbarCustomCss ?? "");
+    this.applyCustomStyle(settings.reviewToolbarCustomCss ?? "", settings.reviewToolbarStyle);
     const actions = this.resolveActions(settings);
     for (const root of this.options.documentRef.querySelectorAll<HTMLElement>(".card__main")) {
       const toolbar = [...root.children].find((child): child is HTMLElement =>
@@ -285,7 +286,7 @@ export class NativePriorityControls {
     return ordered;
   }
 
-  private applyCustomStyle(css: string): void {
+  private applyCustomStyle(css: string, styleConfig?: NativeReviewToolbarSettings["reviewToolbarStyle"]): void {
     const existing = this.options.documentRef.getElementById(CUSTOM_STYLE_ID);
     if (!css.trim()) {
       existing?.remove();
@@ -293,7 +294,8 @@ export class NativePriorityControls {
     }
     const style = existing ?? this.options.documentRef.createElement("style");
     style.id = CUSTOM_STYLE_ID;
-    const scopedCss = `@scope (.card__main) {\n${css}\n}`;
+    const vars = styleConfig ? `:where(.card__main) { --damophus-toolbar-bg: ${styleConfig.background}; --damophus-toolbar-fg: ${styleConfig.foreground}; --damophus-toolbar-accent: ${styleConfig.accent}; --damophus-toolbar-radius: ${styleConfig.radius}px; --damophus-toolbar-gap: ${styleConfig.gap}px; --damophus-toolbar-button-height: ${styleConfig.buttonHeight}px; }` : "";
+    const scopedCss = `${vars}\n@scope (.card__main) {\n${css}\n}`;
     if (style.textContent !== scopedCss) style.textContent = scopedCss;
     if (!existing) this.options.documentRef.head.append(style);
   }

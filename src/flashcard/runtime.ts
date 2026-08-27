@@ -115,6 +115,13 @@ function mergeSettings(value: unknown): FlashcardSettings {
     reviewToolbarCustomCss: typeof input.reviewToolbarCustomCss === "string"
       ? input.reviewToolbarCustomCss
       : DEFAULT_FLASHCARD_SETTINGS.reviewToolbarCustomCss,
+    reviewToolbarStyle: {
+      ...DEFAULT_FLASHCARD_SETTINGS.reviewToolbarStyle,
+      ...(input.reviewToolbarStyle && typeof input.reviewToolbarStyle === "object" ? input.reviewToolbarStyle : {}),
+      radius: Math.max(0, Math.min(24, Number((input.reviewToolbarStyle as { radius?: unknown } | undefined)?.radius ?? DEFAULT_FLASHCARD_SETTINGS.reviewToolbarStyle.radius))),
+      gap: Math.max(0, Math.min(24, Number((input.reviewToolbarStyle as { gap?: unknown } | undefined)?.gap ?? DEFAULT_FLASHCARD_SETTINGS.reviewToolbarStyle.gap))),
+      buttonHeight: Math.max(22, Math.min(56, Number((input.reviewToolbarStyle as { buttonHeight?: unknown } | undefined)?.buttonHeight ?? DEFAULT_FLASHCARD_SETTINGS.reviewToolbarStyle.buttonHeight))),
+    },
     fsrsOptimizerMode: input.fsrsOptimizerMode === "browser" ? "browser" : "internal",
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],

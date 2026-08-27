@@ -135,6 +135,7 @@ export default class FlashcardPlugin extends SubPluginBase {
         showFullscreen: settings.reviewToolbarShowFullscreen,
         reviewToolbarActionOrder: settings.reviewToolbarActionOrder,
         reviewToolbarCustomCss: settings.reviewToolbarCustomCss,
+        reviewToolbarStyle: settings.reviewToolbarStyle,
       };
     },
     getCurrentCard: () => this.currentReviewCard,

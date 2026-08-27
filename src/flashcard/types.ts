@@ -165,6 +165,14 @@ export interface FlashcardSettings {
   showMobileBreadcrumbReviewButton: boolean;
   reviewToolbarActionOrder: string[];
   reviewToolbarCustomCss: string;
+  reviewToolbarStyle: {
+    background: string;
+    foreground: string;
+    accent: string;
+    radius: number;
+    gap: number;
+    buttonHeight: number;
+  };
   /** Legacy combined switch retained only while reading older settings. */
   showBreadcrumbReviewButton?: boolean;
   fsrsOptimizerMode: FsrsOptimizerMode;
@@ -214,6 +222,7 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   showMobileBreadcrumbReviewButton: true,
   reviewToolbarActionOrder: ["locate", "unregister", "priority", "renderer", "workbench"],
   reviewToolbarCustomCss: "",
+  reviewToolbarStyle: { background: "#2f3042", foreground: "#f5f6fb", accent: "#7aa2ff", radius: 6, gap: 6, buttonHeight: 30 },
   fsrsOptimizerMode: "internal",
   categories: [{ id: "default", name: "默认分组" }],
   groups: [
