@@ -149,9 +149,9 @@ export class NativePriorityControls {
       this.clearNativeToolbarPolicies();
       return;
     }
-    const signature = JSON.stringify({ settings, actionRevision: getReviewToolbarActionRevision() });
-    this.applyCustomStyle(settings.reviewToolbarCustomCss ?? "", settings.reviewToolbarStyle);
     const actions = this.resolveActions(settings);
+    const signature = JSON.stringify({ settings, actionRevision: getReviewToolbarActionRevision(), actionIds: actions.map((action) => action.id) });
+    this.applyCustomStyle(settings.reviewToolbarCustomCss ?? "", settings.reviewToolbarStyle);
     for (const root of this.options.documentRef.querySelectorAll<HTMLElement>(".card__main")) {
       const toolbar = [...root.children].find((child): child is HTMLElement =>
         child.classList.contains("block__icons") || child.classList.contains("toolbar"),

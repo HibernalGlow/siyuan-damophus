@@ -704,6 +704,16 @@
     saveCategoryConfig();
   }
 
+  function addFlashcardCategoryRule(): void {
+    if (!categoryConfig) return;
+    const base = "新分类";
+    let name = base;
+    let index = 2;
+    while (categoryConfig.rules.some((rule) => rule.name === name)) name = `${base}${index++}`;
+    categoryConfig.rules = [...categoryConfig.rules, { name, participatesInReview: false, reviewOrder: categoryConfig.rules.length, displayOrder: categoryConfig.rules.length, enabled: true }];
+    saveCategoryConfig();
+  }
+
   function setBooleanSetting(key: typeof TOOLBAR_OPTIONS[number][0], value: boolean): void {
     (config as unknown as Record<string, unknown>)[key] = value;
     saveGlobalOnChange();
@@ -1167,6 +1177,7 @@
           <div class="setting-row master-row"><div><strong>启用闪卡分类</strong><span>使用 #闪卡/分类/名称# 管理分类；关闭后不影响 P1-P4 优先级。</span></div><Switch checked={categoryConfig.enabled} onCheckedChange={(value) => { categoryConfig.enabled = value; saveCategoryConfig(); }} aria-label="启用闪卡分类" /></div>
           {#if categoryConfig.enabled}
             <div class="setting-row"><div><strong>分类参与复习排序</strong><span>仅改变已到期卡的顺序，不修改 FSRS 到期时间。</span></div><Switch checked={categoryConfig.reviewEnabled} onCheckedChange={(value) => { categoryConfig.reviewEnabled = value; saveCategoryConfig(); }} aria-label="分类参与复习排序" /></div>
+            <div class="section-actions category-actions"><Button size="sm" variant="outline" onclick={addFlashcardCategoryRule}><Plus />新建分类</Button></div>
             <div class="sortable-list" data-testid="flashcard-category-options">
               {#each [...categoryConfig.rules].sort((left, right) => left.reviewOrder - right.reviewOrder) as rule, index (rule.name)}
                 <div class="sortable-row"><Tags aria-hidden="true" /><Input aria-label={`分类名称 ${rule.name}`} bind:value={rule.name} onchange={saveCategoryConfig} /><Switch size="sm" checked={rule.participatesInReview} onCheckedChange={(value) => { rule.participatesInReview = value; saveCategoryConfig(); }} aria-label={`${rule.name}参与复习排序`} /><Button variant="ghost" size="icon-xs" title="上移" aria-label={`${rule.name}上移`} disabled={index === 0} onclick={() => moveCategory(rule, "up")}><ArrowUp /></Button><Button variant="ghost" size="icon-xs" title="下移" aria-label={`${rule.name}下移`} disabled={index === categoryConfig.rules.length - 1} onclick={() => moveCategory(rule, "down")}><ArrowDown /></Button></div>
@@ -1492,6 +1503,11 @@
   .option-row:nth-last-child(-n + 2) { border-bottom-color: transparent; }
   .sortable-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 18px; padding: 5px 0 8px; }
   .sortable-row { display: grid; grid-template-columns: 22px 26px minmax(0, 1fr) auto; align-items: center; min-height: 40px; border-bottom: 1px solid var(--border, var(--b3-border-color)); font-size: 12px; }
+  [data-testid="flashcard-category-options"] { grid-template-columns: minmax(260px, 1fr); gap: 0; padding: 4px 0 8px; }
+  [data-testid="flashcard-category-options"] .sortable-row { grid-template-columns: 22px minmax(120px, 1fr) auto 28px 28px; gap: 7px; min-width: 0; min-height: 44px; color: var(--foreground, var(--b3-theme-on-background)); }
+  [data-testid="flashcard-category-options"] :global(input) { width: 100%; min-width: 0; min-height: 30px; box-sizing: border-box; color: var(--foreground, var(--b3-theme-on-background)); background: var(--background, var(--b3-theme-background)); }
+  [data-testid="flashcard-category-options"] :global(button) { min-width: 28px; min-height: 28px; }
+  .category-actions { padding-block: 6px; border-top: 0; }
   .sortable-row:last-child { border-bottom: 0; }
   .sort-actions { display: flex; gap: 2px; }
   .section-actions { display: flex; justify-content: flex-end; padding: 10px 0; border-top: 1px solid var(--border, var(--b3-border-color)); }

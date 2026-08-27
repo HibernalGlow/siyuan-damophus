@@ -1,5 +1,5 @@
 import { getBlockKramdownStrict, sqlStrict, updateBlockStrict } from "@/api";
-import { Menu, showMessage } from "siyuan";
+import { Dialog, Menu, showMessage } from "siyuan";
 import type { FlashcardRoot } from "./types";
 import type { RiffCardRecord } from "./siyuan-adapter";
 import { registerFlashcardContribution, type FlashcardReviewStage } from "./contribution-registry";
@@ -72,8 +72,22 @@ export function parseFlashcardCategories(markdown: string): string[] {
 export function addFlashcardCategory(markdown: string, name: string): string {
   const normalized = normalizeCategoryName(name);
   if (parseFlashcardCategories(markdown).includes(normalized)) return markdown;
-  const trimmed = markdown.replace(/\n+$/u, "");
   const tag = `${FLASHCARD_CATEGORY_PREFIX}${normalized}#`;
+  const lines = markdown.split(/\r?\n/u);
+  const tagged = lines.flatMap((line, index) => {
+    FLASHCARD_CATEGORY_PATTERN.lastIndex = 0;
+    return FLASHCARD_CATEGORY_PATTERN.test(line) ? [{ line, index }] : [];
+  });
+  if (tagged.length) {
+    const depth = (line: string): number => (line.match(/^\s*/u)?.[0].length ?? 0) + (line.match(/(?:^|\s)>/gu)?.length ?? 0) * 4;
+    const shallowest = Math.min(...tagged.map(({ line }) => depth(line)));
+    const target = tagged.find(({ line }) => depth(line) === shallowest);
+    if (target) {
+      lines[target.index] = `${target.line.replace(/\s*$/u, "")} ${tag}`;
+      return lines.join("\n");
+    }
+  }
+  const trimmed = markdown.replace(/\n+$/u, "");
   return trimmed ? `${trimmed}\n${tag}` : tag;
 }
 
@@ -81,14 +95,33 @@ export function removeFlashcardCategory(markdown: string, name: string): string 
   const normalized = normalizeCategoryName(name);
   const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const pattern = new RegExp(`#闪卡\\/分类\\/${escaped}#`, "gu");
-  return markdown.replace(pattern, "").replace(/[ \t]+\n/gu, "\n").replace(/\n{3,}/gu, "\n\n").trimEnd();
+  const lines = markdown.split(/\r?\n/u);
+  const tagged = lines.flatMap((line, index) => {
+    FLASHCARD_CATEGORY_PATTERN.lastIndex = 0;
+    return FLASHCARD_CATEGORY_PATTERN.test(line) ? [{ line, index }] : [];
+  });
+  if (!tagged.length) return markdown;
+  const depth = (line: string): number => (line.match(/^\s*/u)?.[0].length ?? 0) + (line.match(/(?:^|\s)>/gu)?.length ?? 0) * 4;
+  const shallowest = Math.min(...tagged.map(({ line }) => depth(line)));
+  for (const { index } of tagged.filter(({ line }) => depth(line) === shallowest)) lines[index] = lines[index].replace(pattern, "");
+  return lines.join("\n").replace(/[ \t]+\n/gu, "\n").replace(/\n{3,}/gu, "\n\n").trimEnd();
 }
 
 export function renameFlashcardCategory(markdown: string, oldName: string, newName: string): string {
   const oldValue = normalizeCategoryName(oldName);
   const newValue = normalizeCategoryName(newName);
   const escaped = oldValue.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return markdown.replace(new RegExp(`#闪卡\\/分类\\/${escaped}#`, "gu"), `${FLASHCARD_CATEGORY_PREFIX}${newValue}#`);
+  const lines = markdown.split(/\r?\n/u);
+  const tagged = lines.flatMap((line, index) => {
+    FLASHCARD_CATEGORY_PATTERN.lastIndex = 0;
+    return FLASHCARD_CATEGORY_PATTERN.test(line) ? [{ line, index }] : [];
+  });
+  if (!tagged.length) return markdown;
+  const depth = (line: string): number => (line.match(/^\s*/u)?.[0].length ?? 0) + (line.match(/(?:^|\s)>/gu)?.length ?? 0) * 4;
+  const shallowest = Math.min(...tagged.map(({ line }) => depth(line)));
+  const pattern = new RegExp(`#闪卡\\/分类\\/${escaped}#`, "gu");
+  for (const { index } of tagged.filter(({ line }) => depth(line) === shallowest)) lines[index] = lines[index].replace(pattern, `${FLASHCARD_CATEGORY_PREFIX}${newValue}#`);
+  return lines.join("\n");
 }
 
 function categoryRank(root: FlashcardRoot | undefined, rules: readonly FlashcardCategoryRule[]): number {
@@ -183,23 +216,20 @@ export class FlashcardCategoryModule {
         const markdown = typeof current.kramdown === "string" ? current.kramdown : "";
         const selected = new Set(parseFlashcardCategories(markdown));
         const menu = new Menu("damophus-flashcard-category-menu");
-        for (const rule of this.config.rules) {
+        const names = [...new Set([...this.config.rules.map((rule) => rule.name), ...selected])];
+        for (const name of names) {
+          const rule = this.config.rules.find((candidate) => candidate.name === name);
           menu.addItem({
-            icon: selected.has(rule.name) ? "iconCheck" : "iconUncheck",
-            label: rule.name,
+            icon: selected.has(name) ? "iconCheck" : "iconUncheck",
+            label: name,
             click: async () => {
-              const result = await this.mutateBlock(card.blockID, selected.has(rule.name) ? "remove" : "add", rule.name);
-              if (result.status === "failed") showMessage(result.error ?? "分类更新失败", 4000, "error");
+              const result = await this.mutateBlock(card.blockID, selected.has(name) ? "remove" : "add", name);
+              this.showMutationResult(result, name);
             },
           });
         }
         menu.addItem({ type: "separator" });
-        menu.addItem({ label: "新建并标记分类", click: async () => {
-          const name = typeof window !== "undefined" ? window.prompt("分类名称") : "";
-          if (!name?.trim()) return;
-          const result = await this.mutateBlock(card.blockID, "add", name);
-          if (result.status === "failed") showMessage(result.error ?? "分类更新失败", 4000, "error");
-        } });
+        menu.addItem({ label: "新建并标记分类", click: () => this.openCreateCategoryDialog(card.blockID) });
         const rect = context.trigger.getBoundingClientRect();
         menu.open({ x: rect.left, y: rect.bottom, isLeft: false });
       },
@@ -223,6 +253,36 @@ export class FlashcardCategoryModule {
     }
   }
 
+  async createCategory(name: string): Promise<FlashcardCategoryRule> {
+    const normalized = normalizeCategoryName(name);
+    const existing = this.config.rules.find((rule) => rule.name === normalized);
+    if (existing) return existing;
+    const rule: FlashcardCategoryRule = { name: normalized, participatesInReview: false, reviewOrder: this.config.rules.length, displayOrder: this.config.rules.length, enabled: true };
+    await this.save({ ...this.config, rules: [...this.config.rules, rule] });
+    return rule;
+  }
+
+  private showMutationResult(result: CategoryBatchReceipt, name: string): void {
+    if (result.status === "failed") showMessage(result.error ?? "分类更新失败", 4000, "error");
+    else if (result.status === "updated") showMessage(`已${result.operation === "add" ? "添加" : "移除"}分类“${name}”`, 2500, "info");
+    else showMessage(`分类“${name}”无需更新`, 2000, "info");
+  }
+
+  private openCreateCategoryDialog(blockId: string): void {
+    const dialog = new Dialog({ title: "新建闪卡分类", content: `<div class="b3-dialog__content"><label class="b3-label">分类名称</label><input class="b3-text-field" data-category-name type="text" placeholder="例如：易混淆" /></div><div class="b3-dialog__action"><button class="b3-button b3-button--cancel" data-action="cancel">取消</button><button class="b3-button" data-action="create">创建并标记</button></div>` });
+    const input = dialog.element.querySelector<HTMLInputElement>("[data-category-name]");
+    input?.focus();
+    dialog.element.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
+    dialog.element.querySelector<HTMLButtonElement>('[data-action="create"]')?.addEventListener("click", async () => {
+      try {
+        const rule = await this.createCategory(input?.value ?? "");
+        const result = await this.mutateBlock(blockId, "add", rule.name);
+        dialog.destroy();
+        this.showMutationResult(result, rule.name);
+      } catch (error) { showMessage(error instanceof Error ? error.message : String(error), 3500, "error"); }
+    });
+  }
+
   async renameBlocks(blockIds: readonly string[], oldName: string, newName: string): Promise<CategoryBatchReceipt[]> {
     const receipts: CategoryBatchReceipt[] = [];
     for (const blockId of blockIds) {
@@ -239,7 +299,8 @@ export class FlashcardCategoryModule {
 
   async findBlocks(name: string): Promise<string[]> {
     const normalized = normalizeCategoryName(name);
-    const rows = await sqlStrict<Array<{ id: string }>>(`SELECT id FROM blocks WHERE content LIKE '%#闪卡/分类/${normalized}#%'`);
+    const pattern = `#闪卡/分类/${normalized}#`.replace(/[\\%_']/gu, (value) => value === "'" ? "''" : `\\${value}`);
+    const rows = await sqlStrict<Array<{ id: string }>>(`SELECT id FROM blocks WHERE content LIKE '%${pattern}%' ESCAPE '\\'`);
     return rows.map((row) => row.id).filter(Boolean);
   }
 }

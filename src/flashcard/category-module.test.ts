@@ -39,4 +39,12 @@ describe("flashcard categories", () => {
     const config = mergeFlashcardCategoryConfig({ reviewEnabled: false });
     expect(orderCardsByCategory(cards, roots, config).map((item) => item.blockID)).toEqual(["plain", "early"]);
   });
+
+  it("writes category tags at the shallowest tagged scope", () => {
+    const markdown = "> parent\n> #闪卡/分类/重点#\n>   child\n>   #闪卡/分类/易混淆#";
+    const added = addFlashcardCategory(markdown, "法条");
+    expect(added.split("\n")[1]).toContain("#闪卡/分类/法条#");
+    expect(removeFlashcardCategory(added, "重点")).toContain("#闪卡/分类/法条#");
+    expect(renameFlashcardCategory(added, "重点", "核心")).toContain("#闪卡/分类/核心#");
+  });
 });
