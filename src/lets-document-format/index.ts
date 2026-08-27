@@ -131,7 +131,10 @@ export default class DocumentFormatPlugin extends SubPluginBase {
     return this.getSetting("enableSelfReferenceCleanup") !== false;
   }
 
-  private addDocumentContextMenuItems(menu: Menu, protyle: IProtyle): void {
+  private addDocumentContextMenuItems(
+    menu: IEventBusMap["click-blockicon"]["menu"],
+    protyle: IProtyle,
+  ): void {
     if (this.isEmptyParagraphCleanupEnabled()) {
       menu.addItem({
         icon: "iconSparkles",
