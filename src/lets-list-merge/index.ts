@@ -31,6 +31,14 @@ import {
   type MixedListPlan,
   type MixedListSelection,
 } from "./mixed-list";
+import {
+  applyNestedListPromotionDom,
+  buildNestedListPromotionTransaction,
+  createNestedListPromotionPlan,
+  resolveNestedListPromotionSelection,
+  restoreNestedListPromotionDom,
+  type NestedListPromotionSelection,
+} from "./nested-list-promotion";
 
 const log = getLogger("lets-list-merge");
 
@@ -51,6 +59,16 @@ export default class ListMergePlugin extends SubPluginBase {
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
     if (!this.isEntryEnabled("contextMenu")) return;
+    const nestedListPromotion = this.getSetting("promoteNestedLists") !== false
+      ? resolveNestedListPromotionSelection(event.detail.blockElements)
+      : undefined;
+    if (nestedListPromotion) {
+      event.detail.menu.addItem({
+        icon: "iconList",
+        label: this.t("lets-list-merge.promoteNestedLists"),
+        click: () => this.executeNestedListPromotion(nestedListPromotion, event.detail.protyle),
+      });
+    }
     const detachSelection = resolveListItemDetachSelection(event.detail.blockElements);
     if (detachSelection) {
       event.detail.menu.addItem({
@@ -141,6 +159,7 @@ export default class ListMergePlugin extends SubPluginBase {
       this.registerCommand("lets-list-merge.commandOrdered", "o");
       this.registerCommand("lets-list-merge.commandUnordered", "u");
       this.registerMixedCommand();
+      if (this.getSetting("promoteNestedLists") !== false) this.registerNestedListPromotionCommand();
       return;
     }
     this.removeCommands();
@@ -156,6 +175,20 @@ export default class ListMergePlugin extends SubPluginBase {
         if (!selection) return;
         const plan = createMixedListPlan(selection, this.preferredSubtype());
         this.executeMixed(plan, selection, protyle);
+      },
+    };
+    plugin.addCommand(command);
+    this.commandEntries.push(command);
+  }
+
+  private registerNestedListPromotionCommand(): void {
+    const command: ICommand = {
+      langKey: "lets-list-merge.commandPromoteNestedLists",
+      hotkey: "",
+      editorCallback: (protyle) => {
+        if (!this.enabled || this.getSetting("promoteNestedLists") === false) return;
+        const selection = this.currentNestedListPromotionSelection(protyle);
+        if (selection) this.executeNestedListPromotion(selection, protyle);
       },
     };
     plugin.addCommand(command);
@@ -183,6 +216,15 @@ export default class ListMergePlugin extends SubPluginBase {
       '.protyle-wysiwyg--select[data-node-id]',
     ));
     return resolveMixedListSelection(selected);
+  }
+
+  private currentNestedListPromotionSelection(
+    protyle: IProtyle,
+  ): NestedListPromotionSelection | undefined {
+    const selected = Array.from(protyle.wysiwyg.element.querySelectorAll<HTMLElement>(
+      '.protyle-wysiwyg--select[data-type="NodeList"]',
+    ));
+    return resolveNestedListPromotionSelection(selected);
   }
 
   private menuItem(selection: ListMergeSelection, protyle: IProtyle): IMenu {
@@ -364,6 +406,28 @@ export default class ListMergePlugin extends SubPluginBase {
     } catch (error) {
       log.error("mixed-list.failed", error);
       showMessage(this.t("lets-list-merge.failure"), 7000, "error");
+    }
+  }
+
+  private executeNestedListPromotion(
+    selection: NestedListPromotionSelection,
+    protyle: IProtyle,
+  ): void {
+    const plan = createNestedListPromotionPlan(selection);
+    if (!plan) return;
+    try {
+      const transaction = buildNestedListPromotionTransaction(plan);
+      applyNestedListPromotionDom(plan);
+      protyle.getInstance().transaction(
+        transaction.doOperations as IOperation[],
+        transaction.undoOperations as IOperation[],
+      );
+      showMessage(this.t("lets-list-merge.promoteNestedListsSuccess")
+        .replace("{count}", String(transaction.result.promotedItemCount)));
+    } catch (error) {
+      restoreNestedListPromotionDom(plan);
+      log.error("nested-list-promotion.failed", error);
+      showMessage(this.t("lets-list-merge.promoteNestedListsFailure"), 7000, "error");
     }
   }
 }

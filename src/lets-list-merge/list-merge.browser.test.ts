@@ -16,6 +16,12 @@ import {
   resolveListItemDetachSelection,
   type ListMergeOperation,
 } from "./list-merge";
+import {
+  applyNestedListPromotionDom,
+  buildNestedListPromotionTransaction,
+  createNestedListPromotionPlan,
+  resolveNestedListPromotionSelection,
+} from "./nested-list-promotion";
 
 function item(id: string, subtype: "o" | "u", marker: string, text: string): HTMLElement {
   const element = document.createElement("div");
@@ -205,6 +211,80 @@ describe("list item detach", () => {
     editor.append(target);
     document.body.append(editor);
     expect(resolveListItemDetachSelection([target.querySelector<HTMLElement>('[data-node-id="item"]')!])).toBeUndefined();
+    editor.remove();
+  });
+});
+
+describe("nested list promotion", () => {
+  function emptyParentWithNestedList(id: string, nested: HTMLElement): HTMLElement {
+    const parent = item(id, "u", "*", "");
+    parent.querySelector(".protyle-attr")?.before(nested);
+    return parent;
+  }
+
+  it("promotes the ordered children of empty top-level items into one ordered list", () => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    const outer = list("outer", "u", [
+      emptyParentWithNestedList("empty-1", list("nested-1", "o", [item("child-1", "o", "1.", "Original")])) ,
+      emptyParentWithNestedList("empty-2", list("nested-2", "o", [item("child-2", "o", "2.", "New")])) ,
+    ]);
+    editor.append(outer);
+    document.body.append(editor);
+
+    const selection = resolveNestedListPromotionSelection([outer]);
+    const plan = createNestedListPromotionPlan(selection!);
+    expect(plan?.promotedItemCount).toBe(2);
+    expect(plan?.promotedHtml).toContain('data-subtype="o"');
+
+    const transaction = buildNestedListPromotionTransaction(plan!);
+    applyNestedListPromotionDom(plan!);
+    const promoted = editor.querySelector<HTMLElement>('[data-node-id="outer"]')!;
+    expect(Array.from(promoted.querySelectorAll<HTMLElement>(":scope > [data-type='NodeListItem']"))
+      .map((element) => [element.dataset.nodeId, element.dataset.marker]))
+      .toEqual([["child-1", "1."], ["child-2", "2."]]);
+
+    replayOperations(editor, transaction.undoOperations);
+    expect(editor.querySelector('[data-node-id="empty-1"]')).not.toBeNull();
+    replayOperations(editor, transaction.doOperations);
+    expect(editor.querySelector('[data-node-id="empty-1"]')).toBeNull();
+    expect(editor.querySelectorAll("[data-node-id='child-1'], [data-node-id='child-2']")).toHaveLength(2);
+    editor.remove();
+  });
+
+  it("keeps the outer list type when only some items can be promoted", () => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    const outer = list("outer", "u", [
+      item("kept", "u", "*", "Keep this item"),
+      emptyParentWithNestedList("empty", list("nested", "o", [item("child", "o", "1.", "Promote this")])) ,
+    ]);
+    editor.append(outer);
+    document.body.append(editor);
+
+    const plan = createNestedListPromotionPlan(resolveNestedListPromotionSelection([outer])!)!;
+    applyNestedListPromotionDom(plan);
+    const promoted = editor.querySelector<HTMLElement>('[data-node-id="outer"]')!;
+    expect(promoted.dataset.subtype).toBe("u");
+    expect(Array.from(promoted.querySelectorAll<HTMLElement>(":scope > [data-type='NodeListItem']"))
+      .map((element) => [element.dataset.nodeId, element.dataset.marker]))
+      .toEqual([["kept", "*"], ["child", "*"]]);
+    editor.remove();
+  });
+
+  it("does not promote an item that has text or embedded content of its own", () => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    const withText = item("with-text", "u", "*", "Keep title");
+    withText.querySelector(".protyle-attr")?.before(list("nested-text", "o", [item("child-text", "o", "1.", "Child")]));
+    const withImage = item("with-image", "u", "*", "");
+    withImage.querySelector<HTMLElement>("[data-type='NodeParagraph']")?.append(document.createElement("img"));
+    withImage.querySelector(".protyle-attr")?.before(list("nested-image", "o", [item("child-image", "o", "1.", "Child")]));
+    const outer = list("outer", "u", [withText, withImage]);
+    editor.append(outer);
+    document.body.append(editor);
+
+    expect(resolveNestedListPromotionSelection([outer])).toBeUndefined();
     editor.remove();
   });
 });

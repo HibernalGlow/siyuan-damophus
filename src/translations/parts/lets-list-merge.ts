@@ -29,11 +29,23 @@ export const en = {
   "lets-list-merge.failure": "List merge failed. Existing content was not deleted.",
   "lets-list-merge.detachListItem": "Move list item out as paragraph",
   "lets-list-merge.detachFailure": "Could not move the list item out. Existing content was not deleted.",
+  "lets-list-merge.promoteNestedListsTitle": "Promote nested lists from empty items",
+  "lets-list-merge.promoteNestedListsDescription": "Show an action that removes empty top-level list items and promotes their nested lists",
+  "lets-list-merge.promoteNestedLists": "Promote nested lists from empty items",
+  "lets-list-merge.commandPromoteNestedLists": "Promote nested lists from empty list items",
+  "lets-list-merge.promoteNestedListsSuccess": "Promoted {count} nested list items",
+  "lets-list-merge.promoteNestedListsFailure": "Could not promote nested lists. Existing content was not deleted.",
 };
 
 export const zhCN: typeof en = {
   "lets-list-merge.detachListItem": "\u79fb\u51fa\u5217\u8868\u9879\u4e3a\u6bb5\u843d",
   "lets-list-merge.detachFailure": "\u5217\u8868\u9879\u79fb\u51fa\u5931\u8d25\uff0c\u672a\u5220\u9664\u539f\u6709\u5185\u5bb9",
+  "lets-list-merge.promoteNestedListsTitle": "\u63d0\u5347\u7a7a\u9879\u4e2d\u7684\u5b50\u5217\u8868",
+  "lets-list-merge.promoteNestedListsDescription": "\u5728\u5217\u8868\u83dc\u5355\u4e2d\u663e\u793a\u4e00\u9879\u64cd\u4f5c\uff0c\u5220\u9664\u65e0\u6b63\u6587\u7684\u4e00\u7ea7\u5217\u8868\u9879\u5e76\u63d0\u5347\u5176\u5b50\u5217\u8868",
+  "lets-list-merge.promoteNestedLists": "\u63d0\u5347\u7a7a\u9879\u4e2d\u7684\u5b50\u5217\u8868",
+  "lets-list-merge.commandPromoteNestedLists": "\u63d0\u5347\u7a7a\u4e00\u7ea7\u5217\u8868\u9879\u4e2d\u7684\u5b50\u5217\u8868",
+  "lets-list-merge.promoteNestedListsSuccess": "\u5df2\u63d0\u5347 {count} \u4e2a\u5b50\u5217\u8868\u9879",
+  "lets-list-merge.promoteNestedListsFailure": "\u63d0\u5347\u5b50\u5217\u8868\u5931\u8d25\uff0c\u672a\u5220\u9664\u539f\u6709\u5185\u5bb9\u3002",
   "lets-list-merge.displayName": "列表合并",
   "lets-list-merge.description": "合并选中的有序或无序列表，并可指定有序列表的起始编号",
   "lets-list-merge.merge": "合并选中的列表",
