@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Question } from "../core/types";
-import { createPracticeSessionSnapshot } from "../core/session-schema";
+import { createPracticeSessionSnapshot, type PracticeSessionSnapshot } from "../core/session-schema";
 import { PracticeSessionRuntime, type PracticeSessionRuntimeHost } from "./practice-runtime";
 
 const question: Question = {
@@ -22,6 +22,14 @@ function snapshot() {
     queue: [{ question, optionOrder: [] }],
     now: new Date("2026-08-06T00:00:00.000Z"),
   });
+}
+
+function completedSnapshot(): PracticeSessionSnapshot {
+  const current = snapshot();
+  return {
+    ...current,
+    completed_question_ids: ["question-1"],
+  };
 }
 
 function host(): PracticeSessionRuntimeHost & {
@@ -145,6 +153,30 @@ describe("practice session runtime", () => {
 
       await vi.advanceTimersByTimeAsync(100);
       expect(storage.savePracticeSession).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not autosave review navigation while completion cleanup is pending", async () => {
+    vi.useFakeTimers();
+    try {
+      const storage = host();
+      const runtime = new PracticeSessionRuntime({
+        host: storage,
+        input: { snapshot: completedSnapshot(), now: 1_000 },
+        persistedRevision: 0,
+        autosaveDelayMs: 100,
+      });
+
+      const cleanup = runtime.complete();
+      runtime.actor.send({ type: "REVIEW", questionId: "question-1", now: 2_000 });
+      await cleanup;
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(runtime.actor.getSnapshot().matches("reviewing")).toBe(true);
+      expect(storage.savePracticeSession).not.toHaveBeenCalled();
+      await runtime.dispose();
     } finally {
       vi.useRealTimers();
     }

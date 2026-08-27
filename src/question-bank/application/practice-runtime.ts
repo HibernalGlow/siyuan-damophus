@@ -43,7 +43,9 @@ export class PracticeSessionRuntime {
     this.actor = createActor(practiceSessionMachine, { input: options.input });
     this.actorSubscription = this.actor.subscribe((snapshot) => {
       for (const listener of this.stateListeners) listener(snapshot);
-      if (!snapshot.matches("completed") && !snapshot.matches("ended")) {
+      // A completed session is removed as soon as completion is observed. Review
+      // navigation happens after that cleanup and must not recreate a save race.
+      if (!snapshot.matches("completed") && !snapshot.matches("reviewing") && !snapshot.matches("ended")) {
         this.schedule(snapshot.context.session);
       }
     });
