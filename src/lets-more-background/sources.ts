@@ -63,6 +63,8 @@ export interface CoverHistoryEntry {
   docId: string;
   docTitle?: string;
   imageUrl: string;
+  /** Original remote image URL when the displayed title image is stored locally. */
+  sourceUrl?: string;
   postUrl?: string;
   site?: string;
   postId?: string | number;

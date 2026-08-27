@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectHistoryCoverUrls, collectUsedCoverUrls, normalizeCoverUrl } from "./cover-dedup";
+import { booruPostDedupKey, collectHistoryCoverUrls, collectUsedCoverUrls, normalizeCoverUrl } from "./cover-dedup";
 
 describe("cover deduplication", () => {
   it("normalizes direct and title image URLs", () => {
@@ -37,5 +37,29 @@ describe("cover deduplication", () => {
       "https://safebooru.org/images/3/c.jpg",
       "https://safebooru.org/images/4/d.jpg",
     ]);
+  });
+
+  it("retains original sources and post identities when a cover is stored locally", () => {
+    const urls = collectHistoryCoverUrls([
+      {
+        imageUrl: "assets/more-background/cover.webp",
+        sourceUrl: "https://safebooru.org/images/5/original.jpg",
+        site: "safebooru.org",
+        postId: "500",
+      },
+    ]);
+    expect(urls).toEqual(new Set([
+      "https://safebooru.org/images/5/original.jpg",
+      booruPostDedupKey("safebooru.org", "500"),
+    ]));
+  });
+
+  it("includes persisted post metadata from locally stored current covers", () => {
+    const urls = collectUsedCoverUrls([
+      { block_id: "doc-1", name: "title-img", value: "background-image:url('assets/cover.webp')" },
+      { block_id: "doc-1", name: "custom-damophus-post-site", value: "safebooru.org" },
+      { block_id: "doc-1", name: "custom-damophus-post-id", value: "501" },
+    ]);
+    expect(urls).toEqual(new Set([booruPostDedupKey("safebooru.org", "501")]));
   });
 });

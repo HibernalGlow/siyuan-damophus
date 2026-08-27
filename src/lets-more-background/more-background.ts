@@ -1699,7 +1699,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       if (/^(?:https?:\/\/|data:)/i.test(entry.imageUrl)) {
         await this.fetchAndSetBackground(entry.imageUrl, background, 1, 1, undefined, postInfo);
       } else {
-        await this.setBlockBackgroundImage(background, entry.imageUrl, postInfo);
+        await this.setBlockBackgroundImage(background, entry.imageUrl, postInfo, undefined, entry.sourceUrl);
       }
       dialog.destroy();
       showMessage(this.options.t("lets-more-background.coverHistoryApplied"));
@@ -1912,7 +1912,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }
     }
     if (!this.options.writeToAssets) {
-      await this.setBlockBackgroundImage(background, sourceUrl || await this.blobToBase64(blob), postInfo);
+      await this.setBlockBackgroundImage(background, sourceUrl || await this.blobToBase64(blob), postInfo, undefined, sourceUrl);
       return;
     }
     const { name } = await detectImageTypeAndName(blob);
@@ -1920,10 +1920,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     const assetPath = await this.uploadToAssets(blob, name, location);
     if (assetPath) {
-      await this.setBlockBackgroundImage(background, assetPath, postInfo);
+      await this.setBlockBackgroundImage(background, assetPath, postInfo, undefined, sourceUrl);
     } else {
       const base64 = await this.blobToBase64(blob);
-      await this.setBlockBackgroundImage(background, base64, postInfo);
+      await this.setBlockBackgroundImage(background, base64, postInfo, undefined, sourceUrl);
     }
   }
 
@@ -1981,6 +1981,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     urlOrPath: string,
     postInfo?: BooruResolvedInfo | null,
     cachePath?: string,
+    sourceUrl?: string,
   ): Promise<void> {
     const blockId =
       background.getAttribute("data-node-id") ||
@@ -2014,14 +2015,18 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }
     }
 
-    const sourceChanged =
-      normalizeCoverUrl(urlOrPath) !== normalizeCoverUrl(previousSourceUrl);
+    const originalSourceUrl = /^https?:\/\//i.test(sourceUrl || "")
+      ? sourceUrl!.trim()
+      : /^https?:\/\//i.test(urlOrPath)
+      ? urlOrPath
+      : "";
+    const sourceChanged = normalizeCoverUrl(originalSourceUrl) !== normalizeCoverUrl(previousSourceUrl);
 
     const attrs: Record<string, string> = {
       "title-img": `background-image:url("${finalVal}")`,
     };
-    if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
-      attrs[COVER_SOURCE_ATTRIBUTE] = urlOrPath;
+    if (originalSourceUrl) {
+      attrs[COVER_SOURCE_ATTRIBUTE] = originalSourceUrl;
     } else if (previousSourceUrl) {
       attrs[COVER_SOURCE_ATTRIBUTE] = "";
     }
@@ -2069,6 +2074,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         docId: blockId,
         docTitle,
         imageUrl: finalVal,
+        sourceUrl: originalSourceUrl || undefined,
         postUrl: postUrl || postInfo?.postUrl,
         site: site || postInfo?.site,
         postId: postId || postInfo?.postId,

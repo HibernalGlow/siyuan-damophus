@@ -1,5 +1,5 @@
 import { getLogger } from "@/libs/logger";
-import { normalizeCoverUrl } from "./cover-dedup";
+import { booruPostDedupKey, normalizeCoverUrl } from "./cover-dedup";
 import { search, resolveSite, sites, type Post } from "@himeka/booru";
 import type { SiteCredential } from "./sources";
 
@@ -915,7 +915,7 @@ export async function resolveBooruImageInfo(
   try {
     const excludedUrls = new Set(
       [...(excludedImageUrls || [])]
-        .map((url) => normalizeCoverUrl(url))
+        .map((url) => normalizeCoverUrl(url) || (url.startsWith("booru-post:") ? url : null))
         .filter((url): url is string => Boolean(url)),
     );
     const isExcluded = (...urls: Array<string | null | undefined>) =>
@@ -923,6 +923,11 @@ export async function resolveBooruImageInfo(
         const normalized = normalizeCoverUrl(url || "");
         return normalized ? excludedUrls.has(normalized) : false;
       });
+    const isExcludedPost = (site: string, postId: unknown) => {
+      const canonicalSite = resolveSite(site) || site;
+      const key = booruPostDedupKey(canonicalSite, postId);
+      return key ? excludedUrls.has(key) : false;
+    };
 
     if (urlOrUri.startsWith("booru:")) {
       const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, timeRange, pool, quality, blacklist } =
@@ -974,7 +979,7 @@ export async function resolveBooruImageInfo(
           let rejectedByDuplicate = 0;
 
           const candidates = res.posts.filter((p) => {
-            if (isExcluded(p.file_url, p.large_file_url, p.preview_file_url)) {
+            if (isExcluded(p.file_url, p.large_file_url, p.preview_file_url) || isExcludedPost(site, p.id)) {
               rejectedByDuplicate++;
               return false;
             }
@@ -1118,7 +1123,7 @@ export async function resolveBooruImageInfo(
               (p as any).jpeg_url,
               p.previewUrl,
               (p as any).preview_url,
-            )) {
+            ) || isExcludedPost(resolvedDomain, p.id)) {
               rejectedByDuplicate++;
               return false;
             }

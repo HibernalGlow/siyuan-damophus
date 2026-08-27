@@ -12,6 +12,7 @@ import {
   resolveManualBooruUrl,
 } from "./booru";
 import { resolveSite, sites } from "@himeka/booru";
+import { booruPostDedupKey } from "./cover-dedup";
 
 describe("booru API client, condition templates & ratio filter", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -82,6 +83,32 @@ describe("booru API client, condition templates & ratio filter", () => {
     );
 
     expect(resolved?.imageUrl).toBe("https://safebooru.org/images/42/fresh.jpg");
+    expect(resolved?.diagnostic?.rejectedByDuplicate).toBe(1);
+  });
+
+  it("excludes a previously used post when its current cover is stored locally", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      json: async () => ({
+        code: 0,
+        data: {
+          status: 200,
+          body: JSON.stringify([
+            { id: 41, file_url: "https://safebooru.org/images/41/used.jpg", width: 1920, height: 1080, score: 50, tags: "scenery" },
+            { id: 42, file_url: "https://safebooru.org/images/42/fresh.jpg", width: 1920, height: 1080, score: 50, tags: "scenery" },
+          ]),
+        },
+      }),
+    } as Response);
+
+    const resolved = await resolveBooruImageInfo(
+      "booru:sb?tags=scenery",
+      undefined,
+      undefined,
+      new Set([booruPostDedupKey("safebooru.org", 41)!]),
+    );
+
+    expect(resolved?.postId).toBe(42);
     expect(resolved?.diagnostic?.rejectedByDuplicate).toBe(1);
   });
 
