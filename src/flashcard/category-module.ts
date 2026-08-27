@@ -212,8 +212,14 @@ export class FlashcardCategoryModule {
       execute: async (context) => {
         const card = await context.resolveCard();
         if (!card) return;
-        const current = await getBlockKramdownStrict(card.blockID);
-        const markdown = typeof current.kramdown === "string" ? current.kramdown : "";
+        let resolved: { blockId: string; markdown: string };
+        try {
+          resolved = await this.resolveCardBlock(context, card);
+        } catch (error) {
+          showMessage(error instanceof Error ? error.message : String(error), 4000, "error");
+          return;
+        }
+        const { blockId, markdown } = resolved;
         const selected = new Set(parseFlashcardCategories(markdown));
         const menu = new Menu("damophus-flashcard-category-menu");
         const names = [...new Set([...this.config.rules.map((rule) => rule.name), ...selected])];
@@ -223,13 +229,13 @@ export class FlashcardCategoryModule {
             icon: selected.has(name) ? "iconCheck" : "iconUncheck",
             label: name,
             click: async () => {
-              const result = await this.mutateBlock(card.blockID, selected.has(name) ? "remove" : "add", name);
+              const result = await this.mutateBlock(blockId, selected.has(name) ? "remove" : "add", name);
               this.showMutationResult(result, name);
             },
           });
         }
         menu.addItem({ type: "separator" });
-        menu.addItem({ label: "新建并标记分类", click: () => this.openCreateCategoryDialog(card.blockID) });
+        menu.addItem({ label: "新建并标记分类", click: () => this.openCreateCategoryDialog(blockId) });
         const rect = context.trigger.getBoundingClientRect();
         menu.open({ x: rect.left, y: rect.bottom, isLeft: false });
       },
@@ -251,6 +257,23 @@ export class FlashcardCategoryModule {
     } catch (error) {
       return { operation, blockId, status: "failed", error: error instanceof Error ? error.message : String(error) };
     }
+  }
+
+  private async resolveCardBlock(context: { root: HTMLElement }, card: RiffCardRecord): Promise<{ blockId: string; markdown: string }> {
+    const candidates = [
+      card.blockID,
+      ...[...context.root.querySelectorAll<HTMLElement>("[data-node-id]")].map((node) => node.dataset.nodeId ?? ""),
+    ].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
+    let lastError: unknown;
+    for (const blockId of candidates) {
+      try {
+        const current = await getBlockKramdownStrict(blockId);
+        return { blockId, markdown: typeof current.kramdown === "string" ? current.kramdown : "" };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("无法找到当前闪卡对应的块");
   }
 
   async createCategory(name: string): Promise<FlashcardCategoryRule> {
