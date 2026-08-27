@@ -272,10 +272,15 @@ export class NativePriorityControls {
     const order = settings.reviewToolbarActionOrder?.length
       ? settings.reviewToolbarActionOrder
       : ["locate", "unregister", "priority", "renderer", "workbench"];
-    return order
+    const ordered = order
       .filter((id) => legacyVisibility[id] !== false)
       .map((id) => all.get(id))
       .filter((action): action is ReviewToolbarAction => Boolean(action));
+    const included = new Set(ordered.map((action) => action.id));
+    for (const action of all.values()) {
+      if (!included.has(action.id) && action.source !== "DAMO" && action.source !== "思源") ordered.push(action);
+    }
+    return ordered;
   }
 
   private applyCustomStyle(css: string): void {

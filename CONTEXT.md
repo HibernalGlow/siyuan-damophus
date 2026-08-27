@@ -90,3 +90,18 @@ the original descriptor on unload.
 **Legacy card**:
 An existing Riff card, especially an old mark card, whose root and review history
 must be preserved unless the user explicitly confirms a migration.
+
+**Flashcard category**:
+An open-ended, content-level Markdown tag in the `闪卡/分类` namespace, such as
+`#闪卡/分类/重点#` or `#闪卡/分类/易混淆#`. A card may have multiple categories;
+categories are independent of P1-P4 priority and of Riff scheduling state.
+
+**Category policy**:
+The user-owned display and review-order settings for categories. Policy does not
+change category identity; renaming a category means batch-renaming its Markdown
+tag through the SiYuan API.
+
+**Flashcard contribution**:
+A removable capability contribution owned by a module. Contributions can add a
+stable review-order stage, toolbar action, filter, or batch operation without
+owning the host flashcard lifecycle or the existing P1-P4 stage.

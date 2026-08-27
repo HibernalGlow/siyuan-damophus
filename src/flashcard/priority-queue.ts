@@ -15,6 +15,8 @@ interface PriorityQueueOptions {
   interleaveRate?: number;
   /** SiYuan flashcard.reviewMode: 0 mixed, 1 new first, 2 review first. */
   reviewMode?: 0 | 1 | 2;
+  /** Optional category stage, applied between review mode and P1-P4. */
+  categoryRanksByBlockId?: ReadonlyMap<string, number>;
 }
 
 function rootRank(root: FlashcardRoot | undefined): number {
@@ -33,6 +35,7 @@ type RankedCard = {
   index: number;
   rank: number;
   reviewRank: number;
+  categoryRank: number;
 };
 
 function orderPriorityGroup(
@@ -81,6 +84,23 @@ function orderPriorityGroup(
   return result.map(({ card }) => card);
 }
 
+function orderCategoryGroups(
+  input: RankedCard[],
+  options: PriorityQueueOptions,
+  random: () => number,
+): RiffCardRecord[] {
+  if (!options.categoryRanksByBlockId) return orderPriorityGroup(input, options, random);
+  const groups = new Map<number, RankedCard[]>();
+  for (const entry of input) {
+    const group = groups.get(entry.categoryRank) ?? [];
+    group.push(entry);
+    groups.set(entry.categoryRank, group);
+  }
+  return [...groups.entries()]
+    .sort(([left], [right]) => left - right)
+    .flatMap(([, group]) => orderPriorityGroup(group, options, random));
+}
+
 /** Orders priority bands, optionally shuffling each band and mixing lower-priority cards. */
 export function orderCardsByPriority(
   cards: readonly RiffCardRecord[],
@@ -94,14 +114,15 @@ export function orderCardsByPriority(
     index,
     rank: rootRank(rootsById.get(card.blockID)),
     reviewRank: reviewRank(card, mode),
+    categoryRank: options.categoryRanksByBlockId?.get(card.blockID) ?? Number.MAX_SAFE_INTEGER,
   }));
 
   const random = options.random ?? Math.random;
-  if (mode === 0) return orderPriorityGroup(ranked, options, random);
+  if (mode === 0) return orderCategoryGroups(ranked, options, random);
   const first = ranked.filter((entry) => entry.reviewRank === 0);
   const second = ranked.filter((entry) => entry.reviewRank === 1);
   return [
-    ...orderPriorityGroup(first, options, random),
-    ...orderPriorityGroup(second, options, random),
+    ...orderCategoryGroups(first, options, random),
+    ...orderCategoryGroups(second, options, random),
   ];
 }
