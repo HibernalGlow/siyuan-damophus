@@ -318,7 +318,11 @@ export default class FlashcardPlugin extends SubPluginBase {
       }) => string;
       removeBreadcrumbButton?: (id: string) => void;
     };
-    if (this.runtime.getSettings().showBreadcrumbReviewButton === false) {
+    const settings = this.runtime.getSettings();
+    const shouldShow = isMobileEntryFrontend()
+      ? settings.showMobileBreadcrumbReviewButton
+      : settings.showDesktopBreadcrumbReviewButton;
+    if (!shouldShow) {
       if (this.breadcrumbButtonRegistered) {
         api.removeBreadcrumbButton?.(BREADCRUMB_BUTTON_ID);
         this.breadcrumbButtonRegistered = false;

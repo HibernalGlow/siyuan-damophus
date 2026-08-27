@@ -30,7 +30,7 @@ export function entrySettingKey(surface: PluginEntrySurface): string {
 
 export function isMobileEntryFrontend(): boolean {
   if (typeof document === "undefined") return false;
-  const frontend = document.documentElement.dataset.frontend;
+  const frontend = document.documentElement?.dataset?.frontend;
   return frontend === "mobile" || frontend === "browser-mobile";
 }
 

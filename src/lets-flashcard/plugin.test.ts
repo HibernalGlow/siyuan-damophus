@@ -325,14 +325,17 @@ describe("flashcard plugin metadata", () => {
     vi.stubGlobal("document", previousDocument);
   });
 
-  it("registers one native breadcrumb button for desktop and mobile editors", () => {
+  it("registers the native breadcrumb button when the current frontend enables it", () => {
     const previousPlugin = plugin;
     const addBreadcrumbButton = vi.fn();
     const removeBreadcrumbButton = vi.fn();
     const reviewFromEditor = vi.fn();
     const instance = {
       breadcrumbButtonRegistered: false,
-      runtime: { getSettings: () => ({ showBreadcrumbReviewButton: true }) },
+      runtime: { getSettings: () => ({
+        showDesktopBreadcrumbReviewButton: true,
+        showMobileBreadcrumbReviewButton: false,
+      }) },
       t: (key: string) => key === "lets-flashcard.reviewCurrentDocument" ? "复习当前文档闪卡" : key,
       reviewFromEditor,
     } as any;
@@ -364,12 +367,15 @@ describe("flashcard plugin metadata", () => {
     }
   });
 
-  it("removes the breadcrumb button when its setting is disabled", () => {
+  it("removes the breadcrumb button when the current frontend disables it", () => {
     const previousPlugin = plugin;
     const removeBreadcrumbButton = vi.fn();
     const instance = {
       breadcrumbButtonRegistered: true,
-      runtime: { getSettings: () => ({ showBreadcrumbReviewButton: false }) },
+      runtime: { getSettings: () => ({
+        showDesktopBreadcrumbReviewButton: false,
+        showMobileBreadcrumbReviewButton: true,
+      }) },
       t: (key: string) => key,
     } as any;
 
@@ -379,6 +385,31 @@ describe("flashcard plugin metadata", () => {
       expect(removeBreadcrumbButton).toHaveBeenCalledWith("damophus-flashcard");
       expect(instance.breadcrumbButtonRegistered).toBe(false);
     } finally {
+      setPlugin(previousPlugin as never);
+    }
+  });
+
+  it("uses the mobile breadcrumb switch on mobile frontends", () => {
+    const previousPlugin = plugin;
+    const previousDocument = globalThis.document;
+    const addBreadcrumbButton = vi.fn();
+    const instance = {
+      breadcrumbButtonRegistered: false,
+      runtime: { getSettings: () => ({
+        showDesktopBreadcrumbReviewButton: false,
+        showMobileBreadcrumbReviewButton: true,
+      }) },
+      t: (key: string) => key,
+      reviewFromEditor: vi.fn(),
+    } as any;
+
+    setPlugin({ addBreadcrumbButton } as never);
+    vi.stubGlobal("document", { documentElement: { dataset: { frontend: "mobile" } } });
+    try {
+      (FlashcardPlugin.prototype as any).syncBreadcrumbButton.call(instance);
+      expect(addBreadcrumbButton).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.stubGlobal("document", previousDocument);
       setPlugin(previousPlugin as never);
     }
   });

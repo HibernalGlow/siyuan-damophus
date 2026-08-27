@@ -1079,7 +1079,8 @@
 
       <section class="settings-section">
         <div class="section-title"><LocateFixed /><div><h3>文档入口</h3><p>控制编辑器中的快捷入口</p></div></div>
-        <div class="setting-row"><div><strong>显示面包屑闪卡按钮</strong><span>在当前文档面包屑中提供快速复习</span></div><Switch checked={config.showBreadcrumbReviewButton} onCheckedChange={(value) => { config.showBreadcrumbReviewButton = value; saveGlobalOnChange(); }} aria-label="显示面包屑闪卡按钮" /></div>
+        <div class="setting-row"><div><strong>桌面端面包屑按钮</strong><span>在桌面端当前文档面包屑中提供快速复习</span></div><Switch checked={config.showDesktopBreadcrumbReviewButton} onCheckedChange={(value) => { config.showDesktopBreadcrumbReviewButton = value; saveGlobalOnChange(); }} aria-label="桌面端面包屑闪卡按钮" /></div>
+        <div class="setting-row"><div><strong>移动端面包屑按钮</strong><span>在移动端当前文档面包屑中提供快速复习</span></div><Switch checked={config.showMobileBreadcrumbReviewButton} onCheckedChange={(value) => { config.showMobileBreadcrumbReviewButton = value; saveGlobalOnChange(); }} aria-label="移动端面包屑闪卡按钮" /></div>
       </section>
 
       <section class="settings-section">

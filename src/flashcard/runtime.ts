@@ -99,7 +99,16 @@ function mergeSettings(value: unknown): FlashcardSettings {
     reviewToolbarShowBrand: input.reviewToolbarShowBrand !== false,
     reviewToolbarShowFilter: input.reviewToolbarShowFilter !== false,
     reviewToolbarShowFullscreen: input.reviewToolbarShowFullscreen !== false,
-    showBreadcrumbReviewButton: input.showBreadcrumbReviewButton !== false,
+    showDesktopBreadcrumbReviewButton: typeof input.showDesktopBreadcrumbReviewButton === "boolean"
+      ? input.showDesktopBreadcrumbReviewButton
+      : input.showBreadcrumbReviewButton === false
+        ? false
+        : DEFAULT_FLASHCARD_SETTINGS.showDesktopBreadcrumbReviewButton,
+    showMobileBreadcrumbReviewButton: typeof input.showMobileBreadcrumbReviewButton === "boolean"
+      ? input.showMobileBreadcrumbReviewButton
+      : input.showBreadcrumbReviewButton === false
+        ? false
+        : DEFAULT_FLASHCARD_SETTINGS.showMobileBreadcrumbReviewButton,
     fsrsOptimizerMode: input.fsrsOptimizerMode === "browser" ? "browser" : "internal",
     groups: groups.map((group) => ({
       ...DEFAULT_FLASHCARD_SETTINGS.groups[0],

@@ -161,7 +161,10 @@ export interface FlashcardSettings {
   reviewToolbarShowBrand: boolean;
   reviewToolbarShowFilter: boolean;
   reviewToolbarShowFullscreen: boolean;
-  showBreadcrumbReviewButton: boolean;
+  showDesktopBreadcrumbReviewButton: boolean;
+  showMobileBreadcrumbReviewButton: boolean;
+  /** Legacy combined switch retained only while reading older settings. */
+  showBreadcrumbReviewButton?: boolean;
   fsrsOptimizerMode: FsrsOptimizerMode;
 }
 
@@ -205,7 +208,8 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   reviewToolbarShowBrand: true,
   reviewToolbarShowFilter: true,
   reviewToolbarShowFullscreen: true,
-  showBreadcrumbReviewButton: true,
+  showDesktopBreadcrumbReviewButton: false,
+  showMobileBreadcrumbReviewButton: true,
   fsrsOptimizerMode: "internal",
   categories: [{ id: "default", name: "默认分组" }],
   groups: [

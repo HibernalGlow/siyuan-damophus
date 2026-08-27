@@ -40,14 +40,34 @@ describe("flashcard runtime SFP parity", () => {
     expect(native.getSettings().scopedReviewMode).toBe("native");
   });
 
-  it("defaults the document breadcrumb review button to enabled and preserves an explicit off state", () => {
-    const disabled = new FlashcardRuntime(
+  it("defaults the breadcrumb review button to mobile only and migrates an explicit legacy off state", () => {
+    const legacyDisabled = new FlashcardRuntime(
       (key) => key === "config" ? { showBreadcrumbReviewButton: false } : undefined,
       vi.fn(),
     );
-    expect(disabled.getSettings().showBreadcrumbReviewButton).toBe(false);
-    const enabled = new FlashcardRuntime(() => ({}), vi.fn());
-    expect(enabled.getSettings().showBreadcrumbReviewButton).toBe(true);
+    expect(legacyDisabled.getSettings()).toMatchObject({
+      showDesktopBreadcrumbReviewButton: false,
+      showMobileBreadcrumbReviewButton: false,
+    });
+    const defaults = new FlashcardRuntime(() => ({}), vi.fn());
+    expect(defaults.getSettings()).toMatchObject({
+      showDesktopBreadcrumbReviewButton: false,
+      showMobileBreadcrumbReviewButton: true,
+    });
+  });
+
+  it("preserves independent desktop and mobile breadcrumb settings", () => {
+    const configured = new FlashcardRuntime(
+      (key) => key === "config" ? {
+        showDesktopBreadcrumbReviewButton: true,
+        showMobileBreadcrumbReviewButton: false,
+      } : undefined,
+      vi.fn(),
+    );
+    expect(configured.getSettings()).toMatchObject({
+      showDesktopBreadcrumbReviewButton: true,
+      showMobileBreadcrumbReviewButton: false,
+    });
   });
 
   it("defaults review timing to question-only and preserves both timing switches", () => {
