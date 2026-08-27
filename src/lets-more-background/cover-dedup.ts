@@ -1,4 +1,5 @@
 import { sql } from "@/api";
+import { resolveSite } from "@himeka/booru";
 
 const SOURCE_ATTRIBUTE = "custom-damophus-cover-source-url";
 const TITLE_IMAGE_ATTRIBUTES = new Set(["title-img", "custom-title-img"]);
@@ -12,7 +13,8 @@ export interface CoverAttributeRow {
 export function booruPostDedupKey(site: unknown, postId: unknown): string | null {
   const rawSite = String(site || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   const rawPostId = String(postId || "").trim();
-  return rawSite && rawPostId ? `booru-post:${rawSite}:${rawPostId}` : null;
+  const canonicalSite = rawSite ? (resolveSite(rawSite) || rawSite) : "";
+  return canonicalSite && rawPostId ? `booru-post:${canonicalSite}:${rawPostId}` : null;
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -32,14 +34,22 @@ function extractUrl(value: string): string {
 
 export function normalizeCoverUrl(value: string): string | null {
   const source = extractUrl(String(value || ""));
-  if (!/^https?:\/\//i.test(source)) return null;
+  const candidate = source.startsWith("//") ? `https:${source}` : source;
+  if (!/^https?:\/\//i.test(candidate)) return null;
   try {
-    const parsed = new URL(source);
+    const parsed = new URL(candidate);
     parsed.hash = "";
     return parsed.href;
   } catch {
-    return source.replace(/#.*$/, "");
+    return candidate.replace(/#.*$/, "");
   }
+}
+
+/** Normalize local asset paths so a leading `/data/` does not hide a match. */
+export function normalizeCoverAssetPath(value: string): string | null {
+  const source = extractUrl(String(value || ""));
+  if (!source || /^(?:https?:|data:|blob:)/i.test(source)) return null;
+  return source.replace(/^\/+/, "").replace(/^data\//i, "").replace(/\/+/g, "/");
 }
 
 export function collectUsedCoverUrls(rows: CoverAttributeRow[]): Set<string> {

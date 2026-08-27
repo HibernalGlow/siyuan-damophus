@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { booruPostDedupKey, collectHistoryCoverUrls, collectUsedCoverUrls, normalizeCoverUrl } from "./cover-dedup";
+import { booruPostDedupKey, collectHistoryCoverUrls, collectUsedCoverUrls, normalizeCoverAssetPath, normalizeCoverUrl } from "./cover-dedup";
 
 describe("cover deduplication", () => {
   it("normalizes direct and title image URLs", () => {
     expect(normalizeCoverUrl('background-image:url(&quot;https://Safebooru.org/images/1/a.jpg#view&quot;)'))
       .toBe("https://safebooru.org/images/1/a.jpg");
+    expect(normalizeCoverUrl("background-image:url(//safebooru.org/images/1/a.jpg)"))
+      .toBe("https://safebooru.org/images/1/a.jpg");
     expect(normalizeCoverUrl("assets/cover.webp")).toBeNull();
+    expect(normalizeCoverAssetPath('background-image:url("/data/storage/petal/covers/a.webp")'))
+      .toBe("storage/petal/covers/a.webp");
+  });
+
+  it("canonicalizes booru aliases for post identity deduplication", () => {
+    expect(booruPostDedupKey("sb", 42)).toBe(booruPostDedupKey("safebooru.org", 42));
   });
 
   it("collects remote cover sources from current and legacy attributes", () => {
