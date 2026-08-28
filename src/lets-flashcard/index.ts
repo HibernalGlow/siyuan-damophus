@@ -12,10 +12,8 @@ import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
 import { FlashcardRuntime } from "@/flashcard/runtime";
 import { openDocumentFlow } from "@/flashcard/document-flow";
 import type { FlashcardBlockRow, FlashcardGroup, FlashcardReviewScope, FlashcardRoot, FlashcardSettings as FlashcardSettingsConfig } from "@/flashcard/types";
-import { convertSfpConfig, fetchSfpConfig } from "@/flashcard/sfp-migration";
 import { priorityTag } from "@/flashcard/priority-tags";
 import { NativePriorityControls, type ReviewToolbarKey } from "@/flashcard/native-priority-controls";
-import { registerReviewToolbarAction, type ReviewToolbarAction } from "@/flashcard/review-action-registry";
 import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/native-review-counter";
 import { NativeReviewTimer } from "@/flashcard/native-review-timer";
 import { readReviewCardStats } from "@/flashcard/review-stats";
@@ -29,19 +27,13 @@ import { orderCardsByPriority } from "@/flashcard/priority-queue";
 import { FlashcardCategoryModule } from "@/flashcard/category-module";
 import { getFlashcardContributions, type FlashcardReviewStage } from "@/flashcard/contribution-registry";
 import { SiyuanMobileFlashcardSurfaceAdapter } from "@/flashcard/mobile-surface-adapter";
+import { FsrsOptimizerLocalService } from "@/flashcard/fsrs-optimizer-local-service";
 import {
-  FsrsOptimizerLocalService,
-  loadFsrsOptimizerAssets,
-} from "@/flashcard/fsrs-optimizer-local-service";
-import {
-  buildFsrsTrainingDataset,
   parseFsrsWeights,
   type FsrsOptimizationResult,
 } from "@/flashcard/fsrs-optimizer-protocol";
-import { optimizeFsrsInPlugin } from "@/flashcard/fsrs-optimizer-internal";
-import { applyFsrsWeights, previewFsrsWeights, type FsrsWeightPreview } from "@/flashcard/fsrs-settings-adapter";
+import type { FsrsWeightPreview } from "@/flashcard/fsrs-settings-adapter";
 import {
-  appendFsrsWeightHistory,
   loadFsrsWeightHistory,
   type FsrsWeightHistoryEntry,
   type FsrsWeightHistoryStorage,
@@ -54,29 +46,58 @@ import {
   DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY,
   normalizeDocumentPathHighlights,
 } from "@/libs/document-path-highlights";
+import {
+  makeScope as buildFlashcardScope,
+  scopeActionLabel as flashcardScopeActionLabel,
+  settingsTabId,
+  SETTINGS_TAB_TYPE,
+  type UnregisterProgressDialog,
+} from "./plugin-utils";
+import {
+  actionCategory as buildActionCategory,
+  buildBlockMenu,
+  buildDocumentTitleMenu,
+  buildDocumentTreeMenu,
+  buildFlashcardMenu,
+  cancelCategory as buildCancelCategory,
+  contextScopeMenuItem as buildContextScopeMenuItem,
+  documentScopeMenuItems as buildDocumentScopeMenuItems,
+  documentUnregisterMenuItem as buildDocumentUnregisterMenuItem,
+  registerReviewToolbarActions as registerFlashcardReviewToolbarActions,
+  reviewCategory as buildReviewCategory,
+  toggleRendererOverride as toggleFlashcardRendererOverride,
+} from "./menu-builder";
+import {
+  bindMobileNativeReviewEntry as bindFlashcardMobileNativeReviewEntry,
+  bindMobileReviewButtonLabel as bindFlashcardMobileReviewButtonLabel,
+  handleMobileNativeReviewEntry as handleFlashcardMobileNativeReviewEntry,
+  unbindMobileNativeReviewEntry as unbindFlashcardMobileNativeReviewEntry,
+} from "./mobile-entry";
+import {
+  confirmAndUnregister as confirmAndUnregisterFlashcardCards,
+  confirmUnregister as confirmFlashcardUnregister,
+  createUnregisterAudit as createFlashcardUnregisterAudit,
+  openDocumentUnregisterDialog as openFlashcardDocumentUnregisterDialog,
+  openUnregisterProgressDialog as openFlashcardUnregisterProgressDialog,
+  unregisterCard as unregisterFlashcardCard,
+  unregisterContainers as unregisterFlashcardContainers,
+  unregisterDocumentScope as unregisterFlashcardDocumentScope,
+  unregisterDocumentTree as unregisterFlashcardDocumentTree,
+} from "./unregister-flows";
+import {
+  confirmAndApplyFsrsWeights as confirmAndApplyFlashcardFsrsWeights,
+  confirmAndUndoFsrsWeights as confirmAndUndoFlashcardFsrsWeights,
+  importSfpConfig as importFlashcardSfpConfig,
+  optimizeReviewLog as optimizeFlashcardReviewLog,
+} from "./fsrs-flows";
 
 const log = getLogger("lets-flashcard");
-const SETTINGS_TAB_TYPE = "damophus-flashcard-settings";
 const BREADCRUMB_BUTTON_ID = "damophus-flashcard";
 const BREADCRUMB_BUTTON_ICON = "iconRiffCard";
 
-function settingsTabId(): string {
-  return `${plugin.name}${SETTINGS_TAB_TYPE}`;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
-}
-
-interface UnregisterProgressDialog {
-  setRemoving(): void;
-  setWriting(completed: number, total: number): void;
-  destroy(): void;
-}
-
 export default class FlashcardPlugin extends SubPluginBase {
-  private readonly compat = new FlashcardRendererCompat();
-  private readonly runtime = new FlashcardRuntime(
+  public readonly compat = new FlashcardRendererCompat();
+  public readonly runtime = new FlashcardRuntime(
     (key) => this.getSetting(key),
     (key, value) => this.setSetting(key, value),
   );
@@ -94,15 +115,15 @@ export default class FlashcardPlugin extends SubPluginBase {
   private readonly mobileSurface = new SiyuanMobileFlashcardSurfaceAdapter(Dialog);
   private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
   private pendingExactReview?: DueCardsData;
-  private readonly reviewCards = new Map<string, RiffCardRecord>();
-  private currentReviewCard?: RiffCardRecord;
+  public readonly reviewCards = new Map<string, RiffCardRecord>();
+  public currentReviewCard: RiffCardRecord | undefined;
   private menuEventsBound = false;
-  private mobileNativeEntryBound = false;
-  private mobileReviewButtonObserver?: MutationObserver;
+  public mobileNativeEntryBound = false;
+  public mobileReviewButtonObserver: MutationObserver | undefined;
   private breadcrumbButtonRegistered = false;
   private readonly reviewToolbarActionDisposers: Array<() => void> = [];
-  private optimizerService?: FsrsOptimizerLocalService;
-  private readonly fsrsHistoryStorage: FsrsWeightHistoryStorage = {
+  public optimizerService: FsrsOptimizerLocalService | undefined;
+  public readonly fsrsHistoryStorage: FsrsWeightHistoryStorage = {
     loadData: (storageName) => plugin.loadData(storageName),
     saveData: (storageName, content) => plugin.saveData(storageName, content),
   };
@@ -123,7 +144,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     getTimerDisplay: () => this.reviewTimer.getDisplay(),
     onReviewSurfaceClosed: () => this.reviewTimer.stopSession(),
   });
-  private readonly priorityControls = new NativePriorityControls({
+  public readonly priorityControls = new NativePriorityControls({
     documentRef: document,
     getSettings: () => {
       const settings = this.runtime.getSettings();
@@ -391,7 +412,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.reviewDocumentScope(context.documentId, context.documentName);
   }
 
-  private reviewDocumentScope(documentId: string, targetName: string): void {
+  public reviewDocumentScope(documentId: string, targetName: string): void {
     void this.reviewScopeCards({
       id: `document:${documentId}`,
       type: "document",
@@ -623,352 +644,99 @@ export default class FlashcardPlugin extends SubPluginBase {
    * current document scope; the command/menu global actions remain unchanged.
    */
   private bindMobileNativeReviewEntry(): void {
-    if (this.mobileNativeEntryBound || typeof document === "undefined") return;
-    document.addEventListener("click", this.handleMobileNativeReviewEntry, true);
-    this.mobileNativeEntryBound = true;
+    bindFlashcardMobileNativeReviewEntry(this);
   }
 
   private bindMobileReviewButtonLabel(): void {
-    if (!isMobileEntryFrontend() || typeof document === "undefined") return;
-    const update = (): void => {
-      const button = document.querySelector<HTMLElement>("#mobileBottomBarSpacedRepetition");
-      if (!button) return;
-      button.setAttribute("aria-label", "打开本文档");
-      button.setAttribute("title", "打开本文档");
-      const label = button.querySelector<HTMLElement>(".mobile-bottom-bar__label");
-      if (label && label.textContent !== "打开本文档") label.textContent = "打开本文档";
-    };
-    update();
-    this.mobileReviewButtonObserver = new MutationObserver(update);
-    this.mobileReviewButtonObserver.observe(document.body, { childList: true, subtree: true });
+    bindFlashcardMobileReviewButtonLabel(this);
   }
 
   private unbindMobileNativeReviewEntry(): void {
-    if (!this.mobileNativeEntryBound || typeof document === "undefined") return;
-    document.removeEventListener("click", this.handleMobileNativeReviewEntry, true);
-    this.mobileNativeEntryBound = false;
+    unbindFlashcardMobileNativeReviewEntry(this);
   }
 
-  private readonly handleMobileNativeReviewEntry = (event: MouseEvent): void => {
-    if (!isMobileEntryFrontend()) return;
-    const target = event.target instanceof Element
-      ? event.target.closest<HTMLElement>("#mobileBottomBarSpacedRepetition")
-      : null;
-    if (!target) return;
-    if (target.dataset.damophusGlobalReviewBypass === "true") {
-      delete target.dataset.damophusGlobalReviewBypass;
-      return;
-    }
-    const context = this.currentReviewContext();
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (!context) {
-      showMessage("当前没有可识别的文档，未打开全局闪卡", 4000, "info");
-      return;
-    }
-    this.reviewDocumentScope(context.documentId, context.documentName);
+  public readonly handleMobileNativeReviewEntry = (event: MouseEvent): void => {
+    handleFlashcardMobileNativeReviewEntry(this, event);
   };
 
   addMenuItem(menu: Menu): void {
-    if (!this.isEntryEnabled("menu") || (!this.isEntryEnabled("tab") && !this.isEntryEnabled("dock"))) return;
-    const submenu: IMenu[] = [];
-    if (this.isEntryEnabled("tab")) {
-      submenu.push({
-        icon: "iconRiffCard",
-        label: this.t("lets-flashcard.openSettings"),
-        click: () => this.openSettings(),
-      });
-    }
-    const context = this.currentReviewContext();
-    const groups = this.runtime.getEnabledGroups();
-    const contextScopes = context
-      ? [
-        this.makeScope("document", context.documentId, "当前文档"),
-        ...groups.map((group) => this.makeScope("document", context.documentId, "当前文档", group)),
-      ]
-      : [];
-    const groupScopes = groups.map((group) => this.makeScope("group", group.id, group.name, group));
-    const scopedActions = [...contextScopes, ...groupScopes];
-    if (scopedActions.length > 0) {
-      submenu.push({ type: "separator" });
-      submenu.push(this.actionCategory("检测", scopedActions, "detect"));
-      submenu.push(this.actionCategory("应用", scopedActions, "apply"));
-      submenu.push(this.reviewCategory(context, groups));
-      if (context) submenu.push(this.cancelCategory([context.documentId], "当前文档"));
-    } else {
-      submenu.push({
-        icon: "iconRiffCard",
-        label: this.t("lets-flashcard.reviewAll"),
-        click: () => void this.reviewAll(),
-      });
-    }
-    // Keep one DAMO top-level entry. The row itself opens the settings
-    // workbench; the existing review actions remain available as children.
-    menu.addItem({
-      icon: "iconRiffCard",
-      label: this.t("lets-flashcard.displayName"),
-      type: "submenu",
-      submenu,
-    });
+    buildFlashcardMenu(this, menu);
   }
 
   private readonly handleBlockMenu = (
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("contextMenu")) return;
-    const ids = event.detail.blockElements
-      .map((element) => element.dataset.nodeId ?? "")
-      .filter(Boolean);
-    if (ids.length === 0) return;
-    event.detail.menu.addItem({
-      icon: "iconRiffCard",
-      label: ids.length > 1 ? "复习所选容器内闪卡" : "复习此容器内闪卡",
-      click: () => void this.reviewContainerSelection(ids, ids.length > 1 ? "所选容器" : "当前容器"),
-    });
-    event.detail.menu.addItem({
-      icon: "iconCloseRound",
-      label: ids.length > 1 ? "取消所选容器内所有闪卡登记" : "取消此容器内所有闪卡登记",
-      click: () => void this.unregisterContainers(ids, "所选容器"),
-    });
+    buildBlockMenu(this, event);
   };
 
   private readonly handleDocumentTitleMenu = (
     event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
   ): void => {
-    if (!this.isEntryEnabled("contextMenu")) return;
-    const documentId = event.detail.data.id;
-    if (!documentId) return;
-    const targetName = event.detail.data.name ?? documentId;
-    for (const item of this.documentScopeMenuItems(documentId, targetName)) event.detail.menu.addItem(item);
+    buildDocumentTitleMenu(this, event);
   };
 
   private readonly handleDocumentTreeMenu = (
     event: CustomEvent<IEventBusMap["open-menu-doctree"]>,
   ): void => {
-    if (!this.isEntryEnabled("contextMenu")) return;
-    const isNotebook = event.detail.type === "notebook";
-    const ids = [...event.detail.elements]
-      .map((element) => isNotebook
-        ? element.dataset.nodeId ?? element.dataset.url ?? element.parentElement?.dataset.url ?? ""
-        : element.dataset.nodeId ?? "")
-      .filter(Boolean);
-    if (ids.length === 0) return;
-    const targetName = ids.length > 1
-      ? (isNotebook ? "所选笔记本" : "所选文档")
-      : (isNotebook
-        ? window.siyuan?.notebooks?.find((notebook) => notebook.id === ids[0])?.name
-        : event.detail.elements[0]?.dataset.name) ?? ids[0];
-    if (isNotebook) {
-      event.detail.menu.addItem(this.contextScopeMenuItem("notebook", ids, targetName));
-      return;
-    }
-    if (ids.length === 1) {
-      for (const item of this.documentScopeMenuItems(ids[0], targetName)) event.detail.menu.addItem(item);
-      return;
-    }
-    event.detail.menu.addItem(this.contextScopeMenuItem("document", ids, targetName));
+    buildDocumentTreeMenu(this, event);
   };
 
-  private documentScopeMenuItems(documentId: string, targetName: string): IMenu[] {
-    const scopes = [
-      this.makeScope("document", documentId, targetName),
-      ...this.runtime.getEnabledGroups().map((group) => this.makeScope("document", documentId, targetName, group)),
-    ];
-    return [
-      this.contextScopeMenuItem("document", [documentId], targetName, scopes),
-    ];
+  public documentScopeMenuItems(documentId: string, targetName: string): IMenu[] {
+    return buildDocumentScopeMenuItems(this, documentId, targetName);
   }
 
   private registerReviewToolbarActions(): void {
-    const actions: ReviewToolbarAction[] = [
-      {
-        id: "locate", icon: "iconFocus", label: "定位闪卡原块", source: "DAMO",
-        execute: async (context) => { const card = await context.resolveCard(); if (card) await this.locateCard(card); },
-      },
-      {
-        id: "unregister", icon: "iconCloseRound", label: "取消闪卡登记", source: "DAMO",
-        execute: async (context) => {
-          const card = await context.resolveCard();
-          if (card && await this.unregisterCard(card)) context.click('.card__action:not(.fn__none) button[data-type="-3"]');
-        },
-      },
-      {
-        id: "priority", icon: "iconSort", label: "设置闪卡优先级", source: "DAMO",
-        execute: async (context) => { const card = await context.resolveCard(); if (card) this.priorityControls.openPriorityMenuForAction(context.trigger, card); },
-      },
-      {
-        id: "renderer", icon: "iconEye", label: "切换按卡片渲染", source: "DAMO",
-        execute: () => this.toggleRendererOverride(),
-      },
-      { id: "workbench", icon: "iconSettings", label: "打开闪卡工作台", source: "DAMO", execute: () => this.openSettings() },
-      { id: "native.filter", icon: "iconFilter", label: "原生筛选", source: "思源", execute: (context) => { context.click('[data-type="filter"]'); } },
-      { id: "native.fullscreen", icon: "iconFullscreen", label: "原生全屏", source: "思源", execute: (context) => { context.click('[data-type="fullscreen"]'); } },
-      { id: "native.more", icon: "iconMore", label: "更多", source: "思源", execute: (context) => { context.click('[data-type="more"]'); } },
-    ];
-    this.reviewToolbarActionDisposers.push(...actions.map((action) => registerReviewToolbarAction(action)));
+    this.reviewToolbarActionDisposers.push(...registerFlashcardReviewToolbarActions(this));
   }
 
-  private async toggleRendererOverride(): Promise<void> {
-    const settings = this.runtime.getSettings();
-    const enabled = !settings.rendererInterceptionEnabled;
-    await this.runtime.saveSettings({ ...settings, rendererInterceptionEnabled: enabled });
-    if (enabled) this.compat.install();
-    else this.compat.uninstall();
-    this.priorityControls.refresh();
-    showMessage(enabled ? "已启用按卡片 renderer 渲染" : "已关闭按卡片 renderer 渲染", 3000, "info");
+  public async toggleRendererOverride(): Promise<void> {
+    await toggleFlashcardRendererOverride(this);
   }
 
-  private contextScopeMenuItem(
+  public contextScopeMenuItem(
     type: "document" | "notebook",
     targetIds: readonly string[],
     targetName: string,
     providedScopes?: FlashcardReviewScope[],
   ): IMenu {
-    const singleTarget = targetIds.length === 1;
-    const submenu: IMenu[] = [];
-    if (this.isEntryEnabled("tab")) {
-      submenu.push({
-        icon: "iconRiffCard",
-        label: this.t("lets-flashcard.openSettings"),
-        click: () => this.openSettings(),
-      });
-      submenu.push({ type: "separator" });
-    }
-    const scopes = providedScopes ?? (singleTarget
-      ? [
-        this.makeScope(type, targetIds[0], targetName),
-        ...this.runtime.getEnabledGroups().map((group) => this.makeScope(type, targetIds[0], targetName, group)),
-      ]
-      : []);
-    if (scopes.length > 0) {
-      submenu.push(this.actionCategory("检测", scopes, "detect"));
-      submenu.push(this.actionCategory("应用", scopes, "apply"));
-    }
-    if (singleTarget) {
-      submenu.push(this.reviewCategory(
-        { documentId: targetIds[0], documentName: targetName },
-        this.runtime.getEnabledGroups(),
-        type === "notebook" ? targetIds : undefined,
-        false,
-        false,
-      ));
-    } else {
-      submenu.push({
-        icon: "iconPlay",
-        label: "复习",
-        type: "submenu",
-        submenu: [{
-          icon: type === "notebook" ? "iconNotebook" : "iconFile",
-          label: `${targetName} · 全部到期卡`,
-          click: () => void this.reviewDocumentTree(targetIds, type === "notebook", targetName),
-        }],
-      });
-    }
-    submenu.push(this.cancelCategory(
-      targetIds,
-      type === "notebook" ? (singleTarget ? "当前笔记本" : "所选笔记本") : (singleTarget ? "当前文档" : "所选文档"),
-      type === "notebook",
-    ));
-    return {
-      icon: "iconRiffCard",
-      label: this.t("lets-flashcard.displayName"),
-      type: "submenu",
-      submenu,
-    };
+    return buildContextScopeMenuItem(this, type, targetIds, targetName, providedScopes);
   }
 
-  private actionCategory(
+  public actionCategory(
     label: string,
     scopes: readonly FlashcardReviewScope[],
     action: "detect" | "apply",
   ): IMenu {
-    return {
-      icon: action === "detect" ? "iconSearch" : "iconRiffCard",
-      label,
-      type: "submenu",
-      submenu: scopes.map((scope) => ({
-        icon: action === "detect" ? "iconSearch" : "iconRiffCard",
-        label: this.scopeActionLabel(scope),
-        click: () => void (action === "detect" ? this.openMakeScope(scope) : this.reviewScopeCards(scope)),
-      })),
-    };
+    return buildActionCategory(this, label, scopes, action);
   }
 
-  private reviewCategory(
+  public reviewCategory(
     context: { documentId: string; documentName: string } | undefined,
     groups: readonly FlashcardGroup[],
     notebookIds?: readonly string[],
     includeGlobal = true,
     includeGroups = true,
   ): IMenu {
-    const submenu: IMenu[] = [];
-    if (includeGlobal) {
-      submenu.push({
-        icon: "iconRiffCard",
-        label: this.t("lets-flashcard.reviewAll"),
-        click: () => void this.reviewAll(),
-      });
-    }
-    if (context) {
-      submenu.push({
-        icon: "iconFile",
-        label: `${context.documentName} · 全部到期卡`,
-        click: () => void this.reviewDocumentTree(
-          notebookIds ?? [context.documentId],
-          Boolean(notebookIds),
-          context.documentName,
-        ),
-      });
-    }
-    if (includeGroups) {
-      for (const group of groups) {
-        submenu.push({
-          icon: "iconRiffCard",
-          label: group.name,
-          click: () => void this.reviewGroup(group),
-        });
-      }
-    }
-    return { icon: "iconPlay", label: "复习", type: "submenu", submenu };
+    return buildReviewCategory(this, context, groups, notebookIds, includeGlobal, includeGroups);
   }
 
-  private cancelCategory(
+  public cancelCategory(
     targetIds: readonly string[],
     label: string,
     notebook = false,
   ): IMenu {
-    return {
-      icon: "iconCloseRound",
-      label: "取消",
-      type: "submenu",
-      submenu: [{
-        icon: "iconCloseRound",
-        label: `${label}下所有闪卡登记`,
-        click: () => {
-          if (notebook) {
-            void this.unregisterDocumentTree(targetIds, true, this.createUnregisterAudit("notebook"));
-            return;
-          }
-          void this.openDocumentUnregisterDialog(targetIds, label);
-        },
-      }],
-    };
+    return buildCancelCategory(this, targetIds, label, notebook);
   }
 
-  private scopeActionLabel(scope: FlashcardReviewScope): string {
-    if (scope.type === "group") return scope.groupName ?? scope.targetName;
-    return scope.groupName ? `${scope.targetName} · ${scope.groupName}` : `${scope.targetName} · 全部闪卡`;
+  public scopeActionLabel(scope: FlashcardReviewScope): string {
+    return flashcardScopeActionLabel(scope);
   }
 
-  private documentUnregisterMenuItem(targetIds: readonly string[], label: string): IMenu {
-    return {
-      icon: "iconCloseRound",
-      label: `取消${label}闪卡登记`,
-      click: () => this.openDocumentUnregisterDialog(targetIds, label),
-    };
+  public documentUnregisterMenuItem(targetIds: readonly string[], label: string): IMenu {
+    return buildDocumentUnregisterMenuItem(this, targetIds, label);
   }
 
-  private async reviewContainerSelection(ids: readonly string[], label: string): Promise<void> {
+  public async reviewContainerSelection(ids: readonly string[], label: string): Promise<void> {
     try {
       const blockIds = await this.runtime.adapter.getContainerBlockIds(ids);
       const due = await this.runtime.adapter.buildDueCardsData(
@@ -986,7 +754,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private async reviewDocumentTree(ids: readonly string[], notebook: boolean, label: string): Promise<void> {
+  public async reviewDocumentTree(ids: readonly string[], notebook: boolean, label: string): Promise<void> {
     try {
       const dueList = notebook
         ? await Promise.all(ids.map((id) => this.runtime.adapter.getNotebookDueCards(id)))
@@ -1009,18 +777,11 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private makeScope(type: "document" | "notebook", targetId: string, targetName: string, group?: FlashcardGroup): FlashcardReviewScope {
-    return {
-      id: `${type}:${targetId}:${group?.id ?? "all"}`,
-      type,
-      targetId,
-      targetName,
-      groupId: group?.id,
-      groupName: group?.name,
-    };
+  public makeScope(type: "document" | "notebook", targetId: string, targetName: string, group?: FlashcardGroup): FlashcardReviewScope {
+    return buildFlashcardScope(type, targetId, targetName, group);
   }
 
-  private currentReviewContext(protyle?: IProtyle): { documentId: string; documentName: string; notebookId?: string; notebookName?: string } | undefined {
+  public currentReviewContext(protyle?: IProtyle): { documentId: string; documentName: string; notebookId?: string; notebookName?: string } | undefined {
     const mobileEditor = window.siyuan?.mobile?.popEditor ?? window.siyuan?.mobile?.editor;
     const mobileProtyle = mobileEditor?.protyle;
     const mobileDocumentId = mobileProtyle?.block?.rootID;
@@ -1153,77 +914,19 @@ export default class FlashcardPlugin extends SubPluginBase {
     result: FsrsOptimizationResult;
     preview: FsrsWeightPreview;
   }> {
-    const dataset = buildFsrsTrainingDataset(entries);
-    if (this.runtime.getSettings().fsrsOptimizerMode === "internal") {
-      const result = await optimizeFsrsInPlugin(dataset, { pluginName: plugin.name });
-      return { result, preview: previewFsrsWeights(result.weights) };
-    }
-    const assets = await loadFsrsOptimizerAssets(plugin.name);
-    this.optimizerService ??= new FsrsOptimizerLocalService();
-    const result = await this.optimizerService.optimize(dataset, assets);
-    return { result, preview: previewFsrsWeights(result.weights) };
+    return optimizeFlashcardReviewLog(this, entries);
   }
 
   private async confirmAndApplyFsrsWeights(weights: number[]): Promise<boolean> {
-    const approved = await new Promise<boolean>((resolve) => {
-      confirm(
-        "应用 FSRS 参数",
-        "将仅替换思源全局闪卡设置中的 19 项 FSRS 权重；保留率、最大间隔、卡片上限和制卡开关保持不变。确认写入并回读验证？",
-        () => resolve(true),
-        () => resolve(false),
-      );
-    });
-    if (!approved) return false;
-    const applied = await applyFsrsWeights(weights);
-    await appendFsrsWeightHistory(this.fsrsHistoryStorage, {
-      source: "optimizer",
-      previous: applied.current,
-      next: applied.optimized,
-    });
-    showMessage("FSRS 参数已写入并回读验证", 4000, "info");
-    return true;
+    return confirmAndApplyFlashcardFsrsWeights(this, weights);
   }
 
   private async confirmAndUndoFsrsWeights(entry: FsrsWeightHistoryEntry): Promise<boolean> {
-    const approved = await new Promise<boolean>((resolve) => {
-      confirm(
-        "撤销 FSRS 参数修改",
-        "将恢复这条历史记录中的上一组 19 项权重，并回读验证。确认继续？",
-        () => resolve(true),
-        () => resolve(false),
-      );
-    });
-    if (!approved) return false;
-    const current = this.getFsrsWeightsFromSettings();
-    if (current.length !== entry.next.length) throw new Error("当前 FSRS 参数不可用，无法撤销");
-    const applied = await applyFsrsWeights(entry.previous);
-    await appendFsrsWeightHistory(this.fsrsHistoryStorage, {
-      source: "undo",
-      previous: applied.current,
-      next: applied.optimized,
-    });
-    showMessage("FSRS 参数已撤销并回读验证", 4000, "info");
-    return true;
+    return confirmAndUndoFlashcardFsrsWeights(this, entry);
   }
 
   private async importSfpConfig(): Promise<void> {
-    try {
-      const preview = convertSfpConfig(await fetchSfpConfig(), this.runtime.getSettings());
-      const approved = await new Promise<boolean>((resolve) => {
-        confirm(
-          "导入 SFP 配置",
-          `将导入 ${preview.categoryCount} 个分类、${preview.groupCount} 个 SQL 分组（${preview.enabledGroupCount} 个启用），覆盖当前闪卡分组设置。缓存不会导入，确认继续？`,
-          () => resolve(true),
-          () => resolve(false),
-        );
-      });
-      if (!approved) return;
-      await this.runtime.importSfpSettings(preview.settings);
-      this.runtime.startAutomation();
-      showMessage("SFP 配置已导入；缓存将按 DAMO 规则重新生成", 5000);
-    } catch (error) {
-      this.reportError("导入 SFP 配置失败", error);
-    }
+    await importFlashcardSfpConfig(this);
   }
 
   openSettings(): void {
@@ -1260,7 +963,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     if (this.isEntryEnabled("dock")) this.entry?.openDock();
   }
 
-  private async reviewAll(): Promise<void> {
+  public async reviewAll(): Promise<void> {
     try {
       const due = await this.runtime.buildAllDueCards();
       await this.openNativeReview("到期：所有闪卡", due);
@@ -1269,7 +972,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private async reviewGroup(group: FlashcardGroup): Promise<void> {
+  public async reviewGroup(group: FlashcardGroup): Promise<void> {
     await this.reviewScopeCards({
       id: `group:${group.id}`,
       type: "group",
@@ -1279,7 +982,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     });
   }
 
-  private async reviewScopeCards(scope: FlashcardReviewScope, retryAfterRegistration = false): Promise<void> {
+  public async reviewScopeCards(scope: FlashcardReviewScope, retryAfterRegistration = false): Promise<void> {
     try {
       let due = await this.runtime.buildScopeDueCards(scope, true);
       if (retryAfterRegistration && due.cards.length === 0 && (due.candidateCount ?? 0) > 0 && (due.registeredCount ?? 0) > 0) {
@@ -1340,7 +1043,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     });
   }
 
-  private async openMakeScope(scope: FlashcardReviewScope): Promise<void> {
+  public async openMakeScope(scope: FlashcardReviewScope): Promise<void> {
     try {
       const settings = this.runtime.getSettings();
       const autoReviewAfterRegistration = settings.autoReviewAfterRegistration !== false;
@@ -1595,7 +1298,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     }
   }
 
-  private async locateCard(card: RiffCardRecord): Promise<void> {
+  public async locateCard(card: RiffCardRecord): Promise<void> {
     if (isMobile) {
       openMobileFileById(plugin.app, card.blockID, ["cb-get-focus", "cb-get-scroll"]);
       return;
@@ -1610,189 +1313,59 @@ export default class FlashcardPlugin extends SubPluginBase {
     });
   }
 
-  private async unregisterCard(card: RiffCardRecord): Promise<boolean> {
-    const approved = await this.confirmUnregister(
-      "取消闪卡登记",
-      "这会从当前牌组移除 1 张闪卡，保留正文和原有属性，并将优先级标签移到不可用命名空间。确认执行取消登记吗？",
-    );
-    if (!approved) return false;
-    await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, [card.blockID]);
-    this.reviewCards.delete(card.blockID);
-    this.compat.forget([card.blockID]);
-    this.compat.refresh();
-    await this.runtime.adapter.markCardsUnregistered([card.blockID], this.createUnregisterAudit("card"));
-    showMessage("已取消闪卡登记，原笔记块保持不变", 4000, "info");
-    return true;
+  public async unregisterCard(card: RiffCardRecord): Promise<boolean> {
+    return unregisterFlashcardCard(this, card);
   }
 
-  private async unregisterContainers(containerIds: readonly string[], label: string): Promise<void> {
-    try {
-      const candidates = await this.runtime.adapter.getContainerBlockIds(containerIds);
-      const cards = await this.runtime.adapter.getCardsByBlockIds(candidates);
-      await this.confirmAndUnregister(cards, label, this.createUnregisterAudit("container"));
-    } catch (error) {
-      this.reportError("查询容器内闪卡失败", error);
-    }
+  public async unregisterContainers(containerIds: readonly string[], label: string): Promise<void> {
+    await unregisterFlashcardContainers(this, containerIds, label);
   }
 
-  private openDocumentUnregisterDialog(targetIds: readonly string[], label: string): void {
-    const dialog = new Dialog({
-      title: this.t("lets-flashcard.unregisterDialogTitle"),
-      width: "min(460px, 92vw)",
-      content: `
-        <div class="b3-dialog__content">
-          <label class="fn__flex fn__flex-1 fn__flex-center">
-            <input type="checkbox" data-field="include-subdocuments">
-            <span class="fn__space--left">${escapeHtml(this.t("lets-flashcard.unregisterIncludeSubdocuments"))}</span>
-          </label>
-          <label class="fn__flex fn__flex-1 fn__flex-center fn__space--top">
-            <input type="checkbox" data-field="write-audit" checked>
-            <span class="fn__space--left">${escapeHtml(this.t("lets-flashcard.unregisterWriteAudit"))}</span>
-          </label>
-          <div class="b3-label fn__space--top">${escapeHtml(this.t("lets-flashcard.unregisterAuditDescription"))}</div>
-        </div>
-        <div class="b3-dialog__action">
-          <button class="b3-button b3-button--cancel" data-action="cancel" type="button">${escapeHtml(this.t("lets-flashcard.cancel"))}</button>
-          <button class="b3-button b3-button--text" data-action="unregister" type="button">${escapeHtml(this.t("lets-flashcard.unregisterConfirm"))}</button>
-        </div>
-      `,
-    });
-    const includeSubdocuments = dialog.element.querySelector<HTMLInputElement>('[data-field="include-subdocuments"]');
-    const writeAudit = dialog.element.querySelector<HTMLInputElement>('[data-field="write-audit"]');
-    const unregisterButton = dialog.element.querySelector<HTMLButtonElement>('[data-action="unregister"]');
-    dialog.element.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.addEventListener("click", () => dialog.destroy());
-    unregisterButton?.addEventListener("click", () => {
-      unregisterButton.disabled = true;
-      const include = includeSubdocuments?.checked === true;
-      const audit = writeAudit?.checked === true
-        ? this.createUnregisterAudit(include ? "document-tree" : "document")
-        : undefined;
-      dialog.destroy();
-      void this.unregisterDocumentScope(targetIds, include, label, audit);
-    });
+  public openDocumentUnregisterDialog(targetIds: readonly string[], label: string): void {
+    openFlashcardDocumentUnregisterDialog(this, targetIds, label);
   }
 
-  private async unregisterDocumentScope(
+  public async unregisterDocumentScope(
     ids: readonly string[],
     includeSubdocuments: boolean,
     label: string,
     audit?: FlashcardUnregisterAudit,
   ): Promise<void> {
-    try {
-      const cards = (await Promise.all(ids.map((id) => this.runtime.adapter.getDocumentCards(id, includeSubdocuments))))
-        .flat();
-      await this.confirmAndUnregister(cards, label, audit);
-    } catch (error) {
-      this.reportError("查询文档范围闪卡失败", error);
-    }
+    await unregisterFlashcardDocumentScope(this, ids, includeSubdocuments, label, audit);
   }
 
-  private async unregisterDocumentTree(
+  public async unregisterDocumentTree(
     ids: readonly string[],
     notebook: boolean,
     audit?: FlashcardUnregisterAudit,
   ): Promise<void> {
-    try {
-      const cards = notebook
-        ? (await Promise.all(ids.map((id) => this.runtime.adapter.getNotebookCards(id))).then((all) => all.flat()))
-        : (await Promise.all(ids.map((id) => this.runtime.adapter.getDocumentCards(id, true))).then((all) => all.flat()));
-      await this.confirmAndUnregister(cards, notebook ? "所选笔记本" : "所选文档", audit);
-    } catch (error) {
-      this.reportError("查询文档范围闪卡失败", error);
-    }
+    await unregisterFlashcardDocumentTree(this, ids, notebook, audit);
   }
 
-  private async confirmAndUnregister(
+  public async confirmAndUnregister(
     cards: readonly RiffCardRecord[],
     label: string,
     audit?: FlashcardUnregisterAudit,
   ): Promise<void> {
-    const byBlockId = new Map(cards.map((card) => [card.blockID, card]));
-    const selected = [...byBlockId.values()];
-    if (selected.length === 0) {
-      showMessage(`${label}中没有已登记的闪卡`, 4000, "info");
-      return;
-    }
-    const approved = await this.confirmUnregister(
-      "批量取消闪卡登记",
-      `即将从思源原生牌组移除 ${selected.length} 张闪卡。正文和原有属性会保留，优先级标签会移到不可用命名空间。确认执行批量取消登记吗？`,
-    );
-    if (!approved) return;
-    const progress = selected.length > 1 ? this.openUnregisterProgressDialog(selected.length) : undefined;
-    try {
-      progress?.setRemoving();
-      await this.runtime.adapter.removeCards(this.runtime.getSettings().deckId, selected.map((card) => card.blockID));
-      for (const card of selected) this.reviewCards.delete(card.blockID);
-      this.compat.forget(selected.map((card) => card.blockID));
-      this.compat.refresh();
-      progress?.setWriting(0, selected.length);
-      await this.runtime.adapter.markCardsUnregistered(
-        selected.map((card) => card.blockID),
-        audit,
-        (completed, total) => progress?.setWriting(completed, total),
-      );
-      if (selected.some((card) => card.blockID === this.currentReviewCard?.blockID)) {
-        this.currentReviewCard = undefined;
-      }
-      this.priorityControls.refresh();
-      showMessage(`已取消登记 ${selected.length} 张闪卡，原笔记块保持不变`, 5000, "info");
-    } finally {
-      progress?.destroy();
-    }
+    await confirmAndUnregisterFlashcardCards(this, cards, label, audit);
   }
 
-  private async confirmUnregister(
+  public async confirmUnregister(
     title: string,
     message: string,
   ): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
-      confirm(title, message, () => resolve(true), () => resolve(false));
-    });
+    return confirmFlashcardUnregister(title, message);
   }
 
-  private createUnregisterAudit(scope: FlashcardUnregisterScope): FlashcardUnregisterAudit {
-    return {
-      lastUnregisteredAt: new Date().toISOString(),
-      deckId: this.runtime.getSettings().deckId,
-      scope,
-    };
+  public createUnregisterAudit(scope: FlashcardUnregisterScope): FlashcardUnregisterAudit {
+    return createFlashcardUnregisterAudit(this, scope);
   }
 
-  private openUnregisterProgressDialog(total: number): UnregisterProgressDialog {
-    const dialog = new Dialog({
-      title: this.t("lets-flashcard.unregisterProgressTitle"),
-      width: "min(420px, 92vw)",
-      content: `
-        <div class="b3-dialog__content" aria-live="polite">
-          <strong data-progress-message></strong>
-          <progress class="fn__block fn__space--top" data-progress-bar max="${total}"></progress>
-          <div class="b3-label fn__space--top" data-progress-count></div>
-        </div>
-      `,
-    });
-    const message = dialog.element.querySelector<HTMLElement>("[data-progress-message]");
-    const bar = dialog.element.querySelector<HTMLProgressElement>("[data-progress-bar]");
-    const count = dialog.element.querySelector<HTMLElement>("[data-progress-count]");
-    const setMessage = (text: string, completed?: number, countTotal = total): void => {
-      if (!message || !bar || !count) return;
-      message.textContent = text;
-      if (completed === undefined) {
-        bar.removeAttribute("value");
-        count.textContent = "";
-        return;
-      }
-      bar.max = countTotal;
-      bar.value = completed;
-      count.textContent = `${completed} / ${countTotal}`;
-    };
-    return {
-      setRemoving: () => setMessage(this.t("lets-flashcard.unregisterProgressRemoving")),
-      setWriting: (completed, countTotal) => setMessage(this.t("lets-flashcard.unregisterProgressWriting"), completed, countTotal),
-      destroy: () => dialog.destroy(),
-    };
+  public openUnregisterProgressDialog(total: number): UnregisterProgressDialog {
+    return openFlashcardUnregisterProgressDialog(this, total);
   }
 
-  private reportError(message: string, error: unknown): void {
+  public reportError(message: string, error: unknown): void {
     log.error(message, error);
     showMessage(`${message}：${error instanceof Error ? error.message : String(error)}`, 7000, "error");
   }
