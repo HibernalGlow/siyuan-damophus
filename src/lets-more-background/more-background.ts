@@ -555,7 +555,9 @@ export function setCoverHistoryLimit(limit: unknown): void {
   const parsed = Number(limit);
   if (Number.isFinite(parsed) && parsed > 0) {
     coverHistoryLimit = Math.floor(parsed);
-    historyLog.debug("Cover history limit updated", { limit: coverHistoryLimit });
+    const current = getCoverHistory();
+    if (current.length > coverHistoryLimit) saveCoverHistory(current);
+    historyLog.debug("Cover history limit updated", { limit: coverHistoryLimit, trimmed: current.length - coverHistoryLimit });
   }
 }
 
@@ -567,7 +569,9 @@ export function setSeenCoversLimit(limit: unknown): void {
   const parsed = Number(limit);
   if (Number.isFinite(parsed) && parsed > 0) {
     seenCoversLimit = Math.floor(parsed);
-    historyLog.debug("Seen cover dedup limit updated", { limit: seenCoversLimit });
+    const current = getSeenCovers();
+    if (current.length > seenCoversLimit) saveSeenCovers(current);
+    historyLog.debug("Seen cover dedup limit updated", { limit: seenCoversLimit, trimmed: current.length - seenCoversLimit });
   }
 }
 
