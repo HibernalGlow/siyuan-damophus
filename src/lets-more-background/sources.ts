@@ -70,6 +70,8 @@ export interface CoverHistoryEntry {
   postId?: string | number;
   tags?: string[];
   templateName?: string;
+  /** applied = actively set by the user/plugin; replaced = the cover this entry replaced. */
+  kind?: "applied" | "replaced";
   appliedAt: number;
 }
 

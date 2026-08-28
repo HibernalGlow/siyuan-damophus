@@ -41,6 +41,8 @@ import {
 } from "./cover-favorites";
 
 const log = getLogger("lets-more-background");
+const dedupLog = getLogger("lets-more-background:dedup");
+const historyLog = getLogger("lets-more-background:history");
 const BUTTON_ATTR = "data-damophus-more-background";
 const COVER_LAYOUT_STYLE_ID = "damophus-more-background-layout-style";
 const LOCAL_CACHE_QUALITY = 75;
@@ -371,8 +373,17 @@ async function removeLocalCacheIndexEntry(root: string, path: string): Promise<v
 }
 
 async function loadDedupCoverUrls(background?: HTMLElement): Promise<Set<string>> {
-  const urls = await loadUsedCoverUrls();
-  for (const url of collectHistoryCoverUrls(getCoverHistory())) urls.add(url);
+  const databaseUrls = await loadUsedCoverUrls();
+  const historyUrls = collectHistoryCoverUrls(getCoverHistory());
+  const seenUrls = collectHistoryCoverUrls(getSeenCovers());
+  const urls = new Set<string>([...databaseUrls, ...historyUrls, ...seenUrls]);
+  dedupLog.info("Loaded cover deduplication set", {
+    database: databaseUrls.size,
+    history: historyUrls.size,
+    seen: seenUrls.size,
+    total: urls.size,
+  });
+  dedupLog.debug("Deduplication set entries", [...urls].slice(0, 80));
 
   // The current document may have been changed before history was introduced,
   // or before the history write completed. Include its live attrs as a final
@@ -402,7 +413,7 @@ async function loadDedupCoverUrls(background?: HTMLElement): Promise<Set<string>
           if (attrs[name]) rows.push({ block_id: blockId, name, value: attrs[name] });
         }
       } catch (error) {
-        log.debug("Failed to load current cover attrs for deduplication:", error);
+        dedupLog.debug("Failed to load current cover attrs for deduplication:", error);
       }
     }
     const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
@@ -416,7 +427,9 @@ async function loadDedupCoverUrls(background?: HTMLElement): Promise<Set<string>
     const livePostId = background.getAttribute("data-damophus-post-id") || image?.getAttribute("data-damophus-post-id") || "";
     if (liveSite) rows.push({ block_id: blockId, name: "custom-damophus-post-site", value: liveSite });
     if (livePostId) rows.push({ block_id: blockId, name: "custom-damophus-post-id", value: livePostId });
-    for (const url of collectUsedCoverUrls(rows)) urls.add(url);
+    const liveUrls = collectUsedCoverUrls(rows);
+    for (const url of liveUrls) urls.add(url);
+    dedupLog.debug("Added live current-cover attrs to deduplication set", { blockId, liveRows: rows.length, liveUrls: liveUrls.size, total: urls.size });
   }
   return urls;
 }
@@ -526,6 +539,22 @@ export function setLastUsedSource(item: CoverSourceItem): void {
 
 export const COVER_HISTORY_KEY = "damophus_more_background_cover_history";
 export const MAX_COVER_HISTORY_COUNT = 150;
+export const SEEN_COVERS_KEY = "damophus_more_background_seen_covers";
+export const MAX_SEEN_COVERS_COUNT = 800;
+
+export interface SeenCoverEntry {
+  id: string;
+  docId: string;
+  docTitle?: string;
+  imageUrl: string;
+  /** Original remote image URL when the displayed title image is stored locally. */
+  sourceUrl?: string;
+  postUrl?: string;
+  site?: string;
+  postId?: string | number;
+  tags?: string[];
+  seenAt: number;
+}
 
 export function getCoverHistory(): CoverHistoryEntry[] {
   try {
@@ -535,7 +564,7 @@ export function getCoverHistory(): CoverHistoryEntry[] {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    log.warn("Failed to load cover history from localStorage:", e);
+    historyLog.warn("Failed to load cover history from localStorage:", e);
     return [];
   }
 }
@@ -545,7 +574,7 @@ export function saveCoverHistory(list: CoverHistoryEntry[]): void {
     if (typeof localStorage === "undefined") return;
     localStorage.setItem(COVER_HISTORY_KEY, JSON.stringify(list.slice(0, MAX_COVER_HISTORY_COUNT)));
   } catch (e) {
-    log.warn("Failed to save cover history to localStorage:", e);
+    historyLog.warn("Failed to save cover history to localStorage:", e);
   }
 }
 
@@ -559,6 +588,16 @@ export function recordCoverHistory(entry: Omit<CoverHistoryEntry, "id" | "applie
   const list = getCoverHistory();
   const nextList = [fullEntry, ...list.filter((it) => it.imageUrl !== fullEntry.imageUrl || it.docId !== fullEntry.docId)].slice(0, MAX_COVER_HISTORY_COUNT);
   saveCoverHistory(nextList);
+  historyLog.debug("Recorded cover history entry", {
+    id: fullEntry.id,
+    docId: fullEntry.docId,
+    docTitle: fullEntry.docTitle,
+    imageUrl: fullEntry.imageUrl,
+    sourceUrl: fullEntry.sourceUrl,
+    site: fullEntry.site,
+    postId: fullEntry.postId,
+    kind: fullEntry.kind || "applied",
+  });
 }
 
 export function removeCoverHistoryEntry(id: string): CoverHistoryEntry[] {
@@ -571,6 +610,72 @@ export function clearCoverHistory(): void {
   try {
     if (typeof localStorage === "undefined") return;
     localStorage.removeItem(COVER_HISTORY_KEY);
+    historyLog.info("Cleared visible cover history (deduplication memory is kept separately)");
+  } catch {}
+}
+
+export function getSeenCovers(): SeenCoverEntry[] {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const raw = localStorage.getItem(SEEN_COVERS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    historyLog.warn("Failed to load seen covers from localStorage:", e);
+    return [];
+  }
+}
+
+export function saveSeenCovers(list: SeenCoverEntry[]): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(SEEN_COVERS_KEY, JSON.stringify(list.slice(0, MAX_SEEN_COVERS_COUNT)));
+  } catch (e) {
+    historyLog.warn("Failed to save seen covers to localStorage:", e);
+  }
+}
+
+/**
+ * Record a cover into the durable deduplication memory. Unlike the visible
+ * history, this store is not cleared by the history UI and has a larger cap.
+ * Returns null when the entry carries no usable dedup identity.
+ */
+export function recordSeenCover(entry: Omit<SeenCoverEntry, "id" | "seenAt">): SeenCoverEntry | null {
+  const keys = collectHistoryCoverUrls([entry]);
+  if (keys.size === 0) return null;
+
+  const fullEntry: SeenCoverEntry = {
+    ...entry,
+    id: `cov-seen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    seenAt: Date.now(),
+  };
+
+  const list = getSeenCovers();
+  const nextList = [fullEntry, ...list.filter((it) => {
+    const existingKeys = collectHistoryCoverUrls([it]);
+    for (const key of keys) {
+      if (existingKeys.has(key)) return false;
+    }
+    return true;
+  })].slice(0, MAX_SEEN_COVERS_COUNT);
+  saveSeenCovers(nextList);
+  historyLog.debug("Recorded seen cover for deduplication", {
+    id: fullEntry.id,
+    docId: fullEntry.docId,
+    imageUrl: fullEntry.imageUrl,
+    sourceUrl: fullEntry.sourceUrl,
+    site: fullEntry.site,
+    postId: fullEntry.postId,
+    keys: [...keys],
+  });
+  return fullEntry;
+}
+
+export function clearSeenCovers(): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.removeItem(SEEN_COVERS_KEY);
   } catch {}
 }
 
@@ -1710,7 +1815,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         details.appendChild(title);
         const meta = document.createElement("div");
         const tags = entry.tags?.slice(0, 5).join(" ");
-        meta.textContent = [entry.site, entry.postId ? `#${entry.postId}` : "", tags, new Date(entry.appliedAt).toLocaleString()].filter(Boolean).join(" · ");
+        const kindLabel = entry.kind === "replaced"
+          ? this.options.t("lets-more-background.coverHistoryReplacedBadge")
+          : "";
+        meta.textContent = [kindLabel, entry.site, entry.postId ? `#${entry.postId}` : "", tags, new Date(entry.appliedAt).toLocaleString()].filter(Boolean).join(" · ");
         meta.style.cssText = "font-size:11px;color:var(--b3-theme-on-surface-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
         details.appendChild(meta);
         row.appendChild(details);
@@ -1847,18 +1955,26 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
       if (isBooruSource(url) && !postInfo) {
         if (this.options.deduplicateNewCovers !== false && !deduplicationUrls) {
+          dedupLog.info("Deduplication enabled, loading previously used cover URLs");
           try {
             deduplicationUrls = await loadDedupCoverUrls(background);
           } catch (error) {
-            log.warn("Failed to load used cover URLs:", error);
+            dedupLog.warn("Failed to load used cover URLs:", error);
             deduplicationUrls = new Set();
           }
+        } else if (this.options.deduplicateNewCovers === false) {
+          dedupLog.info("Deduplication disabled, previously used covers may be selected again");
         }
         const credentials = this.options.siteCredentials;
         const globalBlacklist = this.options.blacklistedTags || DEFAULT_BLACKLISTED_TAGS;
         postInfo = await resolveBooruImageInfo(url, credentials, globalBlacklist, deduplicationUrls);
 
         if (!postInfo || !postInfo.imageUrl) {
+          dedupLog.info("Booru resolution returned no usable post", {
+            attempt,
+            maxRetries: effectiveMaxRetries,
+            excludedCoverCount: deduplicationUrls?.size || 0,
+          });
           if (attempt < effectiveMaxRetries) {
             log.info(`Fetch cover filtered/failed (attempt ${attempt}/${effectiveMaxRetries}), retrying...`);
             showMessage(`正在尝试重新匹配符合条件的题头图 (第 ${attempt + 1}/${effectiveMaxRetries} 次)...`);
@@ -1869,6 +1985,12 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           return;
         }
 
+        dedupLog.debug("Selected booru post after deduplication", {
+          site: postInfo.site,
+          postId: postInfo.postId,
+          imageUrl: postInfo.imageUrl,
+          diagnostic: postInfo.diagnostic,
+        });
         finalImageUrl = postInfo.imageUrl;
         if (postInfo.postUrl) background.setAttribute("data-damophus-post-url", postInfo.postUrl);
         if (postInfo.site) background.setAttribute("data-damophus-post-site", postInfo.site);
@@ -2053,21 +2175,37 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       finalVal = finalVal.replace(/^\/+/, "");
     }
 
+    let previousTitleImg = "";
     let previousSourceUrl = "";
     let previousCachePath = "";
-    if (this.options.localCache) {
-      try {
-        const previous = await fetch("/api/attr/getBlockAttrs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: blockId }),
-        });
-        const prevData = await previous.json();
-        previousSourceUrl = prevData?.data?.[COVER_SOURCE_ATTRIBUTE] || "";
-        previousCachePath = prevData?.data?.[COVER_CACHE_ATTRIBUTE] || "";
-      } catch (error) {
-        log.debug("Failed to read previous cover attrs:", error);
-      }
+    let previousSite = "";
+    let previousPostId = "";
+    let previousPostUrl = "";
+    let previousTags = "";
+    try {
+      const previous = await fetch("/api/attr/getBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: blockId }),
+      });
+      const prevData = await previous.json();
+      const prevAttrs = (prevData?.data || {}) as Record<string, string>;
+      previousTitleImg = prevAttrs["title-img"] || prevAttrs["custom-title-img"] || "";
+      previousSourceUrl = prevAttrs[COVER_SOURCE_ATTRIBUTE] || "";
+      previousCachePath = prevAttrs[COVER_CACHE_ATTRIBUTE] || "";
+      previousSite = prevAttrs["custom-damophus-post-site"] || "";
+      previousPostId = prevAttrs["custom-damophus-post-id"] || "";
+      previousPostUrl = prevAttrs["custom-damophus-post-url"] || "";
+      previousTags = prevAttrs["custom-damophus-post-tags"] || "";
+      log.debug("Read previous cover attrs before replacement", {
+        blockId,
+        titleImg: previousTitleImg,
+        sourceUrl: previousSourceUrl,
+        site: previousSite,
+        postId: previousPostId,
+      });
+    } catch (error) {
+      log.warn("Failed to read previous cover attrs before replacement:", error);
     }
 
     const originalSourceUrl = /^https?:\/\//i.test(sourceUrl || "")
@@ -2076,9 +2214,15 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       ? urlOrPath
       : "";
     const sourceChanged = normalizeCoverUrl(originalSourceUrl) !== normalizeCoverUrl(previousSourceUrl);
+    const nextTitleImg = `background-image:url("${finalVal}")`;
+    const previousTitleIdentity =
+      normalizeCoverUrl(previousTitleImg) || normalizeCoverAssetPath(previousTitleImg) || previousTitleImg;
+    const nextTitleIdentity =
+      normalizeCoverUrl(nextTitleImg) || normalizeCoverAssetPath(nextTitleImg) || nextTitleImg;
+    const coverReplaced = Boolean(previousTitleImg) && previousTitleIdentity !== nextTitleIdentity;
 
     const attrs: Record<string, string> = {
-      "title-img": `background-image:url("${finalVal}")`,
+      "title-img": nextTitleImg,
     };
     if (originalSourceUrl) {
       attrs[COVER_SOURCE_ATTRIBUTE] = originalSourceUrl;
@@ -2115,15 +2259,27 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       await this.purgeCoverCacheFile(previousCachePath, blockId);
     }
 
-    // 记录到历史记录
-    try {
-      const protyle = background.closest(".protyle");
-      const docTitle =
-        protyle?.querySelector<HTMLElement>(".protyle-title__input")?.textContent?.trim() ||
-        protyle?.querySelector<HTMLElement>(".protyle-title")?.textContent?.trim() ||
-        protyle?.querySelector<HTMLElement>(".protyle-breadcrumb__bar")?.textContent?.trim() ||
-        "当前文档";
+    const protyle = background.closest(".protyle");
+    const docTitle =
+      protyle?.querySelector<HTMLElement>(".protyle-title__input")?.textContent?.trim() ||
+      protyle?.querySelector<HTMLElement>(".protyle-title")?.textContent?.trim() ||
+      protyle?.querySelector<HTMLElement>(".protyle-breadcrumb__bar")?.textContent?.trim() ||
+      "当前文档";
 
+    // 记录被替换掉的旧题头图，确保之后随机选图时不会再次命中它。
+    if (coverReplaced) {
+      this.recordReplacedCover(blockId, docTitle, {
+        titleImg: previousTitleImg,
+        sourceUrl: previousSourceUrl,
+        site: previousSite,
+        postId: previousPostId,
+        postUrl: previousPostUrl,
+        tags: previousTags,
+      });
+    }
+
+    // 记录新应用到文档的题头图
+    try {
       const lastUsed = getLastUsedSource();
       recordCoverHistory({
         docId: blockId,
@@ -2135,9 +2291,59 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         postId: postId || postInfo?.postId,
         tags: tags ? tags.split(/\s+/) : postInfo?.tags,
         templateName: lastUsed?.label,
+        kind: "applied",
       });
     } catch (histErr) {
-      log.debug("Failed to record cover history:", histErr);
+      historyLog.warn("Failed to record cover history:", histErr);
+    }
+  }
+
+  /**
+   * Persist the cover that is being replaced so future random picks can
+   * exclude it. It is written to both the durable seen-cover dedup store and
+   * the visible history (capped), so deduplication survives history clearing.
+   */
+  private recordReplacedCover(
+    blockId: string,
+    docTitle: string,
+    previous: {
+      titleImg: string;
+      sourceUrl: string;
+      site: string;
+      postId: string;
+      postUrl: string;
+      tags: string;
+    },
+  ): void {
+    const remoteFromTitle = normalizeCoverUrl(previous.titleImg);
+    const remoteFromSource = normalizeCoverUrl(previous.sourceUrl);
+    const imageUrl = remoteFromSource || remoteFromTitle || "";
+    const hasPostIdentity = Boolean(previous.site && previous.postId);
+    if (!imageUrl && !hasPostIdentity) return;
+
+    const entry = {
+      docId: blockId,
+      docTitle,
+      imageUrl,
+      sourceUrl: remoteFromSource || undefined,
+      postUrl: previous.postUrl || undefined,
+      site: previous.site || undefined,
+      postId: previous.postId || undefined,
+      tags: previous.tags ? previous.tags.split(/\s+/) : undefined,
+    };
+
+    const seen = recordSeenCover(entry);
+    if (imageUrl) {
+      recordCoverHistory({ ...entry, kind: "replaced" });
+    }
+    if (seen) {
+      historyLog.info("Recorded replaced cover for future deduplication", {
+        docId: blockId,
+        imageUrl: entry.imageUrl,
+        site: entry.site,
+        postId: entry.postId,
+        seenId: seen.id,
+      });
     }
   }
 

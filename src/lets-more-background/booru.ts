@@ -918,6 +918,10 @@ export async function resolveBooruImageInfo(
         .map((url) => normalizeCoverUrl(url) || (url.startsWith("booru-post:") ? url : null))
         .filter((url): url is string => Boolean(url)),
     );
+    log.debug("Resolving booru image with deduplication", {
+      source: urlOrUri,
+      excludedUrlCount: excludedUrls.size,
+    });
     const isExcluded = (...urls: Array<string | null | undefined>) =>
       urls.some((url) => {
         const normalized = normalizeCoverUrl(url || "");
@@ -1034,6 +1038,7 @@ export async function resolveBooruImageInfo(
               rejectedByScore,
               rejectedByTime,
               rejectedByDuplicate,
+              excludedUrlCount: excludedUrls.size,
             });
             return null;
           }
@@ -1178,6 +1183,7 @@ export async function resolveBooruImageInfo(
               rejectedByScore,
               rejectedByTime,
               rejectedByDuplicate,
+              excludedUrlCount: excludedUrls.size,
             });
             return null;
           }

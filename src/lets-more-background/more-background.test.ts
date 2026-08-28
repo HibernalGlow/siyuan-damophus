@@ -8,9 +8,12 @@ import {
 } from "./sources";
 import {
   clearCoverHistory,
+  clearSeenCovers,
   getCoverHistory,
   getLastUsedSource,
+  getSeenCovers,
   recordCoverHistory,
+  recordSeenCover,
   removeCoverHistoryEntry,
   setLastUsedSource,
   updateAllLastUsedButtons,
@@ -165,9 +168,66 @@ describe("more-background sources utilities", () => {
     expect(list.length).toBe(1);
     expect(list[0].docTitle).toBe("民事诉讼法专题");
     expect(list[0].imageUrl).toBe("https://safebooru.org/images/1.png");
+    expect(list[0].kind).toBeUndefined();
 
-    // Remove entry
-    removeCoverHistoryEntry(list[0].id);
+    recordCoverHistory({
+      docId: "doc-123",
+      docTitle: "民事诉讼法专题",
+      imageUrl: "https://safebooru.org/images/2.png",
+      kind: "replaced",
+    });
+
+    const nextList = getCoverHistory();
+    expect(nextList.length).toBe(2);
+    expect(nextList[0].kind).toBe("replaced");
+
+    // Remove entries
+    removeCoverHistoryEntry(nextList[0].id);
+    removeCoverHistoryEntry(nextList[1].id);
     expect(getCoverHistory().length).toBe(0);
+  });
+
+  it("records replaced covers into the durable seen-cover deduplication store", () => {
+    const store: Record<string, string> = {};
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => store[k] || null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+      clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
+    };
+
+    clearSeenCovers();
+    expect(getSeenCovers()).toEqual([]);
+
+    const seen = recordSeenCover({
+      docId: "doc-123",
+      docTitle: "民法专题",
+      imageUrl: "https://safebooru.org/images/9/replaced.png",
+      sourceUrl: "https://safebooru.org/images/9/replaced.png",
+      site: "safebooru.org",
+      postId: "900",
+    });
+    expect(seen).not.toBeNull();
+    expect(getSeenCovers().length).toBe(1);
+
+    // Same post identity should not create a duplicate seen entry.
+    const duplicate = recordSeenCover({
+      docId: "doc-456",
+      docTitle: "刑法专题",
+      imageUrl: "https://safebooru.org/images/9/replaced.png",
+      site: "safebooru.org",
+      postId: 900,
+    });
+    expect(duplicate).not.toBeNull();
+    expect(getSeenCovers().length).toBe(1);
+
+    // Entries without a usable dedup identity are ignored.
+    const ignored = recordSeenCover({
+      docId: "doc-789",
+      docTitle: "行政法专题",
+      imageUrl: "assets/local-only.png",
+    });
+    expect(ignored).toBeNull();
+    expect(getSeenCovers().length).toBe(1);
   });
 });
