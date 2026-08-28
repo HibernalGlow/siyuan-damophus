@@ -10,12 +10,16 @@ import {
   clearCoverHistory,
   clearSeenCovers,
   getCoverHistory,
+  getCoverHistoryLimit,
   getLastUsedSource,
   getSeenCovers,
+  getSeenCoversLimit,
   recordCoverHistory,
   recordSeenCover,
   removeCoverHistoryEntry,
+  setCoverHistoryLimit,
   setLastUsedSource,
+  setSeenCoversLimit,
   updateAllLastUsedButtons,
   localCachePath,
   inferCoverSourceFromImage,
@@ -229,5 +233,39 @@ describe("more-background sources utilities", () => {
     });
     expect(ignored).toBeNull();
     expect(getSeenCovers().length).toBe(1);
+  });
+
+  it("respects configurable history and seen-cover limits", () => {
+    const store: Record<string, string> = {};
+    (globalThis as any).localStorage = {
+      getItem: (k: string) => store[k] || null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+      clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
+    };
+
+    clearCoverHistory();
+    clearSeenCovers();
+
+    setCoverHistoryLimit(2);
+    setSeenCoversLimit(2);
+    expect(getCoverHistoryLimit()).toBe(2);
+    expect(getSeenCoversLimit()).toBe(2);
+
+    recordCoverHistory({ docId: "doc-1", docTitle: "一", imageUrl: "https://safebooru.org/images/h1.png" });
+    recordCoverHistory({ docId: "doc-2", docTitle: "二", imageUrl: "https://safebooru.org/images/h2.png" });
+    recordCoverHistory({ docId: "doc-3", docTitle: "三", imageUrl: "https://safebooru.org/images/h3.png" });
+    expect(getCoverHistory().length).toBe(2);
+
+    recordSeenCover({ docId: "doc-1", docTitle: "一", imageUrl: "https://safebooru.org/images/s1.png", site: "safebooru.org", postId: "1" });
+    recordSeenCover({ docId: "doc-2", docTitle: "二", imageUrl: "https://safebooru.org/images/s2.png", site: "safebooru.org", postId: "2" });
+    recordSeenCover({ docId: "doc-3", docTitle: "三", imageUrl: "https://safebooru.org/images/s3.png", site: "safebooru.org", postId: "3" });
+    expect(getSeenCovers().length).toBe(2);
+
+    // Restore defaults so later tests are unaffected.
+    setCoverHistoryLimit(150);
+    setSeenCoversLimit(800);
+    clearCoverHistory();
+    clearSeenCovers();
   });
 });

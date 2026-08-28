@@ -89,6 +89,8 @@ export interface MoreBackgroundOptions {
   autoAddCoverOnEmptyDoc?: boolean;
   autoRetryOnFailure?: boolean;
   deduplicateNewCovers?: boolean;
+  coverHistoryLimit?: number;
+  coverSeenLimit?: number;
   blacklistedTags?: string;
   siteCredentials?: SiteCredential[];
   sources?: CoverSourceItem[];
@@ -538,9 +540,45 @@ export function setLastUsedSource(item: CoverSourceItem): void {
 }
 
 export const COVER_HISTORY_KEY = "damophus_more_background_cover_history";
-export const MAX_COVER_HISTORY_COUNT = 150;
 export const SEEN_COVERS_KEY = "damophus_more_background_seen_covers";
-export const MAX_SEEN_COVERS_COUNT = 800;
+export const DEFAULT_COVER_HISTORY_LIMIT = 150;
+export const DEFAULT_SEEN_COVERS_LIMIT = 800;
+
+let coverHistoryLimit = DEFAULT_COVER_HISTORY_LIMIT;
+let seenCoversLimit = DEFAULT_SEEN_COVERS_LIMIT;
+
+export function getCoverHistoryLimit(): number {
+  return coverHistoryLimit;
+}
+
+export function setCoverHistoryLimit(limit: unknown): void {
+  const parsed = Number(limit);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    coverHistoryLimit = Math.floor(parsed);
+    historyLog.debug("Cover history limit updated", { limit: coverHistoryLimit });
+  }
+}
+
+export function getSeenCoversLimit(): number {
+  return seenCoversLimit;
+}
+
+export function setSeenCoversLimit(limit: unknown): void {
+  const parsed = Number(limit);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    seenCoversLimit = Math.floor(parsed);
+    historyLog.debug("Seen cover dedup limit updated", { limit: seenCoversLimit });
+  }
+}
+
+function applyCoverLimits(options: MoreBackgroundOptions): void {
+  setCoverHistoryLimit(options.coverHistoryLimit ?? DEFAULT_COVER_HISTORY_LIMIT);
+  setSeenCoversLimit(options.coverSeenLimit ?? DEFAULT_SEEN_COVERS_LIMIT);
+  historyLog.debug("Applied cover history and dedup limits", {
+    history: getCoverHistoryLimit(),
+    seen: getSeenCoversLimit(),
+  });
+}
 
 export interface SeenCoverEntry {
   id: string;
@@ -572,7 +610,7 @@ export function getCoverHistory(): CoverHistoryEntry[] {
 export function saveCoverHistory(list: CoverHistoryEntry[]): void {
   try {
     if (typeof localStorage === "undefined") return;
-    localStorage.setItem(COVER_HISTORY_KEY, JSON.stringify(list.slice(0, MAX_COVER_HISTORY_COUNT)));
+    localStorage.setItem(COVER_HISTORY_KEY, JSON.stringify(list.slice(0, coverHistoryLimit)));
   } catch (e) {
     historyLog.warn("Failed to save cover history to localStorage:", e);
   }
@@ -586,7 +624,7 @@ export function recordCoverHistory(entry: Omit<CoverHistoryEntry, "id" | "applie
   };
 
   const list = getCoverHistory();
-  const nextList = [fullEntry, ...list.filter((it) => it.imageUrl !== fullEntry.imageUrl || it.docId !== fullEntry.docId)].slice(0, MAX_COVER_HISTORY_COUNT);
+  const nextList = [fullEntry, ...list.filter((it) => it.imageUrl !== fullEntry.imageUrl || it.docId !== fullEntry.docId)].slice(0, coverHistoryLimit);
   saveCoverHistory(nextList);
   historyLog.debug("Recorded cover history entry", {
     id: fullEntry.id,
@@ -630,7 +668,7 @@ export function getSeenCovers(): SeenCoverEntry[] {
 export function saveSeenCovers(list: SeenCoverEntry[]): void {
   try {
     if (typeof localStorage === "undefined") return;
-    localStorage.setItem(SEEN_COVERS_KEY, JSON.stringify(list.slice(0, MAX_SEEN_COVERS_COUNT)));
+    localStorage.setItem(SEEN_COVERS_KEY, JSON.stringify(list.slice(0, seenCoversLimit)));
   } catch (e) {
     historyLog.warn("Failed to save seen covers to localStorage:", e);
   }
@@ -658,7 +696,7 @@ export function recordSeenCover(entry: Omit<SeenCoverEntry, "id" | "seenAt">): S
       if (existingKeys.has(key)) return false;
     }
     return true;
-  })].slice(0, MAX_SEEN_COVERS_COUNT);
+  })].slice(0, seenCoversLimit);
   saveSeenCovers(nextList);
   historyLog.debug("Recorded seen cover for deduplication", {
     id: fullEntry.id,
@@ -728,6 +766,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
   constructor(options: MoreBackgroundOptions) {
     this.options = options;
+    applyCoverLimits(options);
     ensureNoReferrerMeta();
     if (!document.getElementById(COVER_LAYOUT_STYLE_ID)) {
       const style = document.createElement("style");
@@ -743,6 +782,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
   updateOptions(options: MoreBackgroundOptions): void {
     this.options = options;
+    applyCoverLimits(options);
     for (const root of [...this.rootCleanups.keys()]) this.scanRoot(root);
   }
 

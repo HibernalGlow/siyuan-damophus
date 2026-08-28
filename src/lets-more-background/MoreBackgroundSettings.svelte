@@ -77,6 +77,7 @@
     testBooruSiteCredential,
   } from "./booru";
   import { openCoverTagViewer } from "./tag-viewer";
+  import { buildCoverExportPayload } from "./cover-export";
   import { plugin } from "@/utils";
   import { settings } from "@/settings";
   import {
@@ -110,6 +111,8 @@
   export let coverBreadcrumb = false;
   export let coverDocumentMenu = false;
   export let confirmRemoveCover = true;
+  export let coverHistoryLimit = 150;
+  export let coverSeenLimit = 800;
   export let mobile = false;
   export let onMaintenance: ((detail: { action: "maintain" | "cleanup"; documentLink?: string }) => void | Promise<void>) | undefined;
 
@@ -565,6 +568,48 @@
     downloadJsonFile(jsonContent, `damophus-more-background-templates-${Date.now()}.json`);
   }
 
+  // --- Cover history / current covers JSON export ---
+  let coverExportOpen = false;
+  let coverExportContent = "";
+  let coverExportCopied = false;
+  let coverExportBusy = false;
+  let coverExportError = "";
+
+  async function openCoverExport() {
+    coverExportBusy = true;
+    coverExportError = "";
+    try {
+      const payload = await buildCoverExportPayload();
+      coverExportContent = JSON.stringify(payload, null, 2);
+      coverExportCopied = false;
+      coverExportOpen = true;
+    } catch (e: any) {
+      coverExportError = e?.message || String(e);
+      coverExportOpen = true;
+    } finally {
+      coverExportBusy = false;
+    }
+  }
+
+  function closeCoverExport() {
+    coverExportOpen = false;
+    coverExportContent = "";
+    coverExportError = "";
+    coverExportCopied = false;
+  }
+
+  async function handleCopyCoverExport() {
+    await copyToClipboard(coverExportContent);
+    coverExportCopied = true;
+    setTimeout(() => {
+      coverExportCopied = false;
+    }, 2000);
+  }
+
+  function handleDownloadCoverExport() {
+    downloadJsonFile(coverExportContent, `damophus-more-background-covers-${Date.now()}.json`);
+  }
+
   function handleFileSelect(e: Event) {
     const files = (e.target as HTMLInputElement).files;
     if (!files || files.length === 0) return;
@@ -1004,6 +1049,10 @@
           <Button variant="outline" size="sm" onclick={reloadCoverHistory} class="h-7.5 sm:h-8 text-xs gap-1.5">
             <RefreshCw class="size-3.5" />
             <span>{t("lets-more-background.refreshFavorites", "刷新")}</span>
+          </Button>
+          <Button variant="outline" size="sm" onclick={openCoverExport} disabled={coverExportBusy} class="h-7.5 sm:h-8 text-xs gap-1.5">
+            <Download class="size-3.5 {coverExportBusy ? 'animate-spin' : ''}" />
+            <span>{t("lets-more-background.exportCoverJson", "导出 JSON")}</span>
           </Button>
           {#if coverHistory.length > 0}
             <Button variant="outline" size="sm" onclick={clearHistory} class="h-7.5 sm:h-8 text-xs gap-1.5 text-destructive hover:text-destructive">
@@ -1906,6 +1955,34 @@
           </div>
         </div>
 
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+          <div>
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.coverHistoryLimitTitle", "题头图历史上限")}</Label>
+            <Input
+              type="number"
+              min="10"
+              max="5000"
+              value={coverHistoryLimit}
+              oninput={(e) => handleBasicChange("coverHistoryLimit", parseInt((e.target as HTMLInputElement).value, 10) || 150)}
+              class="h-8 text-xs font-mono bg-background"
+            />
+            <p class="text-[11px] text-muted-foreground mt-1">{t("lets-more-background.coverHistoryLimitDescription")}</p>
+          </div>
+
+          <div>
+            <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.coverSeenLimitTitle", "去重记忆上限")}</Label>
+            <Input
+              type="number"
+              min="10"
+              max="10000"
+              value={coverSeenLimit}
+              oninput={(e) => handleBasicChange("coverSeenLimit", parseInt((e.target as HTMLInputElement).value, 10) || 800)}
+              class="h-8 text-xs font-mono bg-background"
+            />
+            <p class="text-[11px] text-muted-foreground mt-1">{t("lets-more-background.coverSeenLimitDescription")}</p>
+          </div>
+        </div>
+
         <div class="border-t border-border pt-3.5 sm:pt-4">
           <Label class="text-xs font-medium mb-1.5 block">{t("lets-more-background.assetsLocationTitle", "题头图资源目录")}</Label>
           <Input
@@ -2305,6 +2382,79 @@
               <Button variant="secondary" size="sm" onclick={handleConfirmImport} class="h-8 text-xs gap-1.5 font-medium">
                 <Check class="size-3.5" />
                 <span>确认导入</span>
+              </Button>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- 题头图历史 / 当前题头图导出弹窗 -->
+  {#if coverExportOpen}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="bg-card text-card-foreground border border-border rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[88vh] animate-in zoom-in-95 duration-150">
+        <!-- 弹窗头部 -->
+        <div class="flex items-center justify-between border-b border-border px-4 py-3 bg-muted/40">
+          <div class="flex items-center gap-2">
+            <Download class="size-4 text-primary" />
+            <span class="font-semibold text-sm">{t("lets-more-background.exportCoverJsonTitle", "导出题头图历史与当前题头图")}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="size-7 text-muted-foreground hover:text-foreground"
+            onclick={closeCoverExport}
+          >
+            <X class="size-4" />
+          </Button>
+        </div>
+
+        <!-- 说明栏 -->
+        <div class="px-4 py-2.5 bg-muted/20 border-b border-border text-[11px] text-muted-foreground leading-relaxed">
+          {t("lets-more-background.exportCoverJsonDescription", "导出内容包含题头图历史、去重记忆和所有文档当前正在使用的题头图，可用于备份或迁移。")}
+        </div>
+
+        <!-- 内容区 -->
+        <div class="p-3.5 space-y-2 overflow-y-auto flex-1">
+          {#if coverExportError}
+            <div class="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+              <XCircle class="size-4 shrink-0" />
+              <span>{t("lets-more-background.exportCoverJsonFailed", "导出题头图数据失败")}: {coverExportError}</span>
+            </div>
+          {:else}
+            <textarea
+              class="w-full h-72 rounded-lg border border-border bg-background p-3 font-mono text-[11px] leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-y"
+              readonly
+              value={coverExportContent}
+            ></textarea>
+          {/if}
+        </div>
+
+        <!-- 弹窗底部操作按钮 -->
+        <div class="flex items-center justify-between border-t border-border px-4 py-3 bg-muted/30">
+          <Button variant="ghost" size="sm" onclick={closeCoverExport} class="h-8 text-xs">
+            {t("lets-more-background.cancel", "取消")}
+          </Button>
+
+          <div class="flex items-center gap-2">
+            {#if !coverExportError}
+              <Button variant="outline" size="sm" onclick={handleDownloadCoverExport} class="h-8 text-xs gap-1.5">
+                <Download class="size-3.5" />
+                <span>{t("lets-more-background.downloadJsonFile", "下载 JSON 文件")}</span>
+              </Button>
+              <Button variant="secondary" size="sm" onclick={handleCopyCoverExport} class="h-8 text-xs gap-1.5 font-medium">
+                {#if coverExportCopied}
+                  <Check class="size-3.5 text-emerald-500" />
+                  <span class="text-emerald-500">{t("lets-more-background.copiedToClipboard", "已复制到剪贴板！")}</span>
+                {:else}
+                  <Copy class="size-3.5" />
+                  <span>{t("lets-more-background.copyJson", "复制 JSON")}</span>
+                {/if}
               </Button>
             {/if}
           </div>

@@ -4,6 +4,8 @@ import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 import { plugin } from "@/utils";
 import {
+  DEFAULT_COVER_HISTORY_LIMIT,
+  DEFAULT_SEEN_COVERS_LIMIT,
   startMoreBackground,
   type MoreBackgroundHandle,
   type MoreBackgroundOptions,
@@ -78,6 +80,8 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
             coverBreadcrumb: opts.coverBreadcrumb === true,
             coverDocumentMenu: opts.coverDocumentMenu === true,
             confirmRemoveCover: opts.confirmRemoveCover !== false,
+            coverHistoryLimit: opts.coverHistoryLimit ?? DEFAULT_COVER_HISTORY_LIMIT,
+            coverSeenLimit: opts.coverSeenLimit ?? DEFAULT_SEEN_COVERS_LIMIT,
             onMaintenance: (detail) => owner.handleMaintenance(detail),
           },
         });
@@ -267,6 +271,8 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       autoAddCoverOnEmptyDoc: this.getSetting("autoAddCoverOnEmptyDoc") === true,
       autoRetryOnFailure: this.getSetting("autoRetryOnFailure") !== false,
       deduplicateNewCovers: this.getSetting("deduplicateNewCovers") !== false,
+      coverHistoryLimit: Number(this.getSetting("coverHistoryLimit")) || DEFAULT_COVER_HISTORY_LIMIT,
+      coverSeenLimit: Number(this.getSetting("coverSeenLimit")) || DEFAULT_SEEN_COVERS_LIMIT,
       siteCredentials,
       sources,
       t: (key) => this.t(key as any),

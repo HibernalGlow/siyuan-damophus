@@ -99,6 +99,20 @@ export const pluginMetadata: PluginMetadata = {
       },
     },
     {
+      type: "number",
+      title: "lets-more-background.coverHistoryLimitTitle",
+      description: "lets-more-background.coverHistoryLimitDescription",
+      key: "coverHistoryLimit",
+      value: 150,
+    },
+    {
+      type: "number",
+      title: "lets-more-background.coverSeenLimitTitle",
+      description: "lets-more-background.coverSeenLimitDescription",
+      key: "coverSeenLimit",
+      value: 800,
+    },
+    {
       type: "checkbox",
       title: "lets-more-background.directDragTitle",
       description: "lets-more-background.directDragDescription",
