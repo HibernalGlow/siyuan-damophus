@@ -2676,9 +2676,17 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
 
     const parsePositionY = (el: HTMLElement): number => {
-      const percent = parseCoverPosition(el.style.objectPosition);
+      const inlineObjectPosition = el.style.objectPosition;
+      const computedObjectPosition = typeof getComputedStyle === "function"
+        ? getComputedStyle(el).objectPosition
+        : "";
+      const cssValue = inlineObjectPosition || computedObjectPosition;
+      const cssPercentValues = [...cssValue.matchAll(/(-?\d+(?:\.\d+)?)\s*%/g)];
+      const percent = cssPercentValues.length > 0
+        ? normalizeCoverPosition(cssPercentValues.at(-1)?.[1])
+        : parseCoverPosition(cssValue);
       if (percent !== null) return percent;
-      const pixelMatch = el.style.objectPosition.match(/(?:center\s+)?(-?\d+(?:\.\d+)?)px/i);
+      const pixelMatch = cssValue.match(/(?:center\s+)?(-?\d+(?:\.\d+)?)px/i);
       if (pixelMatch && el instanceof HTMLImageElement && el.naturalWidth > 0) {
         const overflow = el.naturalHeight * (el.clientWidth / el.naturalWidth) - el.clientHeight;
         if (overflow > 0) return Math.max(0, Math.min(100, -Number(pixelMatch[1]) / overflow * 100));
@@ -2835,7 +2843,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       });
       if (!media || (!nativePositionActive && media.style.cursor !== "move")) return;
       const position = parsePositionY(media);
-      log.info("native mouseup position parsed", { position });
+      log.info("native mouseup position parsed", {
+        position,
+        inlineObjectPosition: media.style.objectPosition || null,
+        computedObjectPosition: typeof getComputedStyle === "function" ? getComputedStyle(media).objectPosition : null,
+      });
       if (positionObserverTimer) {
         clearTimeout(positionObserverTimer);
         positionObserverTimer = null;
