@@ -12,6 +12,20 @@ const pluginMetadata: PluginMetadata = {
   settings: [
     ...createEntrySettings({ contextMenu: true, tab: true }, { central: true }),
     {
+      type: "checkbox",
+      title: "lets-network-assets-local.globalDedupTitle",
+      description: "lets-network-assets-local.globalDedupDescription",
+      key: "globalDedup",
+      value: true,
+    },
+    {
+      type: "checkbox",
+      title: "lets-network-assets-local.preserveSourceTitle",
+      description: "lets-network-assets-local.preserveSourceDescription",
+      key: "preserveSourceUrls",
+      value: true,
+    },
+    {
       type: "excludedRules",
       title: "lets-network-assets-local.excludedPatternTitle",
       description: "lets-network-assets-local.excludedPatternDescription",

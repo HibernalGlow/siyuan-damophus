@@ -13,6 +13,9 @@ vi.mock("@/api", () => ({
   }),
   convertNetworkAssetsToLocalStrict: vi.fn(),
   updateBlockStrict: vi.fn(),
+  statAssetStrict: vi.fn(),
+  getBlockAttrsStrict: vi.fn(),
+  batchSetBlockAttrsStrict: vi.fn(),
 }));
 
 let mounted: ReturnType<typeof mount>[] = [];

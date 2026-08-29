@@ -1,9 +1,13 @@
 import {
+  batchSetBlockAttrsStrict,
   convertNetworkAssetsToLocalStrict,
+  getBlockAttrsStrict,
   getBlockKramdownStrict,
+  statAssetStrict,
   updateBlockStrict,
   sqlStrict,
 } from "@/api";
+import { loadAssetLinkMap, saveAssetLinkMap } from "./asset-link-store";
 
 export interface DocumentRow {
   id: string;
@@ -13,6 +17,10 @@ export interface DocumentRow {
 
 export interface NetworkAssetConversionResult {
   documents: number;
+  /** Resources written to a brand-new local file during this run. */
+  downloaded: number;
+  /** Resources resolved to a local file that a previous conversion had already stored. */
+  reused: number;
 }
 
 export interface ExcludedRuleItem {
@@ -38,6 +46,10 @@ export interface NetworkAssetConversionOptions {
   skippedUrls?: ReadonlySet<string>;
   excludedPattern?: string | ExcludedRuleItem[];
   blockTypes?: ReadonlySet<string>;
+  /** Reuse the same local file for identical network URLs across all documents (default true). */
+  globalDedup?: boolean;
+  /** Record the original network URL of every converted resource in the containing block's attributes (default true). */
+  preserveSourceUrls?: boolean;
 }
 
 export const DEFAULT_NETWORK_ASSET_BLOCK_TYPES = [
@@ -115,12 +127,29 @@ export async function convertDocumentTreeNetworkAssets(
   options: NetworkAssetConversionOptions = {},
 ): Promise<NetworkAssetConversionResult> {
   const documents = await resolveDocumentTree(documentId, true);
+  const store = options.globalDedup === false ? undefined : await AssetLinkStore.load();
+  let downloaded = 0;
+  let reused = 0;
   for (let index = 0; index < documents.length; index += 1) {
     onProgress?.(index, documents.length);
-    await convertDocumentNetworkAssets(documents[index].id, options);
+    const result = await convertDocumentNetworkAssets(documents[index].id, options, store);
+    downloaded += result.downloaded;
+    reused += result.reused;
   }
+  await store?.flush();
   onProgress?.(documents.length, documents.length);
-  return { documents: documents.length };
+  return { documents: documents.length, downloaded, reused };
+}
+
+/** Converts one document (e.g. from a block context menu) with the same deduplication pipeline. */
+export async function convertSingleDocumentNetworkAssets(
+  documentId: string,
+  options: NetworkAssetConversionOptions = {},
+): Promise<NetworkAssetConversionResult> {
+  const store = options.globalDedup === false ? undefined : await AssetLinkStore.load();
+  const result = await convertDocumentNetworkAssets(documentId, options, store);
+  await store?.flush();
+  return { documents: 1, downloaded: result.downloaded, reused: result.reused };
 }
 
 export async function resolveConvertibleBlocks(
@@ -199,34 +228,217 @@ function excludedUrls(urls: readonly string[], options: NetworkAssetConversionOp
   return new Set(urls.filter((url) => options.skippedUrls?.has(url) || isUrlExcludedByPatterns(url, patterns)));
 }
 
-async function convertDocumentNetworkAssets(documentId: string, options: NetworkAssetConversionOptions): Promise<void> {
+/** Replacement targets are applied longest-first so a URL that is a prefix of another cannot corrupt it. */
+export function replaceAllOrdered(text: string, replacements: Iterable<readonly [string, string]>): string {
+  const ordered = [...replacements].sort((a, b) => b[0].length - a[0].length);
+  for (const [from, to] of ordered) text = text.split(from).join(to);
+  return text;
+}
+
+export function extractNetworkAssetPaths(kramdown: string): string[] {
+  return [...kramdown.matchAll(/assets\/network-asset-[^\s)"'<>\\]+/giu)]
+    .map((match) => match[0].replace(/[.,;:!?]+$/u, ""))
+    .filter((path, index, all) => all.indexOf(path) === index);
+}
+
+/**
+ * Pairs the URLs the kernel converter was expected to download with the local files it wrote.
+ * Both lists follow document order: the kernel walks the tree top-down, so the i-th freshly
+ * written "network-asset" file belongs to the i-th URL that is no longer present. URLs that
+ * failed to download stay in the text and are excluded automatically.
+ */
+export function attributeConvertedAssets(
+  pendingUrls: readonly string[],
+  beforeKramdown: string,
+  afterKramdown: string,
+): Array<[string, string]> {
+  const succeeded = pendingUrls.filter((url) => !afterKramdown.includes(url));
+  const knownPaths = new Set(extractNetworkAssetPaths(beforeKramdown));
+  const freshPaths = extractNetworkAssetPaths(afterKramdown).filter((path) => !knownPaths.has(path));
+  const pairs: Array<[string, string]> = [];
+  const count = Math.min(succeeded.length, freshPaths.length);
+  for (let index = 0; index < count; index += 1) pairs.push([succeeded[index], freshPaths[index]]);
+  return pairs;
+}
+
+/** Custom block attribute storing { localAssetPath: originalNetworkUrl } for converted resources. */
+export const SOURCE_URL_ATTR_KEY = "custom-damophus-remote-asset-urls";
+
+const SOURCE_ATTR_BLOCK_TYPES = "('p', 'h', 't', 'c', 'html', 'audio', 'video', 'iframe', 'widget')";
+
+export function parseSourceUrlAttr(raw: unknown): Record<string, string> {
+  if (typeof raw !== "string" || raw.length === 0) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return {};
+    const entries: Record<string, string> = {};
+    for (const [path, url] of Object.entries(parsed as Record<string, unknown>)) {
+      if (path.startsWith("assets/") && typeof url === "string") entries[path] = url;
+    }
+    return entries;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Inline images have no block of their own, so the original network URL is recorded on the
+ * nearest enclosing block (paragraph, heading, table, ...) as a custom attribute.
+ */
+export async function recordSourceUrlAttrs(
+  documentId: string,
+  mappings: readonly (readonly [string, string])[],
+): Promise<void> {
+  if (mappings.length === 0) return;
+  const rows = await sqlStrict<Array<{ id: string; markdown: string }>>(
+    `SELECT id, markdown FROM blocks WHERE root_id = ${sqlQuote(documentId)} AND type IN ${SOURCE_ATTR_BLOCK_TYPES}`,
+  ) ?? [];
+  const byBlock = new Map<string, Record<string, string>>();
+  for (const [url, localPath] of mappings) {
+    for (const row of rows) {
+      if (typeof row.markdown === "string" && row.markdown.includes(localPath)) {
+        const entry = byBlock.get(row.id) ?? {};
+        entry[localPath] = url;
+        byBlock.set(row.id, entry);
+      }
+    }
+  }
+  const blockAttrs: Array<{ id: string; attrs: Record<string, string> }> = [];
+  for (const [blockId, entry] of byBlock) {
+    let attrs: Record<string, string> | undefined;
+    try {
+      attrs = await getBlockAttrsStrict(blockId);
+    } catch {
+      continue; // block may have vanished mid-run
+    }
+    blockAttrs.push({
+      id: blockId,
+      attrs: { [SOURCE_URL_ATTR_KEY]: JSON.stringify({ ...parseSourceUrlAttr(attrs?.[SOURCE_URL_ATTR_KEY]), ...entry }) },
+    });
+  }
+  if (blockAttrs.length > 0) await batchSetBlockAttrsStrict(blockAttrs);
+}
+
+export async function resolveRootBlockId(blockId: string): Promise<string> {
+  const rows = await sqlStrict<Array<{ root_id: string }>>(
+    `SELECT root_id FROM blocks WHERE id = ${sqlQuote(blockId)} LIMIT 1`,
+  );
+  return rows[0]?.root_id || blockId;
+}
+
+/** Maps network resource URLs to the local asset files previous conversions stored for them. */
+export class AssetLinkStore {
+  private readonly links = new Map<string, string>();
+  private readonly existence = new Map<string, boolean>();
+  private dirty = false;
+
+  static async load(): Promise<AssetLinkStore> {
+    const store = new AssetLinkStore();
+    const map = await loadAssetLinkMap();
+    for (const [url, path] of Object.entries(map.links)) store.links.set(url, path);
+    return store;
+  }
+
+  get size(): number {
+    return this.links.size;
+  }
+
+  /** Returns the local file for a URL, but only while that file still exists in the workspace. */
+  async resolveExisting(url: string): Promise<string | undefined> {
+    const known = this.links.get(url);
+    if (!known) return undefined;
+    let exists = this.existence.get(known);
+    if (exists === undefined) {
+      exists = await statAssetStrict(known);
+      this.existence.set(known, exists);
+    }
+    if (!exists) {
+      this.links.delete(url);
+      this.dirty = true;
+      return undefined;
+    }
+    return known;
+  }
+
+  set(url: string, path: string): void {
+    if (this.links.get(url) === path) return;
+    this.links.set(url, path);
+    this.dirty = true;
+  }
+
+  isDirty(): boolean {
+    return this.dirty;
+  }
+
+  async flush(): Promise<void> {
+    if (!this.dirty) return;
+    await saveAssetLinkMap({ version: 1, links: Object.fromEntries(this.links) });
+    this.dirty = false;
+  }
+}
+
+async function convertDocumentNetworkAssets(
+  documentId: string,
+  options: NetworkAssetConversionOptions,
+  sharedStore?: AssetLinkStore,
+): Promise<{ downloaded: number; reused: number }> {
   const current = await getBlockKramdownStrict(documentId);
   const source = current.kramdown ?? "";
-  const excluded = excludedUrls(remoteResourceUrls(source), options);
-  if (excluded.size === 0) {
-    await convertNetworkAssetsToLocalStrict(documentId);
-    return;
-  }
+  const allUrls = remoteResourceUrls(source);
+  if (allUrls.length === 0) return { downloaded: 0, reused: 0 };
 
-  const replacements = new Map<string, string>();
-  let masked = source;
-  excluded.forEach((url, index) => {
-    const placeholder = `damophus-skip-network-resource-${index}-${documentId}`;
-    replacements.set(placeholder, url);
-    masked = masked.split(url).join(placeholder);
+  const excluded = excludedUrls(allUrls, options);
+  const store = options.globalDedup === false ? undefined : sharedStore ?? await AssetLinkStore.load();
+
+  // Resources whose file a previous conversion already stored: point them at the existing file
+  // so the kernel has nothing left to download. URLs nested inside an excluded URL are skipped
+  // because the exclusion rewrite would run after them and mangle the result.
+  const reusedPairs: Array<[string, string]> = [];
+  if (store) {
+    for (const url of allUrls) {
+      if (excluded.has(url)) continue;
+      if ([...excluded].some((other) => other !== url && other.includes(url))) continue;
+      const localPath = await store.resolveExisting(url);
+      if (localPath) reusedPairs.push([url, localPath]);
+    }
+  }
+  const pendingUrls = allUrls.filter(
+    (url) => !excluded.has(url) && !reusedPairs.some(([reusedUrl]) => reusedUrl === url),
+  );
+  if (pendingUrls.length === 0 && reusedPairs.length === 0) return { downloaded: 0, reused: 0 };
+
+  // Mask excluded URLs before writing so the kernel converter cannot touch them.
+  const placeholders = new Map<string, string>();
+  [...excluded].forEach((url, index) => {
+    placeholders.set(`damophus-skip-network-resource-${index}-${documentId}`, url);
   });
-  if (masked === source) return;
-
-  await updateBlockStrict("markdown", masked, documentId);
-  try {
-    await convertNetworkAssetsToLocalStrict(documentId);
-    let converted = (await getBlockKramdownStrict(documentId)).kramdown ?? "";
-    for (const [placeholder, url] of replacements) converted = converted.split(placeholder).join(url);
-    await updateBlockStrict("markdown", converted, documentId);
-  } catch (error) {
-    await updateBlockStrict("markdown", source, documentId);
-    throw error;
+  let working = source;
+  if (pendingUrls.length > 0 && placeholders.size > 0) {
+    working = replaceAllOrdered(working, [...placeholders].map(([placeholder, url]) => [url, placeholder] as const));
   }
+  if (reusedPairs.length > 0) working = replaceAllOrdered(working, reusedPairs);
+  if (working !== source) await updateBlockStrict("markdown", working, documentId);
+
+  let converted = working;
+  if (pendingUrls.length > 0) {
+    try {
+      await convertNetworkAssetsToLocalStrict(documentId);
+      converted = (await getBlockKramdownStrict(documentId)).kramdown ?? "";
+      for (const [placeholder, url] of placeholders) converted = converted.split(placeholder).join(url);
+      if (converted !== working) await updateBlockStrict("markdown", converted, documentId);
+    } catch (error) {
+      if (working !== source) await updateBlockStrict("markdown", source, documentId);
+      throw error;
+    }
+  }
+
+  const newPairs = attributeConvertedAssets(pendingUrls, working, converted);
+  if (store) for (const [url, localPath] of newPairs) store.set(url, localPath);
+
+  if (options.preserveSourceUrls !== false) {
+    await recordSourceUrlAttrs(documentId, [...reusedPairs, ...newPairs]);
+  }
+  return { downloaded: newPairs.length, reused: reusedPairs.length };
 }
 
 export async function previewDocumentTreeNetworkAssets(

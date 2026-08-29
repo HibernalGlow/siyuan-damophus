@@ -17,6 +17,8 @@
     onDocumentDelete,
     blockTypes,
     defaultExcludedPattern,
+    globalDedup = true,
+    preserveSourceUrls = true,
   }: {
     documentId: string;
     labels: Record<string, string>;
@@ -25,6 +27,8 @@
     onDocumentDelete: (id: string) => Promise<void>;
     blockTypes: string[];
     defaultExcludedPattern: string | ExcludedRuleItem[];
+    globalDedup?: boolean;
+    preserveSourceUrls?: boolean;
   } = $props();
   let documents = $state<NetworkAssetPreviewDocument[]>([]);
   let loading = $state(true);
@@ -32,6 +36,7 @@
   let error = $state("");
   let completed = $state(false);
   let progress = $state("");
+  let dedupSummary = $state("");
   let excludedPattern = $state<string | ExcludedRuleItem[]>("");
   let selectedUrls = $state<Set<string>>(new Set());
   let skippedUrls = $state<Set<string>>(new Set());
@@ -76,6 +81,7 @@
     loading = true;
     error = "";
     completed = false;
+    dedupSummary = "";
     try {
       documents = await previewDocumentTreeNetworkAssets(documentId, new Set(blockTypes));
     } catch (cause) {
@@ -90,11 +96,16 @@
     running = true;
     error = "";
     completed = false;
+    dedupSummary = "";
     try {
-      await convertDocumentTreeNetworkAssets(documentId, (current, total) => {
+      const result = await convertDocumentTreeNetworkAssets(documentId, (current, total) => {
         progress = labels.progress.replace("{current}", String(current + 1)).replace("{total}", String(total));
-      }, { skippedUrls, excludedPattern, blockTypes: new Set(blockTypes) });
+      }, { skippedUrls, excludedPattern, blockTypes: new Set(blockTypes), globalDedup, preserveSourceUrls });
       completed = true;
+      const template = labels.dedupSummary ?? "";
+      dedupSummary = template
+        .replace("{downloaded}", String(result.downloaded))
+        .replace("{reused}", String(result.reused));
       await refresh();
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
@@ -155,7 +166,10 @@
     {/if}
 
     {#if completed}
-      <section class="damophus-network-assets-local__status damophus-network-assets-local__status--success"><Check size={16} /> {labels.completed}</section>
+      <section class="damophus-network-assets-local__status damophus-network-assets-local__status--success">
+        <Check size={16} /> {labels.completed}
+        {#if dedupSummary}<span>{dedupSummary}</span>{/if}
+      </section>
     {/if}
 
     {#if matchedDocuments.length === 0}

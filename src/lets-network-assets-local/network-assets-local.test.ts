@@ -1,29 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/api";
+import { plugin as pluginData } from "@/utils";
+import { normalizeAssetLinkMap } from "./asset-link-store";
 import {
+  attributeConvertedAssets,
   compileExcludedPatterns,
   convertDocumentTreeNetworkAssets,
   DEFAULT_EXCLUDED_RULES,
+  extractNetworkAssetPaths,
   hasRemoteResource,
   isRemoteResourceUrl,
   normalizeExcludedRules,
   parseExcludedRules,
+  parseSourceUrlAttr,
   previewDocumentTreeNetworkAssets,
   remoteResourceUrls,
+  replaceAllOrdered,
   resolveDocumentTree,
+  SOURCE_URL_ATTR_KEY,
   type ExcludedRuleItem,
 } from "./network-assets-local";
 
 vi.mock("@/api", () => ({
+  batchSetBlockAttrsStrict: vi.fn(),
   convertNetworkAssetsToLocalStrict: vi.fn(),
+  getBlockAttrsStrict: vi.fn(),
   getBlockKramdownStrict: vi.fn(),
+  statAssetStrict: vi.fn(),
   updateBlockStrict: vi.fn(),
   sqlStrict: vi.fn(),
 }));
 
+vi.mock("@/utils", () => ({
+  plugin: { loadData: vi.fn(), saveData: vi.fn() },
+}));
+
 describe("network assets to local", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it("recognizes only network resource URL schemes", () => {
@@ -73,10 +87,12 @@ describe("network assets to local", () => {
       .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
       .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }, { id: "child", box: "box", hpath: "/Root/Child" }]);
     vi.mocked(api.getBlockKramdownStrict)
-      .mockResolvedValueOnce({ id: "root", kramdown: "" })
-      .mockResolvedValueOnce({ id: "child", kramdown: "" });
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](https://example.com/one.png)" })
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](https://example.com/one.png)" })
+      .mockResolvedValueOnce({ id: "child", kramdown: "![](https://example.com/two.png)" })
+      .mockResolvedValueOnce({ id: "child", kramdown: "![](https://example.com/two.png)" });
     const progress = vi.fn();
-    await expect(convertDocumentTreeNetworkAssets("root", progress)).resolves.toEqual({ documents: 2 });
+    await expect(convertDocumentTreeNetworkAssets("root", progress)).resolves.toEqual({ documents: 2, downloaded: 0, reused: 0 });
     expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenNthCalledWith(1, "root");
     expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenNthCalledWith(2, "child");
     expect(progress).toHaveBeenLastCalledWith(2, 2);
@@ -202,5 +218,134 @@ describe("network assets to local", () => {
     expect(DEFAULT_EXCLUDED_RULES.every((r) => r.enabled)).toBe(true);
     const patterns = compileExcludedPatterns(DEFAULT_EXCLUDED_RULES);
     expect(patterns.some((p) => p.test("https://inkloomer.github.io/inkloom/demo.png"))).toBe(true);
+  });
+
+  it("normalizes persisted link maps and drops invalid entries", () => {
+    expect(normalizeAssetLinkMap(undefined)).toEqual({ version: 1, links: {} });
+    expect(normalizeAssetLinkMap({
+      version: 1,
+      links: { "https://a.example/x.png": "assets/x.png", "https://b.example/y.png": 42, "relative": "assets/y.png" },
+    })).toEqual({ version: 1, links: { "https://a.example/x.png": "assets/x.png" } });
+  });
+
+  it("extracts kernel-written network asset paths in document order", () => {
+    expect(extractNetworkAssetPaths(
+      '![a](assets/network-asset-x-1.png) <img src="assets/network-asset-y-2.jpg"> ![local](assets/keep.png)',
+    )).toEqual(["assets/network-asset-x-1.png", "assets/network-asset-y-2.jpg"]);
+  });
+
+  it("pairs converted URLs with freshly written asset files, skipping failed downloads", () => {
+    const before = "![a](https://e/1.png) ![b](https://e/2.png) ![c](https://e/3.png) ![old](assets/network-asset-old.png)";
+    const after = "![a](assets/network-asset-new-1.png) ![b](https://e/2.png) ![c](assets/network-asset-new-2.png) ![old](assets/network-asset-old.png)";
+    expect(attributeConvertedAssets(["https://e/1.png", "https://e/2.png", "https://e/3.png"], before, after)).toEqual([
+      ["https://e/1.png", "assets/network-asset-new-1.png"],
+      ["https://e/3.png", "assets/network-asset-new-2.png"],
+    ]);
+  });
+
+  it("applies longer URL replacements first so prefixes cannot corrupt them", () => {
+    expect(replaceAllOrdered("u https://e/a.png?v=2 and https://e/a.png", [
+      ["https://e/a.png", "assets/short.png"],
+      ["https://e/a.png?v=2", "assets/long.png"],
+    ])).toBe("u assets/long.png and assets/short.png");
+  });
+
+  it("parses stored source-url attributes defensively", () => {
+    expect(parseSourceUrlAttr('{"assets/a.png":"https://e/a.png"}')).toEqual({ "assets/a.png": "https://e/a.png" });
+    expect(parseSourceUrlAttr("not json")).toEqual({});
+    expect(parseSourceUrlAttr(undefined)).toEqual({});
+  });
+
+  it("reuses the mapped local file for a known URL without contacting the kernel converter", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "p1", markdown: "![](assets/network-asset-old-1.png)" }]);
+    vi.mocked(api.getBlockKramdownStrict).mockResolvedValue({
+      id: "root",
+      kramdown: "![keep](https://skip.example/a.png) ![](https://example.com/a.png)",
+    });
+    vi.mocked(api.statAssetStrict).mockResolvedValue(true);
+    vi.mocked(pluginData.loadData).mockResolvedValue({
+      version: 1,
+      links: { "https://example.com/a.png": "assets/network-asset-old-1.png" },
+    });
+
+    const result = await convertDocumentTreeNetworkAssets("root", undefined, { excludedPattern: "skip\\.example" });
+
+    expect(result).toEqual({ documents: 1, downloaded: 0, reused: 1 });
+    expect(api.convertNetworkAssetsToLocalStrict).not.toHaveBeenCalled();
+    expect(api.updateBlockStrict).toHaveBeenCalledWith(
+      "markdown",
+      "![keep](https://skip.example/a.png) ![](assets/network-asset-old-1.png)",
+      "root",
+    );
+    expect(api.batchSetBlockAttrsStrict).toHaveBeenCalledWith([
+      { id: "p1", attrs: { [SOURCE_URL_ATTR_KEY]: JSON.stringify({ "assets/network-asset-old-1.png": "https://example.com/a.png" }) } },
+    ]);
+    expect(pluginData.saveData).not.toHaveBeenCalled();
+  });
+
+  it("attributes kernel-written files to their URLs, persists the map and records source attrs", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "p1", markdown: "![](assets/network-asset-fresh-1.png)" }]);
+    vi.mocked(api.getBlockKramdownStrict)
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](https://example.com/new.png)" })
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](assets/network-asset-fresh-1.png)" });
+    vi.mocked(api.getBlockAttrsStrict).mockResolvedValue({});
+
+    const result = await convertDocumentTreeNetworkAssets("root");
+
+    expect(result).toEqual({ documents: 1, downloaded: 1, reused: 0 });
+    expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenCalledWith("root");
+    expect(api.updateBlockStrict).toHaveBeenCalledWith("markdown", "![](assets/network-asset-fresh-1.png)", "root");
+    expect(pluginData.saveData).toHaveBeenCalledWith("network-assets-local/asset-links.json", {
+      version: 1,
+      links: { "https://example.com/new.png": "assets/network-asset-fresh-1.png" },
+    });
+    expect(api.batchSetBlockAttrsStrict).toHaveBeenCalledWith([
+      { id: "p1", attrs: { [SOURCE_URL_ATTR_KEY]: JSON.stringify({ "assets/network-asset-fresh-1.png": "https://example.com/new.png" }) } },
+    ]);
+  });
+
+  it("re-downloads a URL when its mapped file no longer exists", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }]);
+    vi.mocked(api.getBlockKramdownStrict)
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](https://example.com/gone.png)" })
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](assets/network-asset-fresh-2.png)" });
+    vi.mocked(api.statAssetStrict).mockResolvedValue(false);
+    vi.mocked(pluginData.loadData).mockResolvedValue({
+      version: 1,
+      links: { "https://example.com/gone.png": "assets/network-asset-lost.png" },
+    });
+
+    const result = await convertDocumentTreeNetworkAssets("root", undefined, { preserveSourceUrls: false });
+
+    expect(result).toEqual({ documents: 1, downloaded: 1, reused: 0 });
+    expect(api.convertNetworkAssetsToLocalStrict).toHaveBeenCalledTimes(1);
+    expect(pluginData.saveData).toHaveBeenCalledWith("network-assets-local/asset-links.json", {
+      version: 1,
+      links: { "https://example.com/gone.png": "assets/network-asset-fresh-2.png" },
+    });
+    expect(api.batchSetBlockAttrsStrict).not.toHaveBeenCalled();
+  });
+
+  it("skips the global map entirely when global dedup is disabled", async () => {
+    vi.mocked(api.sqlStrict)
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }])
+      .mockResolvedValueOnce([{ id: "root", box: "box", hpath: "/Root" }]);
+    vi.mocked(api.getBlockKramdownStrict)
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](https://example.com/a.png)" })
+      .mockResolvedValueOnce({ id: "root", kramdown: "![](assets/network-asset-x-9.png)" });
+
+    const result = await convertDocumentTreeNetworkAssets("root", undefined, { globalDedup: false, preserveSourceUrls: false });
+
+    expect(result).toEqual({ documents: 1, downloaded: 1, reused: 0 });
+    expect(pluginData.loadData).not.toHaveBeenCalled();
+    expect(pluginData.saveData).not.toHaveBeenCalled();
   });
 });

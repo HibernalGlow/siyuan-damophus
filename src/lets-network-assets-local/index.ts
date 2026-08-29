@@ -1,9 +1,15 @@
 import { mount, unmount } from "svelte";
 import { expandDocTree, openTab, showMessage, type IEventBusMap } from "siyuan";
-import { convertNetworkAssetsToLocalStrict, removeDocByIdStrict } from "@/api";
+import { removeDocByIdStrict } from "@/api";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { plugin } from "@/utils";
-import { DEFAULT_NETWORK_ASSET_BLOCK_TYPES, hasRemoteResource } from "./network-assets-local";
+import {
+  convertSingleDocumentNetworkAssets,
+  DEFAULT_NETWORK_ASSET_BLOCK_TYPES,
+  hasRemoteResource,
+  resolveRootBlockId,
+  type NetworkAssetConversionOptions,
+} from "./network-assets-local";
 import NetworkAssetsLocalPreview from "./NetworkAssetsLocalPreview.svelte";
 import { networkAssetsLocalTabTarget, networkAssetsLocalTabType } from "./tab-contract";
 
@@ -52,6 +58,8 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
             labels: owner.labels(),
             blockTypes: owner.blockTypes(),
             defaultExcludedPattern: owner.excludedPattern(),
+            globalDedup: owner.globalDedup(),
+            preserveSourceUrls: owner.preserveSourceUrls(),
             onDocumentOpen: (id: string) => owner.openDocument(id),
             onDocumentLocate: (id: string) => owner.locateDocument(id),
             onDocumentDelete: (id: string) => owner.deleteDocument(id),
@@ -87,7 +95,16 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
 
   private async convertBlock(blockId: string): Promise<void> {
     try {
-      await convertNetworkAssetsToLocalStrict(blockId);
+      const documentId = await resolveRootBlockId(blockId);
+      const options: NetworkAssetConversionOptions = {
+        excludedPattern: this.excludedPattern(),
+        globalDedup: this.globalDedup(),
+        preserveSourceUrls: this.preserveSourceUrls(),
+      };
+      const result = await convertSingleDocumentNetworkAssets(documentId, options);
+      if (result.downloaded > 0 || result.reused > 0) {
+        showMessage(this.t("lets-network-assets-local.completed").replace("{count}", "1"), 4000);
+      }
     } catch {
       showMessage(this.t("lets-network-assets-local.failed"), 5000, "error");
     }
@@ -135,6 +152,14 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
     return this.getSetting("excludedPattern") ?? "";
   }
 
+  private globalDedup(): boolean {
+    return this.getSetting("globalDedup") !== false;
+  }
+
+  private preserveSourceUrls(): boolean {
+    return this.getSetting("preserveSourceUrls") !== false;
+  }
+
   private blockTypes(): string[] {
     const configured = this.getSetting("blockTypes");
     return Array.isArray(configured) && configured.every((value) => typeof value === "string")
@@ -158,6 +183,7 @@ export default class NetworkAssetsLocalPlugin extends SubPluginBase {
       running: translate("lets-network-assets-local.running"),
       progress: translate("lets-network-assets-local.progress"),
       completed: translate("lets-network-assets-local.previewCompleted"),
+      dedupSummary: translate("lets-network-assets-local.dedupSummary"),
       regex: translate("lets-network-assets-local.regex"),
       regexPlaceholder: translate("lets-network-assets-local.regexPlaceholder"),
       skipSelected: translate("lets-network-assets-local.skipSelected"),
