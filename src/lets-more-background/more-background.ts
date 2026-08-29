@@ -134,14 +134,15 @@ function clampPercent(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : fallback;
 }
 
-/** Read the vertical cover position from a SiYuan title-img declaration. */
+/** Read the vertical cover position from a title-img declaration or CSS value. */
 export function parseCoverPosition(value: unknown): number | null {
   const text = String(value ?? "")
     .replace(/&quot;|&#34;/gi, '"')
     .replace(/&amp;/gi, "&");
   const match = text.match(/(?:object|background)-position\s*:\s*(?:[^;\s]+\s+)?(-?\d+(?:\.\d+)?)\s*%/i);
-  if (!match) return null;
-  const parsed = Number(match[1]);
+  const valueMatch = match ?? [...text.matchAll(/(-?\d+(?:\.\d+)?)\s*%/g)].at(-1);
+  if (!valueMatch) return null;
+  const parsed = Number(valueMatch[1]);
   return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
 }
 

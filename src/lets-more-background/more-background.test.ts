@@ -31,6 +31,8 @@ import {
 describe("more-background sources utilities", () => {
   it("normalizes and serializes persisted cover positions", () => {
     expect(parseCoverPosition('background-image:url("cover.jpg");object-position:center 37.5%;')).toBe(37.5);
+    expect(parseCoverPosition("center 13.92%")).toBe(13.92);
+    expect(parseCoverPosition("50% 13.92%")).toBe(13.92);
     expect(parseCoverPosition("background-position: center -12%;")).toBe(0);
     expect(parseCoverPosition("background-position:center 24px;")).toBeNull();
     expect(normalizeCoverPosition("105")).toBe(100);
