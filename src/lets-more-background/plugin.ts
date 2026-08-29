@@ -120,6 +120,13 @@ export const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
+      type: "checkbox",
+      title: "lets-more-background.debugLoggingTitle",
+      description: "lets-more-background.debugLoggingDescription",
+      key: "debugLogging",
+      value: false,
+    },
+    {
       type: "select",
       title: "lets-more-background.toolbarPositionTitle",
       description: "lets-more-background.toolbarPositionDescription",

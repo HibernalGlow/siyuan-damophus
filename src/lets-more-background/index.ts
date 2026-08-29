@@ -1,5 +1,6 @@
 import { mount, unmount } from "svelte";
 import { getAllEditor, openTab, showMessage, type IEventBusMap, type Menu } from "siyuan";
+import { setScopeLogLevel } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 import { plugin } from "@/utils";
@@ -74,6 +75,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
             localCachePathTemplate: opts.localCachePathTemplate,
             localCacheMaxEdge: opts.localCacheMaxEdge,
             directDrag: opts.directDrag === true,
+            debugLogging: opts.debugLogging === true,
             toolbarPosition: opts.toolbarPosition ?? "belowIcon",
             toolbarCustomX: opts.toolbarCustomX ?? 50,
             toolbarCustomY: opts.toolbarCustomY ?? 15,
@@ -176,13 +178,19 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
   };
 
   override onload(): void {
+    this.syncLogging();
     void loadTagPoolsFromStorage();
   }
 
   onDataChanged(): void {
+    this.syncLogging();
     if (this.layoutReady && this.controller) {
       this.controller.updateOptions(this.buildOptions());
     }
+  }
+
+  private syncLogging(): void {
+    setScopeLogLevel("lets-more-background", this.getSetting("debugLogging") === true ? "debug" : undefined);
   }
 
   onLayoutReady(): void {
@@ -262,6 +270,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       localCachePathTemplate: (this.getSetting("localCachePathTemplate") || "{year}/{month}/{hash}.webp").toString(),
       localCacheMaxEdge: this.getSetting("localCacheMaxEdge") || "1920",
       directDrag: this.getSetting("directDrag") === true,
+      debugLogging: this.getSetting("debugLogging") === true,
       toolbarPosition: this.getSetting("toolbarPosition"),
       toolbarCustomX: Number(this.getSetting("toolbarCustomX")),
       toolbarCustomY: Number(this.getSetting("toolbarCustomY")),

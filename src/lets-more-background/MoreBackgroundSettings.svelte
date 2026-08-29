@@ -105,6 +105,7 @@
   export let localCachePathTemplate = "{year}/{month}/{hash}.webp";
   export let localCacheMaxEdge: "none" | "1280" | "1920" | "2560" = "1920";
   export let directDrag = false;
+  export let debugLogging = false;
   export let toolbarPosition: "adaptive" | "belowTags" | "belowIcon" | "native" | "custom" = "adaptive";
   export let toolbarCustomX = 50;
   export let toolbarCustomY = 15;
@@ -2023,6 +2024,17 @@
           <Switch
             checked={directDrag}
             onCheckedChange={(val) => handleBasicChange("directDrag", val)}
+          />
+        </div>
+
+        <div class="border-t border-border pt-3.5 sm:pt-4 flex items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-0.5">
+            <div class="font-medium text-foreground">{t("lets-more-background.debugLoggingTitle")}</div>
+            <p class="text-[11px] text-muted-foreground">{t("lets-more-background.debugLoggingDescription")}</p>
+          </div>
+          <Switch
+            checked={debugLogging}
+            onCheckedChange={(val) => handleBasicChange("debugLogging", val)}
           />
         </div>
 

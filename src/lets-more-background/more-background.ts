@@ -81,6 +81,7 @@ export interface MoreBackgroundOptions {
   localCachePathTemplate: string;
   localCacheMaxEdge: "none" | "1280" | "1920" | "2560";
   directDrag?: boolean;
+  debugLogging?: boolean;
   toolbarPosition?: CoverToolbarPosition;
   toolbarCustomX?: number;
   toolbarCustomY?: number;
@@ -2737,6 +2738,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     let positionObserverTimer: ReturnType<typeof setTimeout> | null = null;
     let saveQueue: Promise<void> = Promise.resolve();
+    let nativePositionActive = false;
 
     const savePositionToBlock = (positionPercent: number): void => {
       const blockId =
@@ -2795,9 +2797,15 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
     const scheduleNativePositionSave = () => {
       if (positionObserverTimer) clearTimeout(positionObserverTimer);
+      const cancelButton = background.querySelector<HTMLElement>('[data-type="cancel"]');
+      if (cancelButton && !cancelButton.classList.contains("fn__none")) nativePositionActive = true;
       log.debug("native position observer scheduled");
       positionObserverTimer = setTimeout(() => {
         positionObserverTimer = null;
+        if (nativePositionActive) {
+          log.debug("native position observer skipped while native drag is active");
+          return;
+        }
         const media = getMediaElement();
         const position = media ? parsePositionY(media) : null;
         log.debug("native position observer fired", { position });
@@ -2822,11 +2830,17 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         hasMedia: Boolean(media),
         cursor: media?.style.cursor || null,
         style: media?.getAttribute("style") || null,
+        nativePositionActive,
       });
-      if (!media || media.style.cursor !== "move") return;
+      if (!media || (!nativePositionActive && media.style.cursor !== "move")) return;
       const position = parsePositionY(media);
       log.info("native mouseup position parsed", { position });
-      setTimeout(() => savePositionToBlock(position), 0);
+      if (positionObserverTimer) {
+        clearTimeout(positionObserverTimer);
+        positionObserverTimer = null;
+      }
+      nativePositionActive = false;
+      savePositionToBlock(position);
     };
     document.addEventListener("mouseup", handleNativePositionMouseUp, true);
 
@@ -2853,9 +2867,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       const target = event.target as HTMLElement | null;
       if (target?.closest('[data-type="position"]')) {
         log.debug("native position button clicked");
+        nativePositionActive = true;
         restoreNativeToolbar();
       } else if (target?.closest('[data-type="cancel"], [data-type="confirm"]')) {
         log.debug("native position action clicked", { type: target.closest<HTMLElement>("[data-type]")?.getAttribute("data-type") });
+        nativePositionActive = false;
         setTimeout(restoreConfiguredToolbar, 0);
       }
     };

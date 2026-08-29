@@ -22,6 +22,7 @@ describe("lets-more-background plugin metadata", () => {
     expect(keys).toContain("localCachePathTemplate");
     expect(keys).toContain("localCacheMaxEdge");
     expect(keys).toContain("directDrag");
+    expect(keys).toContain("debugLogging");
     expect(keys).toContain("toolbarPosition");
     expect(keys).toContain("toolbarCustomX");
     expect(keys).toContain("toolbarCustomY");
