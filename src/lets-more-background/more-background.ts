@@ -1041,43 +1041,67 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const blockId =
       background.getAttribute("data-node-id") ||
       background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
-    if (!blockId || !background.isConnected) return;
+    if (!blockId || !background.isConnected) {
+      log.debug("restore position skipped", { blockId, connected: background.isConnected });
+      return;
+    }
     try {
+      log.debug("restore position: reading attrs", { blockId });
       const response = await fetch("/api/attr/getBlockAttrs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: blockId }),
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        log.warn("restore position: attr read failed", { blockId, status: response.status });
+        return;
+      }
       const data = await response.json();
       const attrs = (data?.data || {}) as Record<string, string>;
       const position = normalizeCoverPosition(attrs[COVER_POSITION_ATTRIBUTE]) ?? parseCoverPosition(
         attrs["title-img"] || attrs["custom-title-img"],
       );
+      log.debug("restore position: attrs received", {
+        blockId,
+        storedPosition: attrs[COVER_POSITION_ATTRIBUTE] ?? null,
+        titleImg: attrs["title-img"] ?? null,
+        parsedPosition: position,
+      });
       if (position === null) return;
       const media = [...background.querySelectorAll<HTMLElement>(
         ".protyle-background__img img, .protyle-background__video",
       )];
-      if (media.length === 0) return;
+      if (media.length === 0) {
+        log.warn("restore position: media not found", { blockId });
+        return;
+      }
       const objectPosition = `center ${Number(position.toFixed(2))}%`;
       media.forEach((element) => { element.style.objectPosition = objectPosition; });
+      log.info("restore position: applied", { blockId, position, mediaCount: media.length });
       if (attrs[COVER_POSITION_ATTRIBUTE] !== serializeCoverPosition(position)) {
         await this.persistCoverPosition(blockId, position);
       }
     } catch (error) {
-      log.debug("Failed to restore cover position:", error);
+      log.error("restore position failed", { blockId, error });
     }
   }
 
   private async persistCoverPosition(blockId: string, position: number): Promise<void> {
     const serialized = serializeCoverPosition(position);
     if (serialized === null) return;
-    const response = await fetch("/api/attr/setBlockAttrs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: blockId, attrs: { [COVER_POSITION_ATTRIBUTE]: serialized } }),
-    });
-    await assertAttrWriteSucceeded(response);
+    log.info("persist position: writing attr", { blockId, position, serialized });
+    try {
+      const response = await fetch("/api/attr/setBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: blockId, attrs: { [COVER_POSITION_ATTRIBUTE]: serialized } }),
+      });
+      await assertAttrWriteSucceeded(response);
+      log.info("persist position: write succeeded", { blockId, position, status: response.status });
+    } catch (error) {
+      log.error("persist position: write failed", { blockId, position, error });
+      throw error;
+    }
   }
 
   disposeRoot(root: HTMLElement): void {
@@ -2720,10 +2744,17 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
         background.closest(".protyle")?.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id");
 
-      if (!blockId) return;
+      if (!blockId) {
+        log.warn("save position skipped: block id missing");
+        return;
+      }
 
       const serialized = serializeCoverPosition(positionPercent);
-      if (serialized === null) return;
+      if (serialized === null) {
+        log.warn("save position skipped: invalid position", { blockId, positionPercent });
+        return;
+      }
+      log.debug("save position queued", { blockId, positionPercent, serialized });
       saveQueue = saveQueue.then(async () => {
         const attrs: Record<string, string> = { [COVER_POSITION_ATTRIBUTE]: serialized };
         // Native SiYuan confirmation can persist the currently rendered blob URL.
@@ -2736,30 +2767,40 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           });
           const data = await response.json();
           const current = (data?.data || {}) as Record<string, string>;
+          log.debug("save position: current attrs read", {
+            blockId,
+            titleImg: current["title-img"] ?? null,
+            sourceUrl: current[COVER_SOURCE_ATTRIBUTE] ?? null,
+            cachePath: current[COVER_CACHE_ATTRIBUTE] ?? null,
+          });
           if (/url\(\s*[\"']?blob:/i.test(current["title-img"] || "")) {
             const stable = (current[COVER_SOURCE_ATTRIBUTE] || current[COVER_CACHE_ATTRIBUTE] || "").trim();
             if (stable) attrs["title-img"] = `background-image:url("${stable.replace(/\"/g, "%22")}")`;
           }
         } catch (error) {
-          log.debug("Failed to inspect cover address while saving position:", error);
+          log.warn("save position: current attr read failed", { blockId, error });
         }
+        log.info("save position: writing attrs", { blockId, attrs });
         const response = await fetch("/api/attr/setBlockAttrs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: blockId, attrs }),
         });
         await assertAttrWriteSucceeded(response);
+        log.info("save position: write succeeded", { blockId, position: serialized, status: response.status });
       }).catch((error) => {
-        log.error("Failed to save cover position:", error);
+        log.error("save position failed", { blockId, position: serialized, error });
       });
     };
 
     const scheduleNativePositionSave = () => {
       if (positionObserverTimer) clearTimeout(positionObserverTimer);
+      log.debug("native position observer scheduled");
       positionObserverTimer = setTimeout(() => {
         positionObserverTimer = null;
         const media = getMediaElement();
         const position = media ? parsePositionY(media) : null;
+        log.debug("native position observer fired", { position });
         if (position !== null) savePositionToBlock(position);
       }, 450);
     };
@@ -2777,8 +2818,14 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     // its cursor and persist the final rendered position explicitly.
     const handleNativePositionMouseUp = () => {
       const media = getMediaElement();
+      log.debug("native mouseup captured", {
+        hasMedia: Boolean(media),
+        cursor: media?.style.cursor || null,
+        style: media?.getAttribute("style") || null,
+      });
       if (!media || media.style.cursor !== "move") return;
       const position = parsePositionY(media);
+      log.info("native mouseup position parsed", { position });
       setTimeout(() => savePositionToBlock(position), 0);
     };
     document.addEventListener("mouseup", handleNativePositionMouseUp, true);
@@ -2805,8 +2852,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const handleNativeToolbarClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest('[data-type="position"]')) {
+        log.debug("native position button clicked");
         restoreNativeToolbar();
       } else if (target?.closest('[data-type="cancel"], [data-type="confirm"]')) {
+        log.debug("native position action clicked", { type: target.closest<HTMLElement>("[data-type]")?.getAttribute("data-type") });
         setTimeout(restoreConfiguredToolbar, 0);
       }
     };
@@ -2929,12 +2978,13 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         background.style.cursor = "";
         document.body.style.cursor = "";
 
-        if (isDragging) {
+      if (isDragging) {
           isDragging = false;
           isLongPressActive = false;
           upEvent.preventDefault();
           upEvent.stopPropagation();
 
+          log.info("custom drag finished", { position: currentPositionY });
           savePositionToBlock(currentPositionY);
           hideHUD(800);
         }
