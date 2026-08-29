@@ -52,6 +52,7 @@ const SYNCIGNORE_PATH = "/data/.siyuan/syncignore";
 const LOCAL_CACHE_INDEX_NAME = "index.json";
 const COVER_SOURCE_ATTRIBUTE = "custom-damophus-cover-source-url";
 const COVER_CACHE_ATTRIBUTE = "custom-damophus-cover-cache-path";
+export const COVER_POSITION_ATTRIBUTE = "custom-damophus-cover-position";
 const FAVORITE_BUTTON_ATTR = "data-damophus-cover-favorite";
 const FAVORITES_CHANGED_EVENT = "damophus-cover-favorites-changed";
 const objectUrls = new WeakMap<HTMLImageElement, string>();
@@ -130,6 +131,35 @@ const coverLayoutCss = `
 function clampPercent(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : fallback;
+}
+
+/** Read the vertical cover position from a SiYuan title-img declaration. */
+export function parseCoverPosition(value: unknown): number | null {
+  const text = String(value ?? "")
+    .replace(/&quot;|&#34;/gi, '"')
+    .replace(/&amp;/gi, "&");
+  const match = text.match(/(?:object|background)-position\s*:\s*(?:[^;\s]+\s+)?(-?\d+(?:\.\d+)?)\s*%/i);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+}
+
+export function normalizeCoverPosition(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+}
+
+export function serializeCoverPosition(value: unknown): string | null {
+  const normalized = normalizeCoverPosition(value);
+  return normalized === null ? null : String(Number(normalized.toFixed(2)));
+}
+
+async function assertAttrWriteSucceeded(response: Response): Promise<void> {
+  let body: { code?: number } | null = null;
+  try { body = await response.json() as { code?: number }; } catch { /* some test hosts return an empty body */ }
+  if (response.ok === false || (typeof body?.code === "number" && body.code !== 0)) {
+    throw new Error(`setBlockAttrs failed (${body?.code ?? response.status})`);
+  }
 }
 
 export function applyCoverLayout(root: HTMLElement, options: Pick<MoreBackgroundOptions,
@@ -966,7 +996,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     // 1. 初始化标题栏与题头图控制按钮
     const coverControlsCleanup = this.initTitleCoverControls(root);
     cleanups.push(coverControlsCleanup);
-    void this.hydrateLocalCache(root);
+    void this.hydrateLocalCache(root).finally(() => {
+      const background = root.querySelector<HTMLElement>(".protyle-background");
+      if (background) void this.restoreCoverPosition(background);
+    });
     cleanups.push(() => this.releaseLocalCache(root));
 
     // 2. 初始化视频背景与题头图多合一位置调整 (Alt拖拽/长按/滚轮/直接拖)
@@ -978,6 +1011,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       cleanups.push(cacheReconcileCleanup);
       const posCleanup = this.initCoverPositionControls(background);
       cleanups.push(posCleanup);
+      void this.restoreCoverPosition(background);
       const tagOverlayCleanup = this.initCoverTagOverlay(root);
       cleanups.push(tagOverlayCleanup);
     }
@@ -1001,6 +1035,49 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         }
       }
     });
+  }
+
+  private async restoreCoverPosition(background: HTMLElement): Promise<void> {
+    const blockId =
+      background.getAttribute("data-node-id") ||
+      background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
+    if (!blockId || !background.isConnected) return;
+    try {
+      const response = await fetch("/api/attr/getBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: blockId }),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const attrs = (data?.data || {}) as Record<string, string>;
+      const position = normalizeCoverPosition(attrs[COVER_POSITION_ATTRIBUTE]) ?? parseCoverPosition(
+        attrs["title-img"] || attrs["custom-title-img"],
+      );
+      if (position === null) return;
+      const media = [...background.querySelectorAll<HTMLElement>(
+        ".protyle-background__img img, .protyle-background__video",
+      )];
+      if (media.length === 0) return;
+      const objectPosition = `center ${Number(position.toFixed(2))}%`;
+      media.forEach((element) => { element.style.objectPosition = objectPosition; });
+      if (attrs[COVER_POSITION_ATTRIBUTE] !== serializeCoverPosition(position)) {
+        await this.persistCoverPosition(blockId, position);
+      }
+    } catch (error) {
+      log.debug("Failed to restore cover position:", error);
+    }
+  }
+
+  private async persistCoverPosition(blockId: string, position: number): Promise<void> {
+    const serialized = serializeCoverPosition(position);
+    if (serialized === null) return;
+    const response = await fetch("/api/attr/setBlockAttrs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: blockId, attrs: { [COVER_POSITION_ATTRIBUTE]: serialized } }),
+    });
+    await assertAttrWriteSucceeded(response);
   }
 
   disposeRoot(root: HTMLElement): void {
@@ -2268,6 +2345,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const attrs: Record<string, string> = {
       "title-img": nextTitleImg,
     };
+    if (!previousTitleImg || coverReplaced) attrs[COVER_POSITION_ATTRIBUTE] = "";
     if (originalSourceUrl) {
       attrs[COVER_SOURCE_ATTRIBUTE] = originalSourceUrl;
     } else if (previousSourceUrl) {
@@ -2297,6 +2375,9 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         attrs,
       }),
     });
+    // Re-apply the document's independent position after replacing the cover.
+    // A same-image refresh keeps the position; a genuinely new image cleared it above.
+    setTimeout(() => { void this.restoreCoverPosition(background); }, 0);
 
     // 更换题头图后清理旧封面在本设备的缓存文件
     if (this.options.purgeCacheOnCoverChange && sourceChanged && previousCachePath && previousCachePath !== cachePath) {
@@ -2569,10 +2650,13 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
 
     const parsePositionY = (el: HTMLElement): number => {
-      const pos = el.style.objectPosition || "";
-      if (!pos) return 50;
-      const match = pos.match(/(\d+(?:\.\d+)?)%/);
-      if (match) return parseFloat(match[1]);
+      const percent = parseCoverPosition(el.style.objectPosition);
+      if (percent !== null) return percent;
+      const pixelMatch = el.style.objectPosition.match(/(?:center\s+)?(-?\d+(?:\.\d+)?)px/i);
+      if (pixelMatch && el instanceof HTMLImageElement && el.naturalWidth > 0) {
+        const overflow = el.naturalHeight * (el.clientWidth / el.naturalWidth) - el.clientHeight;
+        if (overflow > 0) return Math.max(0, Math.min(100, -Number(pixelMatch[1]) / overflow * 100));
+      }
       return 50;
     };
 
@@ -2627,7 +2711,12 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }, delay);
     };
 
-    const savePositionToBlock = async (positionPercent: number) => {
+    let positionObserverTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastSavedPosition = "";
+
+    let saveQueue: Promise<void> = Promise.resolve();
+
+    const savePositionToBlock = (positionPercent: number): void => {
       const blockId =
         background.getAttribute("data-node-id") ||
         background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
@@ -2635,60 +2724,65 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
       if (!blockId) return;
 
-      const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
-      const video = background.querySelector<HTMLVideoElement>(".protyle-background__video");
-      const src = img?.dataset.damophusOriginalUrl
-        || img?.getAttribute("src")
-        || img?.src
-        || video?.getAttribute("src")
-        || video?.src
-        || "";
-      if (!src) return;
-
-      let cleanSrc = src.trim();
-      if (!cleanSrc.startsWith("data:") && !cleanSrc.startsWith("http://") && !cleanSrc.startsWith("https://")) {
-        cleanSrc = cleanSrc.replace(/^\/+/, "");
-      }
-
-      const clampedVal = Math.max(0, Math.min(100, positionPercent)).toFixed(2);
-      const titleImgAttr = `background-image:url("${cleanSrc}");object-position:center ${clampedVal}%;`;
-
-      const attrs: Record<string, string> = {
-        "title-img": titleImgAttr,
-      };
-
-      const tags = background.getAttribute("data-damophus-post-tags");
-      if (tags) attrs["custom-damophus-post-tags"] = tags;
-      const site = background.getAttribute("data-damophus-post-site");
-      if (site) attrs["custom-damophus-post-site"] = site;
-      const postId = background.getAttribute("data-damophus-post-id");
-      if (postId) attrs["custom-damophus-post-id"] = postId;
-      const postUrl = background.getAttribute("data-damophus-post-url");
-      if (postUrl) attrs["custom-damophus-post-url"] = postUrl;
-      const score = background.getAttribute("data-damophus-post-score");
-      if (score) attrs["custom-damophus-post-score"] = score;
-      const dimensions = background.getAttribute("data-damophus-post-dimensions");
-      if (dimensions) attrs["custom-damophus-post-dimensions"] = dimensions;
-
-      try {
-        await fetch("/api/attr/setBlockAttrs", {
+      const serialized = serializeCoverPosition(positionPercent);
+      if (serialized === null || serialized === lastSavedPosition) return;
+      saveQueue = saveQueue.then(async () => {
+        if (serialized === lastSavedPosition) return;
+        const attrs: Record<string, string> = { [COVER_POSITION_ATTRIBUTE]: serialized };
+        // Native SiYuan confirmation can persist the currently rendered blob URL.
+        // Repair that address while saving the position so the next device can load it.
+        try {
+          const response = await fetch("/api/attr/getBlockAttrs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: blockId }),
+          });
+          const data = await response.json();
+          const current = (data?.data || {}) as Record<string, string>;
+          if (/url\(\s*[\"']?blob:/i.test(current["title-img"] || "")) {
+            const stable = (current[COVER_SOURCE_ATTRIBUTE] || current[COVER_CACHE_ATTRIBUTE] || "").trim();
+            if (stable) attrs["title-img"] = `background-image:url("${stable.replace(/\"/g, "%22")}")`;
+          }
+        } catch (error) {
+          log.debug("Failed to inspect cover address while saving position:", error);
+        }
+        const response = await fetch("/api/attr/setBlockAttrs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: blockId,
-            attrs,
-          }),
+          body: JSON.stringify({ id: blockId, attrs }),
         });
-      } catch (e) {
-        log.error("Failed to save cover position:", e);
-      }
+        await assertAttrWriteSucceeded(response);
+        lastSavedPosition = serialized;
+      }).catch((error) => {
+        log.error("Failed to save cover position:", error);
+      });
     };
+
+    const scheduleNativePositionSave = () => {
+      if (positionObserverTimer) clearTimeout(positionObserverTimer);
+      positionObserverTimer = setTimeout(() => {
+        positionObserverTimer = null;
+        const media = getMediaElement();
+        const position = media ? parsePositionY(media) : null;
+        if (position !== null) savePositionToBlock(position);
+      }, 450);
+    };
+
+    const positionObserver = new MutationObserver((records) => {
+      if (records.some((record) => record.attributeName === "style")) scheduleNativePositionSave();
+    });
+    const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+    const video = background.querySelector<HTMLVideoElement>(".protyle-background__video");
+    image && positionObserver.observe(image, { attributes: true, attributeFilter: ["style"] });
+    video && positionObserver.observe(video, { attributes: true, attributeFilter: ["style"] });
 
     // 鼠标悬停及按键响应
     const handleMouseMoveOrKey = (e: MouseEvent | KeyboardEvent) => {
       if (isDragging) return;
       const media = getMediaElement();
       if (!media) return;
+      // Let SiYuan's native confirm/cancel position mode own the gesture.
+      if (media.style.cursor === "move") return;
       if (e.altKey || this.options.directDrag) {
         background.style.cursor = "grab";
       } else {
@@ -2723,7 +2817,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
       if (wheelSaveTimer) clearTimeout(wheelSaveTimer);
       wheelSaveTimer = setTimeout(() => {
-        void savePositionToBlock(currentPositionY);
+        savePositionToBlock(currentPositionY);
         hideHUD(800);
       }, 400);
     };
@@ -2739,6 +2833,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
       const media = getMediaElement();
       if (!media) return;
+      if (media.style.cursor === "move") return;
 
       startX = e.clientX;
       startY = e.clientY;
@@ -2804,7 +2899,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           upEvent.preventDefault();
           upEvent.stopPropagation();
 
-          void savePositionToBlock(currentPositionY);
+          savePositionToBlock(currentPositionY);
           hideHUD(800);
         }
       };
@@ -2821,6 +2916,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     return () => {
       if (longPressTimer) clearTimeout(longPressTimer);
       if (wheelSaveTimer) clearTimeout(wheelSaveTimer);
+      if (positionObserverTimer) clearTimeout(positionObserverTimer);
+      positionObserver.disconnect();
       background.removeEventListener("mousedown", handleMouseDown);
       background.removeEventListener("wheel", handleWheel);
       background.removeEventListener("mousemove", handleMouseMoveOrKey);
