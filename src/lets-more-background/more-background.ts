@@ -2676,20 +2676,27 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
 
     const parsePositionY = (el: HTMLElement): number => {
-      const inlineObjectPosition = el.style.objectPosition;
+      const styleAttribute = el.getAttribute("style") || "";
+      const styleAttributeObjectPosition = styleAttribute.match(
+        /(?:^|;)\s*object-position\s*:\s*([^;]+)/i,
+      )?.[1]?.trim() || "";
+      const inlineObjectPosition = el.style.getPropertyValue("object-position") || el.style.objectPosition;
       const computedObjectPosition = typeof getComputedStyle === "function"
         ? getComputedStyle(el).objectPosition
         : "";
-      const cssValue = inlineObjectPosition || computedObjectPosition;
-      const cssPercentValues = [...cssValue.matchAll(/(-?\d+(?:\.\d+)?)\s*%/g)];
-      const percent = cssPercentValues.length > 0
-        ? normalizeCoverPosition(cssPercentValues.at(-1)?.[1])
-        : parseCoverPosition(cssValue);
-      if (percent !== null) return percent;
-      const pixelMatch = cssValue.match(/(?:center\s+)?(-?\d+(?:\.\d+)?)px/i);
-      if (pixelMatch && el instanceof HTMLImageElement && el.naturalWidth > 0) {
-        const overflow = el.naturalHeight * (el.clientWidth / el.naturalWidth) - el.clientHeight;
-        if (overflow > 0) return Math.max(0, Math.min(100, -Number(pixelMatch[1]) / overflow * 100));
+      const cssValues = [styleAttributeObjectPosition, inlineObjectPosition, computedObjectPosition]
+        .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index);
+      for (const cssValue of cssValues) {
+        const cssPercentValues = [...cssValue.matchAll(/(-?\d+(?:\.\d+)?)\s*%/g)];
+        const percent = cssPercentValues.length > 0
+          ? normalizeCoverPosition(cssPercentValues.at(-1)?.[1])
+          : parseCoverPosition(cssValue);
+        if (percent !== null) return percent;
+        const pixelMatch = cssValue.match(/(?:center\s+)?(-?\d+(?:\.\d+)?)px/i);
+        if (pixelMatch && el instanceof HTMLImageElement && el.naturalWidth > 0) {
+          const overflow = el.naturalHeight * (el.clientWidth / el.naturalWidth) - el.clientHeight;
+          if (overflow > 0) return Math.max(0, Math.min(100, -Number(pixelMatch[1]) / overflow * 100));
+        }
       }
       return 50;
     };
@@ -2845,6 +2852,9 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       const position = parsePositionY(media);
       log.info("native mouseup position parsed", {
         position,
+        styleAttributeObjectPosition: media.getAttribute("style")?.match(
+          /(?:^|;)\s*object-position\s*:\s*([^;]+)/i,
+        )?.[1]?.trim() || null,
         inlineObjectPosition: media.style.objectPosition || null,
         computedObjectPosition: typeof getComputedStyle === "function" ? getComputedStyle(media).objectPosition : null,
       });
