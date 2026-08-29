@@ -2,14 +2,9 @@ export async function fetchSyncPost(): Promise<{ code: number; data: unknown; ms
   return { code: 0, data: undefined, msg: "" };
 }
 
-export async function fetchPost(): Promise<{ code: number; data: unknown; msg: string }> {
-  return { code: 0, data: undefined, msg: "" };
-}
-
 export class Dialog {}
 export class Menu {}
 export class Plugin {}
-export class Protyle {}
 export class ProtyleMethod {
   static highlightRender(): void {}
   static mathRender(): void {}
@@ -38,17 +33,3 @@ export function getFrontend(): string {
 export function getAllEditor(): never[] {
   return [];
 }
-
-export function getAllTabs(): never[] {
-  return [];
-}
-
-export function getActiveTab(): undefined {
-  return undefined;
-}
-
-export function getOpenTabs(): never[] {
-  return [];
-}
-
-export async function openMobileFileById(): Promise<void> {}

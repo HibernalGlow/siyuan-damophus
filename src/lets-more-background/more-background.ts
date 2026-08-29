@@ -52,7 +52,6 @@ const SYNCIGNORE_PATH = "/data/.siyuan/syncignore";
 const LOCAL_CACHE_INDEX_NAME = "index.json";
 const COVER_SOURCE_ATTRIBUTE = "custom-damophus-cover-source-url";
 const COVER_CACHE_ATTRIBUTE = "custom-damophus-cover-cache-path";
-const COVER_POSITION_ATTRIBUTE = "custom-damophus-cover-position";
 const FAVORITE_BUTTON_ATTR = "data-damophus-cover-favorite";
 const FAVORITES_CHANGED_EVENT = "damophus-cover-favorites-changed";
 const objectUrls = new WeakMap<HTMLImageElement, string>();
@@ -81,7 +80,6 @@ export interface MoreBackgroundOptions {
   localCachePathTemplate: string;
   localCacheMaxEdge: "none" | "1280" | "1920" | "2560";
   directDrag?: boolean;
-  coverPositionSync?: boolean;
   toolbarPosition?: CoverToolbarPosition;
   toolbarCustomX?: number;
   toolbarCustomY?: number;
@@ -438,100 +436,12 @@ async function loadDedupCoverUrls(background?: HTMLElement): Promise<Set<string>
   return urls;
 }
 
-function displayLocalCache(image: HTMLImageElement, blob: Blob, stableUrl?: string): void {
+function displayLocalCache(image: HTMLImageElement, blob: Blob): void {
   const previous = objectUrls.get(image);
   if (previous) URL.revokeObjectURL(previous);
   const objectUrl = URL.createObjectURL(blob);
   objectUrls.set(image, objectUrl);
   image.src = objectUrl;
-  if (stableUrl) image.dataset.damophusOriginalUrl = stableUrl;
-}
-
-export type CoverUrlKind = "asset" | "remote" | "blob" | "data";
-
-export interface ParsedTitleImg {
-  url: string | null;
-  urlKind: CoverUrlKind | null;
-  /** 百分比形式的 object-position（如 `center 42.5%`），无则为 null */
-  positionPercent: number | null;
-  /** 原始 position 声明（含 legacy 的 px 写法），无则为 null */
-  positionRaw: string | null;
-}
-
-function classifyCoverUrl(url: string): CoverUrlKind {
-  if (/^blob:/i.test(url)) return "blob";
-  if (/^(?:data|file):/i.test(url)) return "data";
-  if (/^https?:\/\//i.test(url)) return "remote";
-  return "asset";
-}
-
-/** 解析 `title-img` 属性值（`background-image:url(...);object-position:center X%;` 及 legacy 写法） */
-export function parseTitleImg(value: string | undefined | null): ParsedTitleImg {
-  const source = String(value || "").trim();
-  if (!source) return { url: null, urlKind: null, positionPercent: null, positionRaw: null };
-
-  const decoded = source
-    .replace(/&quot;|&#34;/gi, '"')
-    .replace(/&apos;|&#39;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&amp;/gi, "&");
-  const urlMatch = decoded.match(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/i);
-  const url = (urlMatch?.[1] || urlMatch?.[2] || urlMatch?.[3] || "").trim();
-
-  let positionRaw: string | null = null;
-  let positionPercent: number | null = null;
-  const positionMatch = decoded.match(/(?:object|background)-position\s*:\s*([^;]+)/i);
-  if (positionMatch) {
-    positionRaw = positionMatch[1].trim() || null;
-    if (positionRaw) {
-      const percentMatch = positionRaw.match(/(-?\d+(?:\.\d+)?)\s*%/);
-      if (percentMatch) {
-        positionPercent = Math.max(0, Math.min(100, parseFloat(percentMatch[1])));
-      } else {
-        positionPercent = null;
-      }
-    }
-  }
-
-  return {
-    url: url || null,
-    urlKind: url ? classifyCoverUrl(url) : null,
-    positionPercent,
-    positionRaw,
-  };
-}
-
-/** 反向生成 `title-img` 属性值；position 为 null 时不带位置声明 */
-export function buildTitleImgAttr(
-  url: string,
-  positionPercent?: number | null,
-  positionRaw?: string | null,
-): string {
-  const safeUrl = url.replace(/"/g, "%22");
-  let attr = `background-image:url("${safeUrl}")`;
-  if (typeof positionPercent === "number" && Number.isFinite(positionPercent)) {
-    const clamped = Math.max(0, Math.min(100, positionPercent));
-    attr += `;object-position:center ${Number(clamped.toFixed(2))}%`;
-  } else if (positionRaw) {
-    attr += `;object-position:${positionRaw}`;
-  }
-  return attr;
-}
-
-export function normalizeCoverPositionValue(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : parseFloat(String(value ?? ""));
-  if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, Math.min(100, parsed));
-}
-
-/** 把百分比位置同步应用到题头图 img（以及存在时的视频背景）上 */
-function applyCoverObjectPosition(background: HTMLElement, percent: number): void {
-  const val = `center ${Number(percent.toFixed(2))}%`;
-  const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
-  if (img) img.style.objectPosition = val;
-  const video = background.querySelector<HTMLVideoElement>("video.protyle-background__video");
-  if (video) video.style.objectPosition = val;
 }
 
 async function detectImageTypeAndName(blob: Blob): Promise<{ type: string; name: string }> {
@@ -970,8 +880,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
   }
 
   private async reconcileCoverCache(background: HTMLElement): Promise<void> {
-    // blob/data 污染检测与 localCache 开关解耦：官方"确认"位置会把会话 blob 写进 title-img，
-    // 无论是否开启本地缓存都必须自愈，否则重启后封面变死链。
+    if (!this.options.localCache) return;
     if (!background.isConnected) return;
     const blockId =
       background.getAttribute("data-node-id") ||
@@ -985,21 +894,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       });
       const data = await response.json();
       const attrs = (data?.data || {}) as Record<string, string>;
-      const titleImage = attrs["title-img"] || "";
-      // blob:/data: 是显示层痕迹（官方“确认”位置会把会话 blob src 写进 title-img），
-      // 不代表用户更换了封面：交给位置状态逻辑自愈，绝不能因此清空元数据或删缓存。
-      // 检测放在 localCache/元数据检查之前，官方路径的污染始终能被捕获。
-      const parsedTitle = parseTitleImg(titleImage);
-      if (parsedTitle.urlKind === "blob" || parsedTitle.urlKind === "data") {
-        if (this.options.coverPositionSync !== false) {
-          await this.applyCoverPositionState(background, attrs);
-        }
-        return;
-      }
-      if (!this.options.localCache) return;
       const sourceUrl = attrs[COVER_SOURCE_ATTRIBUTE] || "";
       const cachePath = attrs[COVER_CACHE_ATTRIBUTE] || "";
       if (!sourceUrl && !cachePath) return;
+      const titleImage = attrs["title-img"] || "";
       const titleUrl = normalizeCoverUrl(titleImage);
       const sourceNorm = normalizeCoverUrl(sourceUrl);
       const titleAssetPath = normalizeCoverAssetPath(titleImage);
@@ -1015,7 +913,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           attrs: {
             [COVER_SOURCE_ATTRIBUTE]: "",
             [COVER_CACHE_ATTRIBUTE]: "",
-            [COVER_POSITION_ATTRIBUTE]: "",
             "custom-damophus-post-tags": "",
             "custom-damophus-post-site": "",
             "custom-damophus-post-id": "",
@@ -1031,124 +928,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }
     } catch (error) {
       log.debug("Failed to reconcile cover cache:", error);
-    }
-  }
-
-  /**
-   * 题头图位置状态对账（打开文档、src 变动后都会调用），规则：
-   * - title-img 带稳定地址 + 百分比位置（官方记忆有效）：镜像位置到块属性，保证跨设备同步；
-   * - title-img 缺位置但块属性有：用块属性回填显示，并统一写回 title-img（其他设备同样受益）；
-   * - title-img 被写入了会话 blob:（官方“确认”或旧版拖拽所致）：用源地址/缓存路径自愈并保留位置。
-   */
-  private async applyCoverPositionState(background: HTMLElement, attrs: Record<string, string>): Promise<void> {
-    if (this.options.coverPositionSync === false) return;
-    if (!background.isConnected) return;
-    const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
-    if (!img) return;
-    const blockId =
-      background.getAttribute("data-node-id") ||
-      background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
-    if (!blockId) return;
-
-    const parsed = parseTitleImg(attrs["title-img"] || "");
-    const attrPos = normalizeCoverPositionValue(attrs[COVER_POSITION_ATTRIBUTE]);
-    const updates: Record<string, string> = {};
-    let rewriteTitleImg = false;
-
-    if (parsed.urlKind === "blob") {
-      // title-img 一旦是 blob 就必须自愈：可能是官方"确认"写入的新 blob
-      //（官方 render 用它重载 img 后不再等于插件 objectUrls 存的地址），也可能是旧版插件数据。
-      const healedUrl =
-        (attrs[COVER_SOURCE_ATTRIBUTE] || "").trim() || (attrs[COVER_CACHE_ATTRIBUTE] || "").trim();
-      if (healedUrl && healedUrl !== parsed.url) {
-        updates["title-img"] = buildTitleImgAttr(healedUrl, parsed.positionPercent, parsed.positionRaw);
-        rewriteTitleImg = true;
-        if (
-          typeof parsed.positionPercent === "number" &&
-          (attrPos === null || Math.abs(attrPos - parsed.positionPercent) > 0.005)
-        ) {
-          updates[COVER_POSITION_ATTRIBUTE] = String(Number(parsed.positionPercent.toFixed(2)));
-        }
-      }
-    } else if (parsed.urlKind === "asset" || parsed.urlKind === "remote") {
-      if (typeof parsed.positionPercent === "number") {
-        if (attrPos === null || Math.abs(attrPos - parsed.positionPercent) > 0.005) {
-          updates[COVER_POSITION_ATTRIBUTE] = String(Number(parsed.positionPercent.toFixed(2)));
-        }
-      } else if (!parsed.positionRaw && attrPos !== null) {
-        applyCoverObjectPosition(background, attrPos);
-        const desired = buildTitleImgAttr(parsed.url!, attrPos);
-        if (desired !== (attrs["title-img"] || "").trim()) {
-          updates["title-img"] = desired;
-          rewriteTitleImg = true;
-        }
-      }
-      // legacy px 位置（positionRaw 有值）由官方 render 自行处理，不干预
-    }
-    // data:（base64 直存）不动
-
-    if (Object.keys(updates).length === 0) return;
-    try {
-      await fetch("/api/attr/setBlockAttrs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: blockId, attrs: updates }),
-      });
-    } catch (error) {
-      log.debug("Failed to sync cover position attrs:", error);
-      return;
-    }
-    if (rewriteTitleImg) {
-      // title-img 重写会让官方 render 改用稳定地址重载 src；延迟把显示切回本地缓存
-      const stableUrl = updates["title-img"] ? parseTitleImg(updates["title-img"]).url! : "";
-      setTimeout(() => {
-        void this.redisplayCoverFromCache(background, attrs, stableUrl);
-      }, 400);
-    }
-  }
-
-  /** title-img 被重写为稳定地址后，若本地缓存可用则继续用缓存显示，避免回落到在线加载 */
-  private async redisplayCoverFromCache(
-    background: HTMLElement,
-    attrs: Record<string, string>,
-    stableUrl: string,
-  ): Promise<void> {
-    if (!this.options.localCache) return;
-    if (!background.isConnected) return;
-    const cachePath = (attrs[COVER_CACHE_ATTRIBUTE] || "").trim();
-    if (!cachePath) return;
-    const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
-    if (!img) return;
-    const src = img.getAttribute("src") || "";
-    // 只接管本插件的 blob 显示或刚被官方 render 换成稳定地址的同一张图，避免覆盖用户新设置的封面
-    if (!/^blob:/i.test(src) && src !== stableUrl) return;
-    try {
-      const cached = await readLocalCache(cachePath);
-      if (cached) displayLocalCache(img, cached, stableUrl);
-    } catch (error) {
-      log.debug("Failed to redisplay cover from local cache:", error);
-    }
-  }
-
-  /** 打开文档时从块属性恢复题头图位置（不依赖本地缓存开关） */
-  private async restoreCoverPosition(root: HTMLElement): Promise<void> {
-    const background = root.querySelector<HTMLElement>(".protyle-background");
-    if (!background || !background.isConnected) return;
-    const blockId =
-      background.getAttribute("data-node-id") ||
-      root.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
-    if (!blockId) return;
-    try {
-      const response = await fetch("/api/attr/getBlockAttrs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: blockId }),
-      });
-      const data = await response.json();
-      const attrs = (data?.data || {}) as Record<string, string>;
-      await this.applyCoverPositionState(background, attrs);
-    } catch (error) {
-      log.debug("Failed to restore cover position:", error);
     }
   }
 
@@ -1201,7 +980,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       cleanups.push(posCleanup);
       const tagOverlayCleanup = this.initCoverTagOverlay(root);
       cleanups.push(tagOverlayCleanup);
-      void this.restoreCoverPosition(root);
     }
 
     // 3. 画廊视频观察器
@@ -2347,7 +2125,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           });
           await this.setBlockBackgroundImage(background, sourceUrl, postInfo, cachePath);
           const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
-          if (image) displayLocalCache(image, processed, sourceUrl);
+          if (image) displayLocalCache(image, processed);
           return;
         }
       } catch (error) {
@@ -2480,19 +2258,12 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       ? urlOrPath
       : "";
     const sourceChanged = normalizeCoverUrl(originalSourceUrl) !== normalizeCoverUrl(previousSourceUrl);
-    let nextTitleImg = `background-image:url("${finalVal}")`;
+    const nextTitleImg = `background-image:url("${finalVal}")`;
     const previousTitleIdentity =
       normalizeCoverUrl(previousTitleImg) || normalizeCoverAssetPath(previousTitleImg) || previousTitleImg;
     const nextTitleIdentity =
       normalizeCoverUrl(nextTitleImg) || normalizeCoverAssetPath(nextTitleImg) || nextTitleImg;
     const coverReplaced = Boolean(previousTitleImg) && previousTitleIdentity !== nextTitleIdentity;
-    // 重设同一张图时沿用原有位置记忆（含被 blob 污染但位置仍在的旧数据）
-    if (!coverReplaced) {
-      const previousParsed = parseTitleImg(previousTitleImg);
-      if (typeof previousParsed.positionPercent === "number") {
-        nextTitleImg = buildTitleImgAttr(finalVal, previousParsed.positionPercent);
-      }
-    }
 
     const attrs: Record<string, string> = {
       "title-img": nextTitleImg,
@@ -2504,9 +2275,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     }
     if (cachePath) attrs[COVER_CACHE_ATTRIBUTE] = cachePath;
     else if (previousCachePath && sourceChanged) attrs[COVER_CACHE_ATTRIBUTE] = "";
-
-    // 新封面不继承旧封面的位置记忆
-    if (coverReplaced) attrs[COVER_POSITION_ATTRIBUTE] = "";
 
     const tags = background.getAttribute("data-damophus-post-tags") || "";
     const site = background.getAttribute("data-damophus-post-site") || "";
@@ -2639,15 +2407,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       const attrs = data?.data as Record<string, string> | undefined;
       const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
       if (!image) return;
-      // 位置对账与缓存开关解耦：先做一次，保证块属性位置能恢复显示
-      await this.applyCoverPositionState(background, attrs || {});
       const explicitSourceUrl = attrs?.[COVER_SOURCE_ATTRIBUTE];
       if (!explicitSourceUrl && !this.options.autoCacheLegacyCovers) return;
       const sourceUrl = explicitSourceUrl || inferCoverSourceFromImage(image);
       if (!sourceUrl) return;
-      const parsedTitle = parseTitleImg(attrs?.["title-img"] || "");
-      const displayStableUrl =
-        parsedTitle.urlKind === "asset" || parsedTitle.urlKind === "remote" ? parsedTitle.url! : sourceUrl;
       const current = this.options.localCacheMaxEdge;
       const expected = localCachePath(this.options.localCacheRoot, this.options.localCachePathTemplate, {
         sourceUrl,
@@ -2658,7 +2421,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       await ensureSyncIgnore(this.options.localCacheRoot);
       const cached = await readLocalCache(expected);
       if (cached) {
-        displayLocalCache(image, cached, displayStableUrl);
+        displayLocalCache(image, cached);
         await fetch("/api/attr/setBlockAttrs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2688,7 +2451,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
             postId: attrs?.["custom-damophus-post-id"],
             size: processed.size,
           });
-          displayLocalCache(image, processed, displayStableUrl);
+          displayLocalCache(image, processed);
           await fetch("/api/attr/setBlockAttrs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -2865,7 +2628,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
 
     const savePositionToBlock = async (positionPercent: number) => {
-      if (this.options.coverPositionSync === false) return;
       const blockId =
         background.getAttribute("data-node-id") ||
         background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
@@ -2873,47 +2635,27 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
 
       if (!blockId) return;
 
-      const rounded = Number(Math.max(0, Math.min(100, positionPercent)).toFixed(2));
-
-      // 位置写入独立块属性，随文档同步，跨设备/重建缓存后仍可恢复。
-      const attrs: Record<string, string> = {
-        [COVER_POSITION_ATTRIBUTE]: String(rounded),
-      };
-
       const img = background.querySelector<HTMLImageElement>(".protyle-background__img img");
       const video = background.querySelector<HTMLVideoElement>(".protyle-background__video");
+      const src = img?.dataset.damophusOriginalUrl
+        || img?.getAttribute("src")
+        || img?.src
+        || video?.getAttribute("src")
+        || video?.src
+        || "";
+      if (!src) return;
 
-      // title-img 必须保留稳定地址（assets 路径 / 在线 URL），绝不把会话内 blob: src 写回属性。
-      // 因此只从已有 title-img 属性中抽取 URL 重建，img.src 仅作兜底且排除 blob:/data:。
-      let currentAttrs: Record<string, string> | null = null;
-      let stableUrl: string | null = null;
-      try {
-        const response = await fetch("/api/attr/getBlockAttrs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: blockId }),
-        });
-        const data = await response.json();
-        currentAttrs = (data?.data || {}) as Record<string, string>;
-        const parsed = parseTitleImg(currentAttrs["title-img"] || "");
-        stableUrl = parsed.urlKind === "asset" || parsed.urlKind === "remote" ? parsed.url : null;
-        if (!stableUrl) stableUrl = img?.dataset.damophusOriginalUrl || null;
-        if (!stableUrl) {
-          const srcAttr = img?.getAttribute("src") || "";
-          const srcKind = srcAttr ? classifyCoverUrl(srcAttr) : null;
-          if (srcKind === "asset" || srcKind === "remote") stableUrl = srcAttr;
-        }
-        if (!stableUrl && video) {
-          const videoSrc = video.getAttribute("src") || "";
-          const videoKind = videoSrc ? classifyCoverUrl(videoSrc) : null;
-          if (videoKind === "asset" || videoKind === "remote") stableUrl = videoSrc;
-        }
-        if (stableUrl) {
-          attrs["title-img"] = buildTitleImgAttr(stableUrl, rounded);
-        }
-      } catch (e) {
-        log.debug("Failed to read title-img before saving cover position:", e);
+      let cleanSrc = src.trim();
+      if (!cleanSrc.startsWith("data:") && !cleanSrc.startsWith("http://") && !cleanSrc.startsWith("https://")) {
+        cleanSrc = cleanSrc.replace(/^\/+/, "");
       }
+
+      const clampedVal = Math.max(0, Math.min(100, positionPercent)).toFixed(2);
+      const titleImgAttr = `background-image:url("${cleanSrc}");object-position:center ${clampedVal}%;`;
+
+      const attrs: Record<string, string> = {
+        "title-img": titleImgAttr,
+      };
 
       const tags = background.getAttribute("data-damophus-post-tags");
       if (tags) attrs["custom-damophus-post-tags"] = tags;
@@ -2937,15 +2679,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
             attrs,
           }),
         });
-        if (stableUrl && currentAttrs) {
-          // title-img 从 blob 恢复为稳定地址后，官方 render 会改用稳定地址重载 src；
-          // 延迟把显示切回本地缓存，避免拖拽后封面回落到在线加载。
-          const redisplayAttrs = currentAttrs;
-          const redisplayUrl = stableUrl;
-          setTimeout(() => {
-            void this.redisplayCoverFromCache(background, redisplayAttrs, redisplayUrl);
-          }, 400);
-        }
       } catch (e) {
         log.error("Failed to save cover position:", e);
       }

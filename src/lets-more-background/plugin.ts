@@ -120,13 +120,6 @@ export const pluginMetadata: PluginMetadata = {
       value: false,
     },
     {
-      type: "checkbox",
-      title: "lets-more-background.coverPositionSyncTitle",
-      description: "lets-more-background.coverPositionSyncDescription",
-      key: "coverPositionSync",
-      value: true,
-    },
-    {
       type: "select",
       title: "lets-more-background.toolbarPositionTitle",
       description: "lets-more-background.toolbarPositionDescription",

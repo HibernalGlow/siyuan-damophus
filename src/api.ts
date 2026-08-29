@@ -378,16 +378,6 @@ export async function getDocAssetsStrict(id: DocumentId, retainQueryStr = true):
     return requestStrict<string[]>('/api/asset/getDocAssets', { id, retainQueryStr });
 }
 
-/** Resolves an asset path (e.g. "assets/x.png") the same way SiYuan renders asset links; false when missing. */
-export async function statAssetStrict(path: string): Promise<boolean> {
-    try {
-        await requestStrict<null>('/api/asset/statAsset', { path });
-        return true;
-    } catch {
-        return false;
-    }
-}
-
 export async function getHeadingChildrenIDs(id: BlockId): Promise<BlockId[]> {
     return requestStrict<BlockId[]>('/api/block/getHeadingChildrenIDs', { id });
 }
