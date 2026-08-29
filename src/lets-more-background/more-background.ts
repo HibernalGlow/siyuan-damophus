@@ -2712,8 +2712,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
 
     let positionObserverTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastSavedPosition = "";
-
     let saveQueue: Promise<void> = Promise.resolve();
 
     const savePositionToBlock = (positionPercent: number): void => {
@@ -2725,9 +2723,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       if (!blockId) return;
 
       const serialized = serializeCoverPosition(positionPercent);
-      if (serialized === null || serialized === lastSavedPosition) return;
+      if (serialized === null) return;
       saveQueue = saveQueue.then(async () => {
-        if (serialized === lastSavedPosition) return;
         const attrs: Record<string, string> = { [COVER_POSITION_ATTRIBUTE]: serialized };
         // Native SiYuan confirmation can persist the currently rendered blob URL.
         // Repair that address while saving the position so the next device can load it.
@@ -2752,7 +2749,6 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
           body: JSON.stringify({ id: blockId, attrs }),
         });
         await assertAttrWriteSucceeded(response);
-        lastSavedPosition = serialized;
       }).catch((error) => {
         log.error("Failed to save cover position:", error);
       });

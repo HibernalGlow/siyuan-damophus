@@ -378,6 +378,16 @@ export async function getDocAssetsStrict(id: DocumentId, retainQueryStr = true):
     return requestStrict<string[]>('/api/asset/getDocAssets', { id, retainQueryStr });
 }
 
+/** Resolves an asset path (for example `assets/cover.png`) and returns false when it is missing. */
+export async function statAssetStrict(path: string): Promise<boolean> {
+    try {
+        await requestStrict<null>('/api/asset/statAsset', { path });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export async function getHeadingChildrenIDs(id: BlockId): Promise<BlockId[]> {
     return requestStrict<BlockId[]>('/api/block/getHeadingChildrenIDs', { id });
 }
