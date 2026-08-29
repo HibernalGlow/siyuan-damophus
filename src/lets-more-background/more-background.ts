@@ -2772,6 +2772,46 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     image && positionObserver.observe(image, { attributes: true, attributeFilter: ["style"] });
     video && positionObserver.observe(video, { attributes: true, attributeFilter: ["style"] });
 
+    // SiYuan's native cover drag owns document.onmouseup and may bypass the
+    // attribute observer. Capture the release before the native handler clears
+    // its cursor and persist the final rendered position explicitly.
+    const handleNativePositionMouseUp = () => {
+      const media = getMediaElement();
+      if (!media || media.style.cursor !== "move") return;
+      const position = parsePositionY(media);
+      setTimeout(() => savePositionToBlock(position), 0);
+    };
+    document.addEventListener("mouseup", handleNativePositionMouseUp, true);
+
+    // SiYuan's native handler indexes three toolbar groups inside the image container.
+    // Cover layout may move the first group below the icon, so put it back for the
+    // native position gesture and restore the configured layout after confirmation.
+    const restoreNativeToolbar = () => {
+      const imageContainer = background.querySelector<HTMLElement>(".protyle-background__img");
+      const positionButton = background.querySelector<HTMLElement>('[data-type="position"]');
+      const nativeToolbar = positionButton?.closest<HTMLElement>(".protyle-icons");
+      if (imageContainer && nativeToolbar && nativeToolbar.parentElement !== imageContainer) {
+        imageContainer.appendChild(nativeToolbar);
+      }
+    };
+    const restoreConfiguredToolbar = () => {
+      const nativeToolbar = background.querySelector<HTMLElement>('[data-type="position"]')?.closest<HTMLElement>(".protyle-icons");
+      const infoArea = background.querySelector<HTMLElement>(".protyle-background__ia");
+      const tags = infoArea?.querySelector<HTMLElement>(".b3-chips__doctag");
+      if (infoArea && nativeToolbar && nativeToolbar.parentElement !== infoArea) {
+        infoArea.insertBefore(nativeToolbar, tags ?? infoArea.querySelector(".protyle-background__action"));
+      }
+    };
+    const handleNativeToolbarClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-type="position"]')) {
+        restoreNativeToolbar();
+      } else if (target?.closest('[data-type="cancel"], [data-type="confirm"]')) {
+        setTimeout(restoreConfiguredToolbar, 0);
+      }
+    };
+    background.addEventListener("click", handleNativeToolbarClick, true);
+
     // 鼠标悬停及按键响应
     const handleMouseMoveOrKey = (e: MouseEvent | KeyboardEvent) => {
       if (isDragging) return;
@@ -2914,6 +2954,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       if (wheelSaveTimer) clearTimeout(wheelSaveTimer);
       if (positionObserverTimer) clearTimeout(positionObserverTimer);
       positionObserver.disconnect();
+      document.removeEventListener("mouseup", handleNativePositionMouseUp, true);
+      background.removeEventListener("click", handleNativeToolbarClick, true);
       background.removeEventListener("mousedown", handleMouseDown);
       background.removeEventListener("wheel", handleWheel);
       background.removeEventListener("mousemove", handleMouseMoveOrKey);
