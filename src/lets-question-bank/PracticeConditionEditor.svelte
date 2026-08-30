@@ -10,6 +10,9 @@
   import "svelte-querybuilder/dist/query-builder.css";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
+  import PracticeQueryBuilderAction from "./PracticeQueryBuilderAction.svelte";
+  import PracticeQueryBuilderShiftActions from "./PracticeQueryBuilderShiftActions.svelte";
+  import PracticeQueryBuilderUndoRedo from "./PracticeQueryBuilderUndoRedo.svelte";
   import {
     practiceFilterToCondition,
     type PracticeFilter,
@@ -102,7 +105,7 @@
       title: label("deleteCondition", "Delete group"),
     },
     cloneRule: { label: label("cloneCondition", "Clone"), title: label("cloneCondition", "Clone condition") },
-    cloneGroup: { label: label("cloneConditionGroup", "Clone"), title: label("cloneConditionGroup", "Clone group") },
+    cloneRuleGroup: { label: label("cloneConditionGroup", "Clone"), title: label("cloneConditionGroup", "Clone group") },
     lockRule: { label: label("lockCondition", "Lock"), title: label("lockCondition", "Lock condition") },
     lockGroup: { label: label("lockConditionGroup", "Lock"), title: label("lockConditionGroup", "Lock group") },
     lockRuleDisabled: { label: label("unlockCondition", "Unlock"), title: label("unlockCondition", "Unlock condition") },
@@ -289,6 +292,11 @@
             getDefaultValue={() => "yes"}
             maxLevels={4}
             resetOnFieldChange
+            controlElements={{
+              actionElement: PracticeQueryBuilderAction,
+              shiftActions: PracticeQueryBuilderShiftActions,
+              undoRedoActions: PracticeQueryBuilderUndoRedo,
+            }}
             showNotToggle
             showCloneButtons
             showLockButtons

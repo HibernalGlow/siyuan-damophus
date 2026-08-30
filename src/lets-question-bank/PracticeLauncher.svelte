@@ -1,15 +1,21 @@
 <script lang="ts">
   import {
     BookOpenCheck,
+    Bookmark,
+    Check,
     ListOrdered,
+    Save,
     Shuffle,
+    Trash2,
   } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
+  import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
   import * as Select from "@/components/ui/select";
   import * as ToggleGroup from "@/components/ui/toggle-group";
   import type { PracticeFilter } from "@/question-bank/core/scope";
+  import type { PracticeFilterPreset } from "./practice-preferences";
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicNode } from "@/question-bank/core/types";
@@ -39,12 +45,37 @@
   export let order: PracticeOrder = "sequential";
   export let optionOrder: PracticeOptionOrder = "random";
   export let filter: PracticeFilter = "all";
+  export let filterPresets: PracticeFilterPreset[] = [];
+  export let activeFilterPresetId: string | undefined = undefined;
   export let startPractice: () => void;
 
   const entireDocumentScope = "__damophus_entire_document__";
   $: blocked = preview.blockers.length > 0
     || preview.bindingRepairs.length > 0
     || (!syncComplete && preview.actions.some((action) => action.kind === "add"));
+
+  let presetName = "";
+
+  function selectPreset(id: string): void {
+    const preset = filterPresets.find((candidate) => candidate.id === id);
+    if (!preset) return;
+    activeFilterPresetId = preset.id;
+    filter = preset.filter;
+    presetName = preset.name;
+  }
+
+  function savePreset(): void {
+    const name = presetName.trim();
+    if (!name) return;
+    const id = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `preset-${Date.now()}`;
+    filterPresets = [...filterPresets, { id, name, filter }];
+    activeFilterPresetId = id;
+  }
+
+  function removePreset(id: string): void {
+    filterPresets = filterPresets.filter((preset) => preset.id !== id);
+    if (activeFilterPresetId === id) activeFilterPresetId = undefined;
+  }
 </script>
 
 <section class="practice-launcher" aria-labelledby="practice-launcher-heading" data-testid="practice-launcher">
@@ -167,6 +198,46 @@
 
       <fieldset class="control-block filter-control">
         <legend>{label("filter", "题目筛选")}</legend>
+        <div class="filter-preset-toolbar">
+          <div class="filter-preset-heading">
+            <Bookmark size={14} aria-hidden="true" />
+            <span>{label("filterPresets", "筛选预设")}</span>
+          </div>
+          <Input
+            class="filter-preset-name"
+            bind:value={presetName}
+            placeholder={label("filterPresetNamePlaceholder", "预设名称")}
+            aria-label={label("filterPresetName", "筛选预设名称")}
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            title={label("saveFilterPreset", "保存筛选预设")}
+            aria-label={label("saveFilterPreset", "保存筛选预设")}
+            disabled={!presetName.trim()}
+            onclick={savePreset}
+          ><Save size={15} aria-hidden="true" /></Button>
+        </div>
+        {#if filterPresets.length > 0}
+          <div class="filter-preset-list" aria-label={label("filterPresets", "筛选预设")}>
+            {#each filterPresets as preset (preset.id)}
+              <div class:active={preset.id === activeFilterPresetId} class="filter-preset-row">
+                <button type="button" class="filter-preset-select" onclick={() => selectPreset(preset.id)} aria-pressed={preset.id === activeFilterPresetId}>
+                  <Bookmark size={14} aria-hidden="true" />
+                  <span>{preset.name}</span>
+                  {#if preset.id === activeFilterPresetId}<Check size={14} aria-hidden="true" />{/if}
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title={label("deleteFilterPreset", "删除筛选预设")}
+                  aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
+                  onclick={() => removePreset(preset.id)}
+                ><Trash2 size={14} aria-hidden="true" /></Button>
+              </div>
+            {/each}
+          </div>
+        {/if}
         <PracticeConditionEditor {label} bind:filter />
       </fieldset>
     </div>
@@ -371,6 +442,88 @@
     font-size: 12px;
   }
 
+  .filter-preset-toolbar {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .filter-preset-heading {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--b3-theme-on-surface);
+    font-size: 11px;
+  }
+
+  .filter-preset-heading :global(svg) {
+    color: var(--b3-theme-primary);
+  }
+
+  :global(.filter-preset-name) {
+    min-width: 120px;
+    flex: 1 1 180px;
+  }
+
+  .filter-preset-toolbar :global(button) {
+    flex: 0 0 auto;
+  }
+
+  .filter-preset-list {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+  }
+
+  .filter-preset-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 5px;
+    background: var(--b3-theme-background);
+  }
+
+  .filter-preset-row.active {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 56%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 10%, var(--b3-theme-background));
+  }
+
+  .filter-preset-select {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 9px;
+    border: 0;
+    color: var(--b3-theme-on-background);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .filter-preset-select span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .filter-preset-select :global(svg:last-child) {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: var(--b3-theme-primary);
+  }
+
+  .filter-preset-row > :global(button) {
+    margin-right: 3px;
+    color: var(--b3-theme-on-surface);
+  }
+
   .practice-order-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -511,6 +664,19 @@
 
     .practice-order-grid {
       grid-template-columns: 1fr;
+    }
+
+    .filter-preset-toolbar {
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+
+    .filter-preset-heading {
+      flex-basis: 100%;
+    }
+
+    :global(.filter-preset-name) {
+      flex-basis: calc(100% - 42px);
     }
   }
 </style>

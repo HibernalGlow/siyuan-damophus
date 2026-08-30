@@ -8,6 +8,7 @@
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
   import type { ScanMessage, TopicNode } from "@/question-bank/core/types";
   import type { PracticeFilter } from "@/question-bank/core/scope";
+  import type { PracticeFilterPreset } from "./practice-preferences";
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicRelationPreview, TopicRelationSyncMode } from "@/question-bank/adapters/siyuan";
@@ -87,6 +88,8 @@
   export let order: PracticeOrder = "sequential";
   export let optionOrder: PracticeOptionOrder = "random";
   export let filter: PracticeFilter = "all";
+  export let filterPresets: PracticeFilterPreset[] = [];
+  export let activeFilterPresetId: string | undefined = undefined;
   export let bookmarkedQuestions = 0;
   export let startPractice: () => void;
   export let openQuestionSetComposer: () => void;
@@ -235,6 +238,8 @@
       bind:order
       bind:optionOrder
       bind:filter
+      bind:filterPresets
+      bind:activeFilterPresetId
       {startPractice}
     />
   {:else if answerMode === "composer"}

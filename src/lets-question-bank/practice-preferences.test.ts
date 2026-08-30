@@ -51,4 +51,21 @@ describe("practice preferences", () => {
 
     expect(resolvePracticePreferences({ filter }, DEFAULT_PRACTICE_PREFERENCES).filter).toEqual(filter);
   });
+
+  it("normalizes and restores multiple named filter presets", () => {
+    const preferences = resolvePracticePreferences({
+      presets: [
+        { id: "favorites", name: " Favorites ", filter: "bookmarked" },
+        { id: "favorites", name: "Needs review", filter: "review" },
+      ],
+      activePresetId: "favorites",
+      filter: "all",
+    }, DEFAULT_PRACTICE_PREFERENCES);
+
+    expect(preferences.presets).toHaveLength(2);
+    expect(preferences.presets?.[0]).toMatchObject({ id: "favorites", name: "Favorites", filter: "bookmarked" });
+    expect(preferences.presets?.[1].id).toBe("favorites-2");
+    expect(preferences.filter).toBe("bookmarked");
+    expect(preferences.activePresetId).toBe("favorites");
+  });
 });

@@ -167,6 +167,8 @@
   export let order: any;
   export let optionOrder: any;
   export let filter: any;
+  export let filterPresets: import("./practice-preferences").PracticeFilterPreset[] = [];
+  export let activeFilterPresetId: string | undefined = undefined;
   export let startPractice: any;
   export let openQuestionSetComposer: any;
   export let currentGroup: any;
@@ -445,6 +447,8 @@
       bind:order
       bind:optionOrder
       bind:filter
+      bind:filterPresets
+      bind:activeFilterPresetId
       {bookmarkedQuestions}
       {startPractice}
       {openQuestionSetComposer}

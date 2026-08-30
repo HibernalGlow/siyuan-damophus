@@ -517,6 +517,31 @@ describe("question bank browser flow", () => {
       .map((element) => element.textContent?.trim())).toEqual(["Alpha", "Beta", "Gamma"]);
   });
 
+  it("shows named filter presets in the workspace and switches the active filter", async () => {
+    const { controller, savePracticePreferences } = mockController({
+      practicePreferences: {
+        order: "sequential",
+        optionOrder: "random",
+        filter: "wrong",
+        presets: [
+          { id: "wrong", name: "我的错题", filter: "wrong" },
+          { id: "saved", name: "我的收藏", filter: "bookmarked" },
+        ],
+        activePresetId: "wrong",
+      },
+    });
+    render(controller);
+    await scanAndSync();
+
+    expect(document.querySelectorAll(".filter-preset-row")).toHaveLength(2);
+    expect(document.querySelector(".filter-preset-row.active")?.textContent).toContain("我的错题");
+    document.querySelectorAll<HTMLButtonElement>(".filter-preset-select")[1].click();
+    await flush();
+
+    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
+    expect(savePracticePreferences).toHaveBeenLastCalledWith(expect.objectContaining({ activePresetId: "saved" }));
+  });
+
   it("preloads initial and upcoming embed sources without revealing the solution", async () => {
     const thirdQuestion: Question = {
       ...subjectiveQuestion,

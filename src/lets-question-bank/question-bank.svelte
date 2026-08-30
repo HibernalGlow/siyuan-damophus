@@ -30,6 +30,7 @@
   } from "@/question-bank/core/subject-dashboard";
   import type { TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
   import type { PracticeFilter } from "@/question-bank/core/scope";
+  import type { PracticeFilterPreset } from "./practice-preferences";
   import {
     createPracticeOptionOrder,
     createPracticeQueue,
@@ -180,6 +181,8 @@
   let order: PracticeOrder = initialPracticePreferences.order;
   let optionOrder: PracticeOptionOrder = initialPracticePreferences.optionOrder;
   let filter: PracticeFilter = initialPracticePreferences.filter;
+  let filterPresets: PracticeFilterPreset[] = initialPracticePreferences.presets ?? [];
+  let activeFilterPresetId = initialPracticePreferences.activePresetId;
   let persistedPracticePreferences = JSON.stringify(initialPracticePreferences);
   let busy = false;
   let error = "";
@@ -476,7 +479,17 @@
     ? suggestedMasteryRating(objectiveCorrect, subjectiveScore)
     : undefined;
   $: {
-    const nextPracticePreferences = { order, optionOrder, filter };
+    if (activeFilterPresetId) {
+      const activePreset = filterPresets.find((preset) => preset.id === activeFilterPresetId);
+      if (!activePreset || JSON.stringify(activePreset.filter) !== JSON.stringify(filter)) activeFilterPresetId = undefined;
+    }
+    const nextPracticePreferences = {
+      order,
+      optionOrder,
+      filter,
+      ...(filterPresets.length ? { presets: filterPresets } : {}),
+      ...(activeFilterPresetId ? { activePresetId: activeFilterPresetId } : {}),
+    };
     const serializedPreferences = JSON.stringify(nextPracticePreferences);
     if (serializedPreferences !== persistedPracticePreferences) {
       persistedPracticePreferences = serializedPreferences;
@@ -1556,7 +1569,7 @@
 <QuestionBankView
   bind:rootElement bind:documentId bind:initializationPreview bind:systemDocumentId bind:rebindingPreview
   bind:view bind:composerOpen bind:examMode bind:autoScanDocument bind:dataPanelOpen bind:dataPanelUserControlled bind:fileInput
-  bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:optionOrder bind:filter
+  bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:optionOrder bind:filter bind:filterPresets bind:activeFilterPresetId
   bind:endConfirmation bind:answerCardOpen
   {currentQuestion} {topicResources} {persistTopicResource} {persistingTopicResourceIdentity} {persistedTopicResourceIdentities}
   {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices} {documentPathHighlights} {onDocumentPathHighlightsChange}

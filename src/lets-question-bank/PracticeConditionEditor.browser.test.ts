@@ -72,6 +72,8 @@ describe("practice condition editor", () => {
     await tick();
     const addButton = document.querySelector<HTMLButtonElement>(".ruleGroup-addRule");
     expect(addButton).toBeDefined();
+    expect(addButton?.querySelector("svg")).not.toBeNull();
+    expect(addButton?.textContent?.trim()).toBe("Add condition");
 
     addButton!.click();
     await tick();
