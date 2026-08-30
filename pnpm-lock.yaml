@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  svelte-querybuilder: be0e420be581351cfa8a0b03a9963be099e778b22a316b836a1c3750dd9696bc
+
 importers:
 
   .:
@@ -88,7 +91,7 @@ importers:
         version: 0.9.78(svelte@5.56.8)
       svelte-querybuilder:
         specifier: 0.1.1
-        version: 0.1.1(svelte@5.56.8)
+        version: 0.1.1(patch_hash=be0e420be581351cfa8a0b03a9963be099e778b22a316b836a1c3750dd9696bc)(svelte@5.56.8)
       tailwind-merge:
         specifier: 3.5.0
         version: 3.5.0
@@ -4794,7 +4797,7 @@ snapshots:
     dependencies:
       svelte: 5.56.8
 
-  svelte-querybuilder@0.1.1(svelte@5.56.8):
+  svelte-querybuilder@0.1.1(patch_hash=be0e420be581351cfa8a0b03a9963be099e778b22a316b836a1c3750dd9696bc)(svelte@5.56.8):
     dependencies:
       '@react-querybuilder/core': 8.23.1
       svelte: 5.56.8

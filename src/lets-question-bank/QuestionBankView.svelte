@@ -1,6 +1,7 @@
 <script lang="ts">
   import "./question-bank.css";
-  import { BarChart3, BookOpenCheck, Database, X } from "lucide-svelte";
+  import { BarChart3, BookOpenCheck, Database, Layers3, X } from "lucide-svelte";
+  import { onDestroy } from "svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
   import * as Tabs from "@/components/ui/tabs";
@@ -11,6 +12,7 @@
   import QuestionBankWorkspace from "./QuestionBankWorkspace.svelte";
   import QuestionBankPractice from "./QuestionBankPractice.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
+  import { loadFabPinned, saveFabPinned } from "./fab-preferences";
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
 
   export let rootElement: HTMLElement;
@@ -232,6 +234,48 @@
   export let onSaveBookmarkDetails: any = undefined;
   export let onRemoveBookmark: any = undefined;
   export let bookmarkedQuestions = 0;
+
+  // Mobile quick-access bubble: pinned renders a header trigger with a dropdown
+  // panel, unpinned renders a draggable floating bubble. Device-local preference.
+  let quickAccessOpen = false;
+  let fabPinned = loadFabPinned();
+  let triggerPressTimer: ReturnType<typeof setTimeout> | undefined;
+  let triggerLongPressed = false;
+
+  onDestroy(() => clearTimeout(triggerPressTimer));
+
+  $: saveFabPinned(fabPinned);
+
+  // The panel only exists inside the practice workspace; close it as soon as
+  // that workspace leaves the screen so it never reopens over practice.
+  $: if (currentQuestion || practiceRuntime || complete || view !== "practice") quickAccessOpen = false;
+
+  $: quickAccessTriggerVisible =
+    fabPinned && view === "practice" && queue.length === 0 && !complete && !composerOpen && !examMode;
+
+  // Long press releases the trigger back into the draggable bubble.
+  function startTriggerPress(): void {
+    if (!fabPinned) return;
+    clearTimeout(triggerPressTimer);
+    triggerLongPressed = false;
+    triggerPressTimer = setTimeout(() => {
+      triggerLongPressed = true;
+      quickAccessOpen = false;
+      fabPinned = false;
+    }, 420);
+  }
+
+  function endTriggerPress(): void {
+    clearTimeout(triggerPressTimer);
+  }
+
+  function toggleQuickAccess(): void {
+    if (triggerLongPressed) {
+      triggerLongPressed = false;
+      return;
+    }
+    quickAccessOpen = !quickAccessOpen;
+  }
 </script>
 
 <main
@@ -316,7 +360,7 @@
     />
   {:else}
     {#if !currentQuestion && !practiceRuntime && !complete}
-      <header class="question-bank-home-header" data-testid="workspace-navigation">
+      <header class="question-bank-home-header" class:with-quick-access={quickAccessTriggerVisible} data-testid="workspace-navigation">
         <div class="question-bank-home-identity">
           <strong>{label("questionBankWorkspace", "题库工作台")}</strong>
           <span>{sourceIdentity?.content ?? label("currentDocument", "当前文档")}</span>
@@ -337,6 +381,25 @@
             </Tabs.Trigger>
           </Tabs.List>
         </Tabs.Root>
+        {#if quickAccessTriggerVisible}
+          <button
+            type="button"
+            class="quick-access-trigger"
+            class:open={quickAccessOpen}
+            aria-expanded={quickAccessOpen}
+            title={`${label("fabLabel", "文档与未完成")} · ${label("fabLongPressUnpin", "长按改为悬浮球")}`}
+            aria-label={label("fabLabel", "文档与未完成")}
+            onpointerdown={startTriggerPress}
+            onpointerup={endTriggerPress}
+            onpointerleave={endTriggerPress}
+            onpointercancel={endTriggerPress}
+            oncontextmenu={(event) => event.preventDefault()}
+            onclick={toggleQuickAccess}
+          >
+            <Layers3 size={16} aria-hidden="true" />
+            {#if storedSessions.length > 0}<em>{storedSessions.length}</em>{/if}
+          </button>
+        {/if}
         {#if onClose}
           <Button variant="ghost" size="icon" class="question-bank-home-close" title={label("close", "Close")} aria-label={label("close", "Close")} onclick={onClose}>
             <X size={17} aria-hidden="true" />
@@ -398,6 +461,8 @@
       {exportSessionDiagnostic}
       bind:dataPanelOpen
       bind:dataPanelUserControlled
+      bind:quickAccessOpen
+      bind:fabPinned
       bind:fileInput
       {exportAttempts}
       {selectImportFile}

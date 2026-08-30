@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { Database, Download, FileInput, RefreshCw, ScanLine, Upload, X } from "lucide-svelte";
+  import { Database, Download, FileInput, Pin, PinOff, RefreshCw, ScanLine, Upload, X } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
@@ -42,6 +42,8 @@
   export let exportSessionDiagnostic: (sourceKey: string) => void;
   export let dataPanelOpen = false;
   export let dataPanelUserControlled = false;
+  export let quickAccessOpen = false;
+  export let fabPinned = true;
   export let fileInput: HTMLInputElement | null = null;
   export let exportAttempts: () => void;
   export let selectImportFile: (event: Event) => void;
@@ -140,53 +142,74 @@
   }
 
   let workspaceEl: HTMLElement | undefined;
-  let quickAccessOpen = false;
-  let mobileView: "practice" | "index" | "topic" = "practice";
+  let mobileView: "practice" | "index" | "maintenance" = "practice";
 
   function closeQuickAccess(): void {
     quickAccessOpen = false;
   }
 
-  function sectionSelector(id: "practice" | "index" | "topic"): string {
+  function sectionSelector(id: "practice" | "index" | "maintenance"): string {
     if (id === "practice") return ".practice-launcher, .answer-mode-content";
-    return id === "index" ? ".scan-panel" : ".topic-relation-sync";
+    return id === "index" ? ".scan-panel" : ".workspace-bank-info, .data-panel";
   }
 
-  function scrollToSection(id: "practice" | "index" | "topic"): void {
+  function scrollToSection(id: "practice" | "index" | "maintenance"): void {
     requestAnimationFrame(() => {
       workspaceEl?.querySelector<HTMLElement>(sectionSelector(id))?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 
-  // The mobile bar is a view switcher: the index and topic cards live inside the
-  // maintenance panel, so switching has to expand it before scrolling.
-  async function showSection(id: "practice" | "index" | "topic"): Promise<void> {
-    if (id !== "practice") {
+  // The mobile bar is a view switcher: the index and maintenance cards live inside the
+  // maintenance panel, so switching has to expand the matching panel before scrolling.
+  async function showSection(id: "practice" | "index" | "maintenance"): Promise<void> {
+    if (id === "index") {
       scanPanelUserControlled = true;
       scanPanelOpen = true;
+    } else if (id === "maintenance") {
+      dataPanelUserControlled = true;
+      dataPanelOpen = true;
     }
     mobileView = id;
     await tick();
     scrollToSection(id);
   }
 
-  async function revealSection(id: "practice" | "index" | "topic"): Promise<void> {
-    if (id !== "practice") {
+  async function revealSection(id: "practice" | "index" | "maintenance"): Promise<void> {
+    if (id === "index") {
       scanPanelUserControlled = true;
       scanPanelOpen = true;
+    } else if (id === "maintenance") {
+      dataPanelUserControlled = true;
+      dataPanelOpen = true;
     }
     await tick();
     scrollToSection(id);
   }
 </script>
 
-<section class="workspace min-h-0 flex-1 overflow-y-auto" data-view={mobileView} bind:this={workspaceEl}>
-  <div class="workspace-quick-access" class:open={quickAccessOpen}>
+<section class="workspace min-h-0 flex-1 overflow-y-auto" data-view={mobileView} data-has-quick-bar={preview ? "true" : "false"} bind:this={workspaceEl}>
+  <div class="workspace-quick-access" class:open={quickAccessOpen} class:pinned={fabPinned}>
     <div class="quick-access-head">
       <strong>{label("fabPanelTitle", "文档与未完成")}</strong>
-      <button type="button" class="quick-access-close" aria-label={label("close", "Close")} onclick={closeQuickAccess}>
-        <X size={16} aria-hidden="true" />
-      </button>
+      <div class="quick-access-head-actions">
+        <button
+          type="button"
+          class="quick-access-pin"
+          aria-pressed={fabPinned}
+          title={fabPinned ? label("fabUnpin", "Unpin to float") : label("fabPin", "Pin to title bar")}
+          aria-label={fabPinned ? label("fabUnpin", "Unpin to float") : label("fabPin", "Pin to title bar")}
+          onclick={() => (fabPinned = !fabPinned)}
+        >
+          {#if fabPinned}
+            <PinOff size={15} aria-hidden="true" />
+          {:else}
+            <Pin size={15} aria-hidden="true" />
+          {/if}
+        </button>
+        <button type="button" class="quick-access-close" aria-label={label("close", "Close")} onclick={closeQuickAccess}>
+          <X size={16} aria-hidden="true" />
+        </button>
+      </div>
     </div>
   <div class="workspace-toolbar">
     <div class="document-row">
@@ -273,8 +296,8 @@
     aria-label={label("close", "Close")}
     onclick={closeQuickAccess}
   ></button>
-  {#if answerMode === "practice"}
-    <WorkspaceFab {label} open={quickAccessOpen} badge={storedSessions.length} toggle={() => (quickAccessOpen = !quickAccessOpen)} />
+  {#if answerMode === "practice" && !fabPinned}
+    <WorkspaceFab {label} open={quickAccessOpen} badge={storedSessions.length} toggle={() => (quickAccessOpen = !quickAccessOpen)} pin={() => (fabPinned = true)} />
   {/if}
 
   <AnswerModeSwitcher {label} mode={answerMode} onSelect={selectAnswerMode} />
@@ -349,6 +372,30 @@
       <strong id="workspace-maintenance-heading">{label("preparationAndMaintenance", "准备与维护")}</strong>
       <span>{label("preparationAndMaintenanceDescription", "扫描、索引和作答数据不会挡住日常答题入口")}</span>
     </div>
+
+  {#if preview}
+    <section class="workspace-bank-info" aria-label={label("bankInfoTitle", "题库信息")}>
+      <header class="bank-info-head">
+        <strong>{sourceIdentity?.content ?? documentId}</strong>
+        <span>{completionPercent}%</span>
+      </header>
+      <div class="bank-info-grid">
+        <span><strong>{progressQuestions.length}</strong>{label("questions", "questions")}</span>
+        <span><strong>{attemptedQuestions}</strong>{label("bankInfoAttempted", "已答")}</span>
+        <span><strong>{untouchedQuestions}</strong>{label("untouched", "未作答")}</span>
+        <span><strong>{wrongQuestions}</strong>{label("wrong", "错题")}</span>
+      </div>
+      <p class="bank-info-meta">
+        {preview.blockers.length > 0
+          ? label("quickBarBlocked", "存在阻断")
+          : pendingSync
+            ? `${preview.actions.length} ${label("quickBarChanges", "项变更")}`
+            : syncComplete
+              ? label("quickBarIndexUpToDate", "已是最新")
+              : label("bankInfoNoIndex", "尚未建立索引")}
+      </p>
+    </section>
+  {/if}
 
   <QuestionBankPanel
     bind:open={dataPanelOpen}
@@ -455,17 +502,17 @@
       questionCount={progressQuestions.length}
       {untouchedQuestions}
       {wrongQuestions}
+      {attemptedQuestions}
       canStartPractice={true}
       {startPractice}
       indexChanges={preview.actions.length}
       blockers={preview.blockers.length}
       {pendingSync}
       {confirmSync}
-      {topicAssignmentCount}
+      {exportAttempts}
       {topicRelationMode}
       topicPendingChanges={topicRelationPreview?.actions.length ?? 0}
       {topicRelationReady}
-      {previewTopicRelations}
       {confirmTopicRelations}
       {revealSection}
       activeView={mobileView}

@@ -1318,4 +1318,39 @@ describe("question bank browser flow", () => {
     expect(document.body.textContent).toContain("Shared material");
     expect(document.body.textContent).toContain("Shared case facts");
   });
+
+  it("pins quick access to the title bar and floats it on unpin", async () => {
+    await page.viewport(390, 844);
+    localStorage.setItem("damophus-question-bank.fab-pinned", "true");
+    localStorage.removeItem("damophus-question-bank.fab-position");
+    const { controller } = mockController();
+    render(controller);
+    await scan();
+
+    // Pinned by default: the title bar hosts the trigger and there is no bubble.
+    const trigger = document.querySelector<HTMLButtonElement>(".quick-access-trigger");
+    expect(trigger).not.toBeNull();
+    expect(trigger!.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector(".workspace-fab")).toBeNull();
+    expect(document.querySelector('.workspace[data-has-quick-bar="true"]')).not.toBeNull();
+
+    trigger!.click();
+    await vi.waitFor(() => expect(document.querySelector(".workspace-quick-access.open.pinned")).not.toBeNull());
+
+    // Unpinning swaps the trigger for the draggable bubble and keeps the panel open.
+    const pin = document.querySelector<HTMLButtonElement>(".quick-access-pin");
+    expect(pin).not.toBeNull();
+    pin!.click();
+    await vi.waitFor(() => expect(document.querySelector(".workspace-fab")).not.toBeNull());
+    expect(document.querySelector(".quick-access-trigger")).toBeNull();
+    expect(document.querySelector(".workspace-quick-access.open")).not.toBeNull();
+    expect(document.querySelector(".workspace-quick-access.pinned")).toBeNull();
+    expect(localStorage.getItem("damophus-question-bank.fab-pinned")).toBe("false");
+
+    // Re-pinning returns to the title-bar trigger.
+    document.querySelector<HTMLButtonElement>(".quick-access-pin")!.click();
+    await vi.waitFor(() => expect(document.querySelector(".quick-access-trigger")).not.toBeNull());
+    expect(document.querySelector(".workspace-fab")).toBeNull();
+    expect(localStorage.getItem("damophus-question-bank.fab-pinned")).toBe("true");
+  });
 });

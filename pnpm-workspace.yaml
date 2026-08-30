@@ -12,3 +12,6 @@ allowBuilds:
   "node-pty": true
   "opencode-ai": true
   "sharp": true
+
+patchedDependencies:
+  svelte-querybuilder: patches/svelte-querybuilder.patch

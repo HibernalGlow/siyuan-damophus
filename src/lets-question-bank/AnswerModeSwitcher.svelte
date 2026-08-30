@@ -73,70 +73,9 @@
     min-height: 38px;
   }
 
-  @container (max-width: 700px) {
-    .answer-mode-heading span {
-      display: none;
-    }
-
-    :global(.answer-mode-group) {
-      grid-template-columns: repeat(3, 42px);
-    }
-
-    :global(.answer-mode-group [data-slot="toggle-group-item"]) {
-      width: 42px;
-      padding: 0;
-    }
-
-    :global(.answer-mode-group [data-slot="toggle-group-item"] span) {
-      display: none;
-    }
-  }
-
-  @container (max-width: 430px) {
-    .answer-mode-heading {
-      display: none;
-    }
-
-    .answer-mode-switcher {
-      min-height: 0;
-      justify-content: stretch;
-    }
-
-    :global(.answer-mode-group) {
-      width: 100%;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      padding: 3px;
-      gap: 2px;
-      border: 1px solid var(--b3-border-color);
-      border-radius: 12px;
-      background: var(--b3-theme-surface);
-    }
-
-    :global(.answer-mode-group [data-slot="toggle-group-item"]) {
-      width: auto;
-      min-width: 0;
-      min-height: 38px;
-      gap: 5px;
-      padding: 0 6px;
-      border: 0;
-      border-radius: 9px;
-      color: var(--b3-theme-on-surface);
-      background: transparent;
-      font-size: 12px;
-    }
-
-    :global(.answer-mode-group [data-slot="toggle-group-item"] svg) {
-      width: 15px;
-      height: 15px;
-    }
-
-    :global(.answer-mode-group [data-slot="toggle-group-item"] span) {
-      display: inline;
-    }
-
-    :global(.answer-mode-group [data-slot="toggle-group-item"][data-state="on"]) {
-      color: var(--b3-theme-primary);
-      background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
-    }
+  /* Mobile picks the answer mode from the quick-bar long-press menu instead,
+     so the three-tab switcher never renders below the desktop breakpoint. */
+  @container (max-width: 760px) {
+    .answer-mode-switcher { display: none; }
   }
 </style>

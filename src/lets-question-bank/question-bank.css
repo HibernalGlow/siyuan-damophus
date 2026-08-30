@@ -70,6 +70,8 @@
   .workspace-quick-access { display: contents; }
   .quick-access-head { display: none; }
   .fab-backdrop { display: none; }
+  .quick-access-trigger { display: none; }
+  .workspace-bank-info { display: none; }
   .auto-scan-button { color: var(--b3-theme-on-surface); }
   .auto-scan-button[aria-pressed="true"] { color: var(--b3-theme-primary); border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
   .auto-scan-button[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--b3-theme-primary) 22%, transparent); }
@@ -211,6 +213,46 @@
 
   @container (max-width: 760px) {
     .question-bank-home-header { min-height: 50px; padding-inline: 14px 10px; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+    .question-bank-home-header.with-quick-access { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+    /* Pinned quick-access trigger in the title bar, styled like the nav pill.
+       Long press unpins it, so text selection and callouts stay off. */
+    .quick-access-trigger {
+      position: relative;
+      width: 40px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--b3-border-color);
+      border-radius: 12px;
+      background: var(--b3-theme-surface);
+      color: var(--b3-theme-on-surface);
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    .quick-access-trigger[aria-expanded="true"] {
+      color: var(--b3-theme-primary);
+      border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color));
+      background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+    }
+    .quick-access-trigger em {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      min-width: 17px;
+      height: 17px;
+      padding-inline: 4px;
+      border-radius: 999px;
+      display: inline-grid;
+      place-items: center;
+      background: var(--b3-theme-error);
+      color: #fff;
+      font-size: 10px;
+      font-style: normal;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 0 0 2px var(--b3-theme-background);
+    }
     .question-bank-home-identity strong { font-size: 15px; }
     .question-bank-home-identity span { display: none; }
     .question-bank-home-nav {
@@ -229,25 +271,47 @@
       background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
     }
     .question-bank-home-nav-label { display: none; }
-    .workspace { padding-top: 0; overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+    .workspace {
+      padding-top: 0;
+      overscroll-behavior-y: contain;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+      /* Flex column lets the shortcut bar claim free space (margin-top: auto),
+         so the "bottom" bar docks to the bottom even when the card is short. */
+      display: flex;
+      flex-direction: column;
+    }
     /* The sticky shortcut bar is clamped inside the content box, so the trailing
        padding would leave a dead strip below it. Drop it only when the bar exists. */
-    .workspace:has(.workspace-quick-bar) { padding-bottom: 0; }
+    .workspace[data-has-quick-bar="true"] { padding-bottom: 0; }
 
     /* ---- Mobile card switching, driven by the bottom bar tabs ---- */
-    .workspace[data-view="index"] .answer-mode-switcher,
     .workspace[data-view="index"] .practice-launcher,
     .workspace[data-view="index"] .answer-mode-content,
-    .workspace[data-view="topic"] .answer-mode-switcher,
-    .workspace[data-view="topic"] .practice-launcher,
-    .workspace[data-view="topic"] .answer-mode-content { display: none; }
+    .workspace[data-view="maintenance"] .practice-launcher,
+    .workspace[data-view="maintenance"] .answer-mode-content { display: none; }
     .workspace[data-view="practice"] .workspace-maintenance { display: none; }
-    /* Index card: the scan summary minus the topic block. */
-    .workspace[data-view="index"] .topic-relation-sync { display: none; }
-    /* Topic card: keep only the relation block out of the whole scan summary. */
-    .workspace[data-view="topic"] .workspace-maintenance-heading { display: none; }
-    .workspace[data-view="topic"] .data-panel { display: none; }
-    .workspace[data-view="topic"] .scan-summary > *:not(.topic-relation-sync) { display: none; }
+    /* Index card: the scan summary plus the topic relation sync. */
+    .workspace[data-view="index"] .data-panel,
+    .workspace[data-view="index"] .workspace-bank-info { display: none; }
+    /* Maintenance card: bank info summary, then attempt data export/import. */
+    .workspace[data-view="maintenance"] .scan-panel { display: none; }
+    .workspace[data-view="maintenance"] .workspace-maintenance-heading { display: none; }
+    .workspace[data-view="maintenance"] .workspace-bank-info {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--b3-border-color);
+      border-radius: 14px;
+      background: var(--b3-theme-surface);
+    }
+    .bank-info-head { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .bank-info-head strong { min-width: 0; overflow: hidden; flex: 1 1 auto; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .bank-info-head span { flex: 0 0 auto; color: var(--b3-theme-primary); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .bank-info-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .bank-info-grid span { display: grid; gap: 1px; justify-items: center; padding: 7px 4px 5px; border-radius: 9px; background: color-mix(in srgb, var(--b3-theme-background) 55%, transparent); color: var(--b3-theme-on-surface); font-size: 10.5px; }
+    .bank-info-grid strong { color: var(--b3-theme-on-background); font-size: 14px; font-variant-numeric: tabular-nums; }
+    .bank-info-meta { margin: 0; color: var(--b3-theme-on-surface); font-size: 11px; }
 
     /* ---- Floating sheet: document row + unfinished sessions ---- */
     .workspace-quick-access {
@@ -273,8 +337,22 @@
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s;
     }
     .workspace-quick-access.open { opacity: 1; visibility: visible; transform: none; }
+    /* Pinned mode: the panel drops from the title-bar trigger like a menu instead
+       of rising from the bubble, so it opens near the button that launched it. */
+    .workspace-quick-access.pinned {
+      top: calc(50px + 8px);
+      right: 10px;
+      bottom: auto;
+      left: auto;
+      width: min(430px, calc(100% - 20px));
+      max-height: min(64%, 480px);
+      transform-origin: top right;
+    }
+    .workspace-quick-access.pinned:not(.open) { transform: translateY(-8px) scale(0.98); }
     .quick-access-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .quick-access-head strong { font-size: 13px; }
+    .quick-access-head-actions { display: flex; align-items: center; gap: 2px; }
+    .quick-access-pin,
     .quick-access-close {
       width: 30px;
       height: 30px;
@@ -286,6 +364,8 @@
       color: var(--b3-theme-on-surface);
       cursor: pointer;
     }
+    .quick-access-pin[aria-pressed="true"] { color: var(--b3-theme-primary); }
+    .quick-access-pin:hover,
     .quick-access-close:hover { color: var(--b3-theme-primary); background: var(--b3-list-hover); }
     .fab-backdrop { position: absolute; inset: 0; z-index: 5; display: none; padding: 0; border: 0; background: rgb(0 0 0 / 26%); }
     .fab-backdrop.open { display: block; }

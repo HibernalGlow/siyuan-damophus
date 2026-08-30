@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { BookOpenCheck, Check, Clock3, Layers3, Network, RefreshCw } from "lucide-svelte";
+  import { BookOpenCheck, Check, Clock3, Database, Layers3, RefreshCw } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
   import type { TopicRelationSyncMode } from "@/question-bank/adapters/siyuan";
 
-  type SectionId = "practice" | "index" | "topic";
+  type SectionId = "practice" | "index" | "maintenance";
   type AnswerMode = "practice" | "composer" | "exam";
 
   export let label: (key: string, fallback: string) => string;
@@ -11,17 +11,17 @@
   export let questionCount = 0;
   export let untouchedQuestions = 0;
   export let wrongQuestions = 0;
+  export let attemptedQuestions = 0;
   export let canStartPractice = false;
   export let startPractice: () => void;
   export let indexChanges = 0;
   export let blockers = 0;
   export let pendingSync = false;
   export let confirmSync: () => void;
-  export let topicAssignmentCount = 0;
+  export let exportAttempts: () => void;
   export let topicRelationMode: "off" | TopicRelationSyncMode = "off";
   export let topicPendingChanges = 0;
   export let topicRelationReady = false;
-  export let previewTopicRelations: () => void;
   export let confirmTopicRelations: () => void;
   export let activeView: SectionId = "practice";
   export let onViewChange: (id: SectionId) => void;
@@ -32,7 +32,7 @@
   const icons = {
     practice: BookOpenCheck,
     index: RefreshCw,
-    topic: Network,
+    maintenance: Database,
   } as const;
 
   let modeMenuOpen = false;
@@ -46,6 +46,25 @@
   ];
 
   $: currentMode = modeOptions.find((option) => option.id === mode) ?? modeOptions[0];
+
+  // Topic relation sync is part of the index workload now, so the index card
+  // reports and confirms both the scan index and the topic assignments.
+  $: topicActionable = topicRelationMode !== "off" && topicRelationReady && topicPendingChanges > 0;
+
+  $: indexMetrics = [
+    blockers > 0
+      ? label("quickBarBlocked", "存在阻断")
+      : pendingSync
+        ? `${indexChanges} ${label("quickBarChanges", "项变更")}`
+        : label("quickBarIndexUpToDate", "已是最新"),
+    topicRelationMode === "off"
+      ? ""
+      : !topicRelationReady
+        ? label("quickBarNotReady", "尚未就绪")
+        : topicPendingChanges > 0
+          ? `${topicPendingChanges} ${label("quickBarTopicPending", "考点待同步")}`
+          : "",
+  ].filter(Boolean).join(" · ");
 
   $: sections = [
     {
@@ -71,32 +90,26 @@
       id: "index" as const,
       name: label("quickBarIndex", "索引"),
       tabName: label("quickBarIndex", "索引"),
-      metrics: blockers > 0
-        ? label("quickBarBlocked", "存在阻断")
-        : pendingSync
-          ? `${indexChanges} ${label("quickBarChanges", "项变更")}`
+      metrics: indexMetrics,
+      actionLabel: pendingSync
+        ? label("quickBarConfirmSync", "同步")
+        : topicActionable
+          ? label("quickBarConfirm", "确认")
           : label("quickBarIndexUpToDate", "已是最新"),
-      actionLabel: pendingSync ? label("quickBarConfirmSync", "同步") : label("quickBarIndexUpToDate", "已是最新"),
-      actionDisabled: busy || !pendingSync || blockers > 0,
-      run: confirmSync,
-      badge: blockers > 0 ? blockers : indexChanges,
+      actionDisabled: busy || blockers > 0 || (!pendingSync && !topicActionable),
+      run: pendingSync ? confirmSync : confirmTopicRelations,
+      badge: blockers > 0 ? blockers : indexChanges + topicPendingChanges,
       tone: blockers > 0 ? ("danger" as const) : ("pending" as const),
     },
     {
-      id: "topic" as const,
-      name: label("quickBarTopic", "考点"),
-      tabName: label("quickBarTopic", "考点"),
-      metrics: topicRelationMode === "off"
-        ? label("quickBarTopicOff", "未开启同步")
-        : !topicRelationReady
-          ? label("quickBarNotReady", "尚未就绪")
-          : topicPendingChanges > 0
-            ? `${topicPendingChanges} ${label("quickBarPendingRelations", "项待同步")}`
-            : `${topicAssignmentCount} ${label("quickBarLinkedTopics", "个已关联")}`,
-      actionLabel: topicPendingChanges > 0 ? label("quickBarConfirmTopicSync", "确认") : label("quickBarPreviewTopicSync", "预览"),
-      actionDisabled: busy || topicRelationMode === "off" || !topicRelationReady,
-      run: topicPendingChanges > 0 ? confirmTopicRelations : previewTopicRelations,
-      badge: topicPendingChanges > 0 ? topicPendingChanges : topicAssignmentCount,
+      id: "maintenance" as const,
+      name: label("quickBarMaintenance", "维护"),
+      tabName: label("quickBarMaintenance", "维护"),
+      metrics: `${attemptedQuestions} ${label("bankInfoAttempted", "已答")} · ${wrongQuestions} ${label("wrong", "错题")}`,
+      actionLabel: label("quickBarExport", "导出"),
+      actionDisabled: busy,
+      run: exportAttempts,
+      badge: 0,
       tone: "pending" as const,
     },
   ];
@@ -199,14 +212,18 @@
 
   @container (max-width: 760px) {
     .workspace-quick-bar {
+      /* Docked to the container bottom like SiYuan's own floating pill bar:
+         pushed down by auto margin when the view is short, sticky while scrolling. */
       position: sticky;
-      bottom: 0;
+      bottom: calc(8px + env(safe-area-inset-bottom, 0px));
       z-index: 3;
-      margin: 10px -14px 0;
-      padding: 7px 10px calc(7px + env(safe-area-inset-bottom, 0px));
-      border-top: 1px solid var(--b3-border-color);
+      margin: auto -4px calc(8px + env(safe-area-inset-bottom, 0px));
+      padding: 7px 10px;
+      border: 1px solid var(--b3-border-color);
+      border-radius: 16px;
       background: color-mix(in srgb, var(--b3-theme-background) 93%, transparent);
       backdrop-filter: blur(14px);
+      box-shadow: 0 10px 26px rgb(0 0 0 / 16%);
       display: grid;
       gap: 6px;
     }
@@ -312,7 +329,8 @@
 
     .quick-bar-mode-menu {
       position: absolute;
-      right: 10px;
+      /* Anchors above the practice tab (first column), not the floating bubble. */
+      left: 10px;
       bottom: calc(100% - 4px);
       z-index: 4;
       min-width: 172px;
@@ -323,6 +341,7 @@
       box-shadow: 0 14px 34px rgb(0 0 0 / 20%);
       display: grid;
       gap: 1px;
+      transform-origin: bottom left;
     }
 
     .quick-bar-mode-menu button {
