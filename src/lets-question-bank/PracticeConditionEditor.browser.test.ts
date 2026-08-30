@@ -50,6 +50,8 @@ describe("practice condition editor", () => {
     expect(rules[0]).toContain("Bookmarked");
     expect(rules[1]).toContain("Wrong-answer status");
     expect(rules[1]).toContain("Not wrong");
+    expect(document.querySelector(".rule-fields svg")).not.toBeNull();
+    expect(document.querySelector(".rule-value svg")).not.toBeNull();
     expect(document.querySelector(".ruleGroup-combinators")?.textContent).toContain("and");
   });
 
@@ -98,10 +100,14 @@ describe("practice condition editor", () => {
 
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
-    const valueSelect = document.querySelector<HTMLSelectElement>(".rule-value")!;
-    expect(valueSelect.value).toBe("yes");
-    valueSelect.value = "no";
-    valueSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    const valueSelect = document.querySelector<HTMLButtonElement>(".rule-value")!;
+    expect(valueSelect).toBeInstanceOf(HTMLButtonElement);
+    expect(valueSelect.textContent).toContain("Bookmarked");
+    valueSelect.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", pointerId: 1, buttons: 1 }));
+    await tick();
+    [...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]')]
+      .find((item) => item.textContent?.includes("Not bookmarked"))
+      ?.click();
     await tick();
     [...document.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent?.includes("Cancel"))
@@ -111,7 +117,7 @@ describe("practice condition editor", () => {
     expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
-    expect(document.querySelector<HTMLSelectElement>(".rule-value")?.value).toBe("yes");
+    expect(document.querySelector<HTMLButtonElement>(".rule-value")?.textContent).toContain("Bookmarked");
   });
 
   it("adds a nested group and keeps it available for naming", async () => {
@@ -142,10 +148,6 @@ describe("practice condition editor", () => {
     nameInput.value = "Saved favorites";
     nameInput.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
-    const valueSelect = document.querySelector<HTMLSelectElement>(".rule-value")!;
-    valueSelect.value = "no";
-    valueSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    await tick();
     [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
       .find((button) => button.textContent?.includes("Apply"))
       ?.click();
@@ -166,7 +168,7 @@ describe("practice condition editor", () => {
       ?.click();
     await tick();
 
-    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Not bookmarked");
+    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Bookmarked");
   });
 
   it("renders the demo editing controls for independent combinators", async () => {
@@ -188,5 +190,23 @@ describe("practice condition editor", () => {
     expect(document.querySelector(".rule-lock")).not.toBeNull();
     expect(document.querySelector(".shiftActions")).not.toBeNull();
     expect(document.querySelector(".undoRedoActions")).not.toBeNull();
+  });
+
+  it("uses the same floating select menu on mobile instead of a native picker", async () => {
+    await page.viewport(390, 844);
+    await render({
+      glue: "and",
+      rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
+    });
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    const fieldTrigger = document.querySelector<HTMLButtonElement>(".rule-fields")!;
+    expect(fieldTrigger).toBeInstanceOf(HTMLButtonElement);
+    expect(document.querySelector(".condition-dialog select")).toBeNull();
+    fieldTrigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", pointerId: 1, buttons: 1 }));
+    await tick();
+    expect(fieldTrigger.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(fieldTrigger.getAttribute("data-state")).toBe("closed");
   });
 });

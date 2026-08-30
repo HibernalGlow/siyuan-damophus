@@ -13,6 +13,7 @@
   import PracticeQueryBuilderAction from "./PracticeQueryBuilderAction.svelte";
   import PracticeQueryBuilderShiftActions from "./PracticeQueryBuilderShiftActions.svelte";
   import PracticeQueryBuilderUndoRedo from "./PracticeQueryBuilderUndoRedo.svelte";
+  import PracticeQueryBuilderValueSelector from "./PracticeQueryBuilderValueSelector.svelte";
   import {
     practiceFilterToCondition,
     type PracticeFilter,
@@ -294,8 +295,13 @@
             resetOnFieldChange
             controlElements={{
               actionElement: PracticeQueryBuilderAction,
+              combinatorSelector: PracticeQueryBuilderValueSelector,
+              fieldSelector: PracticeQueryBuilderValueSelector,
+              operatorSelector: PracticeQueryBuilderValueSelector,
               shiftActions: PracticeQueryBuilderShiftActions,
               undoRedoActions: PracticeQueryBuilderUndoRedo,
+              valueSourceSelector: PracticeQueryBuilderValueSelector,
+              valueSelector: PracticeQueryBuilderValueSelector,
             }}
             showNotToggle
             showCloneButtons
@@ -539,7 +545,7 @@
     background: var(--b3-theme-background);
   }
 
-  .query-builder-theme :global(select),
+  .query-builder-theme :global([data-slot="select-trigger"]),
   .query-builder-theme :global(input:not([type="checkbox"])),
   .query-builder-theme :global(button) {
     min-height: 30px;
@@ -550,7 +556,30 @@
     font: inherit;
   }
 
-  .query-builder-theme :global(select),
+  .query-builder-theme :global([data-slot="select-trigger"]) {
+    min-width: 0;
+    gap: 6px;
+    padding-right: 7px;
+    text-align: left;
+  }
+
+  .query-builder-theme :global([data-slot="select-trigger"] > span) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .query-builder-theme :global([data-slot="select-trigger"] > svg:first-child) {
+    flex: 0 0 auto;
+    color: var(--b3-theme-primary);
+  }
+
+  .query-builder-theme :global([data-slot="select-item"] > span) {
+    min-width: 0;
+  }
+
+  .query-builder-theme :global([data-slot="select-trigger"]),
   .query-builder-theme :global(input:not([type="checkbox"])) {
     min-width: 118px;
     padding: 4px 8px;
@@ -566,6 +595,12 @@
 
   .query-builder-theme :global(.rule-value) {
     flex: 1 1 130px;
+  }
+
+  .query-builder-theme :global(.rule-fields),
+  .query-builder-theme :global(.rule-operators),
+  .query-builder-theme :global(.rule-value) {
+    min-width: 0;
   }
 
   .query-builder-theme :global(button) {
@@ -589,11 +624,79 @@
     color: var(--b3-theme-error, #d23f31);
   }
 
-  .query-builder-theme :global(select:focus-visible),
+  .query-builder-theme :global([data-slot="select-trigger"]:focus-visible),
   .query-builder-theme :global(input:focus-visible),
   .query-builder-theme :global(button:focus-visible) {
     outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
     outline-offset: 1px;
+  }
+
+  @media (max-width: 640px) {
+    .condition-dialog {
+      width: calc(100vw - 20px);
+      max-height: calc(100dvh - 20px);
+      border-radius: 7px;
+    }
+
+    .condition-dialog-body {
+      padding: 9px;
+    }
+
+    .query-builder-theme :global(.rule) {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) 28px;
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .query-builder-theme :global(.rule-fields),
+    .query-builder-theme :global(.rule-operators),
+    .query-builder-theme :global(.rule-value) {
+      width: 100%;
+      min-height: 34px;
+    }
+
+    .query-builder-theme :global(.rule-fields) {
+      grid-column: 2 / 4;
+    }
+
+    .query-builder-theme :global(.rule-operators) {
+      grid-column: 2;
+    }
+
+    .query-builder-theme :global(.rule-value) {
+      grid-column: 2 / 4;
+    }
+
+    .query-builder-theme :global(.rule-cloneRule),
+    .query-builder-theme :global(.rule-lock),
+    .query-builder-theme :global(.rule-remove) {
+      min-height: 32px;
+      padding: 4px;
+    }
+
+    .query-builder-theme :global(.shiftActions) {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .query-builder-theme :global(.rule-cloneRule) {
+      grid-column: 1;
+      grid-row: 3;
+    }
+
+    .query-builder-theme :global(.rule-lock) {
+      grid-column: 2;
+      grid-row: 3;
+      width: 100%;
+    }
+
+    .query-builder-theme :global(.rule-remove) {
+      grid-column: 3;
+      grid-row: 3;
+    }
   }
 
   @media (max-width: 620px) {
