@@ -30,7 +30,7 @@ afterEach(async () => {
 });
 
 describe("practice condition editor", () => {
-  it("renders a bookmarked but not wrong condition in the SVAR builder", async () => {
+  it("renders a bookmarked but not wrong condition in the query builder", async () => {
     await render({
       glue: "and",
       rules: [
@@ -44,25 +44,25 @@ describe("practice condition editor", () => {
     expect(document.querySelector(".condition-summary-trigger")?.getAttribute("title")).toContain("Not wrong");
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
-    const rules = [...document.querySelectorAll<HTMLElement>(".wx-rule")].map((item) => item.innerText);
+    const rules = [...document.querySelectorAll<HTMLElement>(".rule")].map((item) => item.innerText);
     expect(rules).toHaveLength(2);
     expect(rules[0]).toContain("Bookmark status");
     expect(rules[0]).toContain("Bookmarked");
     expect(rules[1]).toContain("Wrong-answer status");
     expect(rules[1]).toContain("Not wrong");
-    expect(document.querySelector(".wx-glue")?.textContent).toContain("and");
+    expect(document.querySelector(".ruleGroup-combinators")?.textContent).toContain("and");
   });
 
   it("migrates a legacy filter and clears it from the editor", async () => {
     await render("review");
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
-    expect(document.querySelector(".wx-rule")?.textContent).toContain("Needs review");
+    expect(document.querySelector(".rule")?.textContent).toContain("Needs review");
 
     document.querySelector<HTMLButtonElement>('button[aria-label="Clear conditions"]')!.click();
     await tick();
 
-    expect(document.querySelectorAll(".wx-rule")).toHaveLength(0);
+    expect(document.querySelectorAll(".rule")).toHaveLength(0);
   });
 
   it("opens the rule editor when adding the first condition", async () => {
@@ -70,16 +70,14 @@ describe("practice condition editor", () => {
 
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
-    const addButton = [...document.querySelectorAll<HTMLButtonElement>(".wx-filter-builder button")].find((button) =>
-      button.textContent?.includes("Add condition"),
-    );
+    const addButton = document.querySelector<HTMLButtonElement>(".ruleGroup-addRule");
     expect(addButton).toBeDefined();
 
     addButton!.click();
     await tick();
 
-    expect(document.querySelector(".wx-panel")).not.toBeNull();
-    expect(document.querySelector(".wx-panel")?.textContent).toContain("Attempt status");
+    expect(document.querySelector(".rule")).not.toBeNull();
+    expect(document.querySelector(".rule")?.textContent).toContain("Attempt status");
 
     await new Promise((resolve) => setTimeout(resolve, 10));
     const applyButton = [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")].find((button) =>
@@ -90,7 +88,7 @@ describe("practice condition editor", () => {
     expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Attempted");
   });
 
-  it("reopens a saved condition for editing", async () => {
+  it("cancels an edit and reopens the saved condition", async () => {
     await render({
       glue: "and",
       rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
@@ -98,15 +96,36 @@ describe("practice condition editor", () => {
 
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
-    document.querySelector<HTMLElement>(".wx-rule")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const valueSelect = document.querySelector<HTMLSelectElement>(".rule-value")!;
+    expect(valueSelect.value).toBe("yes");
+    valueSelect.value = "no";
+    valueSelect.dispatchEvent(new Event("change", { bubbles: true }));
     await tick();
-
-    expect(document.querySelector(".wx-panel")).not.toBeNull();
-    await new Promise((resolve) => setTimeout(resolve, 10));
     [...document.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent?.includes("Cancel"))
       ?.click();
     await tick();
+
+    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+    expect(document.querySelector<HTMLSelectElement>(".rule-value")?.value).toBe("yes");
+  });
+
+  it("adds a nested group and keeps it available for naming", async () => {
+    await render("all");
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    document.querySelector<HTMLButtonElement>(".ruleGroup-addGroup")!.click();
+    await tick();
+
+    expect(document.querySelectorAll(".ruleGroup")).toHaveLength(2);
+    expect(document.querySelectorAll(".condition-group-name-row")).toHaveLength(2);
+    const addRuleButtons = document.querySelectorAll<HTMLButtonElement>(".ruleGroup-addRule");
+    addRuleButtons[1].click();
+    await tick();
+    expect(document.querySelectorAll(".rule")).toHaveLength(1);
   });
 
   it("renames a condition group and shows only its name in the summary", async () => {
@@ -120,6 +139,10 @@ describe("practice condition editor", () => {
     const nameInput = document.querySelector<HTMLInputElement>(".condition-group-name-row input")!;
     nameInput.value = "Saved favorites";
     nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    const valueSelect = document.querySelector<HTMLSelectElement>(".rule-value")!;
+    valueSelect.value = "no";
+    valueSelect.dispatchEvent(new Event("change", { bubbles: true }));
     await tick();
     [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
       .find((button) => button.textContent?.includes("Apply"))
@@ -141,6 +164,6 @@ describe("practice condition editor", () => {
       ?.click();
     await tick();
 
-    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Bookmarked");
+    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Not bookmarked");
   });
 });

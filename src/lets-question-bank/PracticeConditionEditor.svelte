@@ -1,14 +1,16 @@
 <script lang="ts">
   import { Check, RotateCcw, SlidersHorizontal, X } from "lucide-svelte";
-  import { Locale } from "@svar-ui/svelte-core";
   import {
-    FilterBuilder,
-    Willow,
-  } from "@svar-ui/svelte-filter";
+    QueryBuilder,
+    type Field,
+    type FullCombinator,
+    type FullOperator,
+    type Translations,
+  } from "svelte-querybuilder";
+  import "svelte-querybuilder/dist/query-builder-layout.css";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import {
-    normalizePracticeFilter,
     practiceFilterToCondition,
     type PracticeFilter,
     type PracticeFilterField,
@@ -16,30 +18,22 @@
     type PracticeFilterRule,
     type PracticeFilterValue,
   } from "@/question-bank/core/scope";
+  import {
+    practiceFilterToQuery,
+    queryToPracticeFilter,
+    type PracticeQueryGroup,
+  } from "./practice-querybuilder-adapter";
 
   export let label: (key: string, fallback: string) => string;
   export let filter: PracticeFilter = "all";
 
-  const options: Record<PracticeFilterField, PracticeFilterValue[]> = {
-    attempted: ["yes", "no"],
-    wrong: ["yes", "no"],
-    review: ["yes", "no"],
-    due: ["yes", "no"],
-    bookmarked: ["yes", "no"],
-  };
-
   let sourceFilter: PracticeFilter = filter;
-  let editorValue = practiceFilterToCondition(filter);
-  let groupEditorValue = practiceFilterToCondition(filter);
+  let editorQuery: PracticeQueryGroup = practiceFilterToQuery(filter);
   let dialogOpen = false;
-  let filterApi: { getValue: () => unknown } | undefined;
-  let fields: Array<{
-    id: PracticeFilterField;
-    label: string;
-    type: "tuple";
-    format: (value: string | number | Date) => string;
-  }> = [];
-  let words: Record<string, unknown> = {};
+  let fields: Field[] = [];
+  let operators: FullOperator[] = [];
+  let combinators: FullCombinator[] = [];
+  let translations: Partial<Translations> = {};
 
   function optionLabel(field: PracticeFilterField, value: unknown): string {
     const yes = value === "yes";
@@ -53,129 +47,94 @@
     return labels[field][yes ? 0 : 1];
   }
 
+  function fieldDefinition(name: PracticeFilterField, fieldLabel: string): Field {
+    return {
+      name,
+      label: fieldLabel,
+      valueEditorType: "select",
+      values: (["yes", "no"] as PracticeFilterValue[]).map((value) => ({
+        name: value,
+        label: optionLabel(name, value),
+      })),
+      defaultOperator: "equal",
+      defaultValue: "yes",
+    };
+  }
+
   $: fields = [
-    { id: "attempted", label: label("attemptedStatus", "Attempt status"), type: "tuple", format: (value) => optionLabel("attempted", value) },
-    { id: "wrong", label: label("wrongStatus", "Wrong-answer status"), type: "tuple", format: (value) => optionLabel("wrong", value) },
-    { id: "review", label: label("reviewStatus", "Review status"), type: "tuple", format: (value) => optionLabel("review", value) },
-    { id: "due", label: label("dueStatus", "Due status"), type: "tuple", format: (value) => optionLabel("due", value) },
-    { id: "bookmarked", label: label("bookmarkedStatus", "Bookmark status"), type: "tuple", format: (value) => optionLabel("bookmarked", value) },
+    fieldDefinition("attempted", label("attemptedStatus", "Attempt status")),
+    fieldDefinition("wrong", label("wrongStatus", "Wrong-answer status")),
+    fieldDefinition("review", label("reviewStatus", "Review status")),
+    fieldDefinition("due", label("dueStatus", "Due status")),
+    fieldDefinition("bookmarked", label("bookmarkedStatus", "Bookmark status")),
   ];
 
-  $: words = {
-    filter: {
-      "Add filter": label("addCondition", "Add condition"),
-      "Add group": label("addConditionGroup", "Add group"),
-      Edit: label("editCondition", "Edit"),
-      Delete: label("deleteCondition", "Delete"),
-      "Select all": label("selectAll", "Select all"),
-      "Unselect all": label("clearSelection", "Clear selection"),
-      Cancel: label("cancel", "Cancel"),
-      Apply: label("apply", "Apply"),
-      and: label("conditionAnd", "and"),
-      or: label("conditionOr", "or"),
-      in: label("conditionIn", "in"),
-      equal: label("conditionEqual", "equals"),
-      "not equal": label("conditionNotEqual", "does not equal"),
-      greater: label("conditionGreater", "greater than"),
-      "greater or equal": label("conditionGreaterOrEqual", "greater than or equal to"),
-      less: label("conditionLess", "less than"),
-      "less or equal": label("conditionLessOrEqual", "less than or equal to"),
-      "Click to select": label("selectConditionValue", "Select a value"),
-      None: label("none", "None"),
+  $: operators = [
+    { name: "equal", value: "equal", label: label("conditionEqual", "equals") },
+    { name: "notEqual", value: "notEqual", label: label("conditionNotEqual", "does not equal") },
+  ];
+
+  $: combinators = [
+    { name: "and", value: "and", label: label("conditionAnd", "and") },
+    { name: "or", value: "or", label: label("conditionOr", "or") },
+  ];
+
+  $: translations = {
+    fields: { title: label("filter", "Field") },
+    operators: { title: label("conditionEqual", "Operator") },
+    values: { title: label("selectConditionValue", "Value") },
+    value: { title: label("selectConditionValue", "Value") },
+    combinators: { title: label("conditionAnd", "Combinator") },
+    addRule: {
+      label: label("addCondition", "Add condition"),
+      title: label("addCondition", "Add condition"),
+    },
+    addGroup: {
+      label: label("addConditionGroup", "Add group"),
+      title: label("addConditionGroup", "Add group"),
+    },
+    removeRule: {
+      label: label("deleteCondition", "Delete"),
+      title: label("deleteCondition", "Delete condition"),
+    },
+    removeGroup: {
+      label: label("deleteCondition", "Delete"),
+      title: label("deleteCondition", "Delete group"),
     },
   };
 
   $: if (filter !== sourceFilter) {
     sourceFilter = filter;
-    editorValue = practiceFilterToCondition(filter);
-  }
-
-  function changeFilter(event: { value: unknown }): void {
-    // The SVAR store remains authoritative while the dialog is open. Read it on apply
-    // so editing a rule does not reinitialize the builder and close its panel.
-    void event;
-  }
-
-  // SVAR's add button passes the click event as its action payload under Svelte 5.
-  // Seed the new rule with a valid field before DataStore normalizes it.
-  function initFilter(api: {
-    intercept: (
-      action: string,
-      callback: (params: {
-        rule?: {
-          field?: PracticeFilterField;
-          type?: string;
-          filter?: string;
-          value?: unknown;
-        };
-      }) => void,
-    ) => void;
-    getValue: () => unknown;
-    on: (action: string, callback: () => void) => void;
-  }): void {
-    filterApi = api;
-
-    const syncGroupEditor = () => {
-      const next = normalizePracticeFilter(api.getValue());
-      if (typeof next !== "string") groupEditorValue = mergeGroupNames(groupEditorValue, next);
-    };
-
-    api.intercept("add-rule", (params) => {
-      params.rule ??= {};
-      const field = params.rule.field ?? fields[0]?.id ?? "attempted";
-      params.rule.field = field;
-      if (!params.rule.type || params.rule.type === "click") params.rule.type = "tuple";
-      if (!params.rule.filter) params.rule.filter = "equal";
-      if (params.rule.value === undefined) params.rule.value = options[field][0] ?? "yes";
-    });
-    api.on("add-group", syncGroupEditor);
-    api.on("delete-rule", syncGroupEditor);
+    if (!dialogOpen) editorQuery = practiceFilterToQuery(filter);
   }
 
   function clearFilter(): void {
-    const next = practiceFilterToCondition("all");
-    editorValue = next;
+    editorQuery = practiceFilterToQuery("all");
     if (!dialogOpen) {
-      sourceFilter = next;
-      filter = next;
+      sourceFilter = queryToPracticeFilter(editorQuery);
+      filter = sourceFilter;
     }
   }
 
   function openEditor(): void {
-    editorValue = practiceFilterToCondition(filter);
-    groupEditorValue = editorValue;
+    editorQuery = practiceFilterToQuery(filter);
     dialogOpen = true;
   }
 
   function cancelEditor(): void {
-    editorValue = practiceFilterToCondition(filter);
-    groupEditorValue = editorValue;
+    editorQuery = practiceFilterToQuery(filter);
     dialogOpen = false;
   }
 
   function applyEditor(): void {
-    const next = normalizePracticeFilter(filterApi?.getValue() ?? editorValue);
-    if (typeof next === "string") return;
-    const named = mergeGroupNames(groupEditorValue, next);
-    sourceFilter = named;
-    filter = named;
-    editorValue = named;
+    const next = queryToPracticeFilter(editorQuery);
+    sourceFilter = next;
+    filter = next;
+    editorQuery = practiceFilterToQuery(next);
     dialogOpen = false;
   }
 
-  function mergeGroupNames(source: PracticeFilterGroup, target: PracticeFilterGroup): PracticeFilterGroup {
-    return {
-      glue: target.glue,
-      ...(source.name ? { name: source.name } : {}),
-      rules: target.rules.map((rule, index) => {
-        const sourceRule = source.rules[index];
-        if (!("rules" in rule) || !sourceRule || !("rules" in sourceRule)) return rule;
-        return mergeGroupNames(sourceRule, rule);
-      }),
-    };
-  }
-
-  function groupEntries(group: PracticeFilterGroup, path = ""): Array<{ path: string; group: PracticeFilterGroup }> {
+  function groupEntries(group: PracticeQueryGroup, path = ""): Array<{ path: string; group: PracticeQueryGroup }> {
     const entries = [{ path, group }];
     group.rules.forEach((rule, index) => {
       if ("rules" in rule) entries.push(...groupEntries(rule, path ? `${path}.${index}` : String(index)));
@@ -185,18 +144,20 @@
 
   function renameGroup(path: string, name: string): void {
     const segments = path ? path.split(".").map(Number) : [];
-    const update = (group: PracticeFilterGroup, depth: number): PracticeFilterGroup => {
+    const update = (group: PracticeQueryGroup, depth: number): PracticeQueryGroup => {
       if (depth === segments.length) {
         const trimmed = name.trim();
-        return trimmed ? { ...group, name: trimmed } : Object.fromEntries(Object.entries(group).filter(([key]) => key !== "name")) as PracticeFilterGroup;
+        const { name: _discarded, ...rest } = group;
+        return trimmed ? { ...group, name: trimmed } : rest;
       }
       const index = segments[depth];
       return {
         ...group,
-        rules: group.rules.map((rule, ruleIndex) => ruleIndex === index && "rules" in rule ? update(rule, depth + 1) : rule),
+        rules: group.rules.map((rule, ruleIndex) =>
+          ruleIndex === index && "rules" in rule ? update(rule, depth + 1) : rule),
       };
     };
-    groupEditorValue = update(groupEditorValue, 0);
+    editorQuery = update(editorQuery, 0);
   }
 
   function updateGroupNameFromEvent(path: string, event: Event): void {
@@ -226,16 +187,18 @@
     if ("rules" in node) {
       if (node.name) return node.name;
       if (!node.rules.length) return label("allQuestions", "All questions");
-      const text = node.rules.map((rule) => formatCondition(rule, true)).join(` ${node.glue === "or" ? label("conditionOr", "or") : label("conditionAnd", "and")} `);
+      const glue = node.glue === "or" ? label("conditionOr", "or") : label("conditionAnd", "and");
+      const text = node.rules.map((rule) => formatCondition(rule, true)).join(` ${glue} `);
       return nested && node.rules.length > 1 ? `(${text})` : text;
     }
 
-    const fieldLabel = fields.find((field) => field.id === node.field)?.label ?? node.field;
+    const fieldLabel = fields.find((field) => field.name === node.field)?.label ?? node.field;
     const values = node.includes?.length
       ? node.includes.map((value) => optionLabel(node.field, value)).join(", ")
       : node.value === undefined
         ? ""
         : optionLabel(node.field, node.value);
+    if (node.includes?.length) return [fieldLabel, label("conditionIn", "in"), values].join(" ");
     if ((node.filter ?? "equal") === "equal" && values) return values;
     return [fieldLabel, operatorLabel(node.filter), values].filter(Boolean).join(" ");
   }
@@ -285,7 +248,7 @@
           <strong>{label("conditionGroupName", "Condition group names")}</strong>
           <small>{label("conditionGroupNameDescription", "Optional names make saved groups easier to recognize")}</small>
         </div>
-        {#each groupEntries(groupEditorValue) as entry, index (`${entry.path}-${index}`)}
+        {#each groupEntries(editorQuery) as entry, index (`${entry.path}-${index}`)}
           <div class="condition-group-name-row">
             <span>{entry.path ? `${label("conditionGroup", "Group")} ${index}` : label("conditionRootGroup", "All conditions")}</span>
             <Input
@@ -299,18 +262,20 @@
       </div>
 
       <div class="condition-dialog-body">
-        <Locale {words}>
-          <Willow fonts={false}>
-            <FilterBuilder
-              type="list"
-              value={editorValue}
-              {fields}
-              {options}
-              init={initFilter}
-              onchange={changeFilter}
-            />
-          </Willow>
-        </Locale>
+        <div class="query-builder-theme">
+          <QueryBuilder
+            {fields}
+            {operators}
+            {combinators}
+            {translations}
+            bind:query={editorQuery}
+            getDefaultField="attempted"
+            getDefaultOperator="equal"
+            getDefaultValue={() => "yes"}
+            maxLevels={4}
+            resetOnFieldChange
+          />
+        </div>
       </div>
 
       <footer class="condition-dialog-footer">
@@ -414,12 +379,13 @@
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    width: min(94vw, 720px);
-    max-height: min(86vh, 680px);
+    width: min(94vw, 760px);
+    max-height: min(86vh, 700px);
     overflow: hidden;
     transform: translate(-50%, -50%);
     border: 1px solid var(--b3-border-color);
     border-radius: 8px;
+    color: var(--b3-theme-on-background);
     background: var(--b3-theme-background);
     box-shadow: var(--b3-dialog-shadow, 0 14px 36px rgb(0 0 0 / 25%));
   }
@@ -438,7 +404,8 @@
     border-bottom: 1px solid var(--b3-border-color);
   }
 
-  .condition-dialog-header > div {
+  .condition-dialog-header > div,
+  .condition-group-names-heading {
     min-width: 0;
     display: grid;
     gap: 2px;
@@ -447,7 +414,7 @@
   .condition-dialog-kicker {
     color: var(--b3-theme-on-surface);
     font-size: 10px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
@@ -464,17 +431,13 @@
     background: color-mix(in srgb, var(--b3-theme-surface) 38%, transparent);
   }
 
-  .condition-group-names-heading {
-    display: grid;
-    gap: 1px;
-  }
-
   .condition-group-names-heading strong {
     font-size: 12px;
     font-weight: 650;
   }
 
-  .condition-group-names-heading small {
+  .condition-group-names-heading small,
+  .condition-group-name-row {
     color: var(--b3-theme-on-surface);
     font-size: 11px;
   }
@@ -484,8 +447,6 @@
     grid-template-columns: minmax(110px, 0.32fr) minmax(0, 1fr);
     align-items: center;
     gap: 9px;
-    color: var(--b3-theme-on-surface);
-    font-size: 11px;
   }
 
   .condition-group-name-row :global(input) {
@@ -496,7 +457,7 @@
   .condition-dialog-body {
     min-height: 0;
     overflow: auto;
-    padding: 10px 14px;
+    padding: 12px 14px;
   }
 
   .condition-dialog-footer {
@@ -510,70 +471,104 @@
     gap: 7px;
   }
 
-  .practice-condition-editor :global(.wx-willow-theme) {
-    height: auto !important;
-    color: var(--b3-theme-on-background);
-    background: transparent;
-    --wx-color-primary: var(--b3-theme-primary);
-    --wx-color-primary-font: var(--b3-theme-on-primary);
-    --wx-color-secondary-font: var(--b3-theme-primary);
-    --wx-color-secondary-border: var(--b3-theme-primary);
-    --wx-color-font: var(--b3-theme-on-background);
-    --wx-color-font-alt: var(--b3-theme-on-surface);
-    --wx-background: var(--b3-theme-background);
-    --wx-background-alt: var(--b3-theme-surface);
-    --wx-background-hover: var(--b3-list-hover);
-    --wx-border-color: var(--b3-border-color);
-    --wx-font-family: var(--b3-font-family);
-    --wx-font-size: 12px;
-    --wx-line-height: 18px;
-    --wx-button-font-size: 12px;
-    --wx-button-height: 30px;
-    --wx-button-padding: 4px 10px;
-    --wx-input-height: 30px;
-    --wx-border-radius: 6px;
-    --wx-border: 1px solid var(--b3-border-color);
-    --wx-popup-z-index: 10000;
-    --wx-filter-value-color: var(--b3-theme-primary);
-    --wx-filter-and-background: color-mix(in srgb, var(--b3-theme-primary) 28%, var(--b3-theme-background));
-    --wx-filter-or-background: color-mix(in srgb, var(--b3-theme-secondary) 32%, var(--b3-theme-background));
-    --wx-filter-and-font-color: var(--b3-theme-on-background);
-    --wx-filter-or-font-color: var(--b3-theme-on-background);
+  .query-builder-theme {
+    --rqb-spacing: 7px;
+    --rqb-border-width: 1px;
+    --rqb-branch-indent: 9px;
+    --rqb-branch-width: 1px;
+    --rqb-border-color: var(--b3-border-color);
+    --rqb-branch-color: var(--b3-border-color);
+    --rqb-border-radius: 6px;
+    font-family: var(--b3-font-family);
+    font-size: 12px;
   }
 
-  .practice-condition-editor :global(.wx-filter-builder.wx-list) {
+  .query-builder-theme :global(.queryBuilder) {
     width: 100%;
-    max-width: none;
-    background: transparent;
   }
 
-  .practice-condition-editor :global(.wx-toolbar.wx-list) {
-    display: flex;
-    justify-content: flex-start;
+  .query-builder-theme :global(.ruleGroup) {
+    border-style: solid;
+    border-color: var(--b3-border-color);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--b3-theme-surface) 42%, transparent);
   }
 
-  .practice-condition-editor :global(.wx-rule.wx-list) {
-    min-height: 40px;
-    margin: 7px 0;
-    padding: 9px 8px;
+  .query-builder-theme :global(.ruleGroup .ruleGroup) {
+    background: var(--b3-theme-background);
+  }
+
+  .query-builder-theme :global(.ruleGroup-header),
+  .query-builder-theme :global(.rule) {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .query-builder-theme :global(.rule) {
+    padding: 7px;
     border: 1px solid var(--b3-border-color);
+    border-radius: 5px;
+    background: var(--b3-theme-background);
   }
 
-  .practice-condition-editor :global(.wx-group.wx-inner.wx-list) {
-    margin-left: 14px;
+  .query-builder-theme :global(select),
+  .query-builder-theme :global(input:not([type="checkbox"])),
+  .query-builder-theme :global(button) {
+    min-height: 30px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 5px;
+    color: var(--b3-theme-on-background);
+    background: var(--b3-theme-background);
+    font: inherit;
   }
 
-  .practice-condition-editor :global(.wxi-dots-v::before) {
-    content: "\22ee";
-    font-size: 18px;
+  .query-builder-theme :global(select),
+  .query-builder-theme :global(input:not([type="checkbox"])) {
+    min-width: 118px;
+    padding: 4px 8px;
   }
 
-  @container (max-width: 620px) {
-    .practice-condition-editor :global(.wx-group.wx-inner.wx-list) {
-      margin-left: 6px;
-      padding-left: 5px;
-    }
+  .query-builder-theme :global(.rule-fields) {
+    flex: 1 1 160px;
+  }
 
+  .query-builder-theme :global(.rule-operators) {
+    flex: 1 1 140px;
+  }
+
+  .query-builder-theme :global(.rule-value) {
+    flex: 1 1 130px;
+  }
+
+  .query-builder-theme :global(button) {
+    padding: 4px 9px;
+    cursor: pointer;
+  }
+
+  .query-builder-theme :global(button:hover) {
+    background: var(--b3-list-hover);
+  }
+
+  .query-builder-theme :global(.ruleGroup-addRule),
+  .query-builder-theme :global(.ruleGroup-addGroup) {
+    color: var(--b3-theme-primary);
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 48%, var(--b3-border-color));
+  }
+
+  .query-builder-theme :global(.rule-remove),
+  .query-builder-theme :global(.ruleGroup-remove) {
+    margin-left: auto;
+    color: var(--b3-theme-error, #d23f31);
+  }
+
+  .query-builder-theme :global(select:focus-visible),
+  .query-builder-theme :global(input:focus-visible),
+  .query-builder-theme :global(button:focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+    outline-offset: 1px;
+  }
+
+  @media (max-width: 620px) {
     .condition-dialog {
       width: calc(100vw - 20px);
       max-height: calc(100vh - 20px);
@@ -581,6 +576,19 @@
 
     .condition-dialog-body {
       padding: 8px;
+    }
+
+    .condition-group-name-row {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+
+    .query-builder-theme :global(.ruleGroup-body) {
+      margin-left: 6px;
+    }
+
+    .query-builder-theme :global(.rule-remove) {
+      margin-left: 0;
     }
   }
 </style>

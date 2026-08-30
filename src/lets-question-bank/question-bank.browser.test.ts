@@ -490,8 +490,7 @@ describe("question bank browser flow", () => {
 
     expect(button("Random questions").getAttribute("data-state")).toBe("on");
     expect(button("Original options").getAttribute("data-state")).toBe("on");
-    expect(document.querySelector(".wx-rule")?.textContent).toContain("Wrong-answer status");
-    expect(document.querySelector(".wx-rule")?.textContent).toContain("Wrong");
+    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Wrong");
 
     button("Sequential questions").click();
     button("Random options").click();

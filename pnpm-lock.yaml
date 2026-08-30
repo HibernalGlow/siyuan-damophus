@@ -29,12 +29,6 @@ importers:
       '@siyuan-community/siyuan-sdk':
         specifier: ^0.3.14
         version: 0.3.17(debug@4.4.3)
-      '@svar-ui/svelte-core':
-        specifier: ^2.6.0
-        version: 2.6.0
-      '@svar-ui/svelte-filter':
-        specifier: ^2.6.0
-        version: 2.6.0
       '@tanstack/svelte-table':
         specifier: ^9.1.0
         version: 9.1.0(svelte@5.56.8)
@@ -92,6 +86,9 @@ importers:
       svelte-dnd-action:
         specifier: ^0.9.78
         version: 0.9.78(svelte@5.56.8)
+      svelte-querybuilder:
+        specifier: 0.1.1
+        version: 0.1.1(svelte@5.56.8)
       tailwind-merge:
         specifier: 3.5.0
         version: 3.5.0
@@ -656,6 +653,35 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
+  '@react-querybuilder/core@8.23.1':
+    resolution: {integrity: sha512-cj9QC/xaxw/unNpGZ6dOuiUNUBU9SzccIbMAZTBF2Sb64OERA70HzmBEmn8e4+RwPe9U0zEiTz1mkhDLDmFnNw==}
+    peerDependencies:
+      '@tanstack/db': '>=0.6.9'
+      '@traqula/parser-sparql-1-2': '>=0.1.0'
+      chevrotain: '>=11'
+      drizzle-orm: '>=0.38.0'
+      json-logic-js: '>=2'
+      jsonata: '>=2'
+      sequelize: '>=6'
+      spel2js: '>=0.2.0'
+    peerDependenciesMeta:
+      '@tanstack/db':
+        optional: true
+      '@traqula/parser-sparql-1-2':
+        optional: true
+      chevrotain:
+        optional: true
+      drizzle-orm:
+        optional: true
+      json-logic-js:
+        optional: true
+      jsonata:
+        optional: true
+      sequelize:
+        optional: true
+      spel2js:
+        optional: true
+
   '@rolldown/binding-android-arm64@1.2.2':
     resolution: {integrity: sha512-l7x215OGvo1s52JWmR8U/DAVzEDWBCIbTm28aeJV/WDTSHgcKXaZTuBT0hJMs5NggilfJTW3clZVvd24yfKJxA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -755,36 +781,6 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
-
-  '@svar-ui/core-locales@2.6.0':
-    resolution: {integrity: sha512-Sma/BkR3we76Ix/67NmSh511yvtKVpi8LFK06ZbWSiC3xEsCSoKsJ5AtLmi8dxaXPa5HuCWI/jMwJsKRwQ0F2Q==}
-
-  '@svar-ui/filter-locales@2.6.0':
-    resolution: {integrity: sha512-EQAadVLtpCMjch38T+EcgkX8GXt72MwT04DOSL0G4ZG2roTzgOEKsUV53tfZFiFyamUFnQRY2Hs9IEZApfHzLQ==}
-
-  '@svar-ui/filter-store@2.6.0':
-    resolution: {integrity: sha512-IJzSTMSCyFDP5uF3ZskJODqeXQSn2v8bj8LCHEeCYv8lSVAWXis6iJ8ZBusf95OtV+omO5jpTe6ugZYZpaFTrA==}
-
-  '@svar-ui/lib-dom@0.13.1':
-    resolution: {integrity: sha512-e9+RIEkppVkAUJqfHEr7KmiVXi3uf+qddr513h5mhgSx3PNYtG9eHwtI8OQf4JMc6Hvuu3y0iv+fL6jqE340yw==}
-
-  '@svar-ui/lib-state@1.9.6':
-    resolution: {integrity: sha512-twoHa8wZvzdxtES68s6Wnp4Xi1WivScNaFFK6sJ6WDgqVYOzJw0ZhVVrdwHQgieLITTKl/DYh/U3nuqtMetKYw==}
-
-  '@svar-ui/lib-state@1.9.7':
-    resolution: {integrity: sha512-nxRdk+54m1RJjGT2yDH7NjxAM5KECxA39kdTZezEIj1ixykyefssB9BrgxKy2jIseYxJMtd6lPZvQ3SZXuvn2g==}
-
-  '@svar-ui/lib-svelte@0.5.2':
-    resolution: {integrity: sha512-i+hHMT3zctaGbRpyMDREt9im7YfLpvGwFYvH1ntEp/kYAwUrR/sxMJlEEKIid+Yg2EeMUstGxmYQbkWoMpPG7A==}
-
-  '@svar-ui/svelte-core@2.6.0':
-    resolution: {integrity: sha512-5fnEm4FXjRpVZgU8EoOMisiZ0bkkj0gtP1RK66Pi5Jw9OWu+ytZleaeUyFkpBxWNPX9yENkqEEOMWUnitPYO6A==}
-
-  '@svar-ui/svelte-filter@2.6.0':
-    resolution: {integrity: sha512-7NKo2kqQXhj/EzY2jlLOa3CbO4StVugjxkKDwJmwf2Wxy+jcWTfhY0OvvlDsr3bofHcEE722FIuXziBKXmaj6A==}
-
-  '@svar-ui/svelte-menu@2.6.0':
-    resolution: {integrity: sha512-1sXgVKG4hUhkrnbfrSKvfp0M/OqMjbHBnoYRMZKNLs9z1hWGJpKqzZZkUZg8ahH40SfitMjK8XjEgGMFBwC/7g==}
 
   '@sveltejs/acorn-typescript@1.0.11':
     resolution: {integrity: sha512-LFuZUkjJ9iF7JZye/aG5XM0SFcQ5VyL0oVX4WJ9dc0Va3R3s0OauX1BESVCb+YN/ol8TAfqGDDAQsTG627Y5kw==}
@@ -922,6 +918,15 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
+  '@ts-jison/common@0.4.1-alpha.3':
+    resolution: {integrity: sha512-s9BLSrUSIGCqx3w5dJjBl0iVs92rYDqVqVHPP6XQKV9/OzmCfqcKQGoeepE2LJYnv1fj9Sh5cE5j6tBJazFzMA==}
+
+  '@ts-jison/lexer@0.4.1-alpha.1':
+    resolution: {integrity: sha512-5C1Wr+wixAzn2MOFtgy7KbT6N6j9mhmbjAtyvOqZKsikKtNOQj22MM5HxT+ooRexG2NbtxnDSXYdhHR1Lg58ow==}
+
+  '@ts-jison/parser@0.4.1-alpha.1':
+    resolution: {integrity: sha512-xNj+qOez/7dju44LlYiTlCjxMzW5oek9EckUAElfln/GBK9vgMSk0swWcnacMr0TYbGjUQuXvL2wEgmDf5WajQ==}
+
   '@tsconfig/node10@1.0.12':
     resolution: {integrity: sha512-UCYBaeFvM11aU2y3YPZ//O5Rhj+xKyzy7mvcIoAjASbigy8mHMryP5cK7dgjlz2hWxh1g5pLw084E0a/wlUSFQ==}
 
@@ -951,6 +956,9 @@ packages:
 
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
+
+  '@types/json-logic-js@2.0.8':
+    resolution: {integrity: sha512-WgNsDPuTPKYXl0Jh0IfoCoJoAGGYZt5qzpmjuLSEg7r0cKp/kWtWp0HAsVepyPSPyXiHo6uXp/B/kW/2J1fa2Q==}
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
@@ -1486,6 +1494,9 @@ packages:
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
 
+  immer@11.1.18:
+    resolution: {integrity: sha512-EQyQtLiYW029lyoczMl/Hh4Xu7cDecSc58JRYpHyL4tIAu3eqd1yJzQX04d2BZHDkzFFvm6qJEJWOtfDSWAXbQ==}
+
   immutable@5.1.9:
     resolution: {integrity: sha512-m8nVez3rwrgmWxtLMt1ZYXB2Lv7OKYn/disyxAlSDYAlKSlFoPPfIAmAM/M5xqL4m4C/wAPw7S2/CNaUii1Hxg==}
 
@@ -1955,6 +1966,10 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
+  numeric-quantity@3.3.1:
+    resolution: {integrity: sha512-rVWQd+eDc3LDDq7L/T//BL1eZ/LLBAnp0CY5qampKWlHdkz/SXyzQqq+cC8763w1UqZgNxRQycKB+7gd5sNumw==}
+    engines: {node: '>=16'}
+
   oblivious-set@2.0.0:
     resolution: {integrity: sha512-QOUH5Xrsced9fKXaQTjWoDGKeS/Or7E2jB0FN63N4mkAO4qJdB7WR7e6qWAOHM5nk25FJ8TGjhP7DH4l6vFVLg==}
     engines: {node: '>=16'}
@@ -2268,6 +2283,11 @@ packages:
     resolution: {integrity: sha512-qov+j3A9Umo1Ng2b2PaQ/nTDBo1sogAw19DF1KZ35Pcx/9yJtlmnKYKVHjCz9iqUH+g1sk4XuCstxPZFFPEa/Q==}
     peerDependencies:
       svelte: '>=3.23.0 || ^5.0.0-next.0'
+
+  svelte-querybuilder@0.1.1:
+    resolution: {integrity: sha512-RKwBo4CS40LsHwFCNz6Mc1iZcukTEk3gSwfsL+uCOHdv0qA8W6iryHTRAitdHcnMreD3tc20xPuIYLqHFc8haQ==}
+    peerDependencies:
+      svelte: ^5.25
 
   svelte-toolbelt@0.10.6:
     resolution: {integrity: sha512-YWuX+RE+CnWYx09yseAe4ZVMM7e7GRFZM6OYWpBKOb++s+SQ8RBIMMe+Bs/CznBMc0QPLjr+vDBxTAkozXsFXQ==}
@@ -3099,6 +3119,14 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
+  '@react-querybuilder/core@8.23.1':
+    dependencies:
+      '@ts-jison/lexer': 0.4.1-alpha.1
+      '@ts-jison/parser': 0.4.1-alpha.1
+      '@types/json-logic-js': 2.0.8
+      immer: 11.1.18
+      numeric-quantity: 3.3.1
+
   '@rolldown/binding-android-arm64@1.2.2':
     optional: true
 
@@ -3157,44 +3185,6 @@ snapshots:
       - utf-8-validate
 
   '@standard-schema/spec@1.1.0': {}
-
-  '@svar-ui/core-locales@2.6.0': {}
-
-  '@svar-ui/filter-locales@2.6.0': {}
-
-  '@svar-ui/filter-store@2.6.0':
-    dependencies:
-      '@svar-ui/lib-state': 1.9.6
-
-  '@svar-ui/lib-dom@0.13.1': {}
-
-  '@svar-ui/lib-state@1.9.6': {}
-
-  '@svar-ui/lib-state@1.9.7': {}
-
-  '@svar-ui/lib-svelte@0.5.2':
-    dependencies:
-      '@svar-ui/lib-state': 1.9.7
-
-  '@svar-ui/svelte-core@2.6.0':
-    dependencies:
-      '@svar-ui/core-locales': 2.6.0
-      '@svar-ui/lib-dom': 0.13.1
-      '@svar-ui/lib-svelte': 0.5.2
-
-  '@svar-ui/svelte-filter@2.6.0':
-    dependencies:
-      '@svar-ui/filter-locales': 2.6.0
-      '@svar-ui/filter-store': 2.6.0
-      '@svar-ui/lib-dom': 0.13.1
-      '@svar-ui/lib-state': 1.9.7
-      '@svar-ui/svelte-core': 2.6.0
-      '@svar-ui/svelte-menu': 2.6.0
-
-  '@svar-ui/svelte-menu@2.6.0':
-    dependencies:
-      '@svar-ui/lib-dom': 0.13.1
-      '@svar-ui/svelte-core': 2.6.0
 
   '@sveltejs/acorn-typescript@1.0.11(acorn@8.18.0)':
     dependencies:
@@ -3304,6 +3294,17 @@ snapshots:
     dependencies:
       svelte: 5.56.8
 
+  '@ts-jison/common@0.4.1-alpha.3': {}
+
+  '@ts-jison/lexer@0.4.1-alpha.1':
+    dependencies:
+      '@ts-jison/common': 0.4.1-alpha.3
+
+  '@ts-jison/parser@0.4.1-alpha.1':
+    dependencies:
+      '@ts-jison/common': 0.4.1-alpha.3
+      '@ts-jison/lexer': 0.4.1-alpha.1
+
   '@tsconfig/node10@1.0.12': {}
 
   '@tsconfig/node12@1.0.11': {}
@@ -3330,6 +3331,8 @@ snapshots:
   '@types/hast@3.0.5':
     dependencies:
       '@types/unist': 3.0.3
+
+  '@types/json-logic-js@2.0.8': {}
 
   '@types/mdast@4.0.4':
     dependencies:
@@ -3894,6 +3897,8 @@ snapshots:
   ignore@5.1.4: {}
 
   immediate@3.0.6: {}
+
+  immer@11.1.18: {}
 
   immutable@5.1.9: {}
 
@@ -4468,6 +4473,8 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
+  numeric-quantity@3.3.1: {}
+
   oblivious-set@2.0.0: {}
 
   obug@2.1.4: {}
@@ -4786,6 +4793,20 @@ snapshots:
   svelte-dnd-action@0.9.78(svelte@5.56.8):
     dependencies:
       svelte: 5.56.8
+
+  svelte-querybuilder@0.1.1(svelte@5.56.8):
+    dependencies:
+      '@react-querybuilder/core': 8.23.1
+      svelte: 5.56.8
+    transitivePeerDependencies:
+      - '@tanstack/db'
+      - '@traqula/parser-sparql-1-2'
+      - chevrotain
+      - drizzle-orm
+      - json-logic-js
+      - jsonata
+      - sequelize
+      - spel2js
 
   svelte-toolbelt@0.10.6(svelte@5.56.8):
     dependencies:
