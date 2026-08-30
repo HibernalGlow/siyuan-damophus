@@ -7,6 +7,7 @@ import { plugin } from "@/utils";
 import {
   DEFAULT_COVER_HISTORY_LIMIT,
   DEFAULT_SEEN_COVERS_LIMIT,
+  initializeCoverDedupStorage,
   startMoreBackground,
   type MoreBackgroundHandle,
   type MoreBackgroundOptions,
@@ -196,7 +197,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
   onLayoutReady(): void {
     this.layoutReady = true;
     this.bindEvents();
-    void loadTagPoolsFromStorage().then(() => {
+    void Promise.all([loadTagPoolsFromStorage(), initializeCoverDedupStorage()]).then(() => {
       this.startController();
     });
   }

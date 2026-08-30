@@ -10,6 +10,11 @@ export interface CoverAttributeRow {
   value?: string;
 }
 
+export interface CoverBlockRow {
+  block_id?: string;
+  ial?: string;
+}
+
 export function booruPostDedupKey(site: unknown, postId: unknown): string | null {
   const rawSite = String(site || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   const rawPostId = String(postId || "").trim();
@@ -52,6 +57,26 @@ export function normalizeCoverAssetPath(value: string): string | null {
   return source.replace(/^\/+/, "").replace(/^data\//i, "").replace(/\/+/g, "/");
 }
 
+/** Return a stable identity for both remote covers and local asset paths. */
+export function coverDedupIdentity(value: string): string | null {
+  const remote = normalizeCoverUrl(value);
+  if (remote) return remote;
+  const asset = normalizeCoverAssetPath(value);
+  return asset ? `asset:${asset.toLowerCase()}` : null;
+}
+
+export function collectTitleImageRows(blocks: CoverBlockRow[]): CoverAttributeRow[] {
+  const rows: CoverAttributeRow[] = [];
+  for (const block of blocks || []) {
+    const ial = String(block.ial || "");
+    for (const name of TITLE_IMAGE_ATTRIBUTES) {
+      const match = ial.match(new RegExp(`(?:^|[\\s{])${name}="([^"]*)"`));
+      if (match?.[1]) rows.push({ block_id: block.block_id, name, value: match[1] });
+    }
+  }
+  return rows;
+}
+
 export function collectUsedCoverUrls(rows: CoverAttributeRow[]): Set<string> {
   const urls = new Set<string>();
   const postMetadataByBlock = new Map<string, { site?: string; postId?: string }>();
@@ -65,8 +90,8 @@ export function collectUsedCoverUrls(rows: CoverAttributeRow[]): Set<string> {
       postMetadataByBlock.set(row.block_id, { ...existing, postId: row.value });
     }
     if (row.name !== SOURCE_ATTRIBUTE && !TITLE_IMAGE_ATTRIBUTES.has(row.name || "")) continue;
-    const normalized = normalizeCoverUrl(row.value || "");
-    if (normalized) urls.add(normalized);
+    const identity = coverDedupIdentity(row.value || "");
+    if (identity) urls.add(identity);
   }
   for (const metadata of postMetadataByBlock.values()) {
     const key = booruPostDedupKey(metadata.site, metadata.postId);
@@ -76,10 +101,18 @@ export function collectUsedCoverUrls(rows: CoverAttributeRow[]): Set<string> {
 }
 
 export async function loadUsedCoverUrls(): Promise<Set<string>> {
-  const rows = await sql(
-    "SELECT block_id, name, value FROM attributes WHERE name IN ('custom-damophus-cover-source-url', 'title-img', 'custom-title-img', 'custom-damophus-post-site', 'custom-damophus-post-id')",
-  );
-  return collectUsedCoverUrls(rows as CoverAttributeRow[]);
+  const [attributeRows, blockRows] = await Promise.all([
+    sql(
+      "SELECT block_id, name, value FROM attributes WHERE name IN ('custom-damophus-cover-source-url', 'custom-damophus-post-site', 'custom-damophus-post-id') LIMIT 100000",
+    ),
+    sql(
+      "SELECT id AS block_id, ial FROM blocks WHERE type = 'd' AND (ial LIKE '%title-img=%' OR ial LIKE '%custom-title-img=%') LIMIT 100000",
+    ),
+  ]);
+  return collectUsedCoverUrls([
+    ...(attributeRows as CoverAttributeRow[]),
+    ...collectTitleImageRows(blockRows as CoverBlockRow[]),
+  ]);
 }
 
 export interface CoverHistoryUrlEntry {
@@ -89,15 +122,31 @@ export interface CoverHistoryUrlEntry {
   postId?: string | number;
 }
 
+export interface CoverCacheIndexEntry {
+  path?: string;
+  sourceUrl?: string;
+  site?: string;
+  postId?: string | number;
+}
+
 export function collectHistoryCoverUrls(entries: CoverHistoryUrlEntry[]): Set<string> {
   const urls = new Set<string>();
   for (const entry of entries || []) {
-    const normalized = normalizeCoverUrl(entry.imageUrl || "");
-    if (normalized) urls.add(normalized);
+    const identity = coverDedupIdentity(entry.imageUrl || "");
+    if (identity) urls.add(identity);
     const source = normalizeCoverUrl(entry.sourceUrl || "");
     if (source) urls.add(source);
     const key = booruPostDedupKey(entry.site, entry.postId);
     if (key) urls.add(key);
   }
   return urls;
+}
+
+export function collectCacheIndexCoverUrls(entries: CoverCacheIndexEntry[]): Set<string> {
+  return collectHistoryCoverUrls((entries || []).map((entry) => ({
+    imageUrl: entry.path,
+    sourceUrl: entry.sourceUrl,
+    site: entry.site,
+    postId: entry.postId,
+  })));
 }

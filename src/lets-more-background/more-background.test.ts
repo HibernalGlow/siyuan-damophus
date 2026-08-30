@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   formatCoverUrl,
   isVideoUrl,
@@ -9,11 +9,13 @@ import {
 import {
   clearCoverHistory,
   clearSeenCovers,
+  filterUnusedCoverAssets,
   getCoverHistory,
   getCoverHistoryLimit,
   getLastUsedSource,
   getSeenCovers,
   getSeenCoversLimit,
+  initializeCoverDedupStorage,
   recordCoverHistory,
   recordSeenCover,
   removeCoverHistoryEntry,
@@ -240,14 +242,25 @@ describe("more-background sources utilities", () => {
     expect(duplicate).not.toBeNull();
     expect(getSeenCovers().length).toBe(1);
 
-    // Entries without a usable dedup identity are ignored.
-    const ignored = recordSeenCover({
+    const local = recordSeenCover({
       docId: "doc-789",
       docTitle: "行政法专题",
       imageUrl: "assets/local-only.png",
     });
-    expect(ignored).toBeNull();
-    expect(getSeenCovers().length).toBe(1);
+    expect(local).not.toBeNull();
+    expect(getSeenCovers().length).toBe(2);
+  });
+
+  it("filters previously used local assets before random selection", () => {
+    const files = [
+      "assets/more-background/used.webp",
+      "assets/more-background/fresh.webp",
+    ];
+    const excluded = new Set(["asset:assets/more-background/used.webp"]);
+
+    expect(filterUnusedCoverAssets(files, excluded)).toEqual([
+      "assets/more-background/fresh.webp",
+    ]);
   });
 
   it("respects configurable history and seen-cover limits", () => {
@@ -282,5 +295,52 @@ describe("more-background sources utilities", () => {
     setSeenCoversLimit(800);
     clearCoverHistory();
     clearSeenCovers();
+  });
+
+  it("migrates origin-local deduplication data into persistent plugin storage", async () => {
+    const store: Record<string, string> = {};
+    (globalThis as any).localStorage = {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, value: string) => { store[key] = value; },
+      removeItem: (key: string) => { delete store[key]; },
+    };
+    store.damophus_more_background_seen_covers = JSON.stringify([{
+      id: "legacy-seen",
+      docId: "doc-legacy",
+      imageUrl: "https://safebooru.org/images/legacy.jpg",
+      seenAt: 10,
+    }]);
+
+    let saved: unknown;
+    const storage = {
+      loadData: vi.fn(async () => ({
+        schemaVersion: 1,
+        history: [],
+        seen: [{
+          id: "persistent-seen",
+          docId: "doc-persistent",
+          imageUrl: "https://safebooru.org/images/persistent.jpg",
+          seenAt: 20,
+        }],
+      })),
+      saveData: vi.fn(async (_name: string, value: unknown) => { saved = value; }),
+    };
+
+    await initializeCoverDedupStorage(storage);
+
+    expect(getSeenCovers().map((entry) => entry.id)).toEqual(["persistent-seen", "legacy-seen"]);
+    expect(saved).toMatchObject({
+      schemaVersion: 1,
+      seen: [{ id: "persistent-seen" }, { id: "legacy-seen" }],
+    });
+
+    recordSeenCover({
+      docId: "doc-new",
+      imageUrl: "https://safebooru.org/images/new.jpg",
+    });
+    await vi.waitFor(() => expect(storage.saveData).toHaveBeenCalledTimes(2));
+    expect(saved).toMatchObject({
+      seen: [{ docId: "doc-new" }, { id: "persistent-seen" }, { id: "legacy-seen" }],
+    });
   });
 });

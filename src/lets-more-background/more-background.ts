@@ -24,6 +24,8 @@ import {
   type LegacyCoverMaintenanceResult,
 } from "./local-cover-cache-maintenance";
 import {
+  coverDedupIdentity,
+  collectCacheIndexCoverUrls,
   collectHistoryCoverUrls,
   collectUsedCoverUrls,
   loadUsedCoverUrls,
@@ -406,15 +408,17 @@ async function removeLocalCacheIndexEntry(root: string, path: string): Promise<v
   await putTextFile(indexPath, `${JSON.stringify(next, null, 2)}\n`);
 }
 
-async function loadDedupCoverUrls(background?: HTMLElement): Promise<Set<string>> {
+async function loadDedupCoverUrls(background?: HTMLElement, localCacheRoot = DEFAULT_LOCAL_CACHE_ROOT): Promise<Set<string>> {
   const databaseUrls = await loadUsedCoverUrls();
   const historyUrls = collectHistoryCoverUrls(getCoverHistory());
   const seenUrls = collectHistoryCoverUrls(getSeenCovers());
-  const urls = new Set<string>([...databaseUrls, ...historyUrls, ...seenUrls]);
+  const cacheIndexUrls = await loadLocalCacheDedupUrls(localCacheRoot);
+  const urls = new Set<string>([...databaseUrls, ...historyUrls, ...seenUrls, ...cacheIndexUrls]);
   dedupLog.info("Loaded cover deduplication set", {
     database: databaseUrls.size,
     history: historyUrls.size,
     seen: seenUrls.size,
+    cacheIndex: cacheIndexUrls.size,
     total: urls.size,
   });
   dedupLog.debug("Deduplication set entries", [...urls].slice(0, 80));
@@ -466,6 +470,16 @@ async function loadDedupCoverUrls(background?: HTMLElement): Promise<Set<string>
     dedupLog.debug("Added live current-cover attrs to deduplication set", { blockId, liveRows: rows.length, liveUrls: liveUrls.size, total: urls.size });
   }
   return urls;
+}
+
+export function filterUnusedCoverAssets(
+  files: readonly string[],
+  excludedCoverIdentities: ReadonlySet<string>,
+): string[] {
+  return files.filter((file) => {
+    const identity = coverDedupIdentity(file);
+    return !identity || !excludedCoverIdentities.has(identity);
+  });
 }
 
 function displayLocalCache(image: HTMLImageElement, blob: Blob): void {
@@ -573,11 +587,109 @@ export function setLastUsedSource(item: CoverSourceItem): void {
 
 export const COVER_HISTORY_KEY = "damophus_more_background_cover_history";
 export const SEEN_COVERS_KEY = "damophus_more_background_seen_covers";
+export const COVER_DEDUP_STORAGE_NAME = "more_background_cover_dedup.json";
 export const DEFAULT_COVER_HISTORY_LIMIT = 150;
 export const DEFAULT_SEEN_COVERS_LIMIT = 800;
 
 let coverHistoryLimit = DEFAULT_COVER_HISTORY_LIMIT;
 let seenCoversLimit = DEFAULT_SEEN_COVERS_LIMIT;
+let durableCoverHistory: CoverHistoryEntry[] | null = null;
+let durableSeenCovers: SeenCoverEntry[] | null = null;
+let coverDedupWriteQueue: Promise<void> = Promise.resolve();
+
+interface CoverDedupStorage {
+  loadData(name: string): Promise<unknown>;
+  saveData(name: string, value: unknown): Promise<unknown>;
+}
+
+interface CoverDedupStoragePayload {
+  schemaVersion: 1;
+  history: CoverHistoryEntry[];
+  seen: SeenCoverEntry[];
+}
+
+let coverDedupStorage: CoverDedupStorage = plugin as unknown as CoverDedupStorage;
+
+function localCoverHistory(): CoverHistoryEntry[] {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const parsed = JSON.parse(localStorage.getItem(COVER_HISTORY_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadLocalCacheDedupUrls(root: string): Promise<Set<string>> {
+  const indexPath = `${normalizeLocalCacheRoot(root)}/${LOCAL_CACHE_INDEX_NAME}`;
+  const raw = await readTextFile(indexPath);
+  if (!raw) return new Set();
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? collectCacheIndexCoverUrls(parsed as LocalCacheIndexEntry[]) : new Set();
+  } catch (error) {
+    dedupLog.warn("Failed to parse local cover cache index for deduplication:", error);
+    return new Set();
+  }
+}
+
+function localSeenCovers(): SeenCoverEntry[] {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const parsed = JSON.parse(localStorage.getItem(SEEN_COVERS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function mergeStoredEntries<T extends { id: string }>(entries: T[], limit: number, timestamp: (entry: T) => number): T[] {
+  const byId = new Map<string, T>();
+  for (const entry of entries) {
+    if (entry?.id && !byId.has(entry.id)) byId.set(entry.id, entry);
+  }
+  return [...byId.values()].sort((a, b) => timestamp(b) - timestamp(a)).slice(0, limit);
+}
+
+function persistCoverDedupStorage(): void {
+  if (!durableCoverHistory || !durableSeenCovers) return;
+  const payload: CoverDedupStoragePayload = {
+    schemaVersion: 1,
+    history: durableCoverHistory,
+    seen: durableSeenCovers,
+  };
+  coverDedupWriteQueue = coverDedupWriteQueue
+    .then(async () => { await coverDedupStorage.saveData(COVER_DEDUP_STORAGE_NAME, payload); })
+    .catch((error) => { historyLog.warn("Failed to persist cover deduplication storage:", error); });
+}
+
+export async function initializeCoverDedupStorage(storage?: CoverDedupStorage): Promise<void> {
+  coverDedupStorage = storage || (plugin as unknown as CoverDedupStorage);
+  let stored: Partial<CoverDedupStoragePayload> = {};
+  try {
+    let loaded = await coverDedupStorage.loadData(COVER_DEDUP_STORAGE_NAME);
+    if (typeof loaded === "string") loaded = JSON.parse(loaded);
+    if (loaded && typeof loaded === "object") stored = loaded as Partial<CoverDedupStoragePayload>;
+  } catch (error) {
+    historyLog.warn("Failed to load persistent cover deduplication storage:", error);
+  }
+  durableCoverHistory = mergeStoredEntries(
+    [...localCoverHistory(), ...(Array.isArray(stored.history) ? stored.history : [])],
+    coverHistoryLimit,
+    (entry) => Number(entry.appliedAt) || 0,
+  );
+  durableSeenCovers = mergeStoredEntries(
+    [...localSeenCovers(), ...(Array.isArray(stored.seen) ? stored.seen : [])],
+    seenCoversLimit,
+    (entry) => Number(entry.seenAt) || 0,
+  );
+  persistCoverDedupStorage();
+  await coverDedupWriteQueue;
+  historyLog.info("Initialized persistent cover deduplication storage", {
+    history: durableCoverHistory.length,
+    seen: durableSeenCovers.length,
+  });
+}
 
 export function getCoverHistoryLimit(): number {
   return coverHistoryLimit;
@@ -631,6 +743,7 @@ export interface SeenCoverEntry {
 }
 
 export function getCoverHistory(): CoverHistoryEntry[] {
+  if (durableCoverHistory) return durableCoverHistory;
   try {
     if (typeof localStorage === "undefined") return [];
     const raw = localStorage.getItem(COVER_HISTORY_KEY);
@@ -644,12 +757,16 @@ export function getCoverHistory(): CoverHistoryEntry[] {
 }
 
 export function saveCoverHistory(list: CoverHistoryEntry[]): void {
+  const trimmed = list.slice(0, coverHistoryLimit);
+  if (durableCoverHistory) durableCoverHistory = trimmed;
   try {
-    if (typeof localStorage === "undefined") return;
-    localStorage.setItem(COVER_HISTORY_KEY, JSON.stringify(list.slice(0, coverHistoryLimit)));
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(COVER_HISTORY_KEY, JSON.stringify(trimmed));
+    }
   } catch (e) {
     historyLog.warn("Failed to save cover history to localStorage:", e);
   }
+  persistCoverDedupStorage();
 }
 
 export function recordCoverHistory(entry: Omit<CoverHistoryEntry, "id" | "appliedAt">): void {
@@ -681,14 +798,17 @@ export function removeCoverHistoryEntry(id: string): CoverHistoryEntry[] {
 }
 
 export function clearCoverHistory(): void {
+  if (durableCoverHistory) durableCoverHistory = [];
   try {
     if (typeof localStorage === "undefined") return;
     localStorage.removeItem(COVER_HISTORY_KEY);
     historyLog.info("Cleared visible cover history (deduplication memory is kept separately)");
   } catch {}
+  persistCoverDedupStorage();
 }
 
 export function getSeenCovers(): SeenCoverEntry[] {
+  if (durableSeenCovers) return durableSeenCovers;
   try {
     if (typeof localStorage === "undefined") return [];
     const raw = localStorage.getItem(SEEN_COVERS_KEY);
@@ -702,12 +822,16 @@ export function getSeenCovers(): SeenCoverEntry[] {
 }
 
 export function saveSeenCovers(list: SeenCoverEntry[]): void {
+  const trimmed = list.slice(0, seenCoversLimit);
+  if (durableSeenCovers) durableSeenCovers = trimmed;
   try {
-    if (typeof localStorage === "undefined") return;
-    localStorage.setItem(SEEN_COVERS_KEY, JSON.stringify(list.slice(0, seenCoversLimit)));
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(SEEN_COVERS_KEY, JSON.stringify(trimmed));
+    }
   } catch (e) {
     historyLog.warn("Failed to save seen covers to localStorage:", e);
   }
+  persistCoverDedupStorage();
 }
 
 /**
@@ -747,10 +871,12 @@ export function recordSeenCover(entry: Omit<SeenCoverEntry, "id" | "seenAt">): S
 }
 
 export function clearSeenCovers(): void {
+  if (durableSeenCovers) durableSeenCovers = [];
   try {
     if (typeof localStorage === "undefined") return;
     localStorage.removeItem(SEEN_COVERS_KEY);
   } catch {}
+  persistCoverDedupStorage();
 }
 
 export function checkAndAutoAddCover(root: HTMLElement, controller: MoreBackgroundController): void {
@@ -936,7 +1062,21 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       const cacheAssetPath = normalizeCoverAssetPath(cachePath);
       const titleMatchesCache = Boolean(titleAssetPath && cacheAssetPath && titleAssetPath === cacheAssetPath);
       if (titleMatchesCache || (titleUrl && sourceNorm && titleUrl === sourceNorm)) return;
-      // title cover was removed or replaced via native controls → custom attrs are stale
+      const protyle = background.closest(".protyle");
+      const docTitle =
+        protyle?.querySelector<HTMLElement>(".protyle-title__input")?.textContent?.trim() ||
+        protyle?.querySelector<HTMLElement>(".protyle-title")?.textContent?.trim() ||
+        protyle?.querySelector<HTMLElement>(".protyle-breadcrumb__bar")?.textContent?.trim() ||
+        "Current document";
+      this.recordReplacedCover(blockId, docTitle, {
+        titleImg: cachePath,
+        sourceUrl,
+        site: attrs["custom-damophus-post-site"] || "",
+        postId: attrs["custom-damophus-post-id"] || "",
+        postUrl: attrs["custom-damophus-post-url"] || "",
+        tags: attrs["custom-damophus-post-tags"] || "",
+      });
+      // The native control changed the title cover, so its custom metadata is stale.
       await fetch("/api/attr/setBlockAttrs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2077,8 +2217,28 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       return;
     }
 
-    const randomIndex = Math.floor(Math.random() * files.length);
-    const chosenFile = files[randomIndex];
+    let candidates = files;
+    if (this.options.deduplicateNewCovers !== false) {
+      try {
+        const excluded = await loadDedupCoverUrls(background, this.options.localCacheRoot);
+        candidates = filterUnusedCoverAssets(files, excluded);
+        dedupLog.info("Filtered local asset covers", {
+          total: files.length,
+          excluded: files.length - candidates.length,
+          available: candidates.length,
+        });
+      } catch (error) {
+        dedupLog.warn("Failed to load used covers before local asset selection:", error);
+      }
+    }
+
+    if (candidates.length === 0) {
+      showMessage(this.options.t("lets-more-background.noUnusedAssets"));
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * candidates.length);
+    const chosenFile = candidates[randomIndex];
     triggerRandomIfNoImg(root);
     await this.setBlockBackgroundImage(background, chosenFile);
   }
@@ -2104,7 +2264,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         if (this.options.deduplicateNewCovers !== false && !deduplicationUrls) {
           dedupLog.info("Deduplication enabled, loading previously used cover URLs");
           try {
-            deduplicationUrls = await loadDedupCoverUrls(background);
+            deduplicationUrls = await loadDedupCoverUrls(background, this.options.localCacheRoot);
           } catch (error) {
             dedupLog.warn("Failed to load used cover URLs:", error);
             deduplicationUrls = new Set();
@@ -2468,7 +2628,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
   ): void {
     const remoteFromTitle = normalizeCoverUrl(previous.titleImg);
     const remoteFromSource = normalizeCoverUrl(previous.sourceUrl);
-    const imageUrl = remoteFromSource || remoteFromTitle || "";
+    const localFromTitle = normalizeCoverAssetPath(previous.titleImg);
+    const imageUrl = remoteFromSource || remoteFromTitle || localFromTitle || "";
     const hasPostIdentity = Boolean(previous.site && previous.postId);
     if (!imageUrl && !hasPostIdentity) return;
 

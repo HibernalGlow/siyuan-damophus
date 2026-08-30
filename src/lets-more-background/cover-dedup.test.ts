@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { booruPostDedupKey, collectHistoryCoverUrls, collectUsedCoverUrls, normalizeCoverAssetPath, normalizeCoverUrl } from "./cover-dedup";
+import { booruPostDedupKey, collectCacheIndexCoverUrls, collectHistoryCoverUrls, collectTitleImageRows, collectUsedCoverUrls, coverDedupIdentity, normalizeCoverAssetPath, normalizeCoverUrl } from "./cover-dedup";
 
 describe("cover deduplication", () => {
   it("normalizes direct and title image URLs", () => {
@@ -10,13 +10,29 @@ describe("cover deduplication", () => {
     expect(normalizeCoverUrl("assets/cover.webp")).toBeNull();
     expect(normalizeCoverAssetPath('background-image:url("/data/storage/petal/covers/a.webp")'))
       .toBe("storage/petal/covers/a.webp");
+    expect(coverDedupIdentity('background-image:url("/data/assets/covers/A.webp")'))
+      .toBe("asset:assets/covers/a.webp");
   });
 
   it("canonicalizes booru aliases for post identity deduplication", () => {
     expect(booruPostDedupKey("sb", 42)).toBe(booruPostDedupKey("safebooru.org", 42));
   });
 
-  it("collects remote cover sources from current and legacy attributes", () => {
+  it("extracts native title images from document IAL rows", () => {
+    expect(collectTitleImageRows([
+      {
+        block_id: "doc-1",
+        ial: '{: id="doc-1" title-img="background-image:url(&quot;assets/covers/used.webp&quot;)" type="doc"}',
+      },
+      { block_id: "doc-2", ial: '{: id="doc-2" custom-title-img="https://example.com/legacy.jpg"}' },
+      { block_id: "doc-3", ial: '{: id="doc-3" title="No cover"}' },
+    ])).toEqual([
+      { block_id: "doc-1", name: "title-img", value: "background-image:url(&quot;assets/covers/used.webp&quot;)" },
+      { block_id: "doc-2", name: "custom-title-img", value: "https://example.com/legacy.jpg" },
+    ]);
+  });
+
+  it("collects remote and local cover identities from current and legacy attributes", () => {
     const urls = collectUsedCoverUrls([
       { name: "custom-damophus-cover-source-url", value: "https://safebooru.org/images/1/a.jpg" },
       { name: "title-img", value: "background-image:url('https://safebooru.org/images/2/b.jpg')" },
@@ -27,6 +43,7 @@ describe("cover deduplication", () => {
     expect([...urls]).toEqual([
       "https://safebooru.org/images/1/a.jpg",
       "https://safebooru.org/images/2/b.jpg",
+      "asset:assets/local.webp",
     ]);
   });
 
@@ -35,7 +52,7 @@ describe("cover deduplication", () => {
       { imageUrl: "https://safebooru.org/images/3/c.jpg" },
       { imageUrl: "background-image:url('https://safebooru.org/images/4/d.jpg')" },
       { imageUrl: "https://safebooru.org/images/3/c.jpg#view" },
-      { imageUrl: "assets/local.webp" },
+      { imageUrl: "/data/assets/local.webp" },
       { imageUrl: "data:image/png;base64,xxx" },
       { imageUrl: "" },
       {},
@@ -44,6 +61,7 @@ describe("cover deduplication", () => {
     expect([...urls]).toEqual([
       "https://safebooru.org/images/3/c.jpg",
       "https://safebooru.org/images/4/d.jpg",
+      "asset:assets/local.webp",
     ]);
   });
 
@@ -57,6 +75,7 @@ describe("cover deduplication", () => {
       },
     ]);
     expect(urls).toEqual(new Set([
+      "asset:assets/more-background/cover.webp",
       "https://safebooru.org/images/5/original.jpg",
       booruPostDedupKey("safebooru.org", "500"),
     ]));
@@ -68,6 +87,24 @@ describe("cover deduplication", () => {
       { block_id: "doc-1", name: "custom-damophus-post-site", value: "safebooru.org" },
       { block_id: "doc-1", name: "custom-damophus-post-id", value: "501" },
     ]);
-    expect(urls).toEqual(new Set([booruPostDedupKey("safebooru.org", "501")]));
+    expect(urls).toEqual(new Set([
+      "asset:assets/cover.webp",
+      booruPostDedupKey("safebooru.org", "501"),
+    ]));
+  });
+
+  it("collects discarded covers from the persistent local cache index", () => {
+    const urls = collectCacheIndexCoverUrls([{
+      path: "/data/storage/petal/siyuan-damophus/more-background/covers/2026/08/7b43ccca.webp",
+      sourceUrl: "https://safebooru.org/images/4149/fe1473f1c20f01fcf72b64bee2a209f6ec8236c7.jpg",
+      site: "safebooru.org",
+      postId: 6623505,
+    }]);
+
+    expect(urls).toEqual(new Set([
+      "asset:storage/petal/siyuan-damophus/more-background/covers/2026/08/7b43ccca.webp",
+      "https://safebooru.org/images/4149/fe1473f1c20f01fcf72b64bee2a209f6ec8236c7.jpg",
+      booruPostDedupKey("safebooru.org", 6623505),
+    ]));
   });
 });
