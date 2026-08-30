@@ -48,8 +48,8 @@ describe("cover template condition editor", () => {
     expect(rules).toHaveLength(2);
     expect(rules[0]).toContain("Aspect ratio");
     expect(rules[1]).toContain("Tag or artist pool");
-    expect(document.querySelector(".ruleGroup-combinators")?.textContent).toContain("and");
-    expect(document.querySelector(".ruleGroup-combinators")?.textContent).not.toContain("or");
+    expect(getComputedStyle(document.querySelector(".ruleGroup-addGroup")!).display).toBe("none");
+    expect(document.querySelector<HTMLButtonElement>(".ruleGroup-addRule")?.textContent).toContain("Add filter rule");
   });
 
   it("clears the editor and applies the original flat rule contract", async () => {
