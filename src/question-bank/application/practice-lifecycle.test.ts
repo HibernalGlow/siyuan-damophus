@@ -25,7 +25,7 @@ function snapshot(sourceKey = "source-1") {
   return createPracticeSessionSnapshot({
     sessionId: "session-1",
     sourceKey,
-    filter: {},
+    filter: "all",
     order: "sequential",
     queue: [
       { question: first, optionOrder: [] },

@@ -129,7 +129,7 @@ describe("TinyBase repositories", () => {
       metadata: {topicPath: []},
     };
     const first = createPracticeSessionSnapshot({
-      sessionId: "session-1", sourceKey: "doc-1", filter: {}, order: "sequential",
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
       queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
     });
     const deviceA = new TinyBasePracticeSessionRepository(store, "device-a");
@@ -154,7 +154,7 @@ describe("TinyBase repositories", () => {
       metadata: {topicPath: []},
     };
     const first = createPracticeSessionSnapshot({
-      sessionId: "session-1", sourceKey: "doc-1", filter: {}, order: "sequential",
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
       queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
     });
     await new TinyBasePracticeSessionRepository(readView, "device-a").save(first);
@@ -175,7 +175,7 @@ describe("TinyBase repositories", () => {
       metadata: {topicPath: []},
     };
     const first = createPracticeSessionSnapshot({
-      sessionId: "session-1", sourceKey: "doc-1", filter: {}, order: "sequential",
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
       queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
     });
     const deviceA = new TinyBasePracticeSessionRepository(store, "device-a");

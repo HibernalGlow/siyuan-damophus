@@ -1,13 +1,7 @@
 import { z } from "zod";
-import {
-  normalizePracticeFilterSpec,
-  PracticeFilterSpecSchema,
-  type PracticeFilterSpec,
-} from "../core/filter-spec";
 
 export const QuestionSetDrawModeSchema = z.enum(["balanced", "uniform"]);
 export const QuestionSetBindingModeSchema = z.enum(["dynamic", "fixed"]);
-/** Legacy single-choice history filter; new blueprints store a rule tree. */
 export const QuestionSetHistoryFilterSchema = z.enum([
   "all",
   "unattempted",
@@ -15,10 +9,6 @@ export const QuestionSetHistoryFilterSchema = z.enum([
   "review",
   "again-hard",
 ]);
-export const QuestionSetHistorySpecSchema = z
-  .union([PracticeFilterSpecSchema, QuestionSetHistoryFilterSchema])
-  .default("all")
-  .transform(normalizePracticeFilterSpec);
 export const QuestionSetQuotaDimensionSchema = z.enum([
   "subject",
   "category",
@@ -55,7 +45,7 @@ export const QuestionSetFilterSchema = z.object({
     "subjective",
     "group",
   ])).default([]),
-  history: QuestionSetHistorySpecSchema,
+  history: QuestionSetHistoryFilterSchema.default("all"),
   minimum_accuracy: z.number().min(0).max(1).optional(),
   maximum_accuracy: z.number().min(0).max(1).optional(),
   answered_before: z.iso.datetime({ offset: true }).optional(),
@@ -113,7 +103,6 @@ export const QuestionSetBlueprintSchema = z.object({
 
 export type QuestionSetBlueprint = z.infer<typeof QuestionSetBlueprintSchema>;
 export type QuestionSetFilter = z.infer<typeof QuestionSetFilterSchema>;
-export type QuestionSetHistoryFilter = PracticeFilterSpec;
 export type QuestionSetQuota = z.infer<typeof QuestionSetQuotaSchema>;
 export type QuestionSetQuotaDimension = z.infer<typeof QuestionSetQuotaDimensionSchema>;
 

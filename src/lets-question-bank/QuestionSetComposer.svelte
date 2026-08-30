@@ -6,14 +6,6 @@
   import { Checkbox } from "@/components/ui/checkbox";
   import { Label } from "@/components/ui/label";
   import * as Select from "@/components/ui/select";
-  import {
-    EMPTY_PRACTICE_FILTER_SPEC,
-    evaluatePracticeFilterSpec,
-    normalizePracticeFilterSpec,
-    PRACTICE_FILTER_FACT_YES,
-    type PracticeFilterField,
-    type PracticeFilterSpec,
-  } from "@/question-bank/core/filter-spec";
   import type { QuestionIndexBatchPreview } from "@/question-bank/application";
   import type { QuestionCatalogEntry, FrozenQuestionSet } from "@/question-bank/assembly";
   import {
@@ -21,7 +13,6 @@
     type QuestionSetBlueprint,
   } from "@/question-bank/assembly";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
-  import PracticeFilterEditor from "./PracticeFilterEditor.svelte";
 
   export let catalog: QuestionCatalogEntry[] = [];
   export let documents: QuestionSourceDocument[] = [];
@@ -43,7 +34,7 @@
   let selectedDocumentIds = new Set<string>();
   let selectedSubjects = new Set<string>();
   let selectedYears = new Set<string>();
-  let filterSpec: PracticeFilterSpec = EMPTY_PRACTICE_FILTER_SPEC;
+  let selectedHistory: QuestionSetBlueprint["filters"]["history"] = "all";
   let questionCount = 20;
   let drawMode: QuestionSetBlueprint["draw_mode"] = "balanced";
   let allowWidening = true;
@@ -60,38 +51,6 @@
   $: selectedSourceLabel = selectedDocumentIds.size === 0
     ? label("allSources", "全部已入库题目")
     : `${selectedDocumentIds.size} ${label("documentsSelected", "个文档")}`;
-
-  const composerFilterFields: { id: PracticeFilterField; key: string; fallback: string }[] = [
-    { id: "unattempted", key: "unattempted", fallback: "未做题" },
-    { id: "wrong", key: "wrong", fallback: "错题" },
-    { id: "review", key: "review", fallback: "待复习" },
-    { id: "again-hard", key: "againHard", fallback: "Again/Hard" },
-  ];
-  const composerFact = (entry: QuestionCatalogEntry) => ({
-    unattempted: (entry.history?.attempts ?? 0) === 0,
-    wrong: (entry.history?.objectiveIncorrect ?? 0) > 0,
-    review: (entry.history?.consecutiveReviewCount ?? 0) > 0,
-    due: false,
-    bookmarked: false,
-    "again-hard": entry.history?.latestRating === "again" || entry.history?.latestRating === "hard",
-  });
-  $: composerFilterCounts = Object.fromEntries(composerFilterFields.map(({ id }) => [id, catalog.filter(
-    (entry) => entry.questionType !== "group" && composerFact(entry)[id as keyof ReturnType<typeof composerFact>],
-  ).length])) as Record<string, number>;
-  $: composerMatchedCount = catalog.filter(
-    (entry) => entry.questionType !== "group" && evaluatePracticeFilterSpec(filterSpec, composerFact(entry)),
-  ).length;
-  $: composerBuilderFields = composerFilterFields.map((def) => ({
-    id: def.id,
-    label: label(def.key, def.fallback),
-    type: "tuple" as const,
-    format: (value: unknown) => value === PRACTICE_FILTER_FACT_YES
-      ? label("filterFactYes", "是")
-      : String(value ?? ""),
-  }));
-  $: composerBuilderOptions = Object.fromEntries(
-    composerFilterFields.map((def) => [def.id, [PRACTICE_FILTER_FACT_YES]]),
-  ) as Record<string, string[]>;
 
   function toggle(set: Set<string>, value: string): Set<string> {
     const next = new Set(set);
@@ -163,7 +122,7 @@
         sources: [],
         years: [...selectedYears],
         question_types: [],
-        history: filterSpec,
+        history: selectedHistory,
       },
       question_count: Math.max(1, Math.floor(Number(questionCount) || 1)),
       quotas: [],
@@ -214,7 +173,7 @@
     selectedDocumentIds = new Set(blueprint.source.document_ids);
     selectedSubjects = new Set(blueprint.filters.subjects);
     selectedYears = new Set(blueprint.filters.years);
-    filterSpec = normalizePracticeFilterSpec(blueprint.filters.history);
+    selectedHistory = blueprint.filters.history;
   }
 </script>
 
@@ -275,18 +234,9 @@
       <label class="workflow-field">{label("questionCount", "题量")}<Input type="number" min="1" bind:value={questionCount} /></label>
       <div class="workflow-field workflow-field-wide"><strong>{label("subjects", "科目")}</strong><div class="workflow-choice-grid">{#each availableSubjects as subject}<Label><Checkbox checked={selectedSubjects.has(subject)} onCheckedChange={() => { selectedSubjects = toggle(selectedSubjects, subject); }} />{subject}</Label>{/each}</div></div>
       <div class="workflow-field workflow-field-wide"><strong>{label("years", "年份")}</strong><div class="workflow-choice-grid">{#each availableYears as year}<Label><Checkbox checked={selectedYears.has(year)} onCheckedChange={() => { selectedYears = toggle(selectedYears, year); }} />{year}</Label>{/each}</div></div>
-      <div class="workflow-field workflow-field-wide"><strong>{label("historyFilter", "作答历史")}</strong>
-        <PracticeFilterEditor
-          bind:spec={filterSpec}
-          {label}
-          fields={composerBuilderFields}
-          options={composerBuilderOptions}
-          counts={composerFilterCounts}
-          total={catalog.filter((entry) => entry.questionType !== "group").length}
-          matchedCount={composerMatchedCount}
-          emptyText={label("allQuestions", "全部题")}
-        />
-      </div>
+      <Label class="workflow-field">{label("historyFilter", "作答历史")}
+        <Select.Root type="single" value={selectedHistory} onValueChange={(value) => { if (value) selectedHistory = value as typeof selectedHistory; }}><Select.Trigger>{selectedHistory}</Select.Trigger><Select.Content><Select.Item value="all" label={label("allQuestions", "全部题")} /><Select.Item value="unattempted" label={label("unattempted", "未做题")} /><Select.Item value="wrong" label={label("wrong", "错题")} /><Select.Item value="review" label={label("review", "待复习")} /><Select.Item value="again-hard" label="Again / Hard" /></Select.Content></Select.Root>
+      </Label>
       <Label class="workflow-field">{label("drawMode", "抽取方式")}
         <Select.Root type="single" value={drawMode} onValueChange={(value) => { if (value) drawMode = value as typeof drawMode; }}><Select.Trigger>{drawMode}</Select.Trigger><Select.Content><Select.Item value="balanced" label={label("balanced", "均衡抽取")} /><Select.Item value="uniform" label={label("uniform", "完全随机")} /></Select.Content></Select.Root>
       </Label>

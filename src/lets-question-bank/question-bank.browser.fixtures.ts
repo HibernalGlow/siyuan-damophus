@@ -163,7 +163,7 @@ export function mockController(options: {
   let practicePreferences = options.practicePreferences ?? {
     order: "sequential" as const,
     optionOrder: "random" as const,
-    filter: {},
+    filter: "all" as const,
   };
   const practiceSessions = new Map<string, PracticeSessionSnapshot>();
   const sessionAttempts: AttemptEvent[] = [];
@@ -277,7 +277,6 @@ export function mockController(options: {
     removeBookmark: vi.fn(async () => undefined),
     listBookmarkedQuestionIds: vi.fn(async () => new Set<string>()),
     exportAttempts: vi.fn(async () => "{}\n"),
-    exportQuestionAuthoringPackage: vi.fn(async () => "{}\n"),
     previewImport,
     confirmImport,
     submitAttempt: vi.fn(async (...args: Parameters<QuestionBankUiController["submitAttempt"]>) => {

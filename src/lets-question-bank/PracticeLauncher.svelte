@@ -1,20 +1,25 @@
 <script lang="ts">
-  import { BookOpenCheck, ListOrdered, Shuffle } from "lucide-svelte";
+  import {
+    BookOpenCheck,
+    CircleDashed,
+    CircleX,
+    Clock3,
+    List,
+    ListOrdered,
+    RotateCcw,
+    Shuffle,
+    Star,
+  } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
   import { Label as FormLabel } from "@/components/ui/label";
   import * as Select from "@/components/ui/select";
   import * as ToggleGroup from "@/components/ui/toggle-group";
-  import {
-    PRACTICE_FILTER_FACT_YES,
-    type PracticeFilterField,
-    type PracticeFilterSpec,
-  } from "@/question-bank/core/filter-spec";
+  import type { PracticeFilter } from "@/question-bank/core/scope";
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicNode } from "@/question-bank/core/types";
   import type { SourceBlockIdentity } from "./controller";
-  import PracticeFilterEditor from "./PracticeFilterEditor.svelte";
   import { topicLabel } from "./question-bank-display";
 
   export let label: (key: string, fallback: string) => string;
@@ -27,10 +32,7 @@
   export let reviewQuestions = 0;
   export let reviewAgainQuestions = 0;
   export let reviewHardQuestions = 0;
-  export let dueQuestions = 0;
-  export let againHardQuestions = 0;
   export let bookmarkedQuestions = 0;
-  export let filteredQuestionCount = 0;
   export let syncComplete = false;
   export let busy = false;
   export let recoverableSession: any;
@@ -41,39 +43,10 @@
   export let topics: TopicNode[] = [];
   export let order: PracticeOrder = "sequential";
   export let optionOrder: PracticeOptionOrder = "random";
-  export let filter: PracticeFilterSpec = {};
+  export let filter: PracticeFilter = "all";
   export let startPractice: () => void;
 
   const entireDocumentScope = "__damophus_entire_document__";
-  const filterFieldDefs: { id: PracticeFilterField; key: string; fallback: string }[] = [
-    { id: "unattempted", key: "unattempted", fallback: "未做题" },
-    { id: "wrong", key: "wrong", fallback: "错题" },
-    { id: "review", key: "review", fallback: "待复习" },
-    { id: "due", key: "due", fallback: "闪卡到期" },
-    { id: "bookmarked", key: "bookmarked", fallback: "已收藏" },
-    { id: "again-hard", key: "againHard", fallback: "Again/Hard" },
-  ];
-
-  $: filterCounts = {
-    unattempted: untouchedQuestions,
-    wrong: wrongQuestions,
-    review: reviewQuestions,
-    due: dueQuestions,
-    bookmarked: bookmarkedQuestions,
-    "again-hard": againHardQuestions,
-  } as Record<string, number>;
-  $: filterBuilderFields = filterFieldDefs.map((def) => ({
-    id: def.id,
-    label: label(def.key, def.fallback),
-    type: "tuple" as const,
-    format: (value: unknown) => value === PRACTICE_FILTER_FACT_YES
-      ? label("filterFactYes", "是")
-      : String(value ?? ""),
-  }));
-  $: filterBuilderOptions = Object.fromEntries(
-    filterFieldDefs.map((def) => [def.id, [PRACTICE_FILTER_FACT_YES]]),
-  ) as Record<string, string[]>;
-
   $: blocked = preview.blockers.length > 0
     || preview.bindingRepairs.length > 0
     || (!syncComplete && preview.actions.some((action) => action.kind === "add"));
@@ -199,16 +172,20 @@
 
       <fieldset class="control-block filter-control">
         <legend>{label("filter", "题目筛选")}</legend>
-        <PracticeFilterEditor
-          bind:spec={filter}
-          {label}
-          fields={filterBuilderFields}
-          options={filterBuilderOptions}
-          counts={filterCounts}
-          total={progressQuestionCount}
-          matchedCount={filteredQuestionCount}
-          emptyText={label("all", "全部")}
-        />
+        <ToggleGroup.Root
+          type="single"
+          variant="outline"
+          class="practice-filter-group"
+          value={filter}
+          onValueChange={(value) => { if (value) filter = value as PracticeFilter; }}
+        >
+          <ToggleGroup.Item value="all" title={label("all", "全部")} aria-label={label("all", "全部")}><List aria-hidden="true" /><span>{label("all", "全部")}</span></ToggleGroup.Item>
+          <ToggleGroup.Item value="unattempted" title={label("unattempted", "未做题")} aria-label={label("unattempted", "未做题")}><CircleDashed aria-hidden="true" /><span>{label("unattempted", "未做题")}</span></ToggleGroup.Item>
+          <ToggleGroup.Item value="wrong" title={label("wrong", "错题")} aria-label={label("wrong", "错题")}><CircleX aria-hidden="true" /><span>{label("wrong", "错题")}</span></ToggleGroup.Item>
+          <ToggleGroup.Item value="review" title={label("review", "待复习")} aria-label={label("review", "待复习")}><RotateCcw aria-hidden="true" /><span>{label("review", "待复习")}</span></ToggleGroup.Item>
+          <ToggleGroup.Item value="due" title={label("due", "闪卡到期")} aria-label={label("due", "闪卡到期")}><Clock3 aria-hidden="true" /><span>{label("due", "闪卡到期")}</span></ToggleGroup.Item>
+          <ToggleGroup.Item value="bookmarked" title={label("bookmarked", "已收藏")} aria-label={label("bookmarked", "已收藏")}><Star aria-hidden="true" /><span>{label("bookmarked", "已收藏")}</span></ToggleGroup.Item>
+        </ToggleGroup.Root>
       </fieldset>
     </div>
 
@@ -418,6 +395,12 @@
     gap: 14px;
   }
 
+  :global(.practice-filter-group) {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
   .practice-launcher-actions {
     min-width: 0;
     padding-left: 18px;
@@ -505,13 +488,19 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    :global(.practice-order-grid [data-slot="toggle-group-item"]) {
+    :global(.practice-order-grid [data-slot="toggle-group-item"]),
+    :global(.practice-filter-group [data-slot="toggle-group-item"]) {
       min-height: 42px;
       padding-inline: 0;
     }
 
-    :global(.practice-order-grid [data-slot="toggle-group-item"] span) {
+    :global(.practice-order-grid [data-slot="toggle-group-item"] span),
+    :global(.practice-filter-group [data-slot="toggle-group-item"] span) {
       display: none;
+    }
+
+    :global(.practice-filter-group) {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
   }
 

@@ -17,7 +17,7 @@ function snapshot() {
   return createPracticeSessionSnapshot({
     sessionId: "session-1",
     sourceKey: "source-1",
-    filter: {},
+    filter: "all",
     order: "sequential",
     queue: [{ question, optionOrder: [] }],
     now: new Date("2026-08-06T00:00:00.000Z"),

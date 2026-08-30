@@ -1,19 +1,12 @@
-import {
-  evaluatePracticeFilterSpec,
-  normalizePracticeFilterSpec,
-  type PracticeFilterFacts,
-  type PracticeFilterSpec,
-} from "./filter-spec";
 import type { AttemptAggregate, Question, TopicNode } from "./types";
 
-/** Legacy single-choice filter values kept for settings and old persisted data. */
 export type PracticeFilter = "all" | "unattempted" | "wrong" | "review" | "due" | "bookmarked";
 
 export interface QuestionFilterInput {
   questions: readonly Question[];
   topics: readonly TopicNode[];
   rootTopicId?: string;
-  filter?: PracticeFilter | PracticeFilterSpec;
+  filter?: PracticeFilter;
   aggregates?: ReadonlyMap<string, AttemptAggregate>;
   dueQuestionIds?: ReadonlySet<string>;
   bookmarkedQuestionIds?: ReadonlySet<string>;
@@ -37,23 +30,8 @@ function descendantTopicIds(topics: readonly TopicNode[], rootTopicId: string): 
   return ids;
 }
 
-export function questionFilterFacts(
-  input: Pick<QuestionFilterInput, "aggregates" | "dueQuestionIds" | "bookmarkedQuestionIds" | "reviewThreshold">,
-  question: Question,
-): PracticeFilterFacts {
-  const aggregate = input.aggregates?.get(question.id);
-  return {
-    unattempted: (aggregate?.attempts ?? 0) === 0,
-    wrong: (aggregate?.objectiveIncorrect ?? 0) > 0,
-    review: (aggregate?.consecutiveReviewCount ?? 0) >= (input.reviewThreshold ?? 2),
-    due: input.dueQuestionIds?.has(question.id) ?? false,
-    bookmarked: input.bookmarkedQuestionIds?.has(question.id) ?? false,
-    "again-hard": aggregate?.latestRating === "again" || aggregate?.latestRating === "hard",
-  };
-}
-
 export function filterQuestions(input: QuestionFilterInput): Question[] {
-  const spec = normalizePracticeFilterSpec(input.filter ?? "all");
+  const filter = input.filter ?? "all";
   const topicIds = input.rootTopicId
     ? descendantTopicIds(input.topics, input.rootTopicId)
     : undefined;
@@ -61,6 +39,14 @@ export function filterQuestions(input: QuestionFilterInput): Question[] {
     if (question.type === "group") return false;
     const questionScopeId = question.metadata.scopeTopicId ?? question.metadata.topicId;
     if (topicIds && (!questionScopeId || !topicIds.has(questionScopeId))) return false;
-    return evaluatePracticeFilterSpec(spec, questionFilterFacts(input, question));
+    const aggregate = input.aggregates?.get(question.id);
+    if (filter === "unattempted") return (aggregate?.attempts ?? 0) === 0;
+    if (filter === "wrong") return (aggregate?.objectiveIncorrect ?? 0) > 0;
+    if (filter === "review") {
+      return (aggregate?.consecutiveReviewCount ?? 0) >= (input.reviewThreshold ?? 2);
+    }
+    if (filter === "due") return input.dueQuestionIds?.has(question.id) ?? false;
+    if (filter === "bookmarked") return input.bookmarkedQuestionIds?.has(question.id) ?? false;
+    return true;
   });
 }

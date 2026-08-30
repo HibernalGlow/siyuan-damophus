@@ -49,7 +49,7 @@ function blueprint(overrides: Partial<QuestionSetBlueprint> = {}): QuestionSetBl
       sources: [],
       years: [],
       question_types: [],
-      history: {},
+      history: "all",
     },
     question_count: 4,
     quotas: [],

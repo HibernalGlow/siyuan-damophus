@@ -231,14 +231,10 @@ describe("question bank scan and import browser flow", () => {
     const { controller, submitAttempt } = mockController({
       preview: makePreview([objectiveQuestion]),
       dueCards: new Map([[objectiveQuestion.id, dueCard]]),
-      practicePreferences: {
-        order: "sequential",
-        optionOrder: "random",
-        filter: { glue: "and", rules: [{ field: "due", type: "tuple", filter: "contains", includes: ["yes"] }] },
-      },
     });
     render(controller);
     await scanAndSync();
+    button("Due").click();
     button("Start practice").click();
     await flush();
     option("Alpha").click();

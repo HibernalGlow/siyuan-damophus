@@ -29,12 +29,7 @@
     type SubjectQuestionTotals,
   } from "@/question-bank/core/subject-dashboard";
   import type { TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
-  import {
-    EMPTY_PRACTICE_FILTER_SPEC,
-    normalizePracticeFilterSpec,
-    type PracticeFilterSpec,
-  } from "@/question-bank/core/filter-spec";
-  import { filterQuestions } from "@/question-bank/core/scope";
+  import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
     createPracticeOptionOrder,
     createPracticeQueue,
@@ -184,7 +179,7 @@
   let topicId = "";
   let order: PracticeOrder = initialPracticePreferences.order;
   let optionOrder: PracticeOptionOrder = initialPracticePreferences.optionOrder;
-  let filter: PracticeFilterSpec = normalizePracticeFilterSpec(initialPracticePreferences.filter);
+  let filter: PracticeFilter = initialPracticePreferences.filter;
   let persistedPracticePreferences = JSON.stringify(initialPracticePreferences);
   let busy = false;
   let error = "";
@@ -445,29 +440,6 @@
         && aggregate.consecutiveReviewCount >= reviewThreshold;
     },
   ).length;
-  $: dueQuestionIds = new Set(dueCards.keys());
-  $: bookmarkedQuestionIds = new Set(
-    [...bookmarks.keys()].filter((id) => !bookmarks.get(id)?.isArchived),
-  );
-  $: dueQuestions = progressQuestions.filter((question) => dueQuestionIds.has(question.id)).length;
-  $: againHardQuestions = progressQuestions.filter(
-    (question) => {
-      const rating = aggregates.get(question.id)?.latestRating;
-      return rating === "again" || rating === "hard";
-    },
-  ).length;
-  $: filteredQuestionCount = assembledQuestions
-    ? assembledQuestions.length
-    : filterQuestions({
-      questions,
-      topics,
-      rootTopicId: topicId || undefined,
-      filter,
-      aggregates,
-      dueQuestionIds,
-      bookmarkedQuestionIds,
-      reviewThreshold,
-    }).length;
   $: completionPercent = progressQuestions.length === 0
     ? 0
     : Math.round((attemptedQuestions / progressQuestions.length) * 100);
@@ -1038,18 +1010,6 @@
     });
   }
 
-  function exportQuestionAuthoringPackage(): void {
-    void run(async () => {
-      const source = await controller.exportQuestionAuthoringPackage();
-      const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `damophus-question-authoring-${new Date().toISOString().slice(0, 10)}.json`;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-    });
-  }
-
   async function selectImportFile(event: Event): Promise<void> {
     const input = event.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
@@ -1227,8 +1187,8 @@
       filter,
       order,
       aggregates,
-      dueQuestionIds,
-      bookmarkedQuestionIds,
+      dueQuestionIds: new Set(dueCards.keys()),
+      bookmarkedQuestionIds: new Set([...bookmarks.keys()].filter((id) => !bookmarks.get(id)?.isArchived)),
       reviewThreshold,
       random,
     });
@@ -1303,7 +1263,7 @@
       sourceKey,
       sourceLabel,
       scopeId: assembledQuestions ? undefined : topicId || undefined,
-      filter: assembledQuestions ? EMPTY_PRACTICE_FILTER_SPEC : filter,
+      filter: assembledQuestions ? "all" : filter,
       order: assembledQuestions ? "sequential" : order,
       queue: nextQueue.map((question) => ({
         question,
@@ -1611,8 +1571,8 @@
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}
   {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {subjectTotalsSaveStatus} {statisticsLayout} {changeStatisticsLayout} {openStatisticsCardPreview} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
   {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
-  {exportSessionDiagnostic} {exportAttempts} {exportQuestionAuthoringPackage} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
-  {completionPercent} {attemptedQuestions} {untouchedQuestions} {wrongQuestions} {reviewQuestions} {reviewAgainQuestions} {reviewHardQuestions} {dueQuestions} {againHardQuestions} {filteredQuestionCount} {pendingSync} {syncComplete} {autoSyncIndex}
+  {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
+  {completionPercent} {attemptedQuestions} {untouchedQuestions} {wrongQuestions} {reviewQuestions} {reviewAgainQuestions} {reviewHardQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
   {scanMessageGroups} {sourceTypeLabel} {completionStatusLabel} {messageContext} {messageClipboardText} {scanLogText} {copyText}
   {confirmSync} {toggleAutoSyncIndex} topicAssignmentCount={topicAssignments.length} {topicRelationMode} {topicRelationPreview}
   {topicRelationReady} {setTopicRelationMode} {previewTopicRelations} {confirmTopicRelations}
