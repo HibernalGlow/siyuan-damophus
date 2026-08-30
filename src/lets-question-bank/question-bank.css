@@ -11,7 +11,8 @@
   }
   .question-bank button, .question-bank input, .question-bank select { font: inherit; letter-spacing: 0; }
   .question-bank .lucide { fill: none !important; stroke: currentColor; stroke-width: 2; }
-  .question-bank { width: 100%; min-width: 0; min-height: 0; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; overscroll-behavior-y: contain; }
+  /* position: relative gives the mobile floating sheet and FAB a stable anchor. */
+  .question-bank { position: relative; width: 100%; min-width: 0; min-height: 0; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font-family: var(--b3-font-family); font-size: var(--b3-font-size); container-type: inline-size; overscroll-behavior-y: contain; }
   .damophus-question-bank-mobile-dialog,
   .damophus-question-bank-mobile-dialog .damophus-question-bank-dialog,
   .damophus-question-bank-mobile-dialog .question-bank,
@@ -64,6 +65,11 @@
   .workspace-maintenance-heading span { color: var(--b3-theme-on-surface); font-size: 11px; }
   .workspace-maintenance .workspace-panel[data-state="open"] { grid-column: 1 / -1; }
   .document-row { display: grid; grid-template-columns: auto minmax(220px, 1fr) auto auto auto; align-items: center; gap: 10px; }
+  /* Desktop keeps the document row and the unfinished list inline; the mobile floating
+     sheet only wraps them so one wrapper can serve both layouts without duplicating markup. */
+  .workspace-quick-access { display: contents; }
+  .quick-access-head { display: none; }
+  .fab-backdrop { display: none; }
   .auto-scan-button { color: var(--b3-theme-on-surface); }
   .auto-scan-button[aria-pressed="true"] { color: var(--b3-theme-primary); border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
   .auto-scan-button[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--b3-theme-primary) 22%, transparent); }
@@ -227,6 +233,65 @@
     /* The sticky shortcut bar is clamped inside the content box, so the trailing
        padding would leave a dead strip below it. Drop it only when the bar exists. */
     .workspace:has(.workspace-quick-bar) { padding-bottom: 0; }
+
+    /* ---- Mobile card switching, driven by the bottom bar tabs ---- */
+    .workspace[data-view="index"] .answer-mode-switcher,
+    .workspace[data-view="index"] .practice-launcher,
+    .workspace[data-view="index"] .answer-mode-content,
+    .workspace[data-view="topic"] .answer-mode-switcher,
+    .workspace[data-view="topic"] .practice-launcher,
+    .workspace[data-view="topic"] .answer-mode-content { display: none; }
+    .workspace[data-view="practice"] .workspace-maintenance { display: none; }
+    /* Index card: the scan summary minus the topic block. */
+    .workspace[data-view="index"] .topic-relation-sync { display: none; }
+    /* Topic card: keep only the relation block out of the whole scan summary. */
+    .workspace[data-view="topic"] .workspace-maintenance-heading { display: none; }
+    .workspace[data-view="topic"] .data-panel { display: none; }
+    .workspace[data-view="topic"] .scan-summary > *:not(.topic-relation-sync) { display: none; }
+
+    /* ---- Floating sheet: document row + unfinished sessions ---- */
+    .workspace-quick-access {
+      position: absolute;
+      right: 14px;
+      bottom: calc(178px + env(safe-area-inset-bottom, 0px));
+      left: 14px;
+      z-index: 6;
+      max-height: min(56%, 440px);
+      overflow-y: auto;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      border: 1px solid var(--b3-border-color);
+      border-radius: 16px;
+      background: var(--b3-theme-background);
+      box-shadow: 0 18px 44px rgb(0 0 0 / 22%);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px) scale(0.98);
+      transform-origin: bottom right;
+      transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s;
+    }
+    .workspace-quick-access.open { opacity: 1; visibility: visible; transform: none; }
+    .quick-access-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .quick-access-head strong { font-size: 13px; }
+    .quick-access-close {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--b3-theme-on-surface);
+      cursor: pointer;
+    }
+    .quick-access-close:hover { color: var(--b3-theme-primary); background: var(--b3-list-hover); }
+    .fab-backdrop { position: absolute; inset: 0; z-index: 5; display: none; padding: 0; border: 0; background: rgb(0 0 0 / 26%); }
+    .fab-backdrop.open { display: block; }
+    /* Inside the sheet the toolbar is a plain block, not a sticky page header. */
+    .workspace-quick-access .workspace-toolbar { position: static; margin: 0; padding: 0; border-bottom: 0; background: transparent; backdrop-filter: none; }
+    .workspace-quick-access .unfinished-sessions { margin: 0; }
     .setup { overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
     .workspace-toolbar {
       position: sticky;

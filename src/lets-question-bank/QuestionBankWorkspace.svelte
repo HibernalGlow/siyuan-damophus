@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { Database, Download, FileInput, RefreshCw, ScanLine, Upload } from "lucide-svelte";
+  import { Database, Download, FileInput, RefreshCw, ScanLine, Upload, X } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@
   import QuestionSetComposer from "./QuestionSetComposer.svelte";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
   import WorkspaceQuickBar from "./WorkspaceQuickBar.svelte";
+  import WorkspaceFab from "./WorkspaceFab.svelte";
 
   export let label: (key: string, fallback: string) => string;
   export let documentId = "";
@@ -120,6 +121,9 @@
   $: answerMode = composerOpen ? "composer" : examMode ? "exam" : "practice";
 
   function selectAnswerMode(mode: AnswerMode): void {
+    // Composer and exam replace the practice card, so the mobile view must come back
+    // to the practice slot or the bar would point at a hidden card.
+    mobileView = "practice";
     if (mode === "composer") {
       examMode = false;
       openQuestionSetComposer();
@@ -136,23 +140,54 @@
   }
 
   let workspaceEl: HTMLElement | undefined;
+  let quickAccessOpen = false;
+  let mobileView: "practice" | "index" | "topic" = "practice";
 
-  // The mobile shortcut bar only previews these blocks; tapping the active tab again
-  // opens the owning panel (if collapsed) and scrolls the real block into view.
+  function closeQuickAccess(): void {
+    quickAccessOpen = false;
+  }
+
+  function sectionSelector(id: "practice" | "index" | "topic"): string {
+    if (id === "practice") return ".practice-launcher, .answer-mode-content";
+    return id === "index" ? ".scan-panel" : ".topic-relation-sync";
+  }
+
+  function scrollToSection(id: "practice" | "index" | "topic"): void {
+    requestAnimationFrame(() => {
+      workspaceEl?.querySelector<HTMLElement>(sectionSelector(id))?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  // The mobile bar is a view switcher: the index and topic cards live inside the
+  // maintenance panel, so switching has to expand it before scrolling.
+  async function showSection(id: "practice" | "index" | "topic"): Promise<void> {
+    if (id !== "practice") {
+      scanPanelUserControlled = true;
+      scanPanelOpen = true;
+    }
+    mobileView = id;
+    await tick();
+    scrollToSection(id);
+  }
+
   async function revealSection(id: "practice" | "index" | "topic"): Promise<void> {
     if (id !== "practice") {
       scanPanelUserControlled = true;
       scanPanelOpen = true;
     }
     await tick();
-    const selector = id === "practice" ? ".practice-launcher" : id === "index" ? ".scan-panel" : ".topic-relation-sync";
-    requestAnimationFrame(() => {
-      workspaceEl?.querySelector<HTMLElement>(selector)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    scrollToSection(id);
   }
 </script>
 
-<section class="workspace min-h-0 flex-1 overflow-y-auto" bind:this={workspaceEl}>
+<section class="workspace min-h-0 flex-1 overflow-y-auto" data-view={mobileView} bind:this={workspaceEl}>
+  <div class="workspace-quick-access" class:open={quickAccessOpen}>
+    <div class="quick-access-head">
+      <strong>{label("fabPanelTitle", "文档与未完成")}</strong>
+      <button type="button" class="quick-access-close" aria-label={label("close", "Close")} onclick={closeQuickAccess}>
+        <X size={16} aria-hidden="true" />
+      </button>
+    </div>
   <div class="workspace-toolbar">
     <div class="document-row">
       <FormLabel class="document-id-label" for="document-id">{label("documentId", "Document ID")}</FormLabel>
@@ -210,7 +245,7 @@
                 <span>{stored.result.snapshot.completed_question_ids.length} / {stored.result.snapshot.queue_question_ids.length}</span>
                 <small>{new Date(stored.result.snapshot.updated_at).toLocaleString()}</small>
               </div>
-              <Button variant="outline" size="sm" onclick={() => openStoredSession(stored)}>
+              <Button variant="outline" size="sm" onclick={() => { closeQuickAccess(); openStoredSession(stored); }}>
                 {label("openSession", "Open")}
               </Button>
             {:else}
@@ -229,6 +264,18 @@
       </div>
     </section>
     {/if}
+  </div>
+
+  <button
+    type="button"
+    class="fab-backdrop"
+    class:open={quickAccessOpen}
+    aria-label={label("close", "Close")}
+    onclick={closeQuickAccess}
+  ></button>
+  {#if answerMode === "practice"}
+    <WorkspaceFab {label} open={quickAccessOpen} badge={storedSessions.length} toggle={() => (quickAccessOpen = !quickAccessOpen)} />
+  {/if}
 
   <AnswerModeSwitcher {label} mode={answerMode} onSelect={selectAnswerMode} />
 
@@ -401,7 +448,7 @@
   {/if}
   </section>
 
-  {#if preview && answerMode === "practice"}
+  {#if preview}
     <WorkspaceQuickBar
       {label}
       {busy}
@@ -421,6 +468,10 @@
       {previewTopicRelations}
       {confirmTopicRelations}
       {revealSection}
+      activeView={mobileView}
+      onViewChange={showSection}
+      mode={answerMode}
+      selectMode={selectAnswerMode}
     />
   {/if}
 </section>

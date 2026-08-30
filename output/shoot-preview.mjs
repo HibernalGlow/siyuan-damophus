@@ -6,43 +6,60 @@ const file = path.resolve("output/mobile-dock-redesign-preview.html");
 const url = pathToFileURL(file).href;
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1400, height: 1200 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: 2 });
 await page.goto(url);
 await page.waitForTimeout(400);
 
 // 桌面端 1200px 视图
 await page.locator(".frame").screenshot({ path: "output/dock-desktop-preview.png" });
 
-// 移动端 390px 视图
-await page.locator(".phone").screenshot({ path: "output/dock-mobile-preview.png" });
+// 移动端：练习卡片（默认）
+await page.locator(".phone").nth(0).screenshot({ path: "output/dock-mobile-preview.png" });
 
-// 移动端首屏（440x1000 视口，验证「开始练习」是否在首屏内）
-const m = await browser.newPage({ viewport: { width: 440, height: 1000 }, deviceScaleFactor: 2 });
-await m.goto(url);
-await m.waitForTimeout(400);
-const box = await page.evaluate(() => {
-  const el = document.querySelector(".m .start");
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return { top: Math.round(r.top), bottom: Math.round(r.bottom) };
-});
-console.log("mobile .start position in 390px column:", JSON.stringify(box));
-await m.screenshot({ path: "output/dock-mobile-viewport.png" });
+// 移动端：考点卡片 + 悬浮球展开
+await page.locator(".phone").nth(1).screenshot({ path: "output/dock-mobile-topic-preview.png" });
 
-// 底栏校验：桌面端不应存在；移动端应贴在 workspace 可视底部
-const bars = await page.evaluate(() => {
+const report = await page.evaluate(() => {
   const round = (r) => ({ top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height) });
+  const visible = (el) => !!el && el.getBoundingClientRect().height > 0;
   const desktopCount = document.querySelectorAll(".frame .quick-bar").length;
-  const bar = document.querySelector(".m .quick-bar");
-  const ws = document.querySelector(".m .workspace");
-  if (!bar || !ws) return { desktopCount, mobile: null };
+  const practice = document.querySelectorAll(".phone")[0];
+  const topic = document.querySelectorAll(".phone")[1];
+
+  const bar = practice.querySelector(".m .quick-bar");
+  const ws = practice.querySelector(".m .workspace");
+
+  const sheet = topic.querySelector(".quick-access");
+  const fab = topic.querySelector(".workspace-fab");
+
   return {
+    // 桌面端不应该出现底栏
     desktopCount,
-    mobile: { bar: round(bar.getBoundingClientRect()), workspace: round(ws.getBoundingClientRect()) },
+    // 底栏贴在移动端 workspace 底部
     pinnedToBottom: Math.abs(bar.getBoundingClientRect().bottom - ws.getBoundingClientRect().bottom) <= 1,
+    barBox: round(bar.getBoundingClientRect()),
+    // 练习卡片视图：练习卡片可见，维护区隐藏
+    practiceView: {
+      launcher: visible(practice.querySelector(".launcher")),
+      maintenance: visible(practice.querySelector(".maintenance")),
+      peekCards: practice.querySelectorAll(".peek-card").length,
+    },
+    // 考点卡片视图：整张卡片切换，练习卡片隐藏，维护区里的考点块可见
+    topicView: {
+      launcher: visible(topic.querySelector(".launcher")),
+      maintenance: visible(topic.querySelector(".maintenance")),
+      summaryGrid: visible(topic.querySelector(".summary-grid")),
+      topicSync: visible(topic.querySelector(".topic-sync")),
+      peekCards: topic.querySelectorAll(".peek-card").length,
+    },
+    // 悬浮球与展开的浮窗
+    fab: { box: round(fab.getBoundingClientRect()), badge: !!fab.querySelector(".fab-badge") },
+    sheet: { open: sheet.classList.contains("open"), box: round(sheet.getBoundingClientRect()) },
+    sheetAboveFab: sheet.getBoundingClientRect().bottom <= fab.getBoundingClientRect().top + 1,
   };
 });
-console.log("quick bar:", JSON.stringify(bars));
 
+console.log(JSON.stringify(report, null, 2));
+await page.screenshot({ path: "output/dock-preview-full.png", fullPage: true });
 console.log("done");
 await browser.close();
