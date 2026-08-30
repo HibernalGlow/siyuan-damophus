@@ -215,12 +215,13 @@
       {/if}
     </section>
   {/if}
-  <Collapsible.Root bind:open={scanDetailsOpen} class="basis-full border-t border-border pt-2.5 select-text">
-    <Collapsible.Trigger class={buttonVariants({ variant: "ghost", size: "sm" })}>
-      <svg data-icon="inline-start" aria-hidden="true"><use href={scanDetailsOpen ? "#iconUp" : "#iconDown"}></use></svg>
-      {label("scanDetails", "Scan details")}
-    </Collapsible.Trigger>
-    <Collapsible.Content>
+  <div class="scan-details select-text">
+    <Collapsible.Root bind:open={scanDetailsOpen}>
+      <Collapsible.Trigger class={`scan-details-trigger ${buttonVariants({ variant: "ghost", size: "sm" })}`}>
+        <svg data-icon="inline-start" aria-hidden="true"><use href={scanDetailsOpen ? "#iconUp" : "#iconDown"}></use></svg>
+        {label("scanDetails", "Scan details")}
+      </Collapsible.Trigger>
+      <Collapsible.Content>
       <div class="scan-detail-actions">
         <span>{label("inferenceNotice", "Inferences describe detected structure and are not errors.")}</span>
         {#if scanMessageGroups.some((group) => group.messages.length > 0)}
@@ -264,8 +265,9 @@
         <div class="report-group"><strong>{label("bindingRepairs", "Database repairs")}</strong><ul>{#each preview.bindingRepairs as repair}<li><code>{repair.database}</code><span>{String(repair.field)} ({repair.currentType ? `${repair.currentType} -> ` : ""}{repair.type})</span></li>{/each}</ul></div>
       {/if}
       {#if preview.staleQuestionIds.length > 0}<div class="report-group"><strong>{label("staleQuestions", "Stale questions")}</strong><code>{preview.staleQuestionIds.join(", ")}</code></div>{/if}
-    </Collapsible.Content>
-  </Collapsible.Root>
+      </Collapsible.Content>
+    </Collapsible.Root>
+  </div>
 </section>
 
 <style>
@@ -288,14 +290,32 @@
   .progress-stats > span > span { min-width: 0; display: grid; }
   .progress-stats small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .progress-stats strong { color: var(--b3-theme-on-background); font-size: 15px; font-variant-numeric: tabular-nums; }
-  .summary-grid { flex: 1; display: grid; grid-template-columns: repeat(6, minmax(74px, 1fr)); gap: 1px; background: var(--b3-border-color); }
+  /* 必须恰好 6 列：条目数与列数不等时，换行会留下空格子，
+     而网格背景是边框色，就会露出一块灰色空白。 */
+  .summary-grid { flex: 1; min-width: 0; align-self: stretch; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; border-radius: 9px; overflow: hidden; background: var(--b3-border-color); }
   .summary-grid > span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--b3-theme-on-surface); }
   .summary-grid > span > :global(svg) { width: 16px; height: 16px; flex: 0 0 16px; color: var(--b3-theme-primary); opacity: 0.78; }
   .summary-grid > span > span { min-width: 0; display: grid; }
   .summary-grid small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
   .summary-grid .danger strong, .summary-grid .danger > :global(svg) { color: var(--b3-theme-error); }
-  .scan-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .scan-details { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 11px; border-top: 1px solid var(--b3-border-color); }
+  .scan-details :global(.scan-details-trigger) {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    padding-inline: 12px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 10px;
+    background: var(--b3-theme-surface);
+    color: var(--b3-theme-on-surface);
+    font-size: 12px;
+  }
+  .scan-details :global(.scan-details-trigger:hover) { color: var(--b3-theme-primary); border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--b3-border-color)); background: var(--b3-list-hover); }
+  .scan-details :global(.scan-details-trigger[aria-expanded="true"]) { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent); border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--b3-border-color)); }
+  .scan-details :global(.scan-details-trigger > svg) { width: 14px; height: 14px; }
+  .scan-detail-actions { flex-basis: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .report-group { margin-top: 12px; }
   .report-group > strong { display: block; margin-bottom: 6px; font-size: 13px; }
   .report-group ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
@@ -308,7 +328,10 @@
   .topic-relation-sync { flex-basis: 100%; padding-top: 12px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .topic-relation-heading { display: flex; align-items: center; gap: 7px; }
   .topic-relation-heading > :global(svg) { width: 16px; height: 16px; color: var(--b3-theme-primary); }
-  .topic-relation-sync :global(.topic-relation-modes) { display: grid; grid-template-columns: repeat(3, minmax(64px, 1fr)); }
+  .topic-relation-sync :global(.topic-relation-modes) { display: grid; grid-template-columns: repeat(3, minmax(64px, 1fr)); padding: 3px; gap: 2px; border: 1px solid var(--b3-border-color); border-radius: 12px; background: var(--b3-theme-surface); }
+  .topic-relation-sync :global(.topic-relation-modes [data-slot="toggle-group-item"]) { border: 0; border-radius: 9px; color: var(--b3-theme-on-surface); background: transparent; }
+  .topic-relation-sync :global(.topic-relation-modes [data-slot="toggle-group-item"][data-state="on"]) { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
+  .scan-summary :global(.auto-sync-toggle) { display: inline-flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface); font-size: 12px; }
   .topic-relation-status { color: var(--b3-theme-on-surface); font-size: 12px; }
   .topic-relation-report { flex-basis: 100%; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .topic-relation-report > span { font-size: 12px; color: var(--b3-theme-on-surface); }
@@ -320,7 +343,7 @@
 
   @container (max-width: 960px) {
     .source-progress-overview { grid-template-columns: 1fr; gap: 18px; }
-    .summary-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); flex-basis: 100%; }
+    .summary-grid { flex-basis: 100%; }
     .summary-grid > span { min-height: 46px; padding: 5px 6px; justify-content: center; }
     .summary-grid > span > :global(svg) { width: 15px; height: 15px; }
     .summary-grid small { display: none; }
@@ -328,12 +351,17 @@
   }
 
   @container (max-width: 760px) {
-    .scan-summary { gap: 10px; }
+    .scan-summary { gap: 10px; padding: 12px; }
     .source-progress-overview { gap: 12px; }
     .progress-stats > span { padding-inline: 5px; justify-content: center; text-align: center; }
     .progress-stats > span > :global(svg) { display: none; }
     .progress-stats strong { font-size: 14px; }
-    :global(.auto-sync-toggle > span) { display: none; }
+    .scan-summary > :global(button) { flex-basis: 100%; justify-content: center; }
+    .scan-summary > span { flex-basis: 100%; font-size: 11px; }
+    .scan-details { padding-top: 10px; }
+    .scan-details :global(.scan-details-trigger) { width: 100%; justify-content: center; min-height: 40px; }
+    .topic-relation-heading { flex-basis: 100%; }
+    .topic-relation-sync :global(.topic-relation-modes) { flex-basis: 100%; }
   }
 
   @container (max-width: 430px) {

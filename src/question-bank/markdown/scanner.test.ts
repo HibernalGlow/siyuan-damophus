@@ -202,6 +202,32 @@ describe("question Markdown scanner", () => {
     });
   });
 
+  it("normalizes raw subject metadata onto canonical subject ids", () => {
+    const report = scanQuestionMarkdown(`##### 1. （单）
+{: custom-qb-id="subject-alias-1" custom-qb-type="single" custom-qb-answer="A" custom-qb-subject="administrative law"}
+
+- stem
+  - [ ] A. one
+  - [ ] B. two
+
+正确答案为 A。`);
+
+    expect(report.document.questions[0].metadata.subject).toBe("administrative");
+  });
+
+  it("keeps unrecognized custom subject values verbatim", () => {
+    const report = scanQuestionMarkdown(`##### 2. （单）
+{: custom-qb-id="subject-alias-2" custom-qb-type="single" custom-qb-answer="A" custom-qb-subject="地方性法规专题"}
+
+- stem
+  - [ ] A. one
+  - [ ] B. two
+
+正确答案为 A。`);
+
+    expect(report.document.questions[0].metadata.subject).toBe("地方性法规专题");
+  });
+
   it("reports legacy omissions and conflicts without indexing conflicting questions", () => {
     const report = scanQuestionMarkdown(fixture("malformed-legacy"));
 

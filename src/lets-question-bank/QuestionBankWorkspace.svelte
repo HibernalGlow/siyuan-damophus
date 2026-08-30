@@ -150,7 +150,7 @@
       >
         <FileInput aria-hidden="true" />
       </Button>
-      <Button variant="outline" size="icon" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} onclick={() => scanDocument(true)}>
+      <Button variant="outline" size="icon" class="scan-button" title={label("scan", "Scan document")} aria-label={label("scan", "Scan document")} disabled={!validDocument() || busy} onclick={() => scanDocument(true)}>
         <ScanLine aria-hidden="true" />
       </Button>
       <Button

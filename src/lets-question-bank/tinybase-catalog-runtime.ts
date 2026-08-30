@@ -23,7 +23,7 @@ import {
   type QuestionCatalogRecord,
   type SourceDocumentRecord,
 } from "../question-bank/storage/schemas";
-import { inferTopicSubjectId } from "../question-bank/topic-subjects";
+import { inferSubjectFromQuestionId, inferTopicSubjectId, resolveTopicSubjectId } from "../question-bank/topic-subjects";
 import type { TinyBaseRuntime } from "./tinybase-runtime";
 
 interface DocumentRow {
@@ -49,13 +49,29 @@ function escapeSql(value: string): string {
   return value.replace(/'/gu, "''");
 }
 
+/**
+ * Repairs subject values stored by older versions: canonicalizes known aliases
+ * ("administrative law" -> "administrative") and falls back to question-ID
+ * inference when nothing usable was stored.
+ */
+function resolvedCatalogSubject(questionId: string, stored: string | undefined): string | undefined {
+  const normalized = resolveTopicSubjectId(stored);
+  if (normalized) return normalized;
+  if (stored?.trim()) return stored;
+  return inferSubjectFromQuestionId(questionId);
+}
+
 function recordMetadata(question: Question): Pick<
   QuestionCatalogRecord,
   "year" | "subject" | "category" | "collection" | "source" | "parent_id"
 > {
   const metadata = sourceMetadataWithIdFallback(question.id, question.metadata);
   const primaryTopicId = question.metadata.topicIds?.[0] ?? question.metadata.topicId;
-  const inferredSubject = question.metadata.subject || (primaryTopicId ? inferTopicSubjectId(primaryTopicId) : undefined);
+  const rawSubject = question.metadata.subject;
+  const canonicalSubject = rawSubject?.trim() ? (resolveTopicSubjectId(rawSubject) ?? rawSubject.trim()) : undefined;
+  const inferredSubject = canonicalSubject
+    ?? (primaryTopicId ? inferTopicSubjectId(primaryTopicId) : undefined)
+    ?? inferSubjectFromQuestionId(question.id);
   const rawCategory = question.metadata.category;
   const resolvedCategory = (rawCategory && rawCategory !== "gold") ? rawCategory : (rawCategory || primaryTopicId);
   return {
@@ -430,7 +446,7 @@ export class TinyBaseSiyuanCatalogRuntime {
         questionTitle: question.title,
         questionType: question.question_type,
         year: metadata.year,
-        subject: question.subject,
+        subject: resolvedCatalogSubject(questionId, question.subject),
         category: question.category,
         collection: metadata.collection,
         source: metadata.source,
@@ -461,7 +477,7 @@ export class TinyBaseSiyuanCatalogRuntime {
         questionId,
         title: question.title,
         questionType: question.question_type,
-        subject: question.subject,
+        subject: resolvedCatalogSubject(questionId, question.subject),
         category: question.category,
         year: metadata.year,
         collection: metadata.collection,

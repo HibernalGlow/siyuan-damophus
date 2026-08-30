@@ -141,9 +141,9 @@ describe("portable question core", () => {
   it("evaluates mixed AND/OR connectors with normal precedence and group negation", () => {
     const questions = [question("q1"), question("q2"), question("q3")];
     const aggregates = new Map([
-      ["q1", { questionId: "q1", attempts: 1, objectiveIncorrect: 1, consecutiveReviewCount: 0 }],
-      ["q2", { questionId: "q2", attempts: 1, objectiveIncorrect: 0, consecutiveReviewCount: 2 }],
-      ["q3", { questionId: "q3", attempts: 0, objectiveIncorrect: 0, consecutiveReviewCount: 0 }],
+      ["q1", { questionId: "q1", attempts: 1, objectiveAttempts: 1, objectiveCorrect: 0, objectiveIncorrect: 1, consecutiveReviewCount: 0, consecutiveAgainCount: 0, consecutiveHardCount: 0 }],
+      ["q2", { questionId: "q2", attempts: 1, objectiveAttempts: 1, objectiveCorrect: 1, objectiveIncorrect: 0, consecutiveReviewCount: 2, consecutiveAgainCount: 0, consecutiveHardCount: 0 }],
+      ["q3", { questionId: "q3", attempts: 0, objectiveAttempts: 0, objectiveCorrect: 0, objectiveIncorrect: 0, consecutiveReviewCount: 0, consecutiveAgainCount: 0, consecutiveHardCount: 0 }],
     ]);
     const filter = {
       glue: "and" as const,

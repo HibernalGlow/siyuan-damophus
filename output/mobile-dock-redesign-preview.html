@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>题库工作台 · 双端重设计预览 v3</title>
+<style>
+  :root {
+    --b3-theme-background: #ffffff;
+    --b3-theme-surface: #f3f4f6;
+    --b3-theme-on-background: #1f2329;
+    --b3-theme-on-surface: #6b7280;
+    --b3-theme-primary: #3a6ee8;
+    --b3-theme-primary-lightest: #e8effc;
+    --b3-theme-error: #d64545;
+    --b3-border-color: #e3e5e8;
+    --b3-list-hover: #eef0f3;
+    --b3-font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; font-family: var(--b3-font-family); }
+  body { background: #dcdfe4; padding: 24px 12px 40px; }
+  .stage { display: flex; flex-wrap: wrap; gap: 34px; justify-content: center; align-items: flex-start; }
+  .col { display: grid; justify-items: center; gap: 12px; }
+  .phone { width: 390px; border-radius: 28px; overflow: hidden; box-shadow: 0 18px 50px rgb(0 0 0 / 28%); background: var(--b3-theme-background); }
+  .frame { width: 1200px; border-radius: 12px; overflow: hidden; box-shadow: 0 14px 40px rgb(0 0 0 / 22%); background: var(--b3-theme-background); }
+  .dock { color: var(--b3-theme-on-background); font-size: 14px; }
+  .caption { color: #5f646d; font-size: 12px; letter-spacing: .2px; }
+
+  /* ---------- 顶栏：桌面 slim 分段控件 ---------- */
+  .home-header { min-height: 48px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--b3-border-color); display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 12px; }
+  .home-identity { min-width: 0; display: grid; gap: 1px; }
+  .home-identity strong { font-size: 14px; line-height: 1.35; }
+  .home-identity span { color: var(--b3-theme-on-surface); font-size: 11px; }
+  .home-nav { display: flex; align-items: center; padding: 3px; gap: 2px; border: 1px solid var(--b3-border-color); border-radius: 12px; background: var(--b3-theme-surface); }
+  .home-nav button { min-width: 0; min-height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 0; border-radius: 9px; background: transparent; color: var(--b3-theme-on-surface); font-size: 12.5px; cursor: pointer; }
+  .home-nav button.active { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); font-weight: 600; }
+  .home-close { width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--b3-theme-on-surface); display: grid; place-items: center; cursor: pointer; justify-self: end; }
+
+  .workspace { padding: 16px 20px 20px; }
+  .toolbar { padding-bottom: 10px; }
+  .doc-bar { display: grid; grid-template-columns: minmax(0,1fr) 34px 34px auto; align-items: center; gap: 10px; }
+  .doc-bar .doc-id { display: none; }
+  .doc-bar input { min-width: 0; height: 34px; padding: 0 10px; border: 1px solid var(--b3-border-color); border-radius: 8px; background: var(--b3-theme-background); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .doc-bar button { width: 34px; height: 34px; border: 1px solid var(--b3-border-color); border-radius: 8px; background: var(--b3-theme-background); color: var(--b3-theme-on-surface); display: grid; place-items: center; cursor: pointer; }
+  .doc-bar button.scan { color: var(--b3-theme-primary); border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent); }
+  .doc-bar button.auto-on { color: var(--b3-theme-primary); border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
+
+  .mode-group { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(64px,1fr)); padding: 3px; gap: 2px; border: 1px solid var(--b3-border-color); border-radius: 12px; background: var(--b3-theme-surface); }
+  .mode-group button { min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 9px; background: transparent; color: var(--b3-theme-on-surface); font-size: 12.5px; cursor: pointer; }
+  .mode-group button.active { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); font-weight: 600; }
+
+  /* ---------- 未完成的练习：紧凑卡片 ---------- */
+  .unfinished { margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--b3-border-color); border-radius: 12px; }
+  .unfinished-head { display: flex; align-items: center; gap: 8px; }
+  .unfinished-head strong { font-size: 13px; }
+  .badge { padding: 1px 7px; border-radius: 999px; background: var(--b3-theme-surface); color: var(--b3-theme-on-surface); font-size: 11px; }
+  .unfinished-list { margin-top: 8px; max-height: 164px; overflow-y: auto; display: grid; gap: 1px; border-radius: 8px; background: var(--b3-border-color); }
+  .unfinished-row { padding: 8px 10px; background: var(--b3-theme-surface); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .unfinished-row strong { font-size: 12.5px; }
+  .unfinished-row span { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .unfinished-row small { display: block; color: var(--b3-theme-on-surface); font-size: 11px; }
+  .ghost-btn { min-height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--b3-border-color); border-radius: 8px; background: var(--b3-theme-background); color: var(--b3-theme-on-background); font-size: 12px; cursor: pointer; }
+
+  /* ---------- 快速练习 ---------- */
+  .launcher { margin-top: 12px; border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 38%, var(--b3-border-color)); border-radius: 12px; overflow: hidden; }
+  .launcher-header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 13px 16px 12px; border-bottom: 1px solid var(--b3-border-color); background: color-mix(in srgb, var(--b3-theme-primary-lightest) 45%, var(--b3-theme-background)); }
+  .launcher-title { display: flex; align-items: center; gap: 11px; }
+  .launcher-icon { width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 38%, transparent); border-radius: 7px; color: var(--b3-theme-primary); background: var(--b3-theme-background); display: grid; place-items: center; }
+  .launcher-title .kicker { color: var(--b3-theme-primary); font-size: 11px; font-weight: 700; }
+  .launcher-title strong { font-size: 17px; line-height: 1.35; display: block; }
+  .launcher-title small { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .stats { flex: 1; min-width: 320px; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); }
+  .stats div { display: grid; gap: 1px; padding-inline: 8px; border-left: 1px solid var(--b3-border-color); }
+  .stats div:first-child { border-left: 0; padding-left: 0; }
+  .stats .num { display: flex; align-items: center; gap: 4px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stats .num svg { color: var(--b3-theme-on-surface); }
+  .stats .lab { color: var(--b3-theme-on-surface); font-size: 11px; }
+  .stats .sub { color: var(--b3-theme-on-surface); font-size: 10px; }
+
+  .launcher-body { padding: 16px; display: grid; grid-template-columns: minmax(0,1fr); gap: 14px; }
+  .launcher-form { display: grid; gap: 14px; }
+  .field { display: grid; gap: 6px; min-width: 0; }
+  .field > span { display: flex; align-items: center; gap: 5px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .field > span svg { color: var(--b3-theme-primary); }
+  .select { min-height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border: 1px solid var(--b3-border-color); border-radius: 10px; background: var(--b3-theme-background); font-size: 13px; }
+  .select svg { color: var(--b3-theme-on-surface); }
+
+  .order-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  .seg { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); padding: 3px; gap: 2px; border: 1px solid var(--b3-border-color); border-radius: 12px; background: var(--b3-theme-surface); }
+  .seg button { min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 5px; padding-inline: 6px; border: 0; border-radius: 9px; background: transparent; color: var(--b3-theme-on-surface); font-size: 12px; cursor: pointer; }
+  .seg button.active { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); font-weight: 600; }
+  .seg-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+
+  .filter-row { min-height: 52px; display: flex; align-items: center; gap: 8px; padding: 5px 7px 5px 10px; border: 1px solid var(--b3-border-color); border-radius: 10px; }
+  .filter-trigger { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 9px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+  .filter-icon { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border-radius: 5px; color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 13%, var(--b3-theme-background)); }
+  .filter-copy strong { display: block; font-size: 12.5px; font-weight: 600; }
+  .filter-copy small { color: var(--b3-theme-on-surface); font-size: 11px; }
+  .filter-clear { width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--b3-theme-on-surface); display: grid; place-items: center; cursor: pointer; }
+
+  /* 桌面：底部通栏操作条（左提示 / 右按钮），不再占用右侧 268px 列 */
+  .launcher-actions { padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+  .launcher-actions p { margin-right: auto; color: var(--b3-theme-on-surface); font-size: 11px; line-height: 1.5; }
+  .start { min-height: 46px; min-width: 220px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 9px 18px; border: 0; border-radius: 10px; background: var(--b3-theme-primary); color: #fff; cursor: pointer; }
+  .start strong { font-size: 13.5px; }
+  .start small { font-size: 10px; opacity: .76; margin-left: 6px; }
+
+  /* ---------- 准备与维护 ---------- */
+  .maintenance { margin-top: 18px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0 14px; align-items: start; }
+  .maintenance-head { grid-column: 1 / -1; padding-top: 14px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: baseline; gap: 10px; }
+  .maintenance-head strong { font-size: 13px; }
+  .maintenance-head span { color: var(--b3-theme-on-surface); font-size: 11px; }
+  .maintenance .panel.open { grid-column: 1 / -1; }
+  .panel { margin-top: 12px; border: 1px solid var(--b3-border-color); border-radius: 10px; background: var(--b3-theme-surface); overflow: hidden; }
+  .panel-trigger { display: flex; width: 100%; min-height: 58px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+  .panel-head { display: flex; min-width: 0; align-items: center; gap: 10px; }
+  .panel-head > svg { width: 19px; height: 19px; flex: 0 0 19px; color: var(--b3-theme-primary); }
+  .panel-head strong { font-size: 14px; display: block; }
+  .panel-head small { color: var(--b3-theme-on-surface); font-size: 11px; }
+  .panel-content { padding: 14px 16px; border-top: 1px solid var(--b3-border-color); background: var(--b3-theme-background); }
+
+  /* ---------- 扫描摘要 ---------- */
+  .scan-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .scan-top { flex-basis: 100%; display: grid; grid-template-columns: minmax(240px,1fr) minmax(360px,1.15fr); gap: 24px; align-items: stretch; }
+  .source-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .source-heading > svg { width: 17px; height: 17px; flex: 0 0 17px; color: var(--b3-theme-primary); }
+  .source-heading strong { font-size: 15px; }
+  .source-sub { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .completion-heading { display: grid; grid-template-columns: auto auto minmax(44px,1fr); align-items: center; gap: 8px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .completion-heading > span { display: inline-flex; align-items: center; gap: 5px; }
+  .completion-heading strong { justify-self: end; font-size: 18px; }
+  .progress { height: 8px; margin: 8px 0; border-radius: 999px; background: var(--b3-theme-surface); overflow: hidden; }
+  .progress i { display: block; width: 33%; height: 100%; background: var(--b3-theme-primary); }
+  .progress-stats { display: grid; grid-template-columns: repeat(4, minmax(58px,1fr)); }
+  .progress-stats > span { padding: 2px 9px; border-left: 1px solid var(--b3-border-color); display: flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface); font-size: 11px; }
+  .progress-stats > span:first-child { border-left: 0; padding-left: 0; }
+  .progress-stats > span > svg { width: 15px; height: 15px; color: var(--b3-theme-primary); opacity: .82; }
+  .progress-stats strong { color: var(--b3-theme-on-background); font-size: 15px; }
+
+  /* 6 条 / 6 列：列数必须等于条目数，否则换行会留下灰块 */
+  .summary-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 1px; border-radius: 9px; overflow: hidden; background: var(--b3-border-color); }
+  .summary-grid > span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--b3-theme-on-surface); }
+  .summary-grid > span > svg { width: 16px; height: 16px; flex: 0 0 16px; color: var(--b3-theme-primary); opacity: .78; }
+  .summary-grid small { font-size: 11px; }
+  .summary-grid strong { color: var(--b3-theme-on-background); font-size: 17px; }
+  .summary-grid .danger strong, .summary-grid .danger > svg { color: var(--b3-theme-error); }
+
+  .sync-btn { min-height: 34px; padding: 0 14px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--b3-border-color); border-radius: 10px; background: var(--b3-theme-background); color: var(--b3-theme-on-background); font-size: 12.5px; cursor: pointer; }
+  .switch-row { display: inline-flex; align-items: center; gap: 7px; color: var(--b3-theme-on-surface); font-size: 12px; }
+  .switch { width: 30px; height: 17px; border-radius: 999px; background: var(--b3-border-color); position: relative; flex: 0 0 30px; }
+  .switch i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; }
+  .switch.on { background: var(--b3-theme-primary); }
+  .switch.on i { left: auto; right: 2px; }
+  .hint { color: var(--b3-theme-on-surface); font-size: 12px; }
+  .hint.primary { color: var(--b3-theme-primary); font-weight: 500; }
+
+  .topic-sync { flex-basis: 100%; padding-top: 12px; border-top: 1px solid var(--b3-border-color); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .topic-head { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .topic-head > svg { width: 16px; height: 16px; color: var(--b3-theme-primary); }
+
+  .scan-details { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 11px; border-top: 1px solid var(--b3-border-color); }
+  .details-trigger { min-height: 34px; padding-inline: 12px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--b3-border-color); border-radius: 10px; background: var(--b3-theme-surface); color: var(--b3-theme-on-surface); font-size: 12px; cursor: pointer; }
+  .details-trigger.open { color: var(--b3-theme-primary); border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent); }
+  .details-trigger > svg { width: 14px; height: 14px; }
+
+  /* ================= 移动端（≤760 容器宽度） ================= */
+  .m .home-header { min-height: 50px; padding-inline: 14px 10px; gap: 10px; }
+  .m .home-identity span { display: none; }
+  .m .home-identity strong { font-size: 15px; }
+  .m .home-nav button { width: 40px; min-width: 40px; min-height: 34px; padding: 0; justify-content: center; }
+  .m .home-nav button span { display: none; }
+
+  .m .workspace { padding: 12px 14px 18px; }
+  .m .toolbar { position: sticky; top: 0; z-index: 2; margin: -12px -14px 0; padding: 10px 14px 8px; border-bottom: 1px solid var(--b3-border-color); background: color-mix(in srgb, var(--b3-theme-background) 94%, transparent); backdrop-filter: blur(14px); }
+  /* 合并式圆角工具条：输入框与按钮融为一体 */
+  .m .doc-bar { display: flex; grid-template-columns: none; gap: 2px; padding: 4px 4px 4px 12px; border: 1px solid var(--b3-border-color); border-radius: 13px; background: var(--b3-theme-surface); }
+  .m .doc-bar input { min-width: 0; flex: 1 1 auto; height: 38px; padding: 0 8px 0 0; border: 0; border-radius: 0; background: transparent; outline: none; color: var(--b3-theme-on-surface); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .m .doc-bar button { width: 38px; height: 38px; flex: 0 0 38px; border: 0; border-radius: 10px; background: transparent; }
+  .m .doc-bar button.scan { color: var(--b3-theme-primary); border-color: transparent; background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent); }
+  .m .doc-bar button.auto-on { color: var(--b3-theme-primary); border-color: transparent; background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
+
+  .m .mode-group { margin-top: 12px; }
+  .m .launcher { margin-top: 12px; border-radius: 12px; }
+  .m .launcher-header { display: grid; gap: 10px; padding: 12px 14px 11px; }
+  .m .launcher-title .kicker { display: none; }
+  .m .stats { width: 100%; min-width: 0; grid-template-columns: repeat(6, minmax(0,1fr)); padding-top: 10px; border-top: 1px solid var(--b3-border-color); }
+  .m .stats div { padding-inline: 5px; }
+  .m .stats div:first-child { padding-left: 0; }
+  .m .stats .num { gap: 3px; font-size: 15px; }
+  .m .stats .num svg { width: 12px; height: 12px; }
+  .m .stats .lab { font-size: 9.5px; }
+  .m .stats .sub { display: none; }
+
+  .m .launcher-body { padding: 12px; gap: 12px; }
+  .m .launcher-form { gap: 12px; }
+  /* 主操作提到表单之上：上方内容再高也不会把「开始练习」挤出首屏 */
+  .m .launcher-actions { order: -1; flex-direction: column; align-items: stretch; gap: 8px; padding: 0 0 13px; border-top: 0; border-bottom: 1px solid var(--b3-border-color); }
+  .m .launcher-actions p { margin: 0; text-align: center; }
+  .m .start { width: 100%; min-width: 0; min-height: 54px; border-radius: 12px; box-shadow: 0 4px 14px color-mix(in srgb, var(--b3-theme-primary) 26%, transparent); }
+  .m .start > span { display: grid; gap: 1px; text-align: center; }
+  .m .start small { margin-left: 0; }
+
+  .m .order-grid { gap: 10px; }
+  .m .order-grid .field > span { font-size: 11px; }
+  .m .seg button { min-height: 36px; gap: 3px; padding-inline: 2px; font-size: 10.5px; }
+  .m .seg button svg { width: 12px; height: 12px; }
+  .m .filter-row { align-items: center; }
+  .m .filter-copy strong { font-size: 12px; }
+
+  .m .maintenance { grid-template-columns: 1fr; margin-top: 14px; }
+  .m .maintenance-head { padding-top: 12px; }
+  .m .maintenance-head span { display: none; }
+  .m .panel { margin-top: 10px; }
+  .m .panel-trigger { min-height: 54px; padding: 9px 12px; }
+  .m .panel-content { padding: 12px; }
+
+  .m .scan-summary { gap: 10px; padding: 0; }
+  .m .scan-top { grid-template-columns: 1fr; gap: 12px; }
+  .m .progress-stats > span { padding-inline: 5px; justify-content: center; text-align: center; }
+  .m .progress-stats > span > svg { display: none; }
+  .m .progress-stats strong { font-size: 14px; }
+  .m .summary-grid { flex-basis: 100%; }
+  .m .summary-grid > span { min-height: 46px; padding: 5px 6px; justify-content: center; }
+  .m .summary-grid > span > svg { width: 15px; height: 15px; }
+  .m .summary-grid small { display: none; }
+  .m .summary-grid strong { font-size: 15px; }
+  .m .scan-summary > .sync-btn { flex-basis: 100%; justify-content: center; min-height: 40px; }
+  .m .scan-summary > .hint { flex-basis: 100%; font-size: 11px; }
+  .m .topic-head { flex-basis: 100%; }
+  .m .topic-sync .seg { flex-basis: 100%; }
+  .m .scan-details { padding-top: 10px; }
+  .m .details-trigger { width: 100%; justify-content: center; min-height: 40px; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ==================== 移动端 390px ==================== -->
+  <div class="col">
+  <div class="phone">
+    <div class="dock m">
+      <header class="home-header">
+        <div class="home-identity"><strong>题库工作台</strong><span>思源笔记 · 移动端</span></div>
+        <nav class="home-nav">
+          <button class="active" title="答题"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg><span>答题</span></button>
+          <button title="学习报告"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M8 17v-5"/><path d="M13 17V8"/><path d="M18 17v-8"/></svg><span>报告</span></button>
+          <button title="数据映射"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg><span>数据</span></button>
+        </nav>
+        <button class="home-close" title="关闭"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </header>
+
+      <section class="workspace">
+        <div class="toolbar">
+          <div class="doc-bar">
+            <input value="20260828000004-ro87y2n" spellcheck="false">
+            <button title="使用当前文档"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 15h6"/><path d="M9 11h2"/></svg></button>
+            <button class="scan" title="扫描文档"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M3 12h18"/></svg></button>
+            <button class="auto-on" title="自动扫描"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="unfinished">
+          <div class="unfinished-head"><strong>未完成的练习</strong><span class="badge">2</span></div>
+          <div class="unfinished-list">
+            <div class="unfinished-row">
+              <div><strong>四、法的渊源</strong><span>4 / 12</span><small>2026/8/30 22:14</small></div>
+              <button class="ghost-btn">继续</button>
+            </div>
+            <div class="unfinished-row">
+              <div><strong>三、法的效力</strong><span>7 / 20</span><small>2026/8/29 19:02</small></div>
+              <button class="ghost-btn">继续</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mode-group">
+          <button class="active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg>快速练习</button>
+          <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2 9 4.9v9.9L12 22l-9-5.1V6.9z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>跨文档组卷</button>
+          <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>模拟考试</button>
+        </div>
+
+        <div class="launcher">
+          <div class="launcher-header">
+            <div class="launcher-title">
+              <span class="launcher-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg></span>
+              <div>
+                <span class="kicker">答题</span>
+                <strong>快速练习</strong>
+                <small>四、法的渊源</small>
+              </div>
+            </div>
+            <div class="stats">
+              <div><span class="num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>12</span><span class="lab">题目</span></div>
+              <div><span class="num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>0</span><span class="lab">已作答</span></div>
+              <div><span class="num"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>12</span><span class="lab">未作答</span></div>
+              <div><span class="num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>0</span><span class="lab">错题</span></div>
+              <div><span class="num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 3v6h6"/></svg>0</span><span class="lab">待复习</span><span class="sub">Again 0 · Hard 0</span></div>
+              <div><span class="num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>0</span><span class="lab">已收藏</span></div>
+            </div>
+          </div>
+
+          <div class="launcher-body">
+            <div class="launcher-form">
+              <div class="field">
+                <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>答题范围</span>
+                <div class="select">整个文档<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+              </div>
+              <div class="order-grid">
+                <div class="field">
+                  <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 5v14l3-3z" fill="currentColor" stroke="none"/></svg>出题顺序</span>
+                  <div class="seg">
+                    <button class="active"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 5v14l3-3z" fill="currentColor" stroke="none"/></svg>顺序出题</button>
+                    <button><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.6-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>随机出题</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.6-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>选项顺序</span>
+                  <div class="seg">
+                    <button class="active"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 5v14l3-3z" fill="currentColor" stroke="none"/></svg>选项原序</button>
+                    <button><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.6-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>选项随机</button>
+                  </div>
+                </div>
+              </div>
+              <div class="field">
+                <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>题目筛选</span>
+                <div class="filter-row">
+                  <button class="filter-trigger">
+                    <span class="filter-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/></svg></span>
+                    <span class="filter-copy"><strong>编辑条件</strong><small>未作答题</small></span>
+                  </button>
+                  <button class="filter-clear" title="清除条件"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 3v6h6"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="launcher-actions">
+              <button class="start">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg>
+                <span><strong>开始练习</strong><small>按当前设置立即答题</small></span>
+              </button>
+              <p>共 12 题 · 预计 6 分钟</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="maintenance">
+          <div class="maintenance-head"><strong>准备与维护</strong><span>扫描、索引和作答数据不会挡住日常答题入口</span></div>
+          <div class="panel">
+            <button class="panel-trigger">
+              <span class="panel-head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+                <span><strong>索引与扫描</strong><small>扫描文档 · 同步索引</small></span>
+              </span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="panel-content">
+              <div class="scan-summary">
+                <div class="scan-top">
+                  <div>
+                    <div class="source-heading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg><span class="badge">文档</span><strong>四、法的渊源</strong></div>
+                    <div class="source-sub">/20260828000004-ro87y2n</div>
+                  </div>
+                  <div>
+                    <div class="completion-heading"><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20v-6"/><path d="m9 17 3-3 3 3"/><path d="M4 4h16"/></svg>完成度</span><span class="badge">0 / 12</span><strong>0%</strong></div>
+                    <div class="progress"><i></i></div>
+                    <div class="progress-stats">
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg><span><strong>12</strong><small>题目</small></span></span>
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>0</strong><small>已作答</small></span></span>
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8" stroke-dasharray="2 3"/></svg><span><strong>12</strong><small>未作答</small></span></span>
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 3v6h6"/></svg><span><strong>0</strong><small>待复习</small></span></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="summary-grid">
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span><strong>12</strong><small>新增</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span><strong>0</strong><small>更新</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11 5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L13 19"/></svg><span><strong>0</strong><small>重绑</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 1.9 5.8L20 10.5l-4.5 3.9 1.4 5.6L12 16.8 7.1 20l1.4-5.6L4 10.5l6.1-1.7z"/></svg><span><strong>3</strong><small>推断</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5v.01"/></svg><span><strong>1</strong><small>问题</small></span></span>
+                  <span class="danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg><span><strong>0</strong><small>阻断</small></span></span>
+                </div>
+                <button class="sync-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>确认索引同步</button>
+                <label class="switch-row"><span class="switch on"><i></i></span>自动同步最新索引</label>
+                <span class="hint primary">检测到索引变更，需要同步</span>
+
+                <div class="topic-sync">
+                  <div class="topic-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M12 7.5v3M10.3 12 6.5 16M13.7 12l3.8 4"/></svg><strong>考点关系同步</strong><span class="badge">8</span></div>
+                  <div class="seg seg-3">
+                    <button class="active">关闭</button><button>merge</button><button>diff</button>
+                  </div>
+                </div>
+
+                <div class="scan-details">
+                  <button class="details-trigger open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>展开详情</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <button class="panel-trigger">
+              <span class="panel-head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/></svg>
+                <span><strong>作答数据</strong><small>导出作答 · 导入作答</small></span>
+              </span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <p class="caption">移动端 390px · 主操作上移 / 未完成练习收进卡片 / 摘要 6 列</p>
+  </div>
+
+  <!-- ==================== 桌面端 1200px ==================== -->
+  <div class="col">
+  <div class="frame">
+    <div class="dock">
+      <header class="home-header">
+        <div class="home-identity"><strong>题库工作台</strong><span>Damophus · 思源笔记插件</span></div>
+        <nav class="home-nav">
+          <button class="active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg><span>答题</span></button>
+          <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M8 17v-5"/><path d="M13 17V8"/><path d="M18 17v-8"/></svg><span>学习报告</span></button>
+          <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg><span>数据映射</span></button>
+        </nav>
+        <button class="home-close" title="关闭"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </header>
+
+      <section class="workspace">
+        <div class="toolbar">
+          <div class="doc-bar">
+            <span class="doc-id">文档 ID</span>
+            <input value="20260828000004-ro87y2n" spellcheck="false">
+            <button title="使用当前文档"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 15h6"/><path d="M9 11h2"/></svg></button>
+            <button class="scan" title="扫描文档"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M3 12h18"/></svg></button>
+            <button class="auto-on" title="自动扫描"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="unfinished">
+          <div class="unfinished-head"><strong>未完成的练习</strong><span class="badge">2</span></div>
+          <div class="unfinished-list">
+            <div class="unfinished-row">
+              <div><strong>四、法的渊源</strong><span>4 / 12</span><small>2026/8/30 22:14:06</small></div>
+              <button class="ghost-btn">继续</button>
+            </div>
+            <div class="unfinished-row">
+              <div><strong>三、法的效力</strong><span>7 / 20</span><small>2026/8/29 19:02:31</small></div>
+              <button class="ghost-btn">继续</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mode-group">
+          <button class="active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg>快速练习</button>
+          <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 2 9 4.9v9.9L12 22l-9-5.1V6.9z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>跨文档组卷</button>
+          <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2h6"/></svg>模拟考试</button>
+        </div>
+
+        <div class="launcher">
+          <div class="launcher-header">
+            <div class="launcher-title">
+              <span class="launcher-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg></span>
+              <div>
+                <span class="kicker">答题</span>
+                <strong>快速练习</strong>
+                <small>四、法的渊源 · 共 12 题</small>
+              </div>
+            </div>
+            <div class="stats">
+              <div><span class="num"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>12</span><span class="lab">题目</span></div>
+              <div><span class="num"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>0</span><span class="lab">已作答</span></div>
+              <div><span class="num"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>12</span><span class="lab">未作答</span></div>
+              <div><span class="num"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>0</span><span class="lab">错题</span></div>
+              <div><span class="num"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 3v6h6"/></svg>0</span><span class="lab">待复习</span><span class="sub">Again 0 · Hard 0</span></div>
+              <div><span class="num"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>0</span><span class="lab">已收藏</span></div>
+            </div>
+          </div>
+
+          <div class="launcher-body">
+            <div class="launcher-form">
+              <div class="field">
+                <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>答题范围</span>
+                <div class="select">整个文档<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+              </div>
+              <div class="order-grid">
+                <div class="field">
+                  <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 5v14l3-3z" fill="currentColor" stroke="none"/></svg>出题顺序</span>
+                  <div class="seg">
+                    <button class="active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 5v14l3-3z" fill="currentColor" stroke="none"/></svg>顺序出题</button>
+                    <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.6-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>随机出题</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.6-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>选项顺序</span>
+                  <div class="seg">
+                    <button class="active"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 5v14l3-3z" fill="currentColor" stroke="none"/></svg>选项原序</button>
+                    <button><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.6-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>选项随机</button>
+                  </div>
+                </div>
+              </div>
+              <div class="field">
+                <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/></svg>题目筛选</span>
+                <div class="filter-row">
+                  <button class="filter-trigger">
+                    <span class="filter-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/></svg></span>
+                    <span class="filter-copy"><strong>编辑条件</strong><small>未作答题</small></span>
+                  </button>
+                  <button class="filter-clear" title="清除条件"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 3v6h6"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="launcher-actions">
+              <p>共 12 题 · 预计 6 分钟</p>
+              <button class="start">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6s1.5-2 5-2 5 2 5 2v14s-1.5-1-5-1-5 1-5 1z"/><path d="M22 6s-1.5-2-5-2-5 2-5 2v14s1.5-1 5-1 5 1 5 1z"/><path d="m9 10 .5 1L11 12l-1.5 1L9 14l-.5-1L7 12l1.5-1z"/></svg>
+                <span><strong>开始练习</strong><small>按当前设置立即答题</small></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="maintenance">
+          <div class="maintenance-head"><strong>准备与维护</strong><span>扫描、索引和作答数据不会挡住日常答题入口</span></div>
+          <div class="panel open">
+            <button class="panel-trigger">
+              <span class="panel-head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+                <span><strong>索引与扫描</strong><small>扫描文档 · 同步索引</small></span>
+              </span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>
+            </button>
+            <div class="panel-content">
+              <div class="scan-summary">
+                <div class="scan-top">
+                  <div>
+                    <div class="source-heading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg><span class="badge">文档</span><strong>四、法的渊源</strong></div>
+                    <div class="source-sub">/20260828000004-ro87y2n · 法学/法理学</div>
+                  </div>
+                  <div>
+                    <div class="completion-heading"><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20v-6"/><path d="m9 17 3-3 3 3"/><path d="M4 4h16"/></svg>完成度</span><span class="badge">0 / 12</span><strong>0%</strong></div>
+                    <div class="progress"><i></i></div>
+                    <div class="progress-stats">
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg><span><strong>12</strong><small>题目</small></span></span>
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>0</strong><small>已作答</small></span></span>
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8" stroke-dasharray="2 3"/></svg><span><strong>12</strong><small>未作答</small></span></span>
+                      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 3v6h6"/></svg><span><strong>0</strong><small>待复习</small></span></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="summary-grid">
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span><strong>12</strong><small>新增</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span><strong>0</strong><small>更新</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11 5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L13 19"/></svg><span><strong>0</strong><small>重绑</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 1.9 5.8L20 10.5l-4.5 3.9 1.4 5.6L12 16.8 7.1 20l1.4-5.6L4 10.5l6.1-1.7z"/></svg><span><strong>3</strong><small>推断</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5v.01"/></svg><span><strong>1</strong><small>问题</small></span></span>
+                  <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg><span><strong>0</strong><small>阻断</small></span></span>
+                </div>
+                <button class="sync-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>确认索引同步</button>
+                <label class="switch-row"><span class="switch on"><i></i></span>自动同步最新索引</label>
+                <span class="hint primary">检测到索引变更，需要同步</span>
+
+                <div class="topic-sync">
+                  <div class="topic-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M12 7.5v3M10.3 12 6.5 16M13.7 12l3.8 4"/></svg><strong>考点关系同步</strong><span class="badge">8</span></div>
+                  <div class="seg seg-3">
+                    <button class="active">关闭</button><button>merge</button><button>diff</button>
+                  </div>
+                </div>
+
+                <div class="scan-details">
+                  <button class="details-trigger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>展开详情</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <button class="panel-trigger">
+              <span class="panel-head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/></svg>
+                <span><strong>作答数据</strong><small>导出作答 · 导入作答</small></span>
+              </span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <p class="caption">桌面端 1200px · 顶栏 slim 分段 / 开始练习底部通栏 / 准备与维护双栏</p>
+  </div>
+
+</div>
+</body>
+</html>

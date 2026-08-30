@@ -3,10 +3,16 @@
     BookOpenCheck,
     Bookmark,
     Check,
+    Circle,
+    ListChecks,
     ListOrdered,
+    RotateCcw,
     Save,
     Shuffle,
+    SlidersHorizontal,
+    Target,
     Trash2,
+    X,
   } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
@@ -90,18 +96,19 @@
     </div>
 
     <dl class="practice-launcher-stats" aria-label={label("practiceProgress", "练习进度")}>
-      <div><dt>{label("questions", "题")}</dt><dd>{progressQuestionCount}</dd></div>
-      <div><dt>{label("attempted", "已作答")}</dt><dd>{attemptedQuestions}</dd></div>
-      <div><dt>{label("untouched", "未作答")}</dt><dd>{untouchedQuestions}</dd></div>
-      <div><dt>{label("wrong", "错题")}</dt><dd>{wrongQuestions}</dd></div>
+      <div><dt>{label("questions", "题")}</dt><dd><ListChecks size={13} aria-hidden="true" /><span>{progressQuestionCount}</span></dd></div>
+      <div><dt>{label("attempted", "已作答")}</dt><dd><Check size={13} aria-hidden="true" /><span>{attemptedQuestions}</span></dd></div>
+      <div><dt>{label("untouched", "未作答")}</dt><dd><Circle size={11} aria-hidden="true" /><span>{untouchedQuestions}</span></dd></div>
+      <div><dt>{label("wrong", "错题")}</dt><dd><X size={13} aria-hidden="true" /><span>{wrongQuestions}</span></dd></div>
       <div>
         <dt>{label("review", "待复习")}</dt>
         <dd>
+          <RotateCcw size={12} aria-hidden="true" />
           <span>{reviewQuestions}</span>
           <small>{label("again", "Again")} {reviewAgainQuestions} · {label("hard", "Hard")} {reviewHardQuestions}</small>
         </dd>
       </div>
-      <div><dt>{label("bookmarked", "已收藏")}</dt><dd>{bookmarkedQuestions}</dd></div>
+      <div><dt>{label("bookmarked", "已收藏")}</dt><dd><Bookmark size={12} aria-hidden="true" /><span>{bookmarkedQuestions}</span></dd></div>
     </dl>
   </header>
 
@@ -132,7 +139,7 @@
   <div class="practice-launcher-body">
     <div class="practice-launcher-form">
       <div class="scope-control control-block">
-        <FormLabel>{label("scope", "答题范围")}</FormLabel>
+        <FormLabel><Target size={12} aria-hidden="true" />{label("scope", "答题范围")}</FormLabel>
         <Select.Root
           type="single"
           value={topicId || entireDocumentScope}
@@ -156,7 +163,7 @@
 
       <div class="practice-order-grid">
         <fieldset class="control-block">
-          <legend>{label("questionOrder", "出题顺序")}</legend>
+          <legend><ListOrdered size={12} aria-hidden="true" />{label("questionOrder", "出题顺序")}</legend>
           <ToggleGroup.Root
             type="single"
             variant="outline"
@@ -176,7 +183,7 @@
         </fieldset>
 
         <fieldset class="control-block">
-          <legend>{label("optionOrder", "选项顺序")}</legend>
+          <legend><Shuffle size={12} aria-hidden="true" />{label("optionOrder", "选项顺序")}</legend>
           <ToggleGroup.Root
             type="single"
             variant="outline"
@@ -197,7 +204,7 @@
       </div>
 
       <fieldset class="control-block filter-control">
-        <legend>{label("filter", "题目筛选")}</legend>
+        <legend><SlidersHorizontal size={12} aria-hidden="true" />{label("filter", "题目筛选")}</legend>
         <div class="filter-preset-toolbar">
           <div class="filter-preset-heading">
             <Bookmark size={14} aria-hidden="true" />
@@ -353,13 +360,22 @@
 
   .practice-launcher-stats dd {
     margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
     font-size: 18px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
 
+  .practice-launcher-stats dd :global(svg) {
+    align-self: center;
+    color: var(--b3-theme-on-surface);
+  }
+
   .practice-launcher-stats dd small {
     display: block;
+    flex-basis: 100%;
     margin-top: 2px;
     color: var(--b3-theme-on-surface);
     font-size: 10px;
@@ -403,8 +419,8 @@
   .practice-launcher-body {
     padding: 16px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 268px);
-    gap: 18px;
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 
   .practice-launcher-form {
@@ -438,8 +454,16 @@
 
   .control-block legend,
   .control-block :global(label) {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     color: var(--b3-theme-on-surface);
     font-size: 12px;
+  }
+
+  .control-block legend :global(svg),
+  .control-block :global(label svg) {
+    color: var(--b3-theme-primary);
   }
 
   .filter-preset-toolbar {
@@ -532,26 +556,29 @@
 
   .practice-launcher-actions {
     min-width: 0;
-    padding-left: 18px;
-    border-left: 1px solid var(--b3-border-color);
+    padding-top: 14px;
+    border-top: 1px solid var(--b3-border-color);
     display: flex;
-    flex-direction: column;
-    gap: 9px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
   }
 
   .practice-launcher-actions :global(button) {
-    width: 100%;
+    width: auto;
+    min-width: 220px;
     height: auto;
-    min-height: 50px;
-    padding: 9px 11px;
-    justify-content: flex-start;
-    text-align: left;
+    min-height: 46px;
+    padding: 9px 18px;
+    justify-content: center;
+    text-align: center;
   }
 
   .practice-launcher-actions :global(button > span) {
     min-width: 0;
-    display: grid;
-    gap: 1px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
   }
 
   .practice-launcher-actions :global(button strong) {
@@ -559,17 +586,15 @@
   }
 
   .practice-launcher-actions :global(button small) {
-    overflow: hidden;
     color: inherit;
     font-size: 10px;
     font-weight: 400;
     opacity: 0.76;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   :global(.practice-primary-action) {
-    min-height: 66px !important;
+    min-height: 48px !important;
   }
 
   :global(.practice-primary-action svg) {
@@ -582,7 +607,7 @@
   }
 
   .practice-launcher-actions p {
-    margin: 2px 0 0;
+    margin: 0 auto 0 0;
     color: var(--b3-theme-on-surface);
     font-size: 11px;
     line-height: 1.5;
@@ -600,47 +625,132 @@
       row-gap: 0;
     }
 
-    .practice-launcher-body {
-      grid-template-columns: 1fr;
-    }
-
-    .practice-launcher-actions {
-      padding: 14px 0 0;
-      border-top: 1px solid var(--b3-border-color);
-      border-left: 0;
-    }
-
   }
 
   @container (max-width: 700px) {
     .practice-order-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    :global(.practice-order-grid [data-slot="toggle-group"]) {
+      padding: 3px;
+      gap: 2px;
+      border: 1px solid var(--b3-border-color);
+      border-radius: 12px;
+      background: var(--b3-theme-surface);
     }
 
     :global(.practice-order-grid [data-slot="toggle-group-item"]) {
-      min-height: 42px;
-      padding-inline: 0;
+      min-width: 0;
+      min-height: 38px;
+      gap: 5px;
+      padding-inline: 6px;
+      border: 0;
+      border-radius: 9px;
+      color: var(--b3-theme-on-surface);
+      background: transparent;
+      font-size: 12px;
     }
 
-    :global(.practice-order-grid [data-slot="toggle-group-item"] span) {
-      display: none;
+    :global(.practice-order-grid [data-slot="toggle-group-item"] svg) {
+      width: 15px;
+      height: 15px;
+    }
+
+    :global(.practice-order-grid [data-slot="toggle-group-item"][data-state="on"]) {
+      color: var(--b3-theme-primary);
+      background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+    }
+
+    .scope-control :global([data-slot="select-trigger"]) {
+      min-height: 42px;
+      border-radius: 10px;
+    }
+
+    /* 窄屏把主操作提到表单之上：即使上方"未完成的练习"等区块很高，
+       "开始练习"也始终紧跟在统计带后面，不会被挤到首屏之外。 */
+    .practice-launcher-actions {
+      order: -1;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: stretch;
+      gap: 8px;
+      padding: 0 0 13px;
+      border-top: 0;
+      border-bottom: 1px solid var(--b3-border-color);
+    }
+
+    .practice-launcher-actions p {
+      margin: 0;
+      text-align: center;
+    }
+
+    .practice-launcher-actions :global(button) {
+      width: 100%;
+      min-width: 0;
+      min-height: 54px;
+      border-radius: 12px;
+      justify-content: center;
+    }
+
+    .practice-launcher-actions :global(button > span) {
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      text-align: center;
+    }
+
+    .practice-launcher-actions :global(button small) {
+      white-space: normal;
+    }
+
+    :global(.practice-primary-action) {
+      min-height: 56px !important;
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--b3-theme-primary) 26%, transparent);
     }
   }
 
   @container (max-width: 620px) {
+    .practice-launcher {
+      border-radius: 12px;
+    }
+
     .practice-launcher-header {
       display: grid;
+      gap: 10px;
+      padding: 12px 14px 11px;
     }
 
     .practice-launcher-stats {
       width: 100%;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      row-gap: 8px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      row-gap: 0;
+      padding-top: 10px;
+      border-top: 1px solid var(--b3-border-color);
+    }
+
+    .practice-launcher-stats div {
+      padding-inline: 5px;
     }
 
     .practice-launcher-stats div:first-child {
       border-left: 0;
       padding-left: 0;
+    }
+
+    .practice-launcher-stats dd {
+      gap: 3px;
+      font-size: 15px;
+    }
+
+    .practice-launcher-stats dd :global(svg) {
+      width: 12px;
+      height: 12px;
+    }
+
+    .practice-launcher-stats dt {
+      font-size: 9.5px;
     }
 
     .practice-launcher-body {
@@ -658,25 +768,56 @@
   }
 
   @container (max-width: 430px) {
-    .practice-launcher-stats {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .practice-launcher-body {
+      padding: 12px;
+      gap: 12px;
+    }
+
+    .practice-launcher-form {
+      gap: 12px;
+    }
+
+    .practice-launcher-kicker {
+      display: none;
+    }
+
+    .practice-launcher-stats dd small {
+      display: none;
     }
 
     .practice-order-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .practice-order-grid legend {
+      font-size: 11px;
+    }
+
+    :global(.practice-order-grid [data-slot="toggle-group-item"]) {
+      min-height: 36px;
+      gap: 3px;
+      padding-inline: 2px;
+      font-size: 10.5px;
+    }
+
+    :global(.practice-order-grid [data-slot="toggle-group-item"] svg) {
+      width: 12px;
+      height: 12px;
     }
 
     .filter-preset-toolbar {
-      align-items: stretch;
-      flex-wrap: wrap;
+      align-items: center;
     }
 
     .filter-preset-heading {
-      flex-basis: 100%;
+      display: none;
     }
 
     :global(.filter-preset-name) {
-      flex-basis: calc(100% - 42px);
+      min-width: 0;
+      flex-basis: auto;
+      flex: 1 1 auto;
     }
   }
 </style>

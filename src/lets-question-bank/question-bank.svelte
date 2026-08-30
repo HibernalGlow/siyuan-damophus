@@ -589,7 +589,13 @@
   $: reviewing = Boolean(practiceState?.matches("reviewing"));
   $: answerTimerPaused = Boolean(revealed && pauseOnAnswerReveal && practiceState?.matches("active"));
   $: timerEffectivelyPaused = Boolean(practiceState?.context.timerPaused) || answerTimerPaused;
-  let autoPausedByBlur = false;
+  // Two distinct auto-pause sources need distinct resume rules: a window-blur
+  // pause resumes as soon as the window is focused again (returning via Alt-Tab,
+  // taskbar or the title bar produces no pointer event, and document.activeElement
+  // is unreliable at that moment), while a pointer pause outside the question
+  // bank waits for the user to click back into the question bank.
+  let autoPausedByWindowBlur = false;
+  let autoPausedByOutsidePointer = false;
 
   function isTargetInsideQuestionBank(target: EventTarget | null): boolean {
     if (!target || !(target instanceof Node)) return false;
@@ -609,16 +615,17 @@
 
     const inside = isTargetInsideQuestionBank(target);
     if (inside) {
-      if (autoPausedByBlur && current.context.timerPaused) {
+      if ((autoPausedByWindowBlur || autoPausedByOutsidePointer) && current.context.timerPaused) {
         practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
         startTimer();
       }
-      autoPausedByBlur = false;
+      autoPausedByWindowBlur = false;
+      autoPausedByOutsidePointer = false;
     } else {
       if (!current.context.timerPaused && !answerTimerPaused) {
         practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
         clearTimer();
-        autoPausedByBlur = true;
+        autoPausedByOutsidePointer = true;
       }
     }
   }
@@ -630,7 +637,7 @@
     if (!current.context.timerPaused && !answerTimerPaused) {
       practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
       clearTimer();
-      autoPausedByBlur = true;
+      autoPausedByWindowBlur = true;
     }
   }
 
@@ -638,12 +645,12 @@
     if (!pauseOnBlur || !practiceRuntime || submitting || reviewing) return;
     const current = practiceRuntime.actor.getSnapshot();
     if (!current.matches("active")) return;
-    if (autoPausedByBlur && isTargetInsideQuestionBank(document.activeElement)) {
+    if (autoPausedByWindowBlur) {
       if (current.context.timerPaused) {
         practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
         startTimer();
       }
-      autoPausedByBlur = false;
+      autoPausedByWindowBlur = false;
     }
   }
 
@@ -1364,7 +1371,8 @@
     if (!practiceRuntime || submitting || reviewing) return;
     const current = practiceRuntime.actor.getSnapshot();
     if (!current.matches("active")) return;
-    autoPausedByBlur = false;
+    autoPausedByWindowBlur = false;
+    autoPausedByOutsidePointer = false;
     if (!current.context.timerPaused) {
       practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
       clearTimer();
@@ -1390,7 +1398,8 @@
 
   async function leavePracticeRuntime(runtime = practiceRuntime): Promise<void> {
     clearTimer();
-    autoPausedByBlur = false;
+    autoPausedByWindowBlur = false;
+    autoPausedByOutsidePointer = false;
     unsubscribePracticeState?.();
     unsubscribePracticeState = undefined;
     unsubscribeSaveStatus?.();
@@ -1556,12 +1565,13 @@
   function togglePauseOnBlur(): void {
     pauseOnBlur = !pauseOnBlur;
     onPauseOnBlurChange?.(pauseOnBlur);
-    if (!pauseOnBlur && autoPausedByBlur) {
+    if (!pauseOnBlur && (autoPausedByWindowBlur || autoPausedByOutsidePointer)) {
       if (practiceRuntime && practiceState?.matches("active") && practiceState?.context.timerPaused) {
         practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
         startTimer();
       }
-      autoPausedByBlur = false;
+      autoPausedByWindowBlur = false;
+      autoPausedByOutsidePointer = false;
     }
   }
 </script>
