@@ -1,3 +1,8 @@
+import {
+  evaluatePracticeFilterSpec,
+  isPracticeFilterSpecEmpty,
+  type PracticeFilterFacts,
+} from "../core/filter-spec";
 import type {
   QuestionSetBlueprint,
   QuestionSetFilter,
@@ -30,12 +35,22 @@ function accuracy(entry: QuestionCatalogEntry): number | undefined {
   return attempts + incorrect === 0 ? undefined : attempts / (attempts + incorrect);
 }
 
+function historyFacts(entry: QuestionCatalogEntry): PracticeFilterFacts {
+  const history = entry.history;
+  return {
+    unattempted: (history?.attempts ?? 0) === 0,
+    wrong: (history?.objectiveIncorrect ?? 0) > 0,
+    review: (history?.consecutiveReviewCount ?? 0) > 0,
+    due: false,
+    bookmarked: false,
+    "again-hard": history?.latestRating === "again" || history?.latestRating === "hard",
+  };
+}
+
 function matchesHistory(entry: QuestionCatalogEntry, filter: QuestionSetFilter): boolean {
   const history = entry.history;
-  if (filter.history === "unattempted" && (history?.attempts ?? 0) > 0) return false;
-  if (filter.history === "wrong" && (history?.objectiveIncorrect ?? 0) === 0) return false;
-  if (filter.history === "review" && (history?.consecutiveReviewCount ?? 0) === 0) return false;
-  if (filter.history === "again-hard" && !["again", "hard"].includes(history?.latestRating ?? "")) return false;
+  if (!isPracticeFilterSpecEmpty(filter.history)
+    && !evaluatePracticeFilterSpec(filter.history, historyFacts(entry))) return false;
   const ratio = accuracy(entry);
   if (filter.minimum_accuracy !== undefined && (ratio === undefined || ratio < filter.minimum_accuracy)) return false;
   if (filter.maximum_accuracy !== undefined && (ratio === undefined || ratio > filter.maximum_accuracy)) return false;
