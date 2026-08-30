@@ -38,6 +38,7 @@ export interface PracticeFilterRule {
 
 export interface PracticeFilterGroup {
   glue: "and" | "or";
+  name?: string;
   rules: Array<PracticeFilterRule | PracticeFilterGroup>;
 }
 
@@ -91,8 +92,12 @@ function normalizePracticeFilterRule(value: unknown): PracticeFilterRule | Pract
   if (!value || typeof value !== "object") return undefined;
   const candidate = value as Record<string, unknown>;
   if (Array.isArray(candidate.rules)) {
+    const name = typeof candidate.name === "string" && candidate.name.trim()
+      ? candidate.name.trim()
+      : undefined;
     return {
       glue: candidate.glue === "or" ? "or" : "and",
+      ...(name ? { name } : {}),
       rules: candidate.rules
         .map(normalizePracticeFilterRule)
         .filter((rule): rule is PracticeFilterRule | PracticeFilterGroup => Boolean(rule)),

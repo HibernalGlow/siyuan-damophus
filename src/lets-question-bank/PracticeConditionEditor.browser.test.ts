@@ -39,6 +39,11 @@ describe("practice condition editor", () => {
       ],
     });
 
+    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
+    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("and");
+    expect(document.querySelector(".condition-summary-trigger")?.getAttribute("title")).toContain("Not wrong");
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
     const rules = [...document.querySelectorAll<HTMLElement>(".wx-rule")].map((item) => item.innerText);
     expect(rules).toHaveLength(2);
     expect(rules[0]).toContain("Bookmark status");
@@ -50,11 +55,92 @@ describe("practice condition editor", () => {
 
   it("migrates a legacy filter and clears it from the editor", async () => {
     await render("review");
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
     expect(document.querySelector(".wx-rule")?.textContent).toContain("Needs review");
 
     document.querySelector<HTMLButtonElement>('button[aria-label="Clear conditions"]')!.click();
     await tick();
 
     expect(document.querySelectorAll(".wx-rule")).toHaveLength(0);
+  });
+
+  it("opens the rule editor when adding the first condition", async () => {
+    await render("all");
+
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+    const addButton = [...document.querySelectorAll<HTMLButtonElement>(".wx-filter-builder button")].find((button) =>
+      button.textContent?.includes("Add condition"),
+    );
+    expect(addButton).toBeDefined();
+
+    addButton!.click();
+    await tick();
+
+    expect(document.querySelector(".wx-panel")).not.toBeNull();
+    expect(document.querySelector(".wx-panel")?.textContent).toContain("Attempt status");
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const applyButton = [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")].find((button) =>
+      button.textContent?.includes("Apply"),
+    );
+    applyButton?.click();
+    await tick();
+    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Attempted");
+  });
+
+  it("reopens a saved condition for editing", async () => {
+    await render({
+      glue: "and",
+      rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
+    });
+
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+    document.querySelector<HTMLElement>(".wx-rule")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    await tick();
+
+    expect(document.querySelector(".wx-panel")).not.toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes("Cancel"))
+      ?.click();
+    await tick();
+  });
+
+  it("renames a condition group and shows only its name in the summary", async () => {
+    await render({
+      glue: "and",
+      rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
+    });
+
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+    const nameInput = document.querySelector<HTMLInputElement>(".condition-group-name-row input")!;
+    nameInput.value = "Saved favorites";
+    nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Apply"))
+      ?.click();
+    await tick();
+
+    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Saved favorites");
+    expect(document.querySelector(".condition-summary-trigger")?.getAttribute("title")).toBe("Saved favorites");
+
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+    const savedNameInput = document.querySelector<HTMLInputElement>(".condition-group-name-row input")!;
+    expect(savedNameInput.value).toBe("Saved favorites");
+    savedNameInput.value = "";
+    savedNameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Apply"))
+      ?.click();
+    await tick();
+
+    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Bookmarked");
   });
 });

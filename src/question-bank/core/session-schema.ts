@@ -15,6 +15,7 @@ const PracticeFilterRuleSchema = z.object({
 });
 const PracticeFilterGroupSchema: z.ZodType<PracticeFilterGroup> = z.lazy(() => z.object({
   glue: z.enum(["and", "or"]),
+  name: z.string().optional(),
   rules: z.array(z.union([PracticeFilterRuleSchema, PracticeFilterGroupSchema])),
 }));
 export const PracticeFilterSchema: z.ZodType<PracticeFilter> = z.union([

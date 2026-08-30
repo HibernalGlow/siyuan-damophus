@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { gradeQuestion } from "./answer";
 import { aggregateAttemptEvents, createAttemptEvent } from "./attempts";
 import { QuestionSchema } from "./schema";
-import { filterQuestions } from "./scope";
+import { filterQuestions, normalizePracticeFilter } from "./scope";
 import { restoreQuestionOptions, shuffleQuestionOptions } from "./shuffle";
 import type { Question, TopicNode } from "./types";
 
@@ -123,6 +123,19 @@ describe("portable question core", () => {
       aggregates,
       reviewThreshold: 3,
     }).map((item) => item.id)).toEqual(["q1"]);
+  });
+
+  it("preserves optional condition-group names without changing matching", () => {
+    const filter = normalizePracticeFilter({
+      glue: "and",
+      name: "Saved favorites",
+      rules: [{ field: "bookmarked", value: "yes" }],
+    });
+    expect(filter).toEqual({
+      glue: "and",
+      name: "Saved favorites",
+      rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
+    });
   });
 
   it("creates immutable event values and rebuilds attempt aggregates", () => {
