@@ -166,4 +166,25 @@ describe("practice condition editor", () => {
 
     expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Not bookmarked");
   });
+
+  it("renders the demo editing controls for independent combinators", async () => {
+    await render({
+      glue: "and",
+      combinators: ["and", "or"],
+      rules: [
+        { field: "bookmarked", filter: "equal", value: "yes" },
+        { field: "wrong", filter: "equal", value: "yes" },
+        { field: "review", filter: "equal", value: "yes" },
+      ],
+    });
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+    expect(document.querySelectorAll(".rule")).toHaveLength(3);
+    expect(document.querySelectorAll(".betweenRules")).toHaveLength(2);
+    expect(document.querySelector(".ruleGroup-notToggle")).not.toBeNull();
+    expect(document.querySelector(".rule-cloneRule")).not.toBeNull();
+    expect(document.querySelector(".rule-lock")).not.toBeNull();
+    expect(document.querySelector(".shiftActions")).not.toBeNull();
+    expect(document.querySelector(".undoRedoActions")).not.toBeNull();
+  });
 });

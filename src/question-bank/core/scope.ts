@@ -28,17 +28,26 @@ export type PracticeFilterOperator =
   | "equal"
   | "notEqual";
 
+export type PracticeFilterCombinator = "and" | "or";
+
 export interface PracticeFilterRule {
   field: PracticeFilterField;
   type?: "tuple";
   filter?: PracticeFilterOperator;
   value?: PracticeFilterValue;
   includes?: PracticeFilterValue[];
+  /** Query-builder lock state. It does not remove the rule from evaluation. */
+  disabled?: boolean;
 }
 
 export interface PracticeFilterGroup {
-  glue: "and" | "or";
+  glue: PracticeFilterCombinator;
+  /** Connectors between adjacent rules, when they differ from `glue`. */
+  combinators?: PracticeFilterCombinator[];
   name?: string;
+  not?: boolean;
+  /** Query-builder lock state. It does not remove the group from evaluation. */
+  disabled?: boolean;
   rules: Array<PracticeFilterRule | PracticeFilterGroup>;
 }
 
@@ -95,12 +104,23 @@ function normalizePracticeFilterRule(value: unknown): PracticeFilterRule | Pract
     const name = typeof candidate.name === "string" && candidate.name.trim()
       ? candidate.name.trim()
       : undefined;
+    const rules = candidate.rules
+      .map(normalizePracticeFilterRule)
+      .filter((rule): rule is PracticeFilterRule | PracticeFilterGroup => Boolean(rule));
+    const glue: PracticeFilterCombinator = candidate.glue === "or" ? "or" : "and";
+    const rawCombinators = Array.isArray(candidate.combinators)
+      ? candidate.combinators.filter((item): item is PracticeFilterCombinator => item === "and" || item === "or")
+      : [];
+    const combinators = rawCombinators.length === Math.max(0, rules.length - 1)
+      ? rawCombinators
+      : undefined;
     return {
-      glue: candidate.glue === "or" ? "or" : "and",
+      glue,
+      ...(combinators && combinators.some((item) => item !== glue) ? { combinators } : {}),
       ...(name ? { name } : {}),
-      rules: candidate.rules
-        .map(normalizePracticeFilterRule)
-        .filter((rule): rule is PracticeFilterRule | PracticeFilterGroup => Boolean(rule)),
+      ...(candidate.not === true ? { not: true } : {}),
+      ...(candidate.disabled === true ? { disabled: true } : {}),
+      rules,
     };
   }
   if (!isPracticeFilterField(candidate.field)) return undefined;
@@ -113,6 +133,7 @@ function normalizePracticeFilterRule(value: unknown): PracticeFilterRule | Pract
   if (Array.isArray(candidate.includes)) {
     rule.includes = [...new Set(candidate.includes.filter(isPracticeFilterValue))];
   }
+  if (candidate.disabled === true) rule.disabled = true;
   return rule;
 }
 
@@ -156,10 +177,25 @@ function matchesPracticeFilterRule(
   states: QuestionPracticeStates,
 ): boolean {
   if ("rules" in rule) {
-    if (rule.rules.length === 0) return true;
-    return rule.glue === "or"
-      ? rule.rules.some((child) => matchesPracticeFilterRule(child, states))
-      : rule.rules.every((child) => matchesPracticeFilterRule(child, states));
+    if (rule.rules.length === 0) return rule.not !== true;
+    const results = rule.rules.map((child) => matchesPracticeFilterRule(child, states));
+    const combinators = rule.rules.length > 1
+      ? rule.rules.slice(0, -1).map((_, index) => rule.combinators?.[index] ?? rule.glue)
+      : [];
+    // Independent-combinator queries use normal boolean precedence: AND binds tighter than OR.
+    const chains: boolean[] = [];
+    let chain = results[0];
+    for (let index = 1; index < results.length; index += 1) {
+      if (combinators[index - 1] === "and") {
+        chain = chain && results[index];
+      } else {
+        chains.push(chain);
+        chain = results[index];
+      }
+    }
+    chains.push(chain);
+    const value = chains.some(Boolean);
+    return rule.not === true ? !value : value;
   }
 
   const actual = states[rule.field] ? "yes" : "no";

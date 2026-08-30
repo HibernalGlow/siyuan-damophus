@@ -12,10 +12,14 @@ const PracticeFilterRuleSchema = z.object({
   filter: z.enum(["greater", "less", "greaterOrEqual", "lessOrEqual", "equal", "notEqual"]).optional(),
   value: z.enum(["yes", "no"]).optional(),
   includes: z.array(z.enum(["yes", "no"])).optional(),
+  disabled: z.boolean().optional(),
 });
 const PracticeFilterGroupSchema: z.ZodType<PracticeFilterGroup> = z.lazy(() => z.object({
   glue: z.enum(["and", "or"]),
+  combinators: z.array(z.enum(["and", "or"])).optional(),
   name: z.string().optional(),
+  not: z.boolean().optional(),
+  disabled: z.boolean().optional(),
   rules: z.array(z.union([PracticeFilterRuleSchema, PracticeFilterGroupSchema])),
 }));
 export const PracticeFilterSchema: z.ZodType<PracticeFilter> = z.union([

@@ -138,6 +138,26 @@ describe("portable question core", () => {
     });
   });
 
+  it("evaluates mixed AND/OR connectors with normal precedence and group negation", () => {
+    const questions = [question("q1"), question("q2"), question("q3")];
+    const aggregates = new Map([
+      ["q1", { questionId: "q1", attempts: 1, objectiveIncorrect: 1, consecutiveReviewCount: 0 }],
+      ["q2", { questionId: "q2", attempts: 1, objectiveIncorrect: 0, consecutiveReviewCount: 2 }],
+      ["q3", { questionId: "q3", attempts: 0, objectiveIncorrect: 0, consecutiveReviewCount: 0 }],
+    ]);
+    const filter = {
+      glue: "and" as const,
+      combinators: ["and" as const, "or" as const],
+      rules: [
+        { field: "wrong" as const, value: "yes" as const },
+        { field: "review" as const, value: "yes" as const },
+        { field: "attempted" as const, value: "no" as const },
+      ],
+    };
+    expect(filterQuestions({ questions, topics: [], filter, aggregates }).map((item) => item.id)).toEqual(["q3"]);
+    expect(filterQuestions({ questions, topics: [], filter: { ...filter, not: true }, aggregates }).map((item) => item.id)).toEqual(["q1", "q2"]);
+  });
+
   it("creates immutable event values and rebuilds attempt aggregates", () => {
     const first = createAttemptEvent({
       attemptId: "a1",

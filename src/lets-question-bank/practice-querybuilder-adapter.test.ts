@@ -21,11 +21,12 @@ describe("practice query builder adapter", () => {
 
     const query = practiceFilterToQuery(filter);
     expect(query).toMatchObject({
-      combinator: "and",
+      glue: "and",
       name: "Saved favorites",
       rules: [
         { field: "bookmarked", operator: "equal", value: "yes" },
-        { combinator: "or", name: "Needs attention" },
+        "and",
+        { glue: "or", name: "Needs attention" },
       ],
     });
     expect(queryToPracticeFilter(query)).toEqual(filter);
@@ -33,11 +34,33 @@ describe("practice query builder adapter", () => {
 
   it("uses valid defaults for a newly added rule", () => {
     expect(queryToPracticeFilter({
-      combinator: "and",
+      glue: "and",
       rules: [{ field: "attempted", operator: "equal", value: "yes" }],
     })).toEqual({
       glue: "and",
       rules: [{ field: "attempted", type: "tuple", filter: "equal", value: "yes" }],
     });
+  });
+
+  it("round-trips independent combinators and editing state", () => {
+    const filter = {
+      glue: "and" as const,
+      not: true,
+      rules: [
+        { field: "bookmarked" as const, type: "tuple" as const, filter: "equal" as const, value: "yes" as const, disabled: true },
+        { field: "wrong" as const, type: "tuple" as const, filter: "equal" as const, value: "yes" as const },
+        { field: "review" as const, type: "tuple" as const, filter: "equal" as const, value: "yes" as const },
+      ],
+      combinators: ["and" as const, "or" as const],
+    };
+    const query = practiceFilterToQuery(filter);
+    expect(query.rules).toEqual([
+      expect.objectContaining({ field: "bookmarked", disabled: true }),
+      "and",
+      expect.objectContaining({ field: "wrong" }),
+      "or",
+      expect.objectContaining({ field: "review" }),
+    ]);
+    expect(queryToPracticeFilter(query)).toEqual(filter);
   });
 });

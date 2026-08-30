@@ -7,7 +7,7 @@
     type FullOperator,
     type Translations,
   } from "svelte-querybuilder";
-  import "svelte-querybuilder/dist/query-builder-layout.css";
+  import "svelte-querybuilder/dist/query-builder.css";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import {
@@ -101,6 +101,14 @@
       label: label("deleteCondition", "Delete"),
       title: label("deleteCondition", "Delete group"),
     },
+    cloneRule: { label: label("cloneCondition", "Clone"), title: label("cloneCondition", "Clone condition") },
+    cloneGroup: { label: label("cloneConditionGroup", "Clone"), title: label("cloneConditionGroup", "Clone group") },
+    lockRule: { label: label("lockCondition", "Lock"), title: label("lockCondition", "Lock condition") },
+    lockGroup: { label: label("lockConditionGroup", "Lock"), title: label("lockConditionGroup", "Lock group") },
+    lockRuleDisabled: { label: label("unlockCondition", "Unlock"), title: label("unlockCondition", "Unlock condition") },
+    lockGroupDisabled: { label: label("unlockConditionGroup", "Unlock"), title: label("unlockConditionGroup", "Unlock group") },
+    shiftActions: { shiftUp: label("moveConditionUp", "Move up"), shiftDown: label("moveConditionDown", "Move down") },
+    undoRedoActions: { undo: label("undoCondition", "Undo"), redo: label("redoCondition", "Redo") },
   };
 
   $: if (filter !== sourceFilter) {
@@ -137,7 +145,9 @@
   function groupEntries(group: PracticeQueryGroup, path = ""): Array<{ path: string; group: PracticeQueryGroup }> {
     const entries = [{ path, group }];
     group.rules.forEach((rule, index) => {
-      if ("rules" in rule) entries.push(...groupEntries(rule, path ? `${path}.${index}` : String(index)));
+      if (typeof rule === "object" && rule !== null && "rules" in rule) {
+        entries.push(...groupEntries(rule, path ? `${path}.${index}` : String(index)));
+      }
     });
     return entries;
   }
@@ -154,7 +164,7 @@
       return {
         ...group,
         rules: group.rules.map((rule, ruleIndex) =>
-          ruleIndex === index && "rules" in rule ? update(rule, depth + 1) : rule),
+          ruleIndex === index && typeof rule === "object" && rule !== null && "rules" in rule ? update(rule, depth + 1) : rule) as PracticeQueryGroup["rules"],
       };
     };
     editorQuery = update(editorQuery, 0);
@@ -166,6 +176,7 @@
 
   function countRules(value: { rules?: unknown[] }): number {
     return (value.rules ?? []).reduce<number>((total, rule) => {
+      if (typeof rule !== "object" || rule === null) return total;
       const nested = typeof rule === "object" && rule !== null && "rules" in rule;
       return total + (nested ? countRules(rule as { rules?: unknown[] }) : 1);
     }, 0);
@@ -187,9 +198,13 @@
     if ("rules" in node) {
       if (node.name) return node.name;
       if (!node.rules.length) return label("allQuestions", "All questions");
-      const glue = node.glue === "or" ? label("conditionOr", "or") : label("conditionAnd", "and");
-      const text = node.rules.map((rule) => formatCondition(rule, true)).join(` ${glue} `);
-      return nested && node.rules.length > 1 ? `(${text})` : text;
+      const connectors = node.rules.slice(0, -1).map((_, index) => node.combinators?.[index] ?? node.glue);
+      const text = node.rules.map((rule, index) => {
+        const child = formatCondition(rule, true);
+        return index === 0 ? child : `${connectors[index - 1] === "or" ? label("conditionOr", "or") : label("conditionAnd", "and")} ${child}`;
+      }).join(" ");
+      const negated = node.not ? `${label("conditionNot", "not")} (${text})` : text;
+      return nested && node.rules.length > 1 ? `(${negated})` : negated;
     }
 
     const fieldLabel = fields.find((field) => field.name === node.field)?.label ?? node.field;
@@ -274,6 +289,11 @@
             getDefaultValue={() => "yes"}
             maxLevels={4}
             resetOnFieldChange
+            showNotToggle
+            showCloneButtons
+            showLockButtons
+            showShiftActions
+            showUndoRedo
           />
         </div>
       </div>
