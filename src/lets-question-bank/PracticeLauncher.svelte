@@ -668,8 +668,9 @@
       border-radius: 10px;
     }
 
-    /* 窄屏把主操作提到表单之上：即使上方"未完成的练习"等区块很高，
-       "开始练习"也始终紧跟在统计带后面，不会被挤到首屏之外。 */
+    /* Hoist the primary action above the form on narrow screens: even when the blocks
+       above (unfinished sessions, etc.) are tall, the start button stays right below
+       the stats band instead of being pushed out of the first screen. */
     .practice-launcher-actions {
       order: -1;
       flex-direction: column;

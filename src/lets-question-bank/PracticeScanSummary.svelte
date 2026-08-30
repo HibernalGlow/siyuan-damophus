@@ -290,8 +290,8 @@
   .progress-stats > span > span { min-width: 0; display: grid; }
   .progress-stats small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .progress-stats strong { color: var(--b3-theme-on-background); font-size: 15px; font-variant-numeric: tabular-nums; }
-  /* 必须恰好 6 列：条目数与列数不等时，换行会留下空格子，
-     而网格背景是边框色，就会露出一块灰色空白。 */
+  /* Must be exactly 6 columns: when the column count differs from the item count, the
+     wrap leaves an empty track, and the grid background (border color) shows as a gray block. */
   .summary-grid { flex: 1; min-width: 0; align-self: stretch; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; border-radius: 9px; overflow: hidden; background: var(--b3-border-color); }
   .summary-grid > span { min-height: 52px; padding: 7px 9px; background: var(--b3-theme-surface); display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--b3-theme-on-surface); }
   .summary-grid > span > :global(svg) { width: 16px; height: 16px; flex: 0 0 16px; color: var(--b3-theme-primary); opacity: 0.78; }

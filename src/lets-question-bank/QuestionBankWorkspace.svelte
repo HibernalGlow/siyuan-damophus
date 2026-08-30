@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { Database, Download, FileInput, RefreshCw, ScanLine, Upload } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@
   import ExamWorkspace from "./ExamWorkspace.svelte";
   import QuestionSetComposer from "./QuestionSetComposer.svelte";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
+  import WorkspaceQuickBar from "./WorkspaceQuickBar.svelte";
 
   export let label: (key: string, fallback: string) => string;
   export let documentId = "";
@@ -132,9 +134,25 @@
     examMode = false;
     void refreshStoredSessions();
   }
+
+  let workspaceEl: HTMLElement | undefined;
+
+  // The mobile shortcut bar only previews these blocks; tapping the active tab again
+  // opens the owning panel (if collapsed) and scrolls the real block into view.
+  async function revealSection(id: "practice" | "index" | "topic"): Promise<void> {
+    if (id !== "practice") {
+      scanPanelUserControlled = true;
+      scanPanelOpen = true;
+    }
+    await tick();
+    const selector = id === "practice" ? ".practice-launcher" : id === "index" ? ".scan-panel" : ".topic-relation-sync";
+    requestAnimationFrame(() => {
+      workspaceEl?.querySelector<HTMLElement>(selector)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 </script>
 
-<section class="workspace min-h-0 flex-1 overflow-y-auto">
+<section class="workspace min-h-0 flex-1 overflow-y-auto" bind:this={workspaceEl}>
   <div class="workspace-toolbar">
     <div class="document-row">
       <FormLabel class="document-id-label" for="document-id">{label("documentId", "Document ID")}</FormLabel>
@@ -382,4 +400,27 @@
 
   {/if}
   </section>
+
+  {#if preview && answerMode === "practice"}
+    <WorkspaceQuickBar
+      {label}
+      {busy}
+      questionCount={progressQuestions.length}
+      {untouchedQuestions}
+      {wrongQuestions}
+      canStartPractice={true}
+      {startPractice}
+      indexChanges={preview.actions.length}
+      blockers={preview.blockers.length}
+      {pendingSync}
+      {confirmSync}
+      {topicAssignmentCount}
+      {topicRelationMode}
+      topicPendingChanges={topicRelationPreview?.actions.length ?? 0}
+      {topicRelationReady}
+      {previewTopicRelations}
+      {confirmTopicRelations}
+      {revealSection}
+    />
+  {/if}
 </section>

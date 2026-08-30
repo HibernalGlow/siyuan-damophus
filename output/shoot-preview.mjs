@@ -29,5 +29,20 @@ const box = await page.evaluate(() => {
 console.log("mobile .start position in 390px column:", JSON.stringify(box));
 await m.screenshot({ path: "output/dock-mobile-viewport.png" });
 
+// 底栏校验：桌面端不应存在；移动端应贴在 workspace 可视底部
+const bars = await page.evaluate(() => {
+  const round = (r) => ({ top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height) });
+  const desktopCount = document.querySelectorAll(".frame .quick-bar").length;
+  const bar = document.querySelector(".m .quick-bar");
+  const ws = document.querySelector(".m .workspace");
+  if (!bar || !ws) return { desktopCount, mobile: null };
+  return {
+    desktopCount,
+    mobile: { bar: round(bar.getBoundingClientRect()), workspace: round(ws.getBoundingClientRect()) },
+    pinnedToBottom: Math.abs(bar.getBoundingClientRect().bottom - ws.getBoundingClientRect().bottom) <= 1,
+  };
+});
+console.log("quick bar:", JSON.stringify(bars));
+
 console.log("done");
 await browser.close();

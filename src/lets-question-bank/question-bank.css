@@ -224,6 +224,9 @@
     }
     .question-bank-home-nav-label { display: none; }
     .workspace { padding-top: 0; overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+    /* The sticky shortcut bar is clamped inside the content box, so the trailing
+       padding would leave a dead strip below it. Drop it only when the bar exists. */
+    .workspace:has(.workspace-quick-bar) { padding-bottom: 0; }
     .setup { overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
     .workspace-toolbar {
       position: sticky;
@@ -278,8 +281,8 @@
     .workspace > .answer-mode-switcher { margin-top: 12px; }
     .workspace > .practice-launcher { margin-top: 12px; }
     .workspace-maintenance { margin-top: 14px; }
-    /* 未完成的练习：从整条通栏色带改为紧凑卡片，并限制列表高度，
-       避免多条记录把下方「开始练习」推出首屏。 */
+    /* Unfinished sessions: turn the full-bleed band into a compact card with a capped
+       list height, so a long list cannot push the primary action below the fold. */
     .unfinished-sessions {
       margin: 10px 0 0;
       padding: 10px 12px;
