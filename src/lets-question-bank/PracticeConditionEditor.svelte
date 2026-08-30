@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { Check, RotateCcw, SlidersHorizontal, X } from "lucide-svelte";
   import {
     QueryBuilder,
@@ -38,6 +39,29 @@
   let operators: FullOperator[] = [];
   let combinators: FullCombinator[] = [];
   let translations: Partial<Translations> = {};
+  let hostElement: HTMLElement;
+  let dockCompact = false;
+  let dockDialogStyle = "";
+
+  function updateDockLayout(): void {
+    if (!hostElement) return;
+    const rect = hostElement.getBoundingClientRect();
+    dockCompact = rect.width < 620;
+    dockDialogStyle = dockCompact
+      ? `left: ${Math.max(8, rect.left + 8)}px; top: 8px; width: ${Math.max(280, rect.width - 16)}px; max-height: calc(100dvh - 16px); transform: none;`
+      : "";
+  }
+
+  onMount(() => {
+    const observer = new ResizeObserver(updateDockLayout);
+    if (hostElement) observer.observe(hostElement);
+    updateDockLayout();
+    window.addEventListener("resize", updateDockLayout);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateDockLayout);
+    };
+  });
 
   function optionLabel(field: PracticeFilterField, value: unknown): string {
     const yes = value === "yes";
@@ -228,7 +252,7 @@
   }
 </script>
 
-<div class="practice-condition-editor" data-testid="practice-condition-editor">
+<div bind:this={hostElement} class:condition-editor-compact={dockCompact} class="practice-condition-editor" data-testid="practice-condition-editor">
   <div class="condition-summary-row">
     <Button variant="ghost" class="condition-summary-trigger" title={filterSummary(filter)} aria-label={filterSummary(filter)} onclick={openEditor}>
       <span class="condition-summary-icon" aria-hidden="true"><SlidersHorizontal size={16} /></span>
@@ -251,7 +275,7 @@
 
   {#if dialogOpen}
     <div class="condition-dialog-scrim" onclick={cancelEditor} aria-hidden="true"></div>
-    <div class="condition-dialog" role="dialog" aria-modal="true" aria-labelledby="condition-dialog-title">
+    <div class="condition-dialog" style={dockDialogStyle} role="dialog" aria-modal="true" aria-labelledby="condition-dialog-title">
       <header class="condition-dialog-header">
         <div>
           <span class="condition-dialog-kicker">{label("filter", "Question filter")}</span>
@@ -422,6 +446,10 @@
     color: var(--b3-theme-on-background);
     background: var(--b3-theme-background);
     box-shadow: var(--b3-dialog-shadow, 0 14px 36px rgb(0 0 0 / 25%));
+  }
+
+  .condition-editor-compact .condition-dialog {
+    border-radius: 6px;
   }
 
   .condition-dialog-header,
@@ -629,6 +657,16 @@
   .query-builder-theme :global(button:focus-visible) {
     outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
     outline-offset: 1px;
+  }
+
+  @container (max-width: 700px) {
+    .practice-condition-editor {
+      border-radius: 10px;
+    }
+
+    .condition-summary-row {
+      min-height: 52px;
+    }
   }
 
   @media (max-width: 640px) {

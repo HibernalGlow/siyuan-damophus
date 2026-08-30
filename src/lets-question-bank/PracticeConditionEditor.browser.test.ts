@@ -11,9 +11,9 @@ function translation(source: Record<string, string>) {
   return (key: string, fallback: string) => source[`lets-question-bank.${key}`] ?? fallback;
 }
 
-async function render(filter: PracticeFilter) {
+async function render(filter: PracticeFilter, width = "100%") {
   const target = document.createElement("div");
-  target.style.width = "100%";
+  target.style.width = width;
   document.body.appendChild(target);
   mounted = mount(PracticeConditionEditor, {
     target,
@@ -208,5 +208,17 @@ describe("practice condition editor", () => {
     await tick();
     expect(fieldTrigger.getAttribute("aria-haspopup")).toBe("listbox");
     expect(fieldTrigger.getAttribute("data-state")).toBe("closed");
+  });
+
+  it("fits the dialog inside a narrow dock container", async () => {
+    await render("review", "384px");
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    const dialog = document.querySelector<HTMLElement>(".condition-dialog")!;
+    expect(dialog.classList.contains("condition-dialog")).toBe(true);
+    expect(dialog.style.width).toBe("368px");
+    expect(dialog.style.left).toBe("8px");
+    expect(dialog.style.transform).toBe("none");
   });
 });
