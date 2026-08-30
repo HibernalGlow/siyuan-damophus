@@ -50,6 +50,12 @@ describe("cover template condition editor", () => {
     expect(rules[1]).toContain("Tag or artist pool");
     expect(getComputedStyle(document.querySelector(".ruleGroup-addGroup")!).display).toBe("none");
     expect(document.querySelector<HTMLButtonElement>(".ruleGroup-addRule")?.textContent).toContain("Add filter rule");
+    const clearButton = document.querySelector<HTMLButtonElement>(".condition-clear-button")!;
+    const cancelButton = document.querySelector<HTMLButtonElement>(".condition-cancel-button")!;
+    const applyButton = document.querySelector<HTMLButtonElement>(".condition-apply-button")!;
+    expect(getComputedStyle(clearButton).color).toBe(getComputedStyle(cancelButton).color);
+    expect(getComputedStyle(applyButton).backgroundColor).not.toBe(getComputedStyle(cancelButton).backgroundColor);
+    expect(getComputedStyle(applyButton.querySelector("svg")!).color).toBe(getComputedStyle(applyButton).color);
   });
 
   it("clears the editor and applies the original flat rule contract", async () => {
