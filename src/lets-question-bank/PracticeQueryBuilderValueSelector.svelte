@@ -10,7 +10,7 @@
   export let handleOnChange: ValueSelectorProps["handleOnChange"];
   export let field: string | undefined = undefined;
   export let operator: string | undefined = undefined;
-  export const listsAsArrays = false;
+  export let listsAsArrays: ValueSelectorProps["listsAsArrays"] = false;
   export let multiple = false;
   export let options: ValueSelectorProps["options"];
   export let testID: ValueSelectorProps["testID"] = undefined;
@@ -49,7 +49,7 @@
 
   function change(value: string | undefined): void {
     if (value === undefined) return;
-    handleOnChange(multiple ? [value] : value);
+    handleOnChange(multiple && listsAsArrays ? [value] : value);
   }
 </script>
 
