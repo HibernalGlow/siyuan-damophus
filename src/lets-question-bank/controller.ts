@@ -1,4 +1,5 @@
 import { createAttemptEvent, type NewAttemptInput } from "@/question-bank/core/attempts";
+import { serializeQuestionAuthoringPackage } from "@/question-bank/application/authoring-export";
 import { createAttemptRatingEvent } from "@/question-bank/core/rating-corrections";
 import { createAttemptArchive, serializeAttemptArchive } from "@/question-bank/core/recovery";
 import type { AttemptAggregate, AttemptEvent, ExamSummaryEvent, MasteryRating, ObjectiveAnswer, Question, QuestionBookmark } from "@/question-bank/core/types";
@@ -96,7 +97,7 @@ export interface QuestionBankUiController {
   confirmSyncBatch?(documentIds: readonly string[], token: string): Promise<QuestionIndexBatchPreview>;
   listQuestionSourceDocuments?(): Promise<QuestionSourceDocument[]>;
   loadQuestionCatalog?(): Promise<QuestionCatalogEntry[]>;
-  hydrateQuestionSources?(questionIds: readonly string[]): Promise<HydratedQuestionSource>;
+  hydrateQuestionSources?(questionIds?: readonly string[]): Promise<HydratedQuestionSource>;
   correctQuestionAnswer?(questionBlockId: string, question: Question, answer: ObjectiveAnswer): Promise<void>;
   loadQuestionTopicResources?(questionId: string, questionBlockId?: string): Promise<TopicResourceProjection[]>;
   persistQuestionTopicResource?(input: PersistTopicResourceInput): Promise<PersistTopicResourceResult>;
@@ -126,6 +127,7 @@ export interface QuestionBankUiController {
   loadAttemptEvents?: () => Promise<AttemptEvent[]>;
   loadDueCards(blockIdsByQuestionId: ReadonlyMap<string, string>): Promise<ReadonlyMap<string, RiffCard>>;
   exportAttempts(): Promise<string>;
+  exportQuestionAuthoringPackage(): Promise<string>;
   previewImport(source: string): Promise<AttemptImportPreview>;
   confirmImport(source: string, token: string): Promise<AttemptImportResult>;
   submitAttempt(
@@ -339,7 +341,7 @@ export class QuestionBankController implements QuestionBankUiController {
     return this.requireTinyBaseCatalog().loadCatalog();
   }
 
-  async hydrateQuestionSources(questionIds: readonly string[]): Promise<HydratedQuestionSource> {
+  async hydrateQuestionSources(questionIds?: readonly string[]): Promise<HydratedQuestionSource> {
     return this.requireTinyBaseCatalog().hydrate(questionIds);
   }
 
@@ -548,6 +550,29 @@ export class QuestionBankController implements QuestionBankUiController {
     this.options.setSetting(recentScopeSetting, {
       documentId: scope.documentId,
       headingBlockId: scope.headingBlockId,
+    });
+  }
+
+  async exportQuestionAuthoringPackage(): Promise<string> {
+    // Load the catalog first so hydration is restricted to indexed questions and
+    // cannot race the catalog refresh with a second unscoped source scan.
+    const catalog = await this.loadQuestionCatalog();
+    const hydrated = await this.hydrateQuestionSources(catalog.map((entry) => entry.questionId));
+    const [attempts, aggregates, bookmarks, sourceDocuments] = await Promise.all([
+      this.loadAttemptEvents(),
+      this.loadAggregates(),
+      this.loadBookmarks(),
+      this.listQuestionSourceDocuments(),
+    ]);
+    return serializeQuestionAuthoringPackage({
+      pluginVersion: this.options.pluginVersion,
+      catalog,
+      questions: hydrated.questions,
+      topics: hydrated.topics,
+      attempts,
+      aggregates,
+      bookmarks,
+      sourceDocuments,
     });
   }
 
