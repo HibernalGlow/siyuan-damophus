@@ -29,6 +29,9 @@ importers:
       '@siyuan-community/siyuan-sdk':
         specifier: ^0.3.14
         version: 0.3.17(debug@4.4.3)
+      '@svar-ui/svelte-core':
+        specifier: ^2.6.0
+        version: 2.6.0
       '@svar-ui/svelte-filter':
         specifier: ^2.6.0
         version: 2.6.0

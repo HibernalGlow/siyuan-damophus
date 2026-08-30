@@ -71,6 +71,16 @@ describe("practice session snapshot", () => {
     expect(value.drafts["question-1"].option_order).toEqual(["B", "A"]);
     expect(parsePracticeSessionSnapshot(value).status).toBe("ok");
     expect(parsePracticeSessionSnapshot({ ...value, filter: "unattempted" }).status).toBe("ok");
+    expect(parsePracticeSessionSnapshot({
+      ...value,
+      filter: {
+        glue: "and",
+        rules: [
+          { field: "bookmarked", type: "tuple", filter: "equal", value: "yes" },
+          { field: "wrong", type: "tuple", filter: "equal", value: "no" },
+        ],
+      },
+    }).status).toBe("ok");
     expect(parsePracticeSessionSnapshot({ ...value, schema_version: 2 })).toEqual({
       status: "unsupported",
       schemaVersion: 2,

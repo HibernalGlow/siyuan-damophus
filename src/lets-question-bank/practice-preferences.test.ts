@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizePracticeDefaults, resolvePracticePreferences } from "./practice-preferences";
+import {
+  DEFAULT_PRACTICE_PREFERENCES,
+  normalizePracticeDefaults,
+  resolvePracticePreferences,
+} from "./practice-preferences";
 
 describe("practice preferences", () => {
   it("uses configured defaults when there is no remembered selection", () => {
@@ -34,5 +38,17 @@ describe("practice preferences", () => {
       optionOrder: "source",
       filter: "due",
     });
+  });
+
+  it("preserves a normalized condition tree as the remembered filter", () => {
+    const filter = {
+      glue: "and",
+      rules: [
+        { field: "bookmarked", type: "tuple", filter: "equal", value: "yes" },
+        { field: "wrong", type: "tuple", filter: "equal", value: "no" },
+      ],
+    };
+
+    expect(resolvePracticePreferences({ filter }, DEFAULT_PRACTICE_PREFERENCES).filter).toEqual(filter);
   });
 });

@@ -1,10 +1,26 @@
 import { z } from "zod";
 import { QuestionTypeSchema } from "./schema";
+import type { PracticeFilter, PracticeFilterGroup } from "./scope";
 import type { Question, QuestionType } from "./types";
 
 export const PRACTICE_SESSION_SCHEMA_VERSION = 1 as const;
 
-export const PracticeFilterSchema = z.enum(["all", "unattempted", "wrong", "review", "due", "bookmarked"]);
+const LegacyPracticeFilterSchema = z.enum(["all", "unattempted", "wrong", "review", "due", "bookmarked"]);
+const PracticeFilterRuleSchema = z.object({
+  field: z.enum(["attempted", "wrong", "review", "due", "bookmarked"]),
+  type: z.literal("tuple").optional(),
+  filter: z.enum(["greater", "less", "greaterOrEqual", "lessOrEqual", "equal", "notEqual"]).optional(),
+  value: z.enum(["yes", "no"]).optional(),
+  includes: z.array(z.enum(["yes", "no"])).optional(),
+});
+const PracticeFilterGroupSchema: z.ZodType<PracticeFilterGroup> = z.lazy(() => z.object({
+  glue: z.enum(["and", "or"]),
+  rules: z.array(z.union([PracticeFilterRuleSchema, PracticeFilterGroupSchema])),
+}));
+export const PracticeFilterSchema: z.ZodType<PracticeFilter> = z.union([
+  LegacyPracticeFilterSchema,
+  PracticeFilterGroupSchema,
+]);
 export const PracticeOrderSchema = z.enum(["sequential", "random"]);
 
 export const PracticeDraftSchema = z.object({

@@ -1,14 +1,8 @@
 <script lang="ts">
   import {
     BookOpenCheck,
-    CircleDashed,
-    CircleX,
-    Clock3,
-    List,
     ListOrdered,
-    RotateCcw,
     Shuffle,
-    Star,
   } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
@@ -21,6 +15,7 @@
   import type { TopicNode } from "@/question-bank/core/types";
   import type { SourceBlockIdentity } from "./controller";
   import { topicLabel } from "./question-bank-display";
+  import PracticeConditionEditor from "./PracticeConditionEditor.svelte";
 
   export let label: (key: string, fallback: string) => string;
   export let preview: QuestionIndexPreview;
@@ -172,20 +167,7 @@
 
       <fieldset class="control-block filter-control">
         <legend>{label("filter", "题目筛选")}</legend>
-        <ToggleGroup.Root
-          type="single"
-          variant="outline"
-          class="practice-filter-group"
-          value={filter}
-          onValueChange={(value) => { if (value) filter = value as PracticeFilter; }}
-        >
-          <ToggleGroup.Item value="all" title={label("all", "全部")} aria-label={label("all", "全部")}><List aria-hidden="true" /><span>{label("all", "全部")}</span></ToggleGroup.Item>
-          <ToggleGroup.Item value="unattempted" title={label("unattempted", "未做题")} aria-label={label("unattempted", "未做题")}><CircleDashed aria-hidden="true" /><span>{label("unattempted", "未做题")}</span></ToggleGroup.Item>
-          <ToggleGroup.Item value="wrong" title={label("wrong", "错题")} aria-label={label("wrong", "错题")}><CircleX aria-hidden="true" /><span>{label("wrong", "错题")}</span></ToggleGroup.Item>
-          <ToggleGroup.Item value="review" title={label("review", "待复习")} aria-label={label("review", "待复习")}><RotateCcw aria-hidden="true" /><span>{label("review", "待复习")}</span></ToggleGroup.Item>
-          <ToggleGroup.Item value="due" title={label("due", "闪卡到期")} aria-label={label("due", "闪卡到期")}><Clock3 aria-hidden="true" /><span>{label("due", "闪卡到期")}</span></ToggleGroup.Item>
-          <ToggleGroup.Item value="bookmarked" title={label("bookmarked", "已收藏")} aria-label={label("bookmarked", "已收藏")}><Star aria-hidden="true" /><span>{label("bookmarked", "已收藏")}</span></ToggleGroup.Item>
-        </ToggleGroup.Root>
+        <PracticeConditionEditor {label} bind:filter />
       </fieldset>
     </div>
 
@@ -395,12 +377,6 @@
     gap: 14px;
   }
 
-  :global(.practice-filter-group) {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
   .practice-launcher-actions {
     min-width: 0;
     padding-left: 18px;
@@ -488,19 +464,13 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    :global(.practice-order-grid [data-slot="toggle-group-item"]),
-    :global(.practice-filter-group [data-slot="toggle-group-item"]) {
+    :global(.practice-order-grid [data-slot="toggle-group-item"]) {
       min-height: 42px;
       padding-inline: 0;
     }
 
-    :global(.practice-order-grid [data-slot="toggle-group-item"] span),
-    :global(.practice-filter-group [data-slot="toggle-group-item"] span) {
+    :global(.practice-order-grid [data-slot="toggle-group-item"] span) {
       display: none;
-    }
-
-    :global(.practice-filter-group) {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
   }
 

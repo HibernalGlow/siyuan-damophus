@@ -97,6 +97,32 @@ describe("portable question core", () => {
     expect(filterQuestions({ questions, topics, filter: "review", aggregates }).map((item) => item.id)).toEqual(["q1"]);
     expect(filterQuestions({ questions, topics, filter: "due", dueQuestionIds: new Set(["q2"]) }).map((item) => item.id)).toEqual(["q2"]);
     expect(filterQuestions({ questions, topics, filter: "bookmarked", bookmarkedQuestionIds: new Set(["q1"]) }).map((item) => item.id)).toEqual(["q1"]);
+    expect(filterQuestions({
+      questions,
+      topics,
+      filter: {
+        glue: "and",
+        rules: [
+          { field: "bookmarked", type: "tuple", filter: "equal", value: "yes" },
+          { field: "wrong", type: "tuple", filter: "equal", value: "no" },
+        ],
+      },
+      aggregates,
+      bookmarkedQuestionIds: new Set(["q1", "q2"]),
+    }).map((item) => item.id)).toEqual(["q2"]);
+    expect(filterQuestions({
+      questions,
+      topics,
+      filter: {
+        glue: "and",
+        rules: [
+          { field: "wrong", type: "tuple", filter: "equal", value: "yes" },
+          { field: "review", type: "tuple", filter: "equal", value: "no" },
+        ],
+      },
+      aggregates,
+      reviewThreshold: 3,
+    }).map((item) => item.id)).toEqual(["q1"]);
   });
 
   it("creates immutable event values and rebuilds attempt aggregates", () => {

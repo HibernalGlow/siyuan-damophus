@@ -220,19 +220,16 @@ describe("question bank browser flow", () => {
     expect(document.querySelector('[data-testid="workspace-navigation"]')).toBe(navigation);
   });
 
-  it("gives every icon-only mobile filter an equal usable width", async () => {
+  it("keeps the condition editor usable at mobile width", async () => {
     await page.viewport(390, 844);
     const { controller } = mockController();
     render(controller);
     await scan();
 
-    const group = document.querySelector<HTMLElement>(".practice-filter-group");
-    const items = [...document.querySelectorAll<HTMLElement>('.practice-filter-group [data-slot="toggle-group-item"]')];
-    expect(group).not.toBeNull();
-    expect(items).toHaveLength(6);
-    expect(group!.scrollWidth).toBeLessThanOrEqual(group!.clientWidth);
-    expect(items.every((item) => item.getBoundingClientRect().width >= 44)).toBe(true);
-    expect(Math.max(...items.map((item) => item.getBoundingClientRect().width)) - Math.min(...items.map((item) => item.getBoundingClientRect().width))).toBeLessThan(1);
+    const editor = document.querySelector<HTMLElement>('[data-testid="practice-condition-editor"]');
+    expect(editor).not.toBeNull();
+    expect(button("Add condition").getBoundingClientRect().height).toBeGreaterThanOrEqual(28);
+    expect(editor!.scrollWidth).toBeLessThanOrEqual(editor!.clientWidth);
   });
 
   it("shows a working close action when hosted in a mobile dialog", async () => {
@@ -460,7 +457,6 @@ describe("question bank browser flow", () => {
     expect(document.querySelectorAll('[data-slot="toggle-group"]')).toHaveLength(3);
     await selectScope("Root topic");
     button("Random questions").click();
-    button("All").click();
     button("Start practice").click();
     await flush();
     expect(document.body.textContent).toContain("Subjective question");
@@ -472,11 +468,12 @@ describe("question bank browser flow", () => {
   });
 
   it("starts practice with only questions that have not been attempted", async () => {
-    const { controller } = mockController();
+    const { controller } = mockController({
+      practicePreferences: { order: "sequential", optionOrder: "random", filter: "unattempted" },
+    });
     render(controller);
     await scanAndSync();
 
-    button("Unattempted").click();
     button("Start practice").click();
     await flush();
 
@@ -493,17 +490,18 @@ describe("question bank browser flow", () => {
 
     expect(button("Random questions").getAttribute("data-state")).toBe("on");
     expect(button("Original options").getAttribute("data-state")).toBe("on");
-    expect(button("Wrong").getAttribute("data-state")).toBe("on");
+    expect(document.querySelector(".wx-rule")?.textContent).toContain("Wrong-answer status");
+    expect(document.querySelector(".wx-rule")?.textContent).toContain("Wrong");
 
     button("Sequential questions").click();
     button("Random options").click();
-    button("All").click();
+    button("Clear conditions").click();
     await flush();
 
     expect(savePracticePreferences).toHaveBeenLastCalledWith({
       order: "sequential",
       optionOrder: "random",
-      filter: "all",
+      filter: { glue: "and", rules: [] },
     });
   });
 

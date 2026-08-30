@@ -1,4 +1,5 @@
 import { gradeQuestion, normalizeOptionIds } from "@/question-bank/core/answer";
+import { practiceFilterTargetsDueCards, type PracticeFilter } from "@/question-bank/core/scope";
 import type { AttemptEvent, MasteryRating, Question } from "@/question-bank/core/types";
 import type { PracticeSessionRuntime } from "@/question-bank/application";
 import type { QuestionBankUiController } from "./controller";
@@ -16,7 +17,7 @@ export interface PracticeActionState {
   indefinitePracticeMode?: boolean;
   previewBlockIds: ReadonlyMap<string, string> | undefined;
   sessionId: string;
-  filter: string;
+  filter: PracticeFilter;
   dueCards: ReadonlyMap<string, any>;
   log?: { debug: (event: string, data: unknown) => void; info: (event: string, data: unknown) => void };
 }
@@ -140,7 +141,7 @@ export function createPracticeActions(deps: {
       masteryRating: rating,
       subjectiveScore: draft.subjective_score,
       durationMs,
-    }, current.filter === "due" ? current.dueCards.get(question.id) : undefined).then((result) => {
+    }, practiceFilterTargetsDueCards(current.filter) ? current.dueCards.get(question.id) : undefined).then((result) => {
       if (result.warnings.length > 0) deps.setError(result.warnings.join("; "));
       runtime.actor.send({ type: "SUBMIT_SUCCEEDED", attempt: result.event, now: deps.now() });
     }).catch((reason) => {
@@ -160,7 +161,7 @@ export function createPracticeActions(deps: {
     void deps.controller.correctAttemptRating(
       attempt,
       rating,
-      current.filter === "due" ? current.dueCards.get(attempt.question_id) : undefined,
+      practiceFilterTargetsDueCards(current.filter) ? current.dueCards.get(attempt.question_id) : undefined,
     ).then((corrected) => {
       current.practiceRuntime?.actor.send({ type: "RATING_CORRECTED", attempt: corrected });
     }).catch((reason) => {
