@@ -27,7 +27,6 @@
     Plus,
     RefreshCw,
     Search,
-    Sliders,
     SlidersHorizontal,
     Sparkles,
     Star,
@@ -50,7 +49,6 @@
     DEFAULT_TAG_POOLS,
     DEFAULT_TEMPLATES,
     templateToUrl,
-    type AspectRatioType,
     type CoverTemplateItem,
     type FilterRule,
     type SiteCredential,
@@ -87,6 +85,7 @@
     type CoverFavorite,
   } from "./cover-favorites";
   import { supportsCoverFavoriteSync, syncCoverFavoriteToSite } from "./cover-favorite-sync";
+  import CoverTemplateConditionEditor from "./CoverTemplateConditionEditor.svelte";
 
   export let group = "moreBackground";
   export let title = "题头图Plus";
@@ -706,67 +705,6 @@
     }
   }
 
-  // --- Filter Rules Sub-Editor inside Template ---
-  function addRuleToTemplate(tplIndex: number, field: FilterRule["field"] = "aspectRatio") {
-    const tpl = normalizedTemplates[tplIndex];
-    const currentRules = tpl.rules || [];
-    let defaultVal: any = "landscape";
-    let defaultOp: FilterRule["operator"] = "equals";
-
-    if (field === "tagPool") {
-      defaultVal = normalizedTagPools[0]?.id || "";
-      defaultOp = "randomIn";
-    } else if (field === "site") {
-      defaultVal = "safebooru.org";
-    } else if (field === "rating") {
-      defaultVal = "safe";
-    } else if (field === "imageQuality") {
-      defaultVal = "sample";
-    } else if (field === "timeRange") {
-      defaultVal = "30d";
-    } else if (field === "tags") {
-      defaultVal = "wallpaper";
-      defaultOp = "contains";
-    } else if (field === "minScore") {
-      defaultVal = 5;
-      defaultOp = "gte";
-    } else if (field === "excludeTagPool") {
-      defaultVal = normalizedTagPools.find((p) => p.id === "pool-blacklist-default")?.id || normalizedTagPools[0]?.id || "";
-      defaultOp = "excludeAllIn";
-    } else if (field === "blacklist") {
-      defaultVal = "grayscale, gay, two_males, bara, yaoi, guro, gore";
-      defaultOp = "containsNone";
-    }
-
-    const newRule: FilterRule = {
-      id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      field,
-      operator: defaultOp,
-      value: defaultVal,
-    };
-
-    const nextRules = [...currentRules, newRule];
-    applyRulesToTemplate(tplIndex, nextRules);
-  }
-
-  function removeRuleFromTemplate(tplIndex: number, ruleIndex: number) {
-    const tpl = normalizedTemplates[tplIndex];
-    const nextRules = (tpl.rules || []).filter((_, i) => i !== ruleIndex);
-    applyRulesToTemplate(tplIndex, nextRules);
-  }
-
-  function updateRuleInTemplate(
-    tplIndex: number,
-    ruleIndex: number,
-    patch: Partial<FilterRule>,
-  ) {
-    const tpl = normalizedTemplates[tplIndex];
-    const nextRules = (tpl.rules || []).map((r, i) =>
-      i === ruleIndex ? { ...r, ...patch } : r,
-    );
-    applyRulesToTemplate(tplIndex, nextRules);
-  }
-
   function applyRulesToTemplate(tplIndex: number, rules: FilterRule[]) {
     const patch: Partial<CoverTemplateItem> = { rules };
     for (const r of rules) {
@@ -885,36 +823,6 @@
     }
   }
 
-  const RATIO_OPTIONS: { id: AspectRatioType; label: string; desc: string }[] = [
-    { id: "landscape", label: "🖼️ 横屏 (>= 1.0)", desc: "推荐题头图比例" },
-    { id: "wide", label: "📐 宽屏 (>= 1.33)", desc: "超宽横幅" },
-    { id: "portrait", label: "📱 竖屏 (< 1.0)", desc: "竖向长图" },
-    { id: "any", label: "🔄 任意比例", desc: "不限制比例" },
-  ];
-
-  const BOORU_SITES = [
-    { id: "safebooru.org", label: "Safebooru.org (公开免密·免防盗链·首选推荐)" },
-    { id: "yande.re", label: "Yande.re (超高清插画·免防盗链·强烈推荐)" },
-    { id: "konachan.com", label: "Konachan (精品壁纸·免防盗链·强烈推荐)" },
-    { id: "gelbooru.com", label: "Gelbooru (海量图库)" },
-    { id: "safebooru.donmai.us", label: "Safebooru (Danbooru 镜像)" },
-    { id: "danbooru.donmai.us", label: "Danbooru (官方主站·需存资源目录)" },
-    { id: "e621.net", label: "E621" },
-    { id: "tbib.org", label: "TBIB (The Big ImageBoard)" },
-  ];
-
-  const RULE_FIELDS: { id: FilterRule["field"]; label: string }[] = [
-    { id: "aspectRatio", label: "画面比例 (Aspect Ratio)" },
-    { id: "timeRange", label: "发布时间限制 (Time Range)" },
-    { id: "minScore", label: "最低评分限制 (Min Score)" },
-    { id: "imageQuality", label: "清晰度/预览图 (Quality / Preview)" },
-    { id: "tagPool", label: "随机抽选词库池 (Tag Pool)" },
-    { id: "excludeTagPool", label: "🚫 排除/屏蔽词库池 (Exclude Tag Pool)" },
-    { id: "blacklist", label: "🚫 排除固定标签 (Exclude Tags / Blacklist)" },
-    { id: "site", label: "目标站点 (Site)" },
-    { id: "rating", label: "安全分级 (Rating)" },
-    { id: "tags", label: "固定标签 (Fixed Tags)" },
-  ];
 </script>
 
 <div class="more-background-settings flex flex-col gap-4 sm:gap-5 p-0.5 sm:p-1 relative" class:mobile>
@@ -1287,251 +1195,13 @@
               </div>
 
               {#if template.type === "booru"}
-                <!-- Query Builder 规则构建区域 -->
-                <div class="rounded-lg border border-border bg-muted/30 p-3 sm:p-3.5 space-y-3">
-                  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
-                    <div class="font-medium text-xs text-foreground flex items-center gap-1.5 sm:gap-2">
-                      <Sliders class="size-3.5 text-primary" />
-                      <span>过滤规则 (Query Builder)</span>
-                      <Badge variant="secondary" class="text-[10px] font-mono">{template.rules?.length || 0}</Badge>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                      <select
-                        class="damophus-select text-primary font-medium text-xs max-w-[160px] sm:max-w-none"
-                        onchange={(e) => {
-                          const selectEl = e.currentTarget as HTMLSelectElement;
-                          const val = selectEl.value as any;
-                          if (val) {
-                            addRuleToTemplate(tplIndex, val);
-                            selectEl.value = "";
-                          }
-                        }}
-                      >
-                        <option value="">+ 添加条件规则...</option>
-                        {#each RULE_FIELDS as f}
-                          <option value={f.id}>{f.label}</option>
-                        {/each}
-                      </select>
-                    </div>
-                  </div>
+                <CoverTemplateConditionEditor
+                  label={(key, fallback) => t(`lets-more-background.${key}`, fallback)}
+                  rules={template.rules ?? []}
+                  tagPools={normalizedTagPools}
+                  onApply={(rules) => applyRulesToTemplate(tplIndex, rules)}
+                />
 
-                  <!-- 规则行列表 (移动端两行响应式卡片化排列，桌面端单行对齐) -->
-                  <div class="space-y-2">
-                    {#if !template.rules || template.rules.length === 0}
-                      <div class="text-xs text-muted-foreground p-3 text-center bg-background/50 rounded border border-dashed border-border">
-                        暂无过滤规则，点击右上角「+ 添加条件规则」定制图源。
-                      </div>
-                    {:else}
-                      {#each template.rules as rule, rIndex (rule.id || rIndex)}
-                        <div class="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md bg-background p-2.5 border border-border text-xs">
-                          <!-- 移动端顶部行 / 桌面端左侧：字段名 + 操作符 + 移动端删除按钮 -->
-                          <div class="flex items-center justify-between sm:justify-start gap-2 min-w-0">
-                            <div class="w-auto sm:w-44 font-medium text-foreground truncate shrink-0 flex items-center gap-1.5 px-0.5">
-                              <span class="truncate">{RULE_FIELDS.find((f) => f.id === rule.field)?.label || rule.field}</span>
-                            </div>
-
-                            <span class="text-muted-foreground font-mono text-[11px] px-2 py-0.5 rounded bg-muted border border-border shrink-0">
-                              {rule.operator === "randomIn"
-                                ? "random in"
-                                : rule.operator === "excludeAllIn"
-                                ? "exclude all in"
-                                : rule.operator === "containsNone"
-                                ? "exclude tags"
-                                : rule.operator === "contains"
-                                ? "contains"
-                                : rule.operator === "gte"
-                                ? ">="
-                                : "="}
-                            </span>
-
-                            <!-- 移动端专属删除按钮 (桌面端隐藏) -->
-                            <div class="sm:hidden ml-auto">
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                class="size-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                onclick={() => removeRuleFromTemplate(tplIndex, rIndex)}
-                                title="删除此规则"
-                              >
-                                <Trash2 class="size-3" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          <!-- 目标值编辑 -->
-                          <div class="flex-1 w-full sm:w-auto min-w-0">
-                            {#if rule.field === "aspectRatio"}
-                              <select
-                                value={rule.value || "landscape"}
-                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
-                                class="damophus-select w-full"
-                              >
-                                {#each RATIO_OPTIONS as opt}
-                                  <option value={opt.id}>{opt.label} - {opt.desc}</option>
-                                {/each}
-                              </select>
-                            {:else if rule.field === "tagPool"}
-                              <select
-                                value={rule.value || normalizedTagPools[0]?.id}
-                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
-                                class="damophus-select w-full text-primary font-medium"
-                              >
-                                {#each normalizedTagPools as pool}
-                                  <option value={pool.id}>
-                                    {pool.name} (共 {pool.items?.length || 0} 条)
-                                  </option>
-                                {/each}
-                              </select>
-                            {:else if rule.field === "excludeTagPool"}
-                              <select
-                                value={rule.value || (normalizedTagPools.find(p => p.id === "pool-blacklist-default")?.id || normalizedTagPools[0]?.id)}
-                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
-                                class="damophus-select w-full text-destructive font-medium border-destructive/30"
-                              >
-                                {#each normalizedTagPools as pool}
-                                  <option value={pool.id}>
-                                    {pool.name} (共 {pool.items?.length || 0} 条排除项)
-                                  </option>
-                                {/each}
-                              </select>
-                            {:else if rule.field === "blacklist"}
-                              <Input
-                                value={rule.value || ""}
-                                oninput={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as HTMLInputElement).value })}
-                                placeholder="例如: grayscale, gay, two_males, bara, yaoi, guro"
-                                class="h-7 text-xs font-mono bg-background w-full border-destructive/30"
-                              />
-                            {:else if rule.field === "site"}
-                              <select
-                                value={rule.value || "safebooru.org"}
-                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
-                                class="damophus-select w-full font-medium"
-                              >
-                                {#each BOORU_SITES as s}
-                                  <option value={s.id}>{s.label}</option>
-                                {/each}
-                              </select>
-                            {:else if rule.field === "rating"}
-                              <select
-                                value={rule.value || "safe"}
-                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
-                                class="damophus-select w-full font-medium"
-                              >
-                                <option value="safe">Safe (仅安全·适合日常)</option>
-                                <option value="general">General (通用)</option>
-                                <option value="questionable">Questionable (性感)</option>
-                                <option value="all">All (包含全部)</option>
-                              </select>
-                            {:else if rule.field === "minScore"}
-                              <Input
-                                type="number"
-                                value={rule.value}
-                                oninput={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: parseInt((e.target as HTMLInputElement).value, 10) || 0 })}
-                                placeholder="例如 5 (分及以上)"
-                                class="h-7 text-xs font-mono bg-background w-full"
-                              />
-                            {:else if rule.field === "timeRange"}
-                              {@const isPreset = ["any", "7d", "30d", "90d", "180d", "365d", "730d"].includes(rule.value || "any")}
-                              <div class="space-y-1.5 w-full">
-                                <select
-                                  value={isPreset ? (rule.value || "any") : "custom"}
-                                  onchange={(e) => {
-                                    const val = (e.target as any).value;
-                                    if (val !== "custom") {
-                                      updateRuleInTemplate(tplIndex, rIndex, { value: val });
-                                    } else if (isPreset) {
-                                      updateRuleInTemplate(tplIndex, rIndex, { value: "2023+" });
-                                    }
-                                  }}
-                                  class="damophus-select w-full font-medium"
-                                >
-                                  <option value="any">不限时间 (All Time - 全部收录)</option>
-                                  <option value="7d">最近 7 天内 (7d)</option>
-                                  <option value="30d">最近 30 天内 (30d / 1 个月)</option>
-                                  <option value="90d">最近 3 个月内 (90d)</option>
-                                  <option value="180d">最近半年内 (180d / 半年)</option>
-                                  <option value="365d">最近 1 年内 (365d / 1 年)</option>
-                                  <option value="730d">最近 2 年内 (730d / 2 年)</option>
-                                  <option value="custom">✏️ 自定义时间 (Custom / 年份 / 日期区间)...</option>
-                                </select>
-
-                                {#if !isPreset}
-                                  <Input
-                                    value={rule.value || ""}
-                                    oninput={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as HTMLInputElement).value })}
-                                    placeholder="例如: 2023+ | 2020..2024 | 60d | >= 2024-01-01"
-                                    class="h-7 text-xs font-mono bg-background w-full"
-                                  />
-                                  <div class="text-[10px] text-muted-foreground/85 leading-relaxed flex flex-wrap items-center gap-1.5 pt-0.5">
-                                    <span>💡 示例:</span>
-                                    <button
-                                      type="button"
-                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
-                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: "2023+" })}
-                                    >
-                                      2023+
-                                    </button>
-                                    <button
-                                      type="button"
-                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
-                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: "2020..2024" })}
-                                    >
-                                      2020..2024
-                                    </button>
-                                    <button
-                                      type="button"
-                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
-                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: "60d" })}
-                                    >
-                                      60d
-                                    </button>
-                                    <button
-                                      type="button"
-                                      class="font-mono bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.5 rounded transition-colors"
-                                      onclick={() => updateRuleInTemplate(tplIndex, rIndex, { value: ">= 2024-01-01" })}
-                                    >
-                                      &gt;= 2024-01-01
-                                    </button>
-                                  </div>
-                                {/if}
-                              </div>
-                            {:else if rule.field === "imageQuality"}
-                              <select
-                                value={rule.value || "sample"}
-                                onchange={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as any).value })}
-                                class="damophus-select w-full font-medium"
-                              >
-                                <option value="original">原图高清 (Original - 默认最高画质)</option>
-                                <option value="sample">中等大图 (Sample - 850~1500px 防防盗链/加速)</option>
-                                <option value="preview">缩略预览 (Preview - 快速预览图/免防盗链)</option>
-                              </select>
-                            {:else}
-                              <Input
-                                value={rule.value || ""}
-                                oninput={(e) => updateRuleInTemplate(tplIndex, rIndex, { value: (e.target as HTMLInputElement).value })}
-                                placeholder="wallpaper scenery"
-                                class="h-7 text-xs font-mono bg-background w-full"
-                              />
-                            {/if}
-                          </div>
-
-                          <!-- 桌面端删除规则按钮 (移动端已显示在行头) -->
-                          <div class="hidden sm:block shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              class="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              onclick={() => removeRuleFromTemplate(tplIndex, rIndex)}
-                              title="删除此规则"
-                            >
-                              <Trash2 class="size-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      {/each}
-                    {/if}
-                  </div>
-                </div>
               {:else}
                 <div class="rounded-lg border border-border bg-muted/30 p-3 sm:p-3.5 space-y-2">
                   <Label class="text-xs font-medium text-foreground block">图片 URL / API 接口地址</Label>
@@ -2765,30 +2435,6 @@
     background: color-mix(in srgb, var(--destructive) 15%, transparent) !important;
   }
 
-  /* 统一规范的下拉选择框 (Select) */
-  .damophus-select {
-    height: 28px;
-    padding: 0 8px;
-    border-radius: 6px;
-    border: 1px solid var(--border) !important;
-    background-color: var(--background) !important;
-    color: var(--foreground) !important;
-    font-size: 12px;
-    outline: none;
-    cursor: pointer;
-    transition: border-color 150ms ease, box-shadow 150ms ease;
-  }
-
-  .damophus-select:focus {
-    border-color: var(--ring) !important;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 25%, transparent) !important;
-  }
-
-  .damophus-select option {
-    background-color: var(--background) !important;
-    color: var(--foreground) !important;
-  }
-
   /* 移动端细化响应式适配 */
   @media (max-width: 640px) {
     :global(.more-background-settings .damophus-tabs-list) {
@@ -2807,10 +2453,6 @@
     .damophus-chip-delete {
       width: 16px !important;
       height: 16px !important;
-    }
-
-    .damophus-select {
-      height: 32px;
     }
   }
 </style>
