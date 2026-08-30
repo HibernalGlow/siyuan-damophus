@@ -1,11 +1,15 @@
 import { z } from "zod";
 import { QuestionTypeSchema } from "./schema";
+import { normalizePracticeFilterSpec, PracticeFilterSpecSchema, type PracticeFilterSpec } from "./filter-spec";
 import type { Question, QuestionType } from "./types";
 
 export const PRACTICE_SESSION_SCHEMA_VERSION = 1 as const;
 
 export const PracticeFilterSchema = z.enum(["all", "unattempted", "wrong", "review", "due", "bookmarked"]);
 export const PracticeOrderSchema = z.enum(["sequential", "random"]);
+/** Accepts legacy single-filter strings and rule-tree objects, normalizes to a rule tree. */
+export const PracticeSessionFilterSchema = z.union([PracticeFilterSpecSchema, PracticeFilterSchema])
+  .transform(normalizePracticeFilterSpec);
 
 export const PracticeDraftSchema = z.object({
   question_id: z.string().min(1),
@@ -27,7 +31,7 @@ export const PracticeSessionSnapshotSchema = z.object({
   source_key: z.string().min(1),
   source_label: z.string().optional(),
   scope_id: z.string().optional(),
-  filter: PracticeFilterSchema,
+  filter: PracticeSessionFilterSchema,
   order: PracticeOrderSchema,
   queue_question_ids: z.array(z.string().min(1)).min(1),
   current_question_id: z.string().min(1),
@@ -38,7 +42,7 @@ export const PracticeSessionSnapshotSchema = z.object({
   updated_at: z.iso.datetime({ offset: true }),
 });
 
-export type PracticeSessionFilter = z.infer<typeof PracticeFilterSchema>;
+export type PracticeSessionFilter = PracticeFilterSpec;
 export type PracticeSessionOrder = z.infer<typeof PracticeOrderSchema>;
 export type PracticeDraft = z.infer<typeof PracticeDraftSchema>;
 export type PracticeSessionSnapshot = z.infer<typeof PracticeSessionSnapshotSchema>;
@@ -53,7 +57,7 @@ export interface CreatePracticeSessionInput {
   sourceKey: string;
   sourceLabel?: string;
   scopeId?: string;
-  filter: PracticeSessionFilter;
+  filter: PracticeFilterSpec;
   order: PracticeSessionOrder;
   queue: ReadonlyArray<{ question: Question; optionOrder: readonly string[] }>;
   now?: Date;

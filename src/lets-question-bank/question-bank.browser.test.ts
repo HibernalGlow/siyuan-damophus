@@ -220,19 +220,19 @@ describe("question bank browser flow", () => {
     expect(document.querySelector('[data-testid="workspace-navigation"]')).toBe(navigation);
   });
 
-  it("gives every icon-only mobile filter an equal usable width", async () => {
+  it("keeps the filter summary chip usable on mobile widths", async () => {
     await page.viewport(390, 844);
     const { controller } = mockController();
     render(controller);
     await scan();
 
-    const group = document.querySelector<HTMLElement>(".practice-filter-group");
-    const items = [...document.querySelectorAll<HTMLElement>('.practice-filter-group [data-slot="toggle-group-item"]')];
-    expect(group).not.toBeNull();
-    expect(items).toHaveLength(6);
-    expect(group!.scrollWidth).toBeLessThanOrEqual(group!.clientWidth);
-    expect(items.every((item) => item.getBoundingClientRect().width >= 44)).toBe(true);
-    expect(Math.max(...items.map((item) => item.getBoundingClientRect().width)) - Math.min(...items.map((item) => item.getBoundingClientRect().width))).toBeLessThan(1);
+    const chip = document.querySelector<HTMLElement>(".practice-filter-chip");
+    expect(chip).not.toBeNull();
+    const chipRect = chip!.getBoundingClientRect();
+    expect(chipRect.left).toBeGreaterThanOrEqual(0);
+    expect(chipRect.right).toBeLessThanOrEqual(390);
+    expect(chip!.scrollWidth).toBeLessThanOrEqual(chip!.clientWidth);
+    expect(chip!.textContent).toContain("All");
   });
 
   it("shows a working close action when hosted in a mobile dialog", async () => {
@@ -472,11 +472,17 @@ describe("question bank browser flow", () => {
   });
 
   it("starts practice with only questions that have not been attempted", async () => {
-    const { controller } = mockController();
+    const { controller } = mockController({
+      practicePreferences: {
+        order: "sequential",
+        optionOrder: "random",
+        filter: { glue: "and", rules: [{ field: "unattempted", type: "tuple", filter: "contains", includes: ["yes"] }] },
+      },
+    });
     render(controller);
     await scanAndSync();
+    expect(document.querySelector<HTMLElement>(".practice-filter-chip")?.textContent).toContain("Unattempted");
 
-    button("Unattempted").click();
     button("Start practice").click();
     await flush();
 
@@ -486,24 +492,26 @@ describe("question bank browser flow", () => {
 
   it("restores practice preferences and saves each new launcher selection", async () => {
     const { controller, savePracticePreferences } = mockController({
-      practicePreferences: { order: "random", optionOrder: "source", filter: "wrong" },
+      practicePreferences: { order: "random", optionOrder: "source", filter: { glue: "and", rules: [{ field: "wrong", type: "tuple", filter: "contains", includes: ["yes"] }] } },
     });
     render(controller);
     await scanAndSync();
 
     expect(button("Random questions").getAttribute("data-state")).toBe("on");
     expect(button("Original options").getAttribute("data-state")).toBe("on");
-    expect(button("Wrong").getAttribute("data-state")).toBe("on");
+    expect(document.querySelector<HTMLElement>(".practice-filter-chip")?.textContent).toContain("Wrong");
 
     button("Sequential questions").click();
     button("Random options").click();
-    button("All").click();
     await flush();
 
     expect(savePracticePreferences).toHaveBeenLastCalledWith({
       order: "sequential",
       optionOrder: "random",
-      filter: "all",
+      filter: {
+        glue: "and",
+        rules: [{ field: "wrong", type: "tuple", filter: "contains", includes: ["yes"] }],
+      },
     });
   });
 
@@ -695,7 +703,7 @@ describe("question bank browser flow", () => {
     practiceSessions.set(documentId, createPracticeSessionSnapshot({
       sessionId: "unfinished-session",
       sourceKey: documentId,
-      filter: "all",
+      filter: {},
       order: "sequential",
       queue: [
         { question: objectiveQuestion, optionOrder: ["A", "B", "C"] },
@@ -718,7 +726,7 @@ describe("question bank browser flow", () => {
     const unfinished = createPracticeSessionSnapshot({
       sessionId: "unfinished-session",
       sourceKey: documentId,
-      filter: "all",
+      filter: {},
       order: "sequential",
       queue: [{ question: objectiveQuestion, optionOrder: ["A", "B", "C"] }],
       now: new Date("2026-08-06T00:00:00.000Z"),

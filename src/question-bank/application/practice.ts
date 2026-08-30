@@ -1,4 +1,5 @@
 import { filterQuestions, type PracticeFilter } from "../core/scope";
+import type { PracticeFilterSpec } from "../core/filter-spec";
 import { questionOptionIds } from "../core/session-schema";
 import { shuffleQuestionOptions } from "../core/shuffle";
 import type { AttemptAggregate, MasteryRating, Question, TopicNode } from "../core/types";
@@ -10,7 +11,7 @@ export interface CreatePracticeQueueInput {
   questions: readonly Question[];
   topics: readonly TopicNode[];
   rootTopicId?: string;
-  filter?: PracticeFilter;
+  filter?: PracticeFilter | PracticeFilterSpec;
   order?: PracticeOrder;
   aggregates?: ReadonlyMap<string, AttemptAggregate>;
   dueQuestionIds?: ReadonlySet<string>;

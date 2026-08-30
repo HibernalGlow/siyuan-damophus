@@ -126,7 +126,7 @@ describe("TinyBase runtime", () => {
     const snapshot = createPracticeSessionSnapshot({
       sessionId: "session-1",
       sourceKey: "doc-1",
-      filter: "all",
+      filter: {},
       order: "sequential",
       queue: [{
         question: {

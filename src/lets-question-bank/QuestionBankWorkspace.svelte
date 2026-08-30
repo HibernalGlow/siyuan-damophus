@@ -7,7 +7,7 @@
   import OpenDocumentTabPicker from "@/components/OpenDocumentTabPicker.svelte";
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
   import type { ScanMessage, TopicNode } from "@/question-bank/core/types";
-  import type { PracticeFilter } from "@/question-bank/core/scope";
+  import type { PracticeFilterSpec } from "@/question-bank/core/filter-spec";
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicRelationPreview, TopicRelationSyncMode } from "@/question-bank/adapters/siyuan";
@@ -40,6 +40,7 @@
   export let dataPanelUserControlled = false;
   export let fileInput: HTMLInputElement | null = null;
   export let exportAttempts: () => void;
+  export let exportQuestionAuthoringPackage: () => void;
   export let selectImportFile: (event: Event) => void;
   export let importPreview: any;
   export let confirmImport: () => void;
@@ -86,8 +87,11 @@
   export let topics: TopicNode[] = [];
   export let order: PracticeOrder = "sequential";
   export let optionOrder: PracticeOptionOrder = "random";
-  export let filter: PracticeFilter = "all";
+  export let filter: PracticeFilterSpec = {};
   export let bookmarkedQuestions = 0;
+  export let dueQuestions = 0;
+  export let againHardQuestions = 0;
+  export let filteredQuestionCount = 0;
   export let startPractice: () => void;
   export let openQuestionSetComposer: () => void;
   export let composerOpen = false;
@@ -223,7 +227,10 @@
       {reviewQuestions}
       {reviewAgainQuestions}
       {reviewHardQuestions}
+      {dueQuestions}
+      {againHardQuestions}
       {bookmarkedQuestions}
+      {filteredQuestionCount}
       {syncComplete}
       {busy}
       {recoverableSession}
@@ -284,7 +291,7 @@
     bind:open={dataPanelOpen}
     Icon={Database}
     title={label("attemptData", "Attempt data")}
-    description={`${label("exportAttempts", "Export attempts")} · ${label("importAttempts", "Import attempts")}`}
+    description={`${label("exportAttempts", "Export attempts")} · ${label("exportQuestionAuthoringPackage", "Export authoring package")} · ${label("importAttempts", "Import attempts")}`}
     className="data-panel"
     on:trigger={() => (dataPanelUserControlled = true)}
   >
@@ -292,6 +299,10 @@
         <Button variant="outline" disabled={busy} onclick={exportAttempts}>
           <Download data-icon="inline-start" aria-hidden="true" />
           {label("exportAttempts", "Export attempts")}
+        </Button>
+        <Button variant="outline" disabled={busy} onclick={exportQuestionAuthoringPackage}>
+          <Download data-icon="inline-start" aria-hidden="true" />
+          {label("exportQuestionAuthoringPackage", "Export authoring package")}
         </Button>
         <Button variant="outline" disabled={busy} onclick={() => fileInput?.click()}>
           <Upload data-icon="inline-start" aria-hidden="true" />

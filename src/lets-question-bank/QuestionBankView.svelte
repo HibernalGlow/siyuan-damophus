@@ -12,6 +12,7 @@
   import QuestionBankPractice from "./QuestionBankPractice.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
+  import type { PracticeFilterSpec } from "@/question-bank/core/filter-spec";
 
   export let rootElement: HTMLElement;
   export let currentQuestion: any;
@@ -121,6 +122,7 @@
   export let dataPanelUserControlled: boolean;
   export let fileInput: HTMLInputElement | null;
   export let exportAttempts: any;
+  export let exportQuestionAuthoringPackage: any;
   export let selectImportFile: any;
   export let importPreview: any;
   export let confirmImport: any;
@@ -135,6 +137,9 @@
   export let reviewQuestions: number;
   export let reviewAgainQuestions: number;
   export let reviewHardQuestions: number;
+  export let dueQuestions = 0;
+  export let againHardQuestions = 0;
+  export let filteredQuestionCount = 0;
   export let pendingSync: boolean;
   export let syncComplete: boolean;
   export let autoSyncIndex: boolean;
@@ -166,7 +171,7 @@
   export let topics: any[];
   export let order: any;
   export let optionOrder: any;
-  export let filter: any;
+  export let filter: PracticeFilterSpec = {};
   export let startPractice: any;
   export let openQuestionSetComposer: any;
   export let currentGroup: any;
@@ -398,6 +403,7 @@
       bind:dataPanelUserControlled
       bind:fileInput
       {exportAttempts}
+      {exportQuestionAuthoringPackage}
       {selectImportFile}
       {importPreview}
       {confirmImport}
@@ -446,6 +452,9 @@
       bind:optionOrder
       bind:filter
       {bookmarkedQuestions}
+      {dueQuestions}
+      {againHardQuestions}
+      {filteredQuestionCount}
       {startPractice}
       {openQuestionSetComposer}
       bind:composerOpen

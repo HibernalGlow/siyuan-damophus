@@ -30,7 +30,7 @@ function snapshot() {
     sessionId: "session-1",
     sourceKey: "source-1",
     scopeId: "topic-1",
-    filter: "all",
+    filter: {},
     order: "random",
     queue: [
       { question: first, optionOrder: ["B", "A"] },

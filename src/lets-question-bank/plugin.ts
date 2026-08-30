@@ -116,6 +116,8 @@ const pluginMetadata: PluginMetadata = {
         wrong: "lets-question-bank.wrong",
         review: "lets-question-bank.review",
         due: "lets-question-bank.due",
+        bookmarked: "lets-question-bank.bookmarked",
+        "again-hard": "lets-question-bank.againHard",
       },
     },
     {

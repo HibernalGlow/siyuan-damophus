@@ -1,4 +1,5 @@
 import { gradeQuestion, normalizeOptionIds } from "@/question-bank/core/answer";
+import { specIncludesFilter, type PracticeFilterSpec } from "@/question-bank/core/filter-spec";
 import type { AttemptEvent, MasteryRating, Question } from "@/question-bank/core/types";
 import type { PracticeSessionRuntime } from "@/question-bank/application";
 import type { QuestionBankUiController } from "./controller";
@@ -16,9 +17,15 @@ export interface PracticeActionState {
   indefinitePracticeMode?: boolean;
   previewBlockIds: ReadonlyMap<string, string> | undefined;
   sessionId: string;
-  filter: string;
+  filter: PracticeFilterSpec;
   dueCards: ReadonlyMap<string, any>;
   log?: { debug: (event: string, data: unknown) => void; info: (event: string, data: unknown) => void };
+}
+
+/** Riff schedules update when the practice conditions explicitly include due cards. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dueCards holds RiffCard rows typed loosely upstream
+function riffCardFor(state: PracticeActionState, questionId: string): any {
+  return specIncludesFilter(state.filter, "due") ? state.dueCards.get(questionId) : undefined;
 }
 
 export function createPracticeActions(deps: {
@@ -140,7 +147,7 @@ export function createPracticeActions(deps: {
       masteryRating: rating,
       subjectiveScore: draft.subjective_score,
       durationMs,
-    }, current.filter === "due" ? current.dueCards.get(question.id) : undefined).then((result) => {
+    }, riffCardFor(current, question.id)).then((result) => {
       if (result.warnings.length > 0) deps.setError(result.warnings.join("; "));
       runtime.actor.send({ type: "SUBMIT_SUCCEEDED", attempt: result.event, now: deps.now() });
     }).catch((reason) => {
@@ -160,7 +167,7 @@ export function createPracticeActions(deps: {
     void deps.controller.correctAttemptRating(
       attempt,
       rating,
-      current.filter === "due" ? current.dueCards.get(attempt.question_id) : undefined,
+      riffCardFor(current, attempt.question_id),
     ).then((corrected) => {
       current.practiceRuntime?.actor.send({ type: "RATING_CORRECTED", attempt: corrected });
     }).catch((reason) => {
