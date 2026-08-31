@@ -284,7 +284,7 @@ describe("practice condition editor", () => {
     expect(dialog.style.width).toBe("384px");
     expect(dialog.style.left).toBe("0px");
     expect(dialog.style.top).toBe("0px");
-    expect(dialog.style.maxHeight).toBe("100dvh");
+    expect(dialog.style.maxHeight).toBe("768px");
     expect(dialog.style.transform).toBe("none");
     // Narrow hosts switch conditions through the compact Select library.
     expect(document.querySelector('[data-testid="filter-condition-switcher"]')).not.toBeNull();

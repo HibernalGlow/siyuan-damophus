@@ -1,13 +1,14 @@
 <!--
-  Scope picker styled after SiYuan's native outline: the scanned headings render
-  as a collapsible tree (chevron folds a subtree, tap a row to practice that
-  heading) instead of a flat dropdown. Data is the flat document-order forest
-  (TopicNode[]); collapsed ids hide their descendants during the walk. The
-  panel expands inline below the trigger, which keeps it usable inside the
-  mobile workspace where portals/floating layers get clipped.
+  Scope picker mirroring SiYuan's native outline panel: the scanned headings
+  render with the same DOM contract as the dock outline (ul.b3-list--background >
+  li.b3-list-item[data-subtype="h1..h6"] with b3-list-item__toggle/__graphic/
+  __text and the #iconH1..#iconH6 block icons), so whatever colors the theme
+  paints onto outline headings applies here unchanged. Data is the flat
+  document-order forest (TopicNode[]); the chevron folds a subtree, tapping a
+  row practices that heading. The panel expands inline below the trigger, which
+  keeps it usable inside the mobile workspace where portals get clipped.
 -->
 <script lang="ts">
-  import { ChevronDown, ChevronRight, FileText } from "lucide-svelte";
   import type { TopicNode } from "@/question-bank/core/types";
 
   export let label: (key: string, fallback: string) => string;
@@ -23,19 +24,17 @@
     ? (topics.find((topic) => topic.id === topicId)?.title ?? "")
     : label("entireDocument", "整个文档");
 
-  // Document-order walk that skips the subtrees folded by the chevrons.
-  $: visibleTopics = (() => {
-    const rows: { topic: TopicNode; depth: number }[] = [];
-    let hideBelow: number | null = null;
+  $: topicById = new Map(topics.map((topic) => [topic.id, topic]));
+  $: rootTopics = topics.filter((topic) => !topic.parentId || !topicById.has(topic.parentId));
+  $: childrenByParent = (() => {
+    const map = new Map<string, TopicNode[]>();
     for (const topic of topics) {
-      if (hideBelow !== null) {
-        if (topic.level > hideBelow) continue;
-        hideBelow = null;
-      }
-      rows.push({ topic, depth: Math.max(0, topic.level - 1) });
-      if (topic.childIds.length > 0 && collapsed.has(topic.id)) hideBelow = topic.level;
+      if (!topic.parentId || !topicById.has(topic.parentId)) continue;
+      const siblings = map.get(topic.parentId) ?? [];
+      siblings.push(topic);
+      map.set(topic.parentId, siblings);
     }
-    return rows;
+    return map;
   })();
 
   function toggle(topic: TopicNode): void {
@@ -76,15 +75,15 @@
     aria-haspopup="tree"
     onclick={() => (open = !open)}
   >
-    <FileText size={13} aria-hidden="true" />
+    <svg class="scope-tree-trigger-icon" aria-hidden="true"><use xlink:href="#iconFile" /></svg>
     <span class="scope-tree-trigger-label">{currentTitle}</span>
-    <ChevronDown size={14} aria-hidden="true" class={open ? "scope-tree-caret open" : "scope-tree-caret"} />
+    <svg class="scope-tree-caret" class:open aria-hidden="true"><use xlink:href="#iconRight" /></svg>
   </button>
 
   {#if open}
-    <div class="scope-tree-panel" role="tree" aria-label={label("scope", "答题范围")}>
-      <div
-        class="scope-tree-row"
+    <ul class="b3-list b3-list--background scope-tree-list" role="tree" aria-label={label("scope", "答题范围")}>
+      <li
+        class="b3-list-item scope-tree-row"
         class:selected={!topicId}
         role="treeitem"
         aria-selected={!topicId}
@@ -92,37 +91,52 @@
         onkeydown={(event) => onRowKeydown(event, "")}
         onclick={() => choose("")}
       >
-        <span class="scope-tree-toggle" aria-hidden="true"><FileText size={12} /></span>
-        <span class="scope-tree-title">{label("entireDocument", "整个文档")}</span>
-      </div>
-      {#each visibleTopics as entry (entry.topic.id)}
-        <div
-          class="scope-tree-row"
-          class:selected={entry.topic.id === topicId}
-          role="treeitem"
-          aria-selected={entry.topic.id === topicId}
-          aria-level={entry.depth + 1}
-          aria-expanded={entry.topic.childIds.length > 0 ? !collapsed.has(entry.topic.id) : undefined}
-          style:padding-left={`${14 + entry.depth * 16}px`}
-          tabindex="0"
-          onkeydown={(event) => onRowKeydown(event, entry.topic.id)}
-          onclick={() => choose(entry.topic.id)}
-        >
-          {#if entry.topic.childIds.length > 0}
-            <span
-              class="scope-tree-toggle"
-              aria-hidden="true"
-              onclick={(event) => { event.stopPropagation(); toggle(entry.topic); }}
-            >
-              <ChevronRight size={12} class={collapsed.has(entry.topic.id) ? "scope-tree-fold folded" : "scope-tree-fold"} />
-            </span>
-          {:else}
-            <span class="scope-tree-toggle" aria-hidden="true"></span>
+        <span class="scope-tree-toggle-ghost" aria-hidden="true"></span>
+        <svg class="b3-list-item__graphic" aria-hidden="true"><use xlink:href="#iconFile" /></svg>
+        <span class="b3-list-item__text">{label("entireDocument", "整个文档")}</span>
+      </li>
+      {#snippet topicRows(list: TopicNode[], depth: number)}
+        {#each list as topic (topic.id)}
+          {@const children = childrenByParent.get(topic.id) ?? []}
+          {@const level = Math.min(6, Math.max(1, topic.level))}
+          {@const folded = collapsed.has(topic.id)}
+          <li
+            class="b3-list-item scope-tree-row"
+            class:selected={topic.id === topicId}
+            role="treeitem"
+            aria-selected={topic.id === topicId}
+            aria-level={depth + 1}
+            aria-expanded={children.length > 0 ? !folded : undefined}
+            data-subtype={`h${level}`}
+            data-node-id={topic.id}
+            style:padding-left={`${depth * 16}px`}
+            tabindex="0"
+            onkeydown={(event) => onRowKeydown(event, topic.id)}
+            onclick={() => choose(topic.id)}
+          >
+            {#if children.length > 0}
+              <span
+                class="b3-list-item__toggle b3-list-item__toggle--hl scope-tree-toggle"
+                aria-hidden="true"
+                onclick={(event) => { event.stopPropagation(); toggle(topic); }}
+              >
+                <svg class={folded ? "b3-list-item__arrow" : "b3-list-item__arrow b3-list-item__arrow--open"} aria-hidden="true"><use xlink:href="#iconRight" /></svg>
+              </span>
+            {:else}
+              <span class="scope-tree-toggle-ghost" aria-hidden="true"></span>
+            {/if}
+            <svg class="b3-list-item__graphic" aria-hidden="true"><use xlink:href={`#iconH${level}`} /></svg>
+            <span class="b3-list-item__text">{topic.title}</span>
+          </li>
+          {#if children.length > 0 && !folded}
+            <ul class="scope-tree-branch" role="group">
+              {@render topicRows(children, depth + 1)}
+            </ul>
           {/if}
-          <span class="scope-tree-title">{entry.topic.title}</span>
-        </div>
-      {/each}
-    </div>
+        {/each}
+      {/snippet}
+      {@render topicRows(rootTopics, 0)}
+    </ul>
   {/if}
 </div>
 
@@ -153,7 +167,9 @@
     border-color: color-mix(in srgb, var(--b3-theme-primary) 40%, var(--b3-border-color));
   }
 
-  .scope-tree-trigger > :global(svg:first-child) {
+  .scope-tree-trigger-icon {
+    width: 14px;
+    height: 14px;
     flex: 0 0 auto;
     color: var(--b3-theme-primary);
   }
@@ -167,19 +183,21 @@
     white-space: nowrap;
   }
 
-  :global(svg.scope-tree-caret) {
+  .scope-tree-caret {
+    width: 12px;
+    height: 12px;
     flex: 0 0 auto;
     color: var(--b3-theme-on-surface);
     transition: transform 0.15s ease;
   }
 
-  :global(svg.scope-tree-caret.open) { transform: rotate(180deg); }
+  .scope-tree-caret.open { transform: rotate(90deg); }
 
-  .scope-tree-panel {
+  .scope-tree-list {
     position: relative;
     z-index: 2;
     max-height: clamp(220px, 42vh, 400px);
-    margin-top: 6px;
+    margin: 6px 0 0;
     padding: 4px;
     overflow: auto;
     overscroll-behavior: contain;
@@ -187,25 +205,12 @@
     border-radius: 10px;
     background: var(--b3-theme-surface);
     box-shadow: 0 8px 22px rgb(0 0 0 / 14%);
-    display: grid;
-    gap: 1px;
-    align-items: start;
   }
 
-  .scope-tree-row {
-    min-height: 30px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px 3px 14px;
-    border-radius: 7px;
-    color: var(--b3-theme-on-background);
-    font-size: 12.5px;
-    cursor: pointer;
-    user-select: none;
+  .scope-tree-branch {
+    margin: 0;
+    padding: 0;
   }
-
-  .scope-tree-row:hover { background: var(--b3-list-hover); }
 
   .scope-tree-row:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
@@ -218,22 +223,15 @@
     font-weight: 600;
   }
 
-  .scope-tree-toggle {
+  /* Leaf rows keep a ghost toggle so graphics align with parent rows. */
+  .scope-tree-toggle-ghost {
     width: 18px;
     height: 18px;
     flex: 0 0 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--b3-theme-on-surface);
+    visibility: hidden;
   }
 
-  .scope-tree-row.selected .scope-tree-toggle { color: inherit; }
-
-  :global(svg.scope-tree-fold) { transition: transform 0.12s ease; }
-  :global(svg.scope-tree-fold.folded) { transform: rotate(-90deg); }
-
-  .scope-tree-title {
+  .scope-tree-row :global(.b3-list-item__text) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -247,9 +245,8 @@
       font-size: 13px;
     }
 
-    .scope-tree-row {
+    .scope-tree-list :global(.b3-list-item) {
       min-height: 34px;
-      font-size: 13px;
     }
   }
 </style>

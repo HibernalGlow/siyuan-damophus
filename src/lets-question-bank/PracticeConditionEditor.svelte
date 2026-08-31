@@ -146,8 +146,16 @@
       dockDialogStyle = "left: 0px; top: 0px; width: 100vw; max-height: 100dvh; transform: none;";
       return;
     }
-    const top = Math.round(Math.max(0, rect.top));
-    dockDialogStyle = `left: ${Math.round(rect.left)}px; top: ${top}px; width: ${Math.round(rect.width)}px; max-height: ${top > 0 ? `calc(100dvh - ${top}px)` : "100dvh"}; transform: none;`;
+    // The dialog is position:absolute, anchored to the question-bank root (the
+    // positioned ancestor), so coordinates are offsets within that root — not
+    // viewport coordinates (the root may sit beside other dock panels).
+    const anchor = (hostElement.closest(".question-bank") as HTMLElement | null) ?? document.documentElement;
+    const anchorRect = anchor.getBoundingClientRect();
+    const left = Math.round(rect.left - anchorRect.left);
+    const top = Math.round(Math.max(0, rect.top - anchorRect.top));
+    const anchorHeight = anchor === document.documentElement ? window.innerHeight : anchorRect.height;
+    const maxHeight = Math.max(240, Math.round(anchorHeight - top));
+    dockDialogStyle = `left: ${left}px; top: ${top}px; width: ${Math.round(rect.width)}px; max-height: ${maxHeight}px; transform: none;`;
   }
 
   onMount(() => {
@@ -607,15 +615,18 @@
     background: transparent;
   }
 
+  /* Anchored to the question-bank root (not the viewport): inside a desktop
+     dock the dialog and scrim stay confined to the panel. The root is the
+     nearest positioned ancestor, so the workspace's overflow never clips them. */
   .condition-dialog-scrim {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: 9998;
     background: rgb(0 0 0 / 42%);
   }
 
   .condition-dialog {
-    position: fixed;
+    position: absolute;
     top: 50%;
     left: 50%;
     z-index: 9999;

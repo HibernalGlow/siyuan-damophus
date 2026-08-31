@@ -245,6 +245,8 @@ describe("question bank browser flow", () => {
     document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-edit"]')!.click();
     await vi.waitFor(() => expect(document.querySelector(".condition-dialog")).not.toBeNull());
     expect(document.querySelector<HTMLElement>(".condition-dialog")!.style.width).toBe("100vw");
+    // Phone-width hosts switch saved conditions through the compact Select.
+    expect(document.querySelector('[data-testid="filter-condition-switcher"]')).not.toBeNull();
     expect(editor!.scrollWidth).toBeLessThanOrEqual(editor!.clientWidth);
   });
 
