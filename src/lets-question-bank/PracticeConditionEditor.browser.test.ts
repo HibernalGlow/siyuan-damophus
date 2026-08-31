@@ -237,6 +237,23 @@ describe("practice condition editor", () => {
     expect(document.querySelector(".query-builder-theme")).not.toBeNull();
   });
 
+  it("edits a selected rule from the graph inspector", async () => {
+    await render({ glue: "and", rules: [{ field: "bookmarked", filter: "equal", value: "yes" }] });
+    openEditorProgrammatically();
+    await tick();
+    document.querySelector<HTMLButtonElement>('[data-testid="condition-view-graph"]')!.click();
+    await tick();
+    document.querySelector<HTMLElement>('.condition-graph-node[data-node-id="root-rule-0"]')!.click();
+    await tick();
+
+    const valueSelect = document.querySelectorAll<HTMLSelectElement>('[data-testid="condition-graph-inspector"] select')[2];
+    valueSelect.value = "no";
+    valueSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    await tick();
+    expect(document.querySelector('.condition-graph-node[data-node-id="root-rule-0"]')?.textContent).toContain("equals");
+    expect(document.querySelector('.condition-graph-node[data-node-id="root-rule-0"]')?.textContent).toContain("Not bookmarked");
+  });
+
   it("uses the same floating select menu on mobile instead of a native picker", async () => {
     await page.viewport(390, 844);
     await render({

@@ -6,6 +6,7 @@ export interface ConditionGraphNode {
   label: string;
   detail?: string;
   disabled?: boolean;
+  meta?: Record<string, unknown>;
 }
 
 export interface ConditionGraphEdge {

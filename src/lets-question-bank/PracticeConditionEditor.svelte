@@ -20,7 +20,7 @@
   import PracticeRuleGroup from "./PracticeRuleGroup.svelte";
   import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
   import type { PracticeFilterPreset } from "./practice-preferences";
-  import type { PracticeFilter, PracticeFilterField } from "@/question-bank/core/scope";
+  import type { PracticeFilter, PracticeFilterField, PracticeFilterGroup, PracticeFilterRule, PracticeFilterOperator, PracticeFilterValue } from "@/question-bank/core/scope";
   import {
     practiceFilterToQuery,
     queryToPracticeFilter,
@@ -48,6 +48,52 @@
   let dockCompact = false;
   let dockDialogStyle = "";
   let viewMode: "list" | "graph" = "list";
+  let selectedGraphPath: number[] | undefined;
+  let selectedGraphRule: PracticeFilterRule | undefined;
+
+  function graphRuleAt(path: readonly number[] | undefined): PracticeFilterRule | undefined {
+    if (!path) return undefined;
+    let group: PracticeFilterGroup = queryToPracticeFilter(editorQuery);
+    for (let index = 0; index < path.length; index += 1) {
+      const entry = group.rules[path[index]];
+      if (!entry) return undefined;
+      if (index === path.length - 1) return "rules" in entry ? undefined : entry;
+      if (!("rules" in entry)) return undefined;
+      group = entry;
+    }
+    return undefined;
+  }
+
+  function updateGraphRule(next: Partial<PracticeFilterRule>): void {
+    if (!selectedGraphPath) return;
+    const current = queryToPracticeFilter(editorQuery);
+    const updateGroup = (group: PracticeFilterGroup, depth: number): PracticeFilterGroup => {
+      const index = selectedGraphPath![depth];
+      return {
+        ...group,
+        rules: group.rules.map((entry, entryIndex) => {
+          if (entryIndex !== index) return entry;
+          if (depth === selectedGraphPath!.length - 1 && !('rules' in entry)) return { ...entry, ...next };
+          if ('rules' in entry) return updateGroup(entry, depth + 1);
+          return entry;
+        }),
+      };
+    };
+    editorQuery = practiceFilterToQuery(updateGroup(current, 0));
+  }
+
+  function graphNodeActivate(id: string): void {
+    const node = graphModel.nodes.find((candidate) => candidate.id === id);
+    const path = node?.meta?.rulePath;
+    if (Array.isArray(path) && path.every((item) => typeof item === "number")) {
+      selectedGraphPath = path as number[];
+    } else {
+      selectedGraphPath = undefined;
+      viewMode = "list";
+    }
+  }
+
+  $: selectedGraphRule = graphRuleAt(selectedGraphPath);
 
   $: graphModel = practiceFilterToGraph(queryToPracticeFilter(editorQuery), {
     field: {
@@ -481,7 +527,22 @@
           ><GitBranch size={14} aria-hidden="true" /><span>{label("conditionViewGraph", "Graph view")}</span></Button>
         </div>
         {#if viewMode === "graph"}
-          <ConditionGraph model={graphModel} height={360} />
+          <ConditionGraph model={graphModel} height={360} onNodeActivate={graphNodeActivate} />
+          {#if selectedGraphRule}
+            <div class="condition-graph-inspector" data-testid="condition-graph-inspector">
+              <strong>{label("conditionEditNode", "Edit condition")}</strong>
+              <select aria-label={label("filter", "Field")} value={selectedGraphRule.field} onchange={(event) => updateGraphRule({ field: (event.currentTarget as HTMLSelectElement).value as PracticeFilterField })}>
+                {#each fields as field}<option value={field.name}>{field.label}</option>{/each}
+              </select>
+              <select aria-label={label("conditionEqual", "Operator")} value={selectedGraphRule.filter ?? "equal"} onchange={(event) => updateGraphRule({ filter: (event.currentTarget as HTMLSelectElement).value as PracticeFilterOperator })}>
+                {#each operators as operator}<option value={operator.name}>{operator.label}</option>{/each}
+              </select>
+              <select aria-label={label("selectConditionValue", "Value")} value={selectedGraphRule.value ?? "yes"} onchange={(event) => updateGraphRule({ value: (event.currentTarget as HTMLSelectElement).value as PracticeFilterValue })}>
+                <option value="yes">{label("yes", "Yes")}</option>
+                <option value="no">{label("no", "No")}</option>
+              </select>
+            </div>
+          {/if}
         {:else}
         <div class="query-builder-theme">
           <QueryBuilder
@@ -762,6 +823,21 @@
     border-radius: 7px;
     background: var(--b3-theme-surface);
   }
+
+  .condition-graph-inspector {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 7px;
+    background: var(--b3-theme-surface);
+  }
+
+  .condition-graph-inspector strong { margin-right: 3px; font-size: 12px; }
+  .condition-graph-inspector select { min-width: 118px; height: 28px; padding: 0 7px; border: 1px solid var(--b3-border-color); border-radius: 5px; color: var(--b3-theme-on-background); background: var(--b3-theme-background); }
 
 
   .condition-dialog-footer {

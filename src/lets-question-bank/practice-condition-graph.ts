@@ -24,11 +24,11 @@ function gate(id: string, operator: string, detail: string | undefined, children
   return { kind: "gate", id, node: { id, kind: "logic", label: operator, detail }, children };
 }
 
-function groupExpression(group: PracticeFilterGroup, path: string, labels: PracticeConditionGraphLabels): Expression | undefined {
+function groupExpression(group: PracticeFilterGroup, path: string, labels: PracticeConditionGraphLabels, rulePath: number[] = []): Expression | undefined {
   if (!group.rules.length) return undefined;
   const expressions = group.rules
     .map((rule, index) => isGroup(rule)
-      ? groupExpression(rule, `${path}-${index}`, labels)
+      ? groupExpression(rule, `${path}-${index}`, labels, [...rulePath, index])
       : {
           kind: "rule" as const,
           id: `${path}-rule-${index}`,
@@ -38,6 +38,7 @@ function groupExpression(group: PracticeFilterGroup, path: string, labels: Pract
             label: labels.field[rule.field] ?? rule.field,
             detail: `${labels.operator[rule.filter ?? "equal"] ?? rule.filter ?? "equal"} ${labels.value[`${rule.field}:${rule.value ?? ""}`] ?? labels.value[rule.value ?? ""] ?? rule.value ?? ""}`,
             disabled: rule.disabled,
+            meta: { rulePath: [...rulePath, index] },
           },
         })
     .filter((item): item is Expression => Boolean(item));
