@@ -3222,10 +3222,16 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       window.addEventListener("mouseup", onWindowMouseUp);
     };
 
-    background.addEventListener("mousedown", handleMouseDown);
-    background.addEventListener("wheel", handleWheel, { passive: false });
-    background.addEventListener("mousemove", handleMouseMoveOrKey, { passive: true });
-    background.addEventListener("mouseleave", handleMouseLeave, { passive: true });
+    // Touch gestures never drive the pointer-based adjusters; long-press would
+    // pop the HUD and flip cursors without moving anything. Skip them on
+    // mobile entirely and keep only the native position button plus the
+    // observer-driven save flow.
+    if (!isMobile) {
+      background.addEventListener("mousedown", handleMouseDown);
+      background.addEventListener("wheel", handleWheel, { passive: false });
+      background.addEventListener("mousemove", handleMouseMoveOrKey, { passive: true });
+      background.addEventListener("mouseleave", handleMouseLeave, { passive: true });
+    }
 
     return () => {
       if (longPressTimer) clearTimeout(longPressTimer);
