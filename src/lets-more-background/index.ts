@@ -1,9 +1,10 @@
 import { mount, unmount } from "svelte";
-import { getAllEditor, openTab, showMessage, type IEventBusMap, type Menu } from "siyuan";
+import { Dialog, getAllEditor, openTab, showMessage, type IEventBusMap, type Menu } from "siyuan";
 import { setScopeLogLevel } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
-import { plugin } from "@/utils";
+import { isMobile, plugin } from "@/utils";
+import { isolateMobileDialogGestures } from "@/lets-question-bank/mobile-dialog-scroll";
 import {
   DEFAULT_COVER_HISTORY_LIMIT,
   DEFAULT_SEEN_COVERS_LIMIT,
@@ -42,62 +43,19 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       type: moreBackgroundTabType,
       init() {
         const element = this.element as HTMLElement;
+        // damophus-mb-tab-host lets the settings surface fill the tab and scroll
+        // internally (nav docks to the bottom on narrow panes). Padding is owned
+        // by the component so the mobile tab bar can span the full width.
         element.classList.add(
           "damophus-theme-root",
           "damophus-question-bank-theme",
+          "damophus-mb-tab-host",
           "h-full",
-          "overflow-auto",
+          "overflow-hidden",
           "bg-background",
           "text-foreground",
-          "p-5",
         );
-        const opts = owner.buildOptions();
-        const templates = owner.getSetting("templates") || DEFAULT_TEMPLATES;
-        const tagPools = owner.getSetting("tagPools") || DEFAULT_TAG_POOLS;
-        const siteCredentials = owner.getSetting("siteCredentials") || DEFAULT_SITE_CREDENTIALS;
-
-        const app = mount(MoreBackgroundSettings, {
-          target: element,
-          props: {
-            group: "moreBackground",
-            title: owner.t("lets-more-background.displayName" as any),
-            templates,
-            tagPools,
-            siteCredentials,
-            width: opts.width,
-            height: opts.height,
-            assetsLocation: opts.assetsLocation,
-            readFromAssets: opts.readFromAssets,
-            writeToAssets: opts.writeToAssets,
-            localCache: opts.localCache,
-            autoCacheLegacyCovers: opts.autoCacheLegacyCovers,
-            purgeCacheOnCoverChange: opts.purgeCacheOnCoverChange === true,
-            localCacheRoot: opts.localCacheRoot,
-            localCachePathTemplate: opts.localCachePathTemplate,
-            localCacheMaxEdge: opts.localCacheMaxEdge,
-            directDrag: opts.directDrag === true,
-            debugLogging: opts.debugLogging === true,
-            toolbarPosition: opts.toolbarPosition ?? "belowIcon",
-            toolbarCustomX: opts.toolbarCustomX ?? 50,
-            toolbarCustomY: opts.toolbarCustomY ?? 15,
-            coverBreadcrumb: opts.coverBreadcrumb === true,
-            coverDocumentMenu: opts.coverDocumentMenu === true,
-            confirmRemoveCover: opts.confirmRemoveCover !== false,
-            coverHistoryLimit: opts.coverHistoryLimit ?? DEFAULT_COVER_HISTORY_LIMIT,
-            coverSeenLimit: opts.coverSeenLimit ?? DEFAULT_SEEN_COVERS_LIMIT,
-            onMaintenance: (detail) => owner.handleMaintenance(detail),
-          },
-        });
-
-        element.addEventListener("changed", ((e: CustomEvent) => {
-          const detail = e.detail;
-          if (detail && detail.key) {
-            owner.setSetting(detail.key, detail.value);
-            owner.onDataChanged();
-          }
-        }) as EventListener);
-
-        owner.mountedTabs.set(element, app);
+        owner.mountSettingsSurface(element);
       },
       destroy() {
         const element = this.element as HTMLElement;
@@ -117,8 +75,85 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
     });
   }
 
+  /** Tab 和移动端 Dialog 共用的挂载入口：负责 props 组装与 changed 事件回写。 */
+  private mountSettingsSurface(target: HTMLElement): ReturnType<typeof mount> {
+    const opts = this.buildOptions();
+    const templates = this.getSetting("templates") || DEFAULT_TEMPLATES;
+    const tagPools = this.getSetting("tagPools") || DEFAULT_TAG_POOLS;
+    const siteCredentials = this.getSetting("siteCredentials") || DEFAULT_SITE_CREDENTIALS;
+
+    const app = mount(MoreBackgroundSettings, {
+      target,
+      props: {
+        group: "moreBackground",
+        title: this.t("lets-more-background.displayName" as any),
+        templates,
+        tagPools,
+        siteCredentials,
+        width: opts.width,
+        height: opts.height,
+        assetsLocation: opts.assetsLocation,
+        readFromAssets: opts.readFromAssets,
+        writeToAssets: opts.writeToAssets,
+        localCache: opts.localCache,
+        autoCacheLegacyCovers: opts.autoCacheLegacyCovers,
+        purgeCacheOnCoverChange: opts.purgeCacheOnCoverChange === true,
+        localCacheRoot: opts.localCacheRoot,
+        localCachePathTemplate: opts.localCachePathTemplate,
+        localCacheMaxEdge: opts.localCacheMaxEdge,
+        directDrag: opts.directDrag === true,
+        debugLogging: opts.debugLogging === true,
+        toolbarPosition: opts.toolbarPosition ?? "belowIcon",
+        toolbarCustomX: opts.toolbarCustomX ?? 50,
+        toolbarCustomY: opts.toolbarCustomY ?? 15,
+        coverBreadcrumb: opts.coverBreadcrumb === true,
+        coverDocumentMenu: opts.coverDocumentMenu === true,
+        confirmRemoveCover: opts.confirmRemoveCover !== false,
+        coverHistoryLimit: opts.coverHistoryLimit ?? DEFAULT_COVER_HISTORY_LIMIT,
+        coverSeenLimit: opts.coverSeenLimit ?? DEFAULT_SEEN_COVERS_LIMIT,
+        onMaintenance: (detail) => this.handleMaintenance(detail),
+      },
+    });
+
+    target.addEventListener("changed", ((e: CustomEvent) => {
+      const detail = e.detail;
+      if (detail && detail.key) {
+        this.setSetting(detail.key, detail.value);
+        this.onDataChanged();
+      }
+    }) as EventListener);
+
+    this.mountedTabs.set(target, app);
+    return app;
+  }
+
   openInTab(): void {
     if (!this.isEntryEnabled("tab")) return;
+    if (isMobile) {
+      // 移动端没有自定义页签容器，参照题库工作台改为全屏 Dialog 承载。
+      let app: ReturnType<typeof mount> | undefined;
+      let removeGestureIsolation: (() => void) | undefined;
+      const dialog = new Dialog({
+        title: this.t("lets-more-background.displayName" as any),
+        content: '<div class="damophus-more-background-dialog damophus-mb-tab-host h-full min-h-0 overflow-hidden"></div>',
+        width: "94vw",
+        height: "calc(100dvh - 24px)",
+        destroyCallback: () => {
+          removeGestureIsolation?.();
+          const target = dialog.element.querySelector<HTMLElement>(".damophus-more-background-dialog");
+          const mounted = target ? this.mountedTabs.get(target) : undefined;
+          if (mounted) void unmount(mounted);
+          if (target) this.mountedTabs.delete(target);
+        },
+      });
+      dialog.element.classList.add("damophus-more-background-mobile-dialog", "damophus-theme-root", "damophus-question-bank-theme");
+      removeGestureIsolation = isolateMobileDialogGestures(dialog.element);
+      const target = dialog.element.querySelector<HTMLElement>(".damophus-more-background-dialog");
+      if (!target) return;
+      app = this.mountSettingsSurface(target);
+      void app;
+      return;
+    }
     void openTab({
       app: plugin.app,
       custom: {

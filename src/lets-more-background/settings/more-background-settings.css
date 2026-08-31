@@ -1,0 +1,962 @@
+/* Shared visual system for the MoreBackground (cover plus) settings surface.
+   Mirrors the lets-question-bank workspace language: SiYuan b3 variables,
+   color-mix primary tints, a 8/9/12px radius scale, and container queries
+   (not viewport media queries) so docked narrow panes collapse correctly.
+
+   Container layout contract:
+   - .mb-frame is the named container (mbframe) wrapping header + nav + body.
+   - Modal overlays live OUTSIDE .mb-frame (a container makes position:fixed
+     descendants relative to it) and each carries its own container (mbsheet).
+*/
+
+.more-background-settings {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--b3-theme-on-background);
+  font-family: var(--b3-font-family);
+}
+
+.more-background-settings button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.more-background-settings :focus-visible {
+  outline: 2px solid var(--b3-theme-primary);
+  outline-offset: 1px;
+}
+
+/* Full-height, internally-scrolling mode used by the dedicated tab host. */
+.damophus-mb-tab-host > .more-background-settings {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Neo+ IDE reserves 42px above custom-tab content but leaves h-full hosts at
+   their original height, pushing the sticky bottom bar below the pane fold.
+   Same compensation the question-bank tab surface applies. */
+html.neo-ide .neo-ide-body.body--toolbar-hide .damophus-mb-tab-host {
+  height: calc(100% - 42px) !important;
+}
+
+.mb-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  container: mbframe / inline-size;
+}
+
+.damophus-mb-tab-host .mb-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mb-body {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 18px 16px;
+  /* The nav is the last child of this element (question-bank quick-bar
+     contract): on wide containers flex order lifts it to the top, on narrow
+     ones it stays last and goes sticky-bottom. */
+}
+
+.mb-panel {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+/* ---------- Header ---------- */
+
+.mb-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 18px 11px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.mb-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mb-icon-chip {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 8px;
+  color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
+}
+
+.mb-icon-chip--lg {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  border-radius: 9px;
+}
+
+.mb-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mb-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mb-version-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 999px;
+  color: var(--b3-theme-on-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.mb-description {
+  margin: 1px 0 0;
+  overflow: hidden;
+  color: var(--b3-theme-on-surface);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mb-save-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 999px;
+  color: var(--b3-theme-on-surface);
+  font-size: 11px;
+  font-weight: 500;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.mb-save-pill[data-state="saving"] {
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 36%, var(--b3-border-color));
+  color: var(--b3-theme-primary);
+}
+
+.mb-save-pill[data-state="saved"] {
+  border-color: color-mix(in srgb, #10b981 36%, var(--b3-border-color));
+  color: #059669;
+  background: color-mix(in srgb, #10b981 10%, transparent);
+}
+
+.mb-save-pill[data-state="error"] {
+  border-color: color-mix(in srgb, var(--b3-theme-error) 40%, var(--b3-border-color));
+  color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 10%, transparent);
+}
+
+.mb-save-time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+/* ---------- Tab navigation ---------- */
+
+.mb-tabs {
+  flex: 0 0 auto;
+  order: -1;
+  display: flex;
+  gap: 2px;
+  margin: 0 0 2px;
+  padding: 3px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 12px;
+  background: var(--b3-theme-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mb-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mb-tab {
+  position: relative;
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  min-width: 0;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.mb-tab:hover {
+  color: var(--b3-theme-on-background);
+  background: var(--b3-list-hover);
+}
+
+.mb-tab[aria-selected="true"] {
+  color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+  font-weight: 600;
+}
+
+.mb-tab-count {
+  min-width: 17px;
+  height: 16px;
+  padding-inline: 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--b3-border-color);
+  color: var(--b3-theme-on-surface);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mb-tab[aria-selected="true"] .mb-tab-count {
+  background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent);
+  color: var(--b3-theme-primary);
+}
+
+/* ---------- Section head ---------- */
+
+/* Single-column stacks must be allowed to shrink below content width:
+   an implicit `auto` track floors at max-content and blows out narrow
+   containers (the mobile horizontal-overflow bug). */
+.mb-stack {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mb-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 12px;
+  background: var(--b3-theme-surface);
+}
+
+.mb-section-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mb-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mb-section-desc {
+  margin: 1px 0 0;
+  color: var(--b3-theme-on-surface);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.mb-count-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--b3-theme-primary) 13%, transparent);
+  color: var(--b3-theme-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mb-section-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---------- Cards ---------- */
+
+.mb-card {
+  min-width: 0;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 12px;
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-background);
+}
+
+.mb-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.mb-card-body {
+  padding: 12px 14px 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.mb-card-title {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mb-card-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mb-card-sub {
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--b3-theme-on-surface);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mb-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--b3-theme-on-surface);
+  font-size: 11px;
+}
+
+.mb-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.mb-truncate {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mb-site-pill {
+  padding: 1px 7px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 999px;
+  color: var(--b3-theme-on-surface);
+  font-size: 10.5px;
+}
+
+/* ---------- Toolbar strip (per-tab action bar) ---------- */
+
+.mb-section-actions button {
+  min-width: 0;
+}
+
+.mb-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mb-toolbar-primary {
+  font-weight: 600;
+}
+
+.label-full {
+  display: inline;
+}
+
+.label-compact {
+  display: none;
+}
+
+/* Collapsible section description: the hint text is hidden behind a small
+   info toggle so each block is a single title row by default. */
+.mb-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: color 150ms ease, opacity 150ms ease, background-color 150ms ease;
+}
+
+.mb-info-btn:hover,
+.mb-info-btn.open {
+  opacity: 1;
+  color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
+}
+
+/* Card header action cluster: icon buttons only, so the title row stays one line. */
+.mb-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Second-level navigation inside a top-level tab. */
+.mb-subnav {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+
+/* ---------- Segmented control ---------- */
+
+.mb-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--b3-theme-surface) 65%, var(--b3-theme-background));
+}
+
+.mb-segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.mb-segmented button:hover {
+  color: var(--b3-theme-on-background);
+  background: var(--b3-list-hover);
+}
+
+.mb-segmented button[aria-checked="true"] {
+  color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
+  font-weight: 600;
+}
+
+.mb-field-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--b3-theme-on-surface);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.mb-field-hint {
+  margin: 5px 0 0;
+  color: var(--b3-theme-on-surface);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Switch rows and field grids read as a dense list, so their hints are demoted
+   to a clamped secondary line instead of a full paragraph. */
+.mb-card-body .mb-field-hint {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  opacity: 0.78;
+}
+
+/* ---------- Tag chips ---------- */
+
+.mb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 999px;
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-background);
+  font-size: 12px;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.mb-chip:hover {
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 45%, var(--b3-border-color));
+}
+
+.mb-chip-tag {
+  overflow: hidden;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mb-chip-zh {
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
+  color: var(--b3-theme-primary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mb-chip-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.mb-chip-delete:hover {
+  color: var(--b3-theme-error);
+  background: color-mix(in srgb, var(--b3-theme-error) 14%, transparent);
+}
+
+/* ---------- Empty state ---------- */
+
+.mb-empty {
+  padding: 36px 16px;
+  border: 1px dashed var(--b3-border-color);
+  border-radius: 12px;
+  color: var(--b3-theme-on-surface);
+  font-size: 12px;
+  text-align: center;
+}
+
+.mb-empty svg {
+  display: block;
+  margin: 0 auto 8px;
+  opacity: 0.4;
+}
+
+/* ---------- Modal / bottom sheet ---------- */
+
+.mb-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 52%);
+  container: mbsheet / inline-size;
+  animation: mb-fade-in 150ms ease;
+}
+
+.mb-modal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: min(768px, calc(100vw - 32px));
+  max-height: min(88vh, 860px);
+  overflow: hidden;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 14px;
+  background: var(--b3-theme-background);
+  color: var(--b3-theme-on-background);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 28%);
+  animation: mb-pop-in 160ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.mb-modal-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--b3-border-color);
+  background: color-mix(in srgb, var(--b3-theme-surface) 55%, var(--b3-theme-background));
+}
+
+.mb-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mb-modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  font-size: 12px;
+}
+
+.mb-modal-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--b3-border-color);
+  background: color-mix(in srgb, var(--b3-theme-surface) 45%, var(--b3-theme-background));
+}
+
+.mb-modal-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mb-modal-note {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--b3-border-color);
+  color: var(--b3-theme-on-surface);
+  font-size: 11px;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--b3-theme-surface) 30%, var(--b3-theme-background));
+}
+
+@keyframes mb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mb-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-modal,
+  .mb-modal-panel {
+    animation: none;
+  }
+}
+
+/* ---------- Responsive: narrow container ---------- */
+
+@container mbframe (max-width: 760px) {
+  .mb-header {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 9px 14px;
+  }
+
+  .mb-description {
+    display: none;
+  }
+
+  .mb-save-pill {
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .mb-save-label {
+    display: none;
+  }
+
+  .mb-save-label-time {
+    display: none;
+  }
+
+  /* Top nav hands off to the sticky bottom bar in the dedicated block below. */
+
+  .mb-body {
+    padding: 10px 14px 18px;
+  }
+
+  /* Touch targets: lift every control to at least 36px inside the body.
+     Exclusions: switches keep their 20px pill track (a 36px min-height turns
+     the track into a circle) and chip delete buttons stay inline-sized. */
+  .mb-body button {
+    min-height: 36px;
+  }
+
+  .mb-body button[data-slot="switch"],
+  .mb-body .mb-chip-delete {
+    min-height: 0;
+  }
+
+  .mb-body input,
+  .mb-body select,
+  .mb-body textarea {
+    min-height: 36px;
+  }
+
+  .mb-section {
+    padding: 11px 12px;
+  }
+
+  /* Action bars become a two-column grid; the primary action spans full width. */
+  .mb-section-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mb-section-actions > .mb-toolbar-primary {
+    grid-column: 1 / -1;
+    min-height: 40px;
+  }
+
+  /* Secondary action buttons prefer a short label when available. */
+  .mb-section-actions .label-full {
+    display: none;
+  }
+
+  .mb-section-actions .label-compact {
+    display: inline;
+  }
+
+  .mb-segmented {
+    display: flex;
+    width: 100%;
+  }
+
+  .mb-segmented button {
+    flex: 1 1 0;
+    min-height: 34px;
+    padding: 4px 6px;
+  }
+
+  .mb-card-head {
+    flex-wrap: wrap;
+  }
+
+  .mb-card-body .mb-field-hint {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .mb-chip-delete {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mb-card-head,
+  .mb-card-body {
+    padding-inline: 12px;
+  }
+}
+
+/* 手机宽度也保持两列：短标签按钮各占半行完全放得下，单列反而浪费空间。 */
+
+/* Narrow containers: the nav floats above the content as a thumb-friendly
+   pill, mirroring the question-bank quick bar. Sticky-bottom keeps it reachable
+   in both scroll models — tab hosts own their scroller (order:3 pins the bar
+   to the pane bottom), while the settings surface scrolls an ancestor and the
+   sticky bar rides above the page until its slot at the very end. */
+/* Question-bank quick-bar contract: the nav is the last child INSIDE the
+   scrolling element, pinned with sticky bottom + safe-area padding so it can
+   never be covered by system or app UI. */
+@container mbframe (max-width: 760px) {
+  .mb-tabs {
+    order: 0; /* DOM-last: below the panels */
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    margin: 10px -14px 0;
+    padding: 7px 10px calc(7px + env(safe-area-inset-bottom, 0px));
+    border: 0;
+    border-top: 1px solid var(--b3-border-color);
+    border-radius: 0;
+    background: color-mix(in srgb, var(--b3-theme-background) 93%, transparent);
+    backdrop-filter: blur(14px);
+    box-shadow: none;
+  }
+
+  /* Content scrolling under the pinned bar ends at the bar's own edge,
+     exactly like the question-bank workspace. */
+  .mb-body:has(.mb-tabs) {
+    padding-bottom: 0;
+  }
+
+  /* Four top-level tabs fit a phone width, so they share the bar evenly. */
+  .mb-tab {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 4px 2px;
+    font-size: 10px;
+  }
+
+  .mb-tab-count {
+    position: absolute;
+    top: 1px;
+    right: calc(50% - 20px);
+    min-width: 15px;
+    height: 14px;
+    padding-inline: 4px;
+    font-size: 9px;
+  }
+}
+
+/* Mobile plugin-menu entry: the settings surface opens in a full-screen dialog
+   (same contract as the question bank). Zero out the dialog chrome so the
+   surface owns the whole box. */
+.damophus-more-background-mobile-dialog .b3-dialog__container {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.damophus-more-background-mobile-dialog .b3-dialog__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  background: var(--b3-theme-background) !important;
+}
+
+.damophus-more-background-mobile-dialog .damophus-more-background-dialog {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The universal floating dock above covers narrow settings surfaces too, so no
+   separate mobile nav fallback is needed here any more. */
+
+/* Settings-surface fallback: the compactLayout prop forces the same sizing
+   when the container query cannot see a narrow host (e.g. legacy shells). */
+.more-background-settings.mobile .mb-save-label-time {
+  display: none;
+}
+
+.more-background-settings.mobile .mb-description {
+  display: none;
+}
+
+/* ---------- Responsive: modal bottom sheets ---------- */
+
+@container mbsheet (max-width: 760px) {
+  .mb-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .mb-modal-panel {
+    max-width: none;
+    width: 100%;
+    max-height: 88vh;
+    max-height: 88dvh;
+    border: 0;
+    border-top: 1px solid var(--b3-border-color);
+    border-radius: 16px 16px 0 0;
+    animation: mb-sheet-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+
+  .mb-modal-header,
+  .mb-modal-footer {
+    min-height: 46px;
+    padding-inline: 14px;
+  }
+
+  .mb-modal-footer {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mb-modal-body {
+    padding: 12px;
+  }
+
+  .mb-modal-body button {
+    min-height: 38px;
+  }
+}
+
+@keyframes mb-sheet-in {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-modal-panel {
+    animation: none;
+  }
+}
