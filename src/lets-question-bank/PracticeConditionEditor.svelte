@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, RotateCcw, Save, SlidersHorizontal, Trash2, X } from "lucide-svelte";
+  import { Check, RotateCcw, Save, Trash2, X } from "lucide-svelte";
   import {
     QueryBuilder,
     type Field,
@@ -18,14 +18,7 @@
   import PracticeQueryBuilderValueSelector from "./PracticeQueryBuilderValueSelector.svelte";
   import PracticeRuleGroup from "./PracticeRuleGroup.svelte";
   import type { PracticeFilterPreset } from "./practice-preferences";
-  import {
-    practiceFilterToCondition,
-    type PracticeFilter,
-    type PracticeFilterField,
-    type PracticeFilterGroup,
-    type PracticeFilterRule,
-    type PracticeFilterValue,
-  } from "@/question-bank/core/scope";
+  import type { PracticeFilter, PracticeFilterField } from "@/question-bank/core/scope";
   import {
     practiceFilterToQuery,
     queryToPracticeFilter,
@@ -51,10 +44,11 @@
 
   function updateDockLayout(): void {
     if (!hostElement) return;
-    const rect = hostElement.getBoundingClientRect();
-    dockCompact = rect.width < 620;
+    // Narrow hosts mean phone widths: the dialog docks flush to the viewport
+    // edges (full bleed, no side gutters) instead of floating centered.
+    dockCompact = hostElement.getBoundingClientRect().width < 700;
     dockDialogStyle = dockCompact
-      ? `left: ${Math.max(8, rect.left + 8)}px; top: 8px; width: ${Math.max(280, rect.width - 16)}px; max-height: calc(100dvh - 16px); transform: none;`
+      ? "left: 0px; top: 0px; width: 100vw; max-height: 100dvh; transform: none;"
       : "";
   }
 
@@ -86,10 +80,11 @@
       name,
       label: fieldLabel,
       valueEditorType: "select",
-      values: (["yes", "no"] as PracticeFilterValue[]).map((value) => ({
-        name: value,
-        label: optionLabel(name, value),
-      })),
+      values: [
+        { name: "any", label: label("allQuestions", "全部题") },
+        { name: "yes", label: optionLabel(name, "yes") },
+        { name: "no", label: optionLabel(name, "no") },
+      ],
       defaultOperator: "equal",
       defaultValue: "yes",
     };
@@ -150,7 +145,8 @@
     if (!dialogOpen) editorQuery = practiceFilterToQuery(filter);
   }
 
-  function clearFilter(): void {
+  /** Clears the active filter; also invoked by the launcher's inline reset button. */
+  export function clearFilter(): void {
     editorQuery = practiceFilterToQuery("all");
     activePresetId = undefined;
     if (!dialogOpen) {
@@ -168,6 +164,22 @@
   export function openNewCondition(): void {
     newConditionName = "";
     openEditor();
+  }
+
+  /** Entry point for a launcher chip's edit pencil: load the saved rules without applying them. */
+  export function openCondition(id: string): void {
+    const preset = presets.find((candidate) => candidate.id === id);
+    if (!preset) return;
+    editorQuery = practiceFilterToQuery(preset.filter);
+    newConditionName = "";
+    dialogOpen = true;
+  }
+
+  /** Visible width (in input "size" units) so name inputs hug their content instead of filling the row. */
+  function inputSize(name: string): number {
+    let units = 0;
+    for (const character of name) units += (character.codePointAt(0) ?? 0) > 0x2e7f ? 2 : 1;
+    return Math.min(24, Math.max(4, units + 1));
   }
 
   function cancelEditor(): void {
@@ -247,154 +259,76 @@
     };
     editorQuery = update(editorQuery, 0);
   }
-
-  function countRules(value: { rules?: unknown[] }): number {
-    return (value.rules ?? []).reduce<number>((total, rule) => {
-      if (typeof rule !== "object" || rule === null) return total;
-      const nested = typeof rule === "object" && rule !== null && "rules" in rule;
-      return total + (nested ? countRules(rule as { rules?: unknown[] }) : 1);
-    }, 0);
-  }
-
-  function operatorLabel(operator: string | undefined): string {
-    const labels: Record<string, string> = {
-      equal: label("conditionEqual", "equals"),
-      notEqual: label("conditionNotEqual", "does not equal"),
-      greater: label("conditionGreater", "greater than"),
-      greaterOrEqual: label("conditionGreaterOrEqual", "greater than or equal to"),
-      less: label("conditionLess", "less than"),
-      lessOrEqual: label("conditionLessOrEqual", "less than or equal to"),
-    };
-    return labels[operator ?? "equal"] ?? labels.equal;
-  }
-
-  function formatCondition(node: PracticeFilterRule | PracticeFilterGroup, nested = false): string {
-    if ("rules" in node) {
-      if (node.name) return node.name;
-      if (!node.rules.length) return label("allQuestions", "All questions");
-      const connectors = node.rules.slice(0, -1).map((_, index) => node.combinators?.[index] ?? node.glue);
-      const text = node.rules.map((rule, index) => {
-        const child = formatCondition(rule, true);
-        return index === 0 ? child : `${connectors[index - 1] === "or" ? label("conditionOr", "or") : label("conditionAnd", "and")} ${child}`;
-      }).join(" ");
-      const negated = node.not ? `${label("conditionNot", "not")} (${text})` : text;
-      return nested && node.rules.length > 1 ? `(${negated})` : negated;
-    }
-
-    const fieldLabel = fields.find((field) => field.name === node.field)?.label ?? node.field;
-    const values = node.includes?.length
-      ? node.includes.map((value) => optionLabel(node.field, value)).join(", ")
-      : node.value === undefined
-        ? ""
-        : optionLabel(node.field, node.value);
-    if (node.includes?.length) return [fieldLabel, label("conditionIn", "in"), values].join(" ");
-    if ((node.filter ?? "equal") === "equal" && values) return values;
-    return [fieldLabel, operatorLabel(node.filter), values].filter(Boolean).join(" ");
-  }
-
-  function filterSummary(value: PracticeFilter): string {
-    const condition = practiceFilterToCondition(value);
-    return condition.rules.length ? formatCondition(condition) : label("allQuestions", "All questions");
-  }
-
-  $: activePresetName = presets.find((preset) => preset.id === activePresetId)?.name;
-  $: hasConditionRules = countRules(practiceFilterToCondition(filter)) > 0;
-  $: summaryTitle = activePresetName
-    ?? (hasConditionRules ? label("editCondition", "编辑条件") : label("addCondition", "添加条件"));
 </script>
 
 <div bind:this={hostElement} class:condition-editor-compact={dockCompact} class="practice-condition-editor" data-testid="practice-condition-editor">
-  <div class="condition-summary-row">
-    <Button variant="ghost" class="condition-summary-trigger" title={filterSummary(filter)} aria-label={filterSummary(filter)} onclick={openEditor}>
-      <span class="condition-summary-icon" aria-hidden="true"><SlidersHorizontal size={16} /></span>
-      <span class="condition-summary-copy">
-        <strong data-testid="condition-summary-title">{summaryTitle}</strong>
-        <small>{filterSummary(filter)}</small>
-      </span>
-    </Button>
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      title={label("clearConditions", "Clear conditions")}
-      aria-label={label("clearConditions", "Clear conditions")}
-      disabled={!countRules(practiceFilterToCondition(filter))}
-      onclick={clearFilter}
-    >
-      <RotateCcw aria-hidden="true" />
-    </Button>
-  </div>
-
   {#if dialogOpen}
     <div class="condition-dialog-scrim" onclick={cancelEditor} aria-hidden="true"></div>
     <div class="condition-dialog" style={dockDialogStyle} role="dialog" aria-modal="true" aria-labelledby="condition-dialog-title">
       <header class="condition-dialog-header">
-        <div>
-          <span class="condition-dialog-kicker">{label("filter", "Question filter")}</span>
-          <strong id="condition-dialog-title">{label("conditionDialogTitle", "Edit question conditions")}</strong>
-        </div>
+        <strong id="condition-dialog-title">{label("conditionDialogTitle", "Edit question conditions")}</strong>
         <Button variant="ghost" size="icon" onclick={cancelEditor} aria-label={label("close", "Close")}>
           <X size={17} aria-hidden="true" />
         </Button>
       </header>
 
       <div class="condition-library" data-testid="condition-library">
-        <div class="condition-library-head">
-          <strong>{label("filterConditions", "筛选条件")}</strong>
-          <small>{label("filterConditionsHint", "点击应用；名称可直接修改，不需要的可删除")}</small>
-        </div>
         {#if presets.length === 0}
           <p class="condition-library-empty">{label("filterConditionsEmpty", "还没有保存的条件：先编辑规则，命名保存后即可一键复用。")}</p>
         {/if}
-        {#each presets as preset (preset.id)}
-          <div class="condition-library-row" class:active={preset.id === activePresetId} data-testid="filter-condition-row">
-            <button
-              type="button"
-              class="condition-library-select"
-              aria-pressed={preset.id === activePresetId}
-              title={label("apply", "应用")}
-              aria-label={`${label("apply", "应用")} ${preset.name}`}
-              onclick={() => selectCondition(preset.id)}
-            >
-              {#if preset.id === activePresetId}
-                <Check size={14} aria-hidden="true" />
-              {:else}
-                <span class="condition-library-dot" aria-hidden="true"></span>
-              {/if}
-            </button>
+        <div class="condition-library-chips">
+          {#each presets as preset (preset.id)}
+            <span class="condition-library-chip" class:active={preset.id === activePresetId} data-testid="filter-condition-row">
+              <button
+                type="button"
+                class="condition-library-select"
+                aria-pressed={preset.id === activePresetId}
+                title={label("apply", "应用")}
+                aria-label={`${label("apply", "应用")} ${preset.name}`}
+                onclick={() => selectCondition(preset.id)}
+              >
+                {#if preset.id === activePresetId}
+                  <Check size={12} aria-hidden="true" />
+                {:else}
+                  <span class="condition-library-dot" aria-hidden="true"></span>
+                {/if}
+              </button>
+              <input
+                data-testid="filter-condition-name"
+                value={preset.name}
+                size={inputSize(preset.name)}
+                placeholder={label("filterConditionNamePlaceholder", "条件名称")}
+                aria-label={`${label("renameFilterCondition", "重命名条件")} ${preset.name}`}
+                onfocus={() => selectCondition(preset.id)}
+                oninput={(event) => renameCondition(preset.id, (event.currentTarget as HTMLInputElement).value)}
+              />
+              <button
+                type="button"
+                class="condition-library-delete"
+                title={label("deleteFilterPreset", "删除筛选预设")}
+                aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
+                onclick={() => deleteCondition(preset.id)}
+              ><Trash2 size={12} aria-hidden="true" /></button>
+            </span>
+          {/each}
+          <span class="condition-library-save">
             <Input
-              data-testid="filter-condition-name"
-              value={preset.name}
-              placeholder={label("filterConditionNamePlaceholder", "条件名称")}
-              aria-label={`${label("renameFilterCondition", "重命名条件")} ${preset.name}`}
-              onfocus={() => selectCondition(preset.id)}
-              oninput={(event) => renameCondition(preset.id, (event.currentTarget as HTMLInputElement).value)}
+              data-testid="filter-condition-new-name"
+              bind:value={newConditionName}
+              placeholder={label("filterConditionNamePlaceholder", "命名当前条件")}
+              aria-label={label("filterConditionNamePlaceholder", "命名当前条件")}
             />
             <Button
-              variant="ghost"
-              size="icon-sm"
-              title={label("deleteFilterPreset", "删除筛选预设")}
-              aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
-              onclick={() => deleteCondition(preset.id)}
-            ><Trash2 size={14} aria-hidden="true" /></Button>
-          </div>
-        {/each}
-        <div class="condition-library-save">
-          <Input
-            data-testid="filter-condition-new-name"
-            bind:value={newConditionName}
-            placeholder={label("filterConditionNamePlaceholder", "命名当前条件")}
-            aria-label={label("filterConditionNamePlaceholder", "命名当前条件")}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="filter-condition-save"
-            disabled={!newConditionName.trim()}
-            onclick={saveCondition}
-          >
-            <Save size={14} aria-hidden="true" />
-            <span>{label("saveFilterCondition", "保存条件")}</span>
-          </Button>
+              variant="outline"
+              size="sm"
+              data-testid="filter-condition-save"
+              disabled={!newConditionName.trim()}
+              onclick={saveCondition}
+            >
+              <Save size={13} aria-hidden="true" />
+              <span>{label("saveFilterCondition", "保存条件")}</span>
+            </Button>
+          </span>
         </div>
       </div>
 
@@ -453,73 +387,12 @@
 </div>
 
 <style>
+  /* The editor renders only its dialog; state lives in the launcher's chips. */
   .practice-condition-editor {
     min-width: 0;
     padding: 0;
-    border: 1px solid var(--b3-border-color);
-    border-radius: 6px;
-    background: var(--b3-theme-background);
-  }
-
-  .condition-summary-row {
-    min-height: 48px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 7px 5px 10px;
-  }
-
-  :global(.condition-summary-trigger) {
-    min-width: 0;
-    flex: 1;
-    justify-content: flex-start;
-    gap: 9px;
-    padding: 5px 7px;
     border: 0;
-    border-radius: 5px;
-    color: var(--b3-theme-on-background);
     background: transparent;
-    text-align: left;
-    cursor: pointer;
-    white-space: normal;
-  }
-
-  :global(.condition-summary-trigger:hover) {
-    background: var(--b3-list-hover);
-  }
-
-  .condition-summary-icon {
-    width: 28px;
-    height: 28px;
-    flex: 0 0 28px;
-    display: grid;
-    place-items: center;
-    border-radius: 5px;
-    color: var(--b3-theme-primary);
-    background: color-mix(in srgb, var(--b3-theme-primary) 13%, var(--b3-theme-background));
-  }
-
-  .condition-summary-copy {
-    min-width: 0;
-    display: grid;
-    gap: 1px;
-  }
-
-  .condition-summary-copy strong {
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .condition-summary-copy small {
-    overflow: hidden;
-    color: var(--b3-theme-on-surface);
-    font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .condition-summary-row :global(button) {
-    flex: 0 0 auto;
   }
 
   .condition-dialog-scrim {
@@ -548,7 +421,7 @@
   }
 
   .condition-editor-compact .condition-dialog {
-    border-radius: 6px;
+    border-radius: 0;
   }
 
   .condition-dialog-header,
@@ -558,53 +431,28 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 11px 14px;
+    padding: 8px 12px;
   }
 
   .condition-dialog-header {
     border-bottom: 1px solid var(--b3-border-color);
   }
 
-  .condition-dialog-header > div {
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-
-  .condition-dialog-kicker {
-    color: var(--b3-theme-on-surface);
-    font-size: 10px;
-    letter-spacing: 0;
-    text-transform: uppercase;
-  }
-
   .condition-dialog-header strong {
+    min-width: 0;
+    overflow: hidden;
     font-size: 14px;
     font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .condition-library {
     display: grid;
-    gap: 7px;
-    padding: 10px 14px;
+    gap: 6px;
+    padding: 8px 10px;
     border-bottom: 1px solid var(--b3-border-color);
     background: color-mix(in srgb, var(--b3-theme-surface) 38%, transparent);
-  }
-
-  .condition-library-head {
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-
-  .condition-library-head strong {
-    font-size: 12px;
-    font-weight: 650;
-  }
-
-  .condition-library-head small {
-    color: var(--b3-theme-on-surface);
-    font-size: 11px;
   }
 
   .condition-library-empty {
@@ -614,30 +462,39 @@
     line-height: 1.5;
   }
 
-  .condition-library-row {
+  .condition-library-chips {
     min-width: 0;
-    display: grid;
-    grid-template-columns: 30px minmax(0, 1fr) 30px;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 5px;
-    padding: 3px 4px;
+  }
+
+  .condition-library-chip {
+    min-width: 0;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 1px 2px;
     border: 1px solid var(--b3-border-color);
-    border-radius: 7px;
+    border-radius: 999px;
     background: var(--b3-theme-background);
   }
 
-  .condition-library-row.active {
+  .condition-library-chip.active {
     border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color));
     background: color-mix(in srgb, var(--b3-theme-primary) 8%, var(--b3-theme-background));
   }
 
   .condition-library-select {
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
     display: grid;
     place-items: center;
     border: 0;
-    border-radius: 6px;
+    border-radius: 50%;
     background: transparent;
     color: var(--b3-theme-primary);
     cursor: pointer;
@@ -646,41 +503,72 @@
   .condition-library-select:hover { background: var(--b3-list-hover); }
 
   .condition-library-dot {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     border: 1.5px solid var(--b3-border-color);
   }
 
-  .condition-library-row.active .condition-library-dot { border-color: var(--b3-theme-primary); }
+  .condition-library-chip.active .condition-library-dot { border-color: var(--b3-theme-primary); }
 
-  .condition-library-row :global(input) {
-    min-width: 0;
-    height: 30px;
+  .condition-library-chip input {
+    min-width: 44px;
+    max-width: 100%;
+    width: auto;
+    height: 24px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
   }
 
-  .condition-library-row > :global(button:last-child) { color: var(--b3-theme-on-surface); }
-  .condition-library-row > :global(button:last-child:hover) { color: var(--b3-theme-error, #d23f31); }
+  .condition-library-chip input:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+  }
+
+  .condition-library-delete {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--b3-theme-on-surface);
+    cursor: pointer;
+  }
+
+  .condition-library-delete:hover {
+    color: var(--b3-theme-error, #d23f31);
+    background: var(--b3-list-hover);
+  }
 
   .condition-library-save {
-    min-width: 0;
-    display: flex;
+    min-width: 150px;
+    flex: 1 1 180px;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
   }
 
   .condition-library-save :global(input) {
     min-width: 0;
     flex: 1 1 auto;
-    height: 32px;
+    height: 28px;
   }
 
-  .condition-library-save :global(button) { flex: 0 0 auto; }
+  .condition-library-save :global(button) {
+    flex: 0 0 auto;
+    min-height: 28px;
+  }
 
   .condition-dialog-body {
     min-height: 0;
     overflow: auto;
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
 
   .condition-dialog-footer {
@@ -697,43 +585,13 @@
   /* Query-builder visuals live in the shared src/styles/query-builder-theme.css,
      so every condition editor in the plugin renders identically. */
 
-  @container (max-width: 700px) {
-    .practice-condition-editor {
-      border-radius: 10px;
-    }
-
-    .condition-summary-row {
-      min-height: 52px;
-    }
-  }
-
   @media (max-width: 640px) {
-    .condition-dialog {
-      width: calc(100vw - 20px);
-      max-height: calc(100dvh - 20px);
-      border-radius: 7px;
-    }
-
     .condition-dialog-body {
-      padding: 9px;
-    }
-  }
-
-  @media (max-width: 620px) {
-    .condition-dialog {
-      width: calc(100vw - 20px);
-      max-height: calc(100vh - 20px);
-    }
-
-    .condition-dialog-body {
-      padding: 8px;
+      padding: 8px 9px;
     }
 
     .condition-library {
-      gap: 6px;
-      padding: 9px 10px;
+      padding: 7px 9px;
     }
-
-    .condition-library-save :global(button) { padding-inline: 10px; }
   }
 </style>

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { page } from "vitest/browser";
 import type { PracticeFilter } from "@/question-bank/core/scope";
@@ -22,6 +22,16 @@ async function render(filter: PracticeFilter, width = "100%") {
   await tick();
 }
 
+/** Narrow hosts remove the summary row, so tests there open the editor through its exported entry points. */
+function openEditorProgrammatically(): void {
+  (mounted as unknown as { openNewCondition(): void }).openNewCondition();
+}
+
+beforeEach(async () => {
+  // The browser keeps the previous test's viewport; desktop is the default here.
+  await page.viewport(1024, 768);
+});
+
 afterEach(async () => {
   if (mounted) await unmount(mounted);
   mounted = undefined;
@@ -39,10 +49,7 @@ describe("practice condition editor", () => {
       ],
     });
 
-    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
-    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("and");
-    expect(document.querySelector(".condition-summary-trigger")?.getAttribute("title")).toContain("Not wrong");
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
     const rules = [...document.querySelectorAll<HTMLElement>(".rule")].map((item) => item.innerText);
     expect(rules).toHaveLength(2);
@@ -57,11 +64,13 @@ describe("practice condition editor", () => {
 
   it("migrates a legacy filter and clears it from the editor", async () => {
     await render("review");
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
     expect(document.querySelector(".rule")?.textContent).toContain("Needs review");
 
-    document.querySelector<HTMLButtonElement>('button[aria-label="Clear conditions"]')!.click();
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Clear conditions"))
+      ?.click();
     await tick();
 
     expect(document.querySelectorAll(".rule")).toHaveLength(0);
@@ -70,12 +79,12 @@ describe("practice condition editor", () => {
   it("opens the rule editor when adding the first condition", async () => {
     await render("all");
 
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
     const addButton = document.querySelector<HTMLButtonElement>(".ruleGroup-addRule");
     expect(addButton).toBeDefined();
     expect(addButton?.querySelector("svg")).not.toBeNull();
-    expect(addButton?.textContent?.trim()).toBe("Add condition");
+    expect(addButton?.querySelector(".action-label")?.textContent?.trim()).toBe("Add condition");
 
     addButton!.click();
     await tick();
@@ -89,7 +98,9 @@ describe("practice condition editor", () => {
     );
     applyButton?.click();
     await tick();
-    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Attempted");
+    openEditorProgrammatically();
+    await tick();
+    expect(document.querySelector(".rule")?.textContent).toContain("Attempt status");
   });
 
   it("cancels an edit and reopens the saved condition", async () => {
@@ -98,7 +109,7 @@ describe("practice condition editor", () => {
       rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
     });
 
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
     const valueSelect = document.querySelector<HTMLButtonElement>(".rule-value")!;
     expect(valueSelect).toBeInstanceOf(HTMLButtonElement);
@@ -114,37 +125,44 @@ describe("practice condition editor", () => {
       ?.click();
     await tick();
 
-    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
     expect(document.querySelector<HTMLButtonElement>(".rule-value")?.textContent).toContain("Bookmarked");
   });
 
   it("adds a nested group and keeps it available for naming", async () => {
     await render("all");
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
 
     document.querySelector<HTMLButtonElement>(".ruleGroup-addGroup")!.click();
     await tick();
 
     expect(document.querySelectorAll(".ruleGroup")).toHaveLength(2);
-    expect(document.querySelectorAll(".condition-group-name-row")).toHaveLength(2);
+    // Unnamed groups show a ghost tag instead of reserving a name row.
+    expect(document.querySelectorAll(".practice-rule-group .rule-group-name-add")).toHaveLength(2);
     const addRuleButtons = document.querySelectorAll<HTMLButtonElement>(".ruleGroup-addRule");
     addRuleButtons[1].click();
     await tick();
     expect(document.querySelectorAll(".rule")).toHaveLength(1);
+
+    // Tapping the ghost tag grows it into the group name input.
+    document.querySelector<HTMLButtonElement>(".practice-rule-group .rule-group-name-add")!.click();
+    await tick();
+    expect(document.querySelector<HTMLInputElement>(".practice-rule-group input.rule-group-name")).not.toBeNull();
   });
 
-  it("renames a condition group and shows only its name in the summary", async () => {
+  it("renames a condition group and keeps the name across reopen", async () => {
     await render({
       glue: "and",
       rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
     });
 
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
-    const nameInput = document.querySelector<HTMLInputElement>(".condition-group-name-row input")!;
+    document.querySelector<HTMLButtonElement>(".practice-rule-group .rule-group-name-add")!.click();
+    await tick();
+    const nameInput = document.querySelector<HTMLInputElement>(".practice-rule-group input.rule-group-name")!;
     nameInput.value = "Saved favorites";
     nameInput.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
@@ -153,12 +171,9 @@ describe("practice condition editor", () => {
       ?.click();
     await tick();
 
-    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Saved favorites");
-    expect(document.querySelector(".condition-summary-trigger")?.getAttribute("title")).toBe("Saved favorites");
-
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
-    const savedNameInput = document.querySelector<HTMLInputElement>(".condition-group-name-row input")!;
+    const savedNameInput = document.querySelector<HTMLInputElement>(".practice-rule-group input.rule-group-name")!;
     expect(savedNameInput.value).toBe("Saved favorites");
     savedNameInput.value = "";
     savedNameInput.dispatchEvent(new Event("input", { bubbles: true }));
@@ -168,7 +183,11 @@ describe("practice condition editor", () => {
       ?.click();
     await tick();
 
-    expect(document.querySelector(".condition-summary-copy small")?.textContent).toBe("Bookmarked");
+    openEditorProgrammatically();
+    await tick();
+    // Clearing the name collapses the tag back to the ghost button.
+    expect(document.querySelector(".practice-rule-group input.rule-group-name")).toBeNull();
+    expect(document.querySelector(".practice-rule-group .rule-group-name-add")).not.toBeNull();
   });
 
   it("renders the demo editing controls for independent combinators", async () => {
@@ -181,7 +200,7 @@ describe("practice condition editor", () => {
         { field: "review", filter: "equal", value: "yes" },
       ],
     });
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
     expect(document.querySelectorAll(".rule")).toHaveLength(3);
     expect(document.querySelectorAll(".betweenRules")).toHaveLength(2);
@@ -198,7 +217,7 @@ describe("practice condition editor", () => {
       glue: "and",
       rules: [{ field: "bookmarked", type: "tuple", filter: "equal", value: "yes" }],
     });
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
 
     const fieldTrigger = document.querySelector<HTMLButtonElement>(".rule-fields")!;
@@ -210,15 +229,18 @@ describe("practice condition editor", () => {
     expect(fieldTrigger.getAttribute("data-state")).toBe("closed");
   });
 
-  it("fits the dialog inside a narrow dock container", async () => {
+  it("docks the dialog full-bleed inside a narrow container", async () => {
     await render("review", "384px");
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    openEditorProgrammatically();
     await tick();
 
     const dialog = document.querySelector<HTMLElement>(".condition-dialog")!;
     expect(dialog.classList.contains("condition-dialog")).toBe(true);
-    expect(dialog.style.width).toBe("368px");
-    expect(dialog.style.left).toBe("8px");
+    expect(dialog.style.width).toBe("100vw");
+    expect(dialog.style.left).toBe("0px");
+    expect(dialog.style.maxHeight).toBe("100dvh");
     expect(dialog.style.transform).toBe("none");
+    // Narrow hosts drop the summary row: the launcher chips open the editor.
+    expect(document.querySelector(".condition-summary-row")).toBeNull();
   });
 });

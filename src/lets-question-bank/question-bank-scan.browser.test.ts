@@ -140,7 +140,7 @@ describe("question bank scan and import browser flow", () => {
     });
     render(controller);
     await scan();
-    expect(document.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("Entire document");
+    expect(document.querySelector('[data-testid="scope-tree-trigger"]')?.textContent).toContain("Entire document");
     expect(saveRecentScope).toHaveBeenCalledWith({ documentId });
   });
 
@@ -151,7 +151,7 @@ describe("question bank scan and import browser flow", () => {
     render(controller);
     await scan();
 
-    expect(document.querySelector('[data-slot="select-trigger"]')?.textContent).toContain("Child topic");
+    expect(document.querySelector('[data-testid="scope-tree-trigger"]')?.textContent).toContain("Child topic");
   });
 
   it("shows concrete scan findings and planned writes", async () => {

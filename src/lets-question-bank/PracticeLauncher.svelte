@@ -6,6 +6,7 @@
     Circle,
     ListChecks,
     ListOrdered,
+    Pencil,
     Plus,
     RotateCcw,
     Shuffle,
@@ -16,15 +17,14 @@
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
   import { Label as FormLabel } from "@/components/ui/label";
-  import * as Select from "@/components/ui/select";
   import * as ToggleGroup from "@/components/ui/toggle-group";
-  import type { PracticeFilter } from "@/question-bank/core/scope";
+  import { practiceFilterToCondition, type PracticeFilter } from "@/question-bank/core/scope";
   import type { PracticeFilterPreset } from "./practice-preferences";
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicNode } from "@/question-bank/core/types";
   import type { SourceBlockIdentity } from "./controller";
-  import { topicLabel } from "./question-bank-display";
+  import PracticeScopeTree from "./PracticeScopeTree.svelte";
   import PracticeConditionEditor from "./PracticeConditionEditor.svelte";
 
   export let label: (key: string, fallback: string) => string;
@@ -53,12 +53,14 @@
   export let activeFilterPresetId: string | undefined = undefined;
   export let startPractice: () => void;
 
-  const entireDocumentScope = "__damophus_entire_document__";
   $: blocked = preview.blockers.length > 0
     || preview.bindingRepairs.length > 0
     || (!syncComplete && preview.actions.some((action) => action.kind === "add"));
 
-  let conditionEditor: { openNewCondition(): void } | undefined;
+  let conditionEditor: { openNewCondition(): void; openCondition(id: string): void; clearFilter(): void } | undefined;
+
+  // A non-empty filter shows the inline reset button at the end of the chip row.
+  $: hasActiveFilter = practiceFilterToCondition(filter).rules.length > 0;
 
   function selectPreset(id: string): void {
     const preset = filterPresets.find((candidate) => candidate.id === id);
@@ -124,25 +126,12 @@
     <div class="practice-launcher-form">
       <div class="scope-control control-block">
         <FormLabel><Target size={12} aria-hidden="true" />{label("scope", "答题范围")}</FormLabel>
-        <Select.Root
-          type="single"
-          value={topicId || entireDocumentScope}
-          onValueChange={(value) => topicId = value === entireDocumentScope ? "" : value}
-        >
-          <Select.Trigger class="w-full">
-            <span>{topicId ? topicLabel(topics.find((topic) => topic.id === topicId) ?? topics[0]) : label("entireDocument", "整个文档")}</span>
-          </Select.Trigger>
-          <Select.Content portalProps={{ disabled: true }}>
-            <Select.Item value={entireDocumentScope} label={label("entireDocument", "整个文档")}>
-              {label("entireDocument", "整个文档")}
-            </Select.Item>
-            {#each topics as topic (topic.id)}
-              <Select.Item value={topic.id} label={topicLabel(topic)}>
-                {topicLabel(topic)}
-              </Select.Item>
-            {/each}
-          </Select.Content>
-        </Select.Root>
+        <PracticeScopeTree
+          {label}
+          {topics}
+          {topicId}
+          onSelect={(id) => topicId = id}
+        />
       </div>
 
       <div class="practice-order-grid">
@@ -191,18 +180,28 @@
         <legend><SlidersHorizontal size={12} aria-hidden="true" />{label("filter", "题目筛选")}</legend>
         <div class="filter-condition-chips" data-testid="filter-condition-chips">
           {#each filterPresets as preset (preset.id)}
-            <button
-              type="button"
-              class="condition-chip"
-              class:active={preset.id === activeFilterPresetId}
-              aria-pressed={preset.id === activeFilterPresetId}
-              title={preset.name}
-              data-testid="filter-condition-chip"
-              onclick={() => selectPreset(preset.id)}
-            >
-              {#if preset.id === activeFilterPresetId}<Check size={13} aria-hidden="true" />{/if}
-              <span>{preset.name}</span>
-            </button>
+            <span class="condition-chip" class:active={preset.id === activeFilterPresetId} data-testid="filter-condition-chip">
+              <button
+                type="button"
+                class="condition-chip-select"
+                aria-pressed={preset.id === activeFilterPresetId}
+                title={preset.name}
+                onclick={() => selectPreset(preset.id)}
+              >
+                {#if preset.id === activeFilterPresetId}<Check size={13} aria-hidden="true" />{/if}
+                <span>{preset.name}</span>
+              </button>
+              <button
+                type="button"
+                class="condition-chip-edit"
+                title={`${label("editCondition", "编辑")} ${preset.name}`}
+                aria-label={`${label("editCondition", "编辑")} ${preset.name}`}
+                data-testid="filter-condition-edit"
+                onclick={() => conditionEditor?.openCondition(preset.id)}
+              >
+                <Pencil size={11} aria-hidden="true" />
+              </button>
+            </span>
           {/each}
           <button
             type="button"
@@ -214,6 +213,18 @@
             <Plus size={13} aria-hidden="true" />
             <span>{label("addFilterCondition", "新增条件")}</span>
           </button>
+          {#if hasActiveFilter}
+            <button
+              type="button"
+              class="condition-chip-reset"
+              title={label("clearConditions", "清空条件")}
+              aria-label={label("clearConditions", "清空条件")}
+              data-testid="filter-condition-reset"
+              onclick={() => conditionEditor?.clearFilter()}
+            >
+              <RotateCcw size={13} aria-hidden="true" />
+            </button>
+          {/if}
         </div>
         <PracticeConditionEditor
           bind:this={conditionEditor}
@@ -454,23 +465,82 @@
     min-height: 30px;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 4px 12px;
+    gap: 1px;
+    padding: 2px 3px 2px 12px;
     border: 1px solid var(--b3-border-color);
     border-radius: 999px;
     background: var(--b3-theme-surface);
     color: var(--b3-theme-on-surface);
-    font-size: 12px;
-    cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
 
-  .condition-chip span {
+  .condition-chip-select {
+    min-width: 0;
+    min-height: 26px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .condition-chip-select > span {
     min-width: 0;
     max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* Edit pencil rides on the chip: hover (or focus) reveals it on desktop,
+     touch containers keep it visible since there is no hover there. */
+  .condition-chip-edit {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease, background 0.15s ease;
+  }
+
+  .condition-chip:hover .condition-chip-edit,
+  .condition-chip:focus-within .condition-chip-edit { opacity: 1; }
+
+  .condition-chip-edit:hover {
+    color: var(--b3-theme-primary);
+    background: var(--b3-list-hover);
+  }
+
+  .condition-chip-reset {
+    width: 30px;
+    min-height: 30px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--b3-theme-on-surface);
+    cursor: pointer;
+  }
+
+  .condition-chip-reset:hover {
+    border-color: var(--b3-border-color);
+    color: var(--b3-theme-primary);
   }
 
   .condition-chip:hover { border-color: color-mix(in srgb, var(--b3-theme-primary) 40%, var(--b3-border-color)); }
@@ -573,6 +643,9 @@
   }
 
   @container (max-width: 700px) {
+    /* Touch widths have no hover: the chip edit pencil stays visible. */
+    .condition-chip-edit { opacity: 1; }
+
     .practice-order-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
@@ -606,11 +679,6 @@
     :global(.practice-order-grid [data-slot="toggle-group-item"][data-state="on"]) {
       color: var(--b3-theme-primary);
       background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
-    }
-
-    .scope-control :global([data-slot="select-trigger"]) {
-      min-height: 42px;
-      border-radius: 10px;
     }
 
     /* Hoist the primary action above the form on narrow screens: even when the blocks
@@ -758,8 +826,14 @@
 
     .condition-chip {
       min-height: 28px;
-      padding: 3px 10px;
-      font-size: 11px;
+      padding: 2px 3px 2px 10px;
+    }
+
+    .condition-chip-select { font-size: 11px; }
+
+    .condition-chip-reset {
+      width: 28px;
+      min-height: 28px;
     }
   }
 </style>

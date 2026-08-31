@@ -222,13 +222,29 @@ describe("question bank browser flow", () => {
 
   it("keeps the condition editor usable at mobile width", async () => {
     await page.viewport(390, 844);
-    const { controller } = mockController();
+    const { controller } = mockController({
+      practicePreferences: {
+        order: "sequential",
+        optionOrder: "random",
+        filter: "wrong",
+        presets: [{ id: "wrong", name: "我的错题", filter: "wrong" }],
+        activePresetId: "wrong",
+      },
+    });
     render(controller);
     await scan();
 
     const editor = document.querySelector<HTMLElement>('[data-testid="practice-condition-editor"]');
     expect(editor).not.toBeNull();
-    expect(button("Add condition").getBoundingClientRect().height).toBeGreaterThanOrEqual(28);
+    // Mobile drops the summary row: the launcher's condition chips (including
+    // the add chip) are the way into the editor and must stay tappable.
+    expect(document.querySelector('[data-testid="practice-condition-editor"] .condition-summary-row')).toBeNull();
+    expect(document.querySelector('[data-testid="filter-condition-add"]')!.getBoundingClientRect().height).toBeGreaterThanOrEqual(28);
+
+    // The chip's edit pencil opens the editor full bleed without changing the applied filter.
+    document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-edit"]')!.click();
+    await vi.waitFor(() => expect(document.querySelector(".condition-dialog")).not.toBeNull());
+    expect(document.querySelector<HTMLElement>(".condition-dialog")!.style.width).toBe("100vw");
     expect(editor!.scrollWidth).toBeLessThanOrEqual(editor!.clientWidth);
   });
 
@@ -453,7 +469,7 @@ describe("question bank browser flow", () => {
     const { controller, saveRecentScope } = mockController();
     render(controller, { random: () => 0 });
     await scanAndSync();
-    expect(document.querySelector('[data-slot="select-trigger"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="scope-tree-trigger"]')).not.toBeNull();
     expect(document.querySelectorAll('[data-slot="toggle-group"]')).toHaveLength(3);
     await selectScope("Root topic");
     button("Random questions").click();
@@ -490,7 +506,7 @@ describe("question bank browser flow", () => {
 
     expect(button("Random questions").getAttribute("data-state")).toBe("on");
     expect(button("Original options").getAttribute("data-state")).toBe("on");
-    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Wrong");
+    expect(document.querySelector('[data-testid="filter-condition-reset"]')).not.toBeNull();
 
     button("Sequential questions").click();
     button("Random options").click();
@@ -535,10 +551,11 @@ describe("question bank browser flow", () => {
 
     expect(document.querySelectorAll(".filter-condition-chips .condition-chip:not(.add)")).toHaveLength(2);
     expect(document.querySelector(".filter-condition-chips .condition-chip.active")?.textContent).toContain("我的错题");
-    document.querySelectorAll<HTMLButtonElement>('[data-testid="filter-condition-chip"]')[1].click();
+    [...document.querySelectorAll<HTMLElement>('[data-testid="filter-condition-chip"]')][1]
+      .querySelector<HTMLButtonElement>(".condition-chip-select")!.click();
     await flush();
 
-    expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
+    expect([...document.querySelectorAll('[data-testid="filter-condition-chip"]')][1].classList.contains("active")).toBe(true);
     expect(savePracticePreferences).toHaveBeenLastCalledWith(expect.objectContaining({ activePresetId: "saved" }));
   });
 
@@ -1359,9 +1376,9 @@ describe("question bank browser flow", () => {
     render(controller);
     await scan();
 
-    const editorTrigger = document.querySelector<HTMLButtonElement>('[data-testid="practice-condition-editor"] .condition-summary-trigger');
-    expect(editorTrigger).not.toBeNull();
-    editorTrigger!.click();
+    const addChip = document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-add"]');
+    expect(addChip).not.toBeNull();
+    addChip!.click();
     await vi.waitFor(() => expect(document.querySelector('[data-testid="condition-library"]')).not.toBeNull());
 
     // Add a rule in the builder (scoped to the dialog: the summary card shares the
@@ -1378,11 +1395,11 @@ describe("question bank browser flow", () => {
     document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-save"]')!.click();
     await flush();
 
-    const chip = document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-chip"]');
+    const chip = document.querySelector<HTMLElement>('[data-testid="filter-condition-chip"]');
     expect(chip).not.toBeNull();
-    expect(chip!.getAttribute("aria-pressed")).toBe("true");
+    expect(chip!.classList.contains("active")).toBe(true);
+    expect(chip!.querySelector(".condition-chip-select")!.getAttribute("aria-pressed")).toBe("true");
     expect(chip!.textContent).toContain("Wrong only");
-    expect(document.querySelector('[data-testid="condition-summary-title"]')?.textContent).toContain("Wrong only");
 
     // Renaming inline (the row input) updates the chip and the summary title.
     const rowName = document.querySelector<HTMLInputElement>('[data-testid="filter-condition-name"]')!;
@@ -1392,12 +1409,11 @@ describe("question bank browser flow", () => {
     await flush();
     expect(chip!.textContent).toContain("Wrong and due");
 
-    // Deleting the condition removes the chip and falls back to the generic title.
+    // Deleting the condition removes the chip.
     const deleteButton = document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-row"] button[aria-label^="Delete filter condition"]');
     expect(deleteButton).not.toBeNull();
     deleteButton!.click();
     await flush();
     expect(document.querySelectorAll('[data-testid="filter-condition-chip"]')).toHaveLength(0);
-    expect(document.querySelector('[data-testid="condition-summary-title"]')?.textContent).not.toContain("Wrong");
   });
 });

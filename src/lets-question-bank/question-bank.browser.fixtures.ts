@@ -362,7 +362,7 @@ export function option(name: string): HTMLButtonElement {
 
 export async function selectScope(name: string): Promise<void> {
   await page.getByRole("button", { name: "Entire document", exact: true }).click();
-  await page.getByRole("option", { name, exact: true }).click();
+  await page.getByRole("treeitem", { name, exact: true }).click();
   await flush();
 }
 
