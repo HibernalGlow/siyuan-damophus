@@ -55,6 +55,12 @@ const LOCAL_CACHE_INDEX_NAME = "index.json";
 const COVER_SOURCE_ATTRIBUTE = "custom-damophus-cover-source-url";
 const COVER_CACHE_ATTRIBUTE = "custom-damophus-cover-cache-path";
 export const COVER_POSITION_ATTRIBUTE = "custom-damophus-cover-position";
+// Mobile cover containers crop portrait images differently (narrow viewport,
+// native mobile pins the cover height), so the vertical percentage carries a
+// different visual meaning per platform family. Mobile adjustments live in
+// their own attribute; desktop never reads or writes it, and it is only
+// created once the position is actually adjusted on a mobile device.
+export const COVER_POSITION_MOBILE_ATTRIBUTE = "custom-damophus-cover-position-mobile";
 // Runtime-only DOM marker on .protyle-background recording the last restored
 // position. Lets repeat scans of the same DOM skip the getBlockAttrs round trip.
 const COVER_POSITION_MARKER = "data-damophus-cover-pos";
@@ -132,6 +138,9 @@ const coverLayoutCss = `
 .protyle-background:hover .protyle-icons[data-damophus-cover-toolbar] { opacity: 1; pointer-events: auto; }
 .protyle-icons[data-damophus-cover-toolbar="belowIcon"] { position: static; width: max-content; max-width: 100%; margin: 0 0 8px; }
 .protyle-icons[data-damophus-cover-toolbar="custom"] { position: absolute; right: auto; left: var(--damophus-cover-toolbar-x); top: var(--damophus-cover-toolbar-y); transform: translate(var(--damophus-cover-toolbar-offset-x), var(--damophus-cover-toolbar-offset-y)); }
+/* Long-press on mobile engages the cover drag; suppress the native image
+   callout sheet and text selection that would otherwise interrupt it. */
+.protyle-background__img img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 `;
 
 function clampPercent(value: unknown, fallback: number): number {
@@ -159,6 +168,23 @@ export function normalizeCoverPosition(value: unknown): number | null {
 export function serializeCoverPosition(value: unknown): string | null {
   const normalized = normalizeCoverPosition(value);
   return normalized === null ? null : String(Number(normalized.toFixed(2)));
+}
+
+/**
+ * Restore priority: the platform-specific attribute wins, then the shared
+ * attribute, then the legacy object-position inside title-img. Desktop never
+ * reads the mobile attribute so per-platform adjustments stay independent.
+ */
+export function selectCoverPositionFromAttrs(
+  attrs: Record<string, string>,
+  mobilePlatform: boolean,
+): number | null {
+  const shared = normalizeCoverPosition(attrs[COVER_POSITION_ATTRIBUTE]);
+  const legacy = parseCoverPosition(attrs["title-img"] || attrs["custom-title-img"]);
+  if (mobilePlatform) {
+    return normalizeCoverPosition(attrs[COVER_POSITION_MOBILE_ATTRIBUTE]) ?? shared ?? legacy;
+  }
+  return shared ?? legacy;
 }
 
 async function assertAttrWriteSucceeded(response: Response): Promise<void> {
@@ -1223,12 +1249,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }
       const data = await response.json();
       const attrs = (data?.data || {}) as Record<string, string>;
-      const position = normalizeCoverPosition(attrs[COVER_POSITION_ATTRIBUTE]) ?? parseCoverPosition(
-        attrs["title-img"] || attrs["custom-title-img"],
-      );
+      const position = selectCoverPositionFromAttrs(attrs, isMobile);
       log.debug("restore position: attrs received", {
         blockId,
         storedPosition: attrs[COVER_POSITION_ATTRIBUTE] ?? null,
+        storedMobilePosition: attrs[COVER_POSITION_MOBILE_ATTRIBUTE] ?? null,
         titleImg: attrs["title-img"] ?? null,
         parsedPosition: position,
       });
@@ -1240,7 +1265,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       log.info("restore position: applied", { blockId, position, mediaCount: background.querySelectorAll(
         ".protyle-background__img img, .protyle-background__video",
       ).length });
-      if (attrs[COVER_POSITION_ATTRIBUTE] !== serializeCoverPosition(position)) {
+      // Mobile never persists during restore: its attribute is written only
+      // when the position is actually adjusted on the device. Desktop keeps
+      // migrating a legacy title-img position into the shared attribute.
+      if (!isMobile && attrs[COVER_POSITION_ATTRIBUTE] !== serializeCoverPosition(position)) {
         await this.persistCoverPosition(blockId, position);
       }
     } catch (error) {
@@ -2551,7 +2579,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const attrs: Record<string, string> = {
       "title-img": nextTitleImg,
     };
-    if (!previousTitleImg || coverReplaced) attrs[COVER_POSITION_ATTRIBUTE] = "";
+    if (!previousTitleImg || coverReplaced) {
+      attrs[COVER_POSITION_ATTRIBUTE] = "";
+      attrs[COVER_POSITION_MOBILE_ATTRIBUTE] = "";
+    }
     if (originalSourceUrl) {
       attrs[COVER_SOURCE_ATTRIBUTE] = originalSourceUrl;
     } else if (previousSourceUrl) {
@@ -2958,7 +2989,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       background.setAttribute(COVER_POSITION_MARKER, serialized);
       log.debug("save position queued", { blockId, positionPercent, serialized });
       saveQueue = saveQueue.then(async () => {
-        const attrs: Record<string, string> = { [COVER_POSITION_ATTRIBUTE]: serialized };
+        // Mobile adjustments go to their own attribute so they never clobber
+        // the desktop crop (the percentage means a different band there).
+        const positionAttr = isMobile ? COVER_POSITION_MOBILE_ATTRIBUTE : COVER_POSITION_ATTRIBUTE;
+        const attrs: Record<string, string> = { [positionAttr]: serialized };
         // Native SiYuan confirmation can persist the currently rendered blob URL.
         // Repair that address while saving the position so the next device can load it.
         try {
@@ -3222,21 +3256,95 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       window.addEventListener("mouseup", onWindowMouseUp);
     };
 
-    // Touch gestures never drive the pointer-based adjusters; long-press would
-    // pop the HUD and flip cursors without moving anything. Skip them on
-    // mobile entirely and keep only the native position button plus the
-    // observer-driven save flow.
+    // Pointer-based adjusters only exist on desktop. Mobile gets a dedicated
+    // touch path: hold ~300ms to engage the drag, then move vertically. Any
+    // larger movement before the timer fires is a scroll gesture and aborts.
+    let removeTouchHandlers: (() => void) | null = null;
     if (!isMobile) {
       background.addEventListener("mousedown", handleMouseDown);
       background.addEventListener("wheel", handleWheel, { passive: false });
       background.addEventListener("mousemove", handleMouseMoveOrKey, { passive: true });
       background.addEventListener("mouseleave", handleMouseLeave, { passive: true });
+    } else {
+      const handleTouchStart = (e: TouchEvent) => {
+        if (isDragging) return;
+        const media = getMediaElement();
+        if (!media || media.style.cursor === "move") return;
+        const touch = e.touches[0];
+        if (!touch) return;
+        startX = touch.clientX;
+        startY = touch.clientY;
+        startPositionY = parsePositionY(media);
+        currentPositionY = startPositionY;
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+          longPressTimer = null;
+          isLongPressActive = true;
+          isDragging = true;
+          showHUD(currentPositionY, "长按已激活");
+          if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+            navigator.vibrate(15);
+          }
+        }, 300);
+      };
+
+      const handleTouchMove = (e: TouchEvent) => {
+        const touch = e.touches[0];
+        if (!touch) return;
+        if (!isDragging) {
+          if (longPressTimer) {
+            // Track small drift so the drag starts from where the finger is,
+            // but a real scroll gesture cancels the pending activation.
+            if (Math.hypot(touch.clientX - startX, touch.clientY - startY) > 6) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            } else {
+              startY = touch.clientY;
+            }
+          }
+          return;
+        }
+        e.preventDefault();
+        const containerHeight = background.clientHeight || 200;
+        const deltaPercent = ((startY - touch.clientY) / containerHeight) * 100 + startPositionY;
+        updateElementsPosition(deltaPercent);
+        showHUD(currentPositionY, "长按拖拽");
+      };
+
+      const handleTouchEnd = (save: boolean) => {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+        if (!isDragging) return;
+        isDragging = false;
+        isLongPressActive = false;
+        hideHUD(800);
+        if (save) {
+          log.info("mobile touch drag finished", { position: currentPositionY });
+          savePositionToBlock(currentPositionY);
+        }
+      };
+      const onTouchEnd = () => handleTouchEnd(true);
+      const onTouchCancel = () => handleTouchEnd(false);
+
+      background.addEventListener("touchstart", handleTouchStart, { passive: true });
+      background.addEventListener("touchmove", handleTouchMove, { passive: false });
+      background.addEventListener("touchend", onTouchEnd);
+      background.addEventListener("touchcancel", onTouchCancel);
+      removeTouchHandlers = () => {
+        background.removeEventListener("touchstart", handleTouchStart);
+        background.removeEventListener("touchmove", handleTouchMove);
+        background.removeEventListener("touchend", onTouchEnd);
+        background.removeEventListener("touchcancel", onTouchCancel);
+      };
     }
 
     return () => {
       if (longPressTimer) clearTimeout(longPressTimer);
       if (wheelSaveTimer) clearTimeout(wheelSaveTimer);
       if (positionObserverTimer) clearTimeout(positionObserverTimer);
+      removeTouchHandlers?.();
       positionObserver.disconnect();
       document.removeEventListener("mouseup", handleNativePositionMouseUp, true);
       background.removeEventListener("click", handleNativeToolbarClick, true);

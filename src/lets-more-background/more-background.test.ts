@@ -28,6 +28,7 @@ import {
   parseCoverPosition,
   normalizeCoverPosition,
   serializeCoverPosition,
+  selectCoverPositionFromAttrs,
 } from "./more-background";
 
 describe("more-background sources utilities", () => {
@@ -41,6 +42,27 @@ describe("more-background sources utilities", () => {
     expect(normalizeCoverPosition("not-a-position")).toBeNull();
     expect(serializeCoverPosition(37.567)).toBe("37.57");
     expect(serializeCoverPosition(undefined)).toBeNull();
+  });
+
+  it("selects the cover position per platform with mobile-only fallback", () => {
+    const attrs = {
+      "custom-damophus-cover-position": "33",
+      "custom-damophus-cover-position-mobile": "72",
+      "title-img": 'background-image:url("cover.jpg");object-position:center 50%;',
+    };
+    expect(selectCoverPositionFromAttrs(attrs, false)).toBe(33);
+    expect(selectCoverPositionFromAttrs(attrs, true)).toBe(72);
+    // Without a mobile adjustment the mobile platform falls back to the
+    // shared value and never invents one from an empty attribute.
+    expect(selectCoverPositionFromAttrs({ "custom-damophus-cover-position": "41" }, true)).toBe(41);
+    expect(selectCoverPositionFromAttrs({}, true)).toBeNull();
+    // Desktop ignores the mobile attribute entirely.
+    expect(selectCoverPositionFromAttrs({ "custom-damophus-cover-position-mobile": "72" }, false)).toBeNull();
+    // Both attribute sources missing fall back to the legacy title-img CSS.
+    expect(selectCoverPositionFromAttrs(
+      { "title-img": 'background-image:url("cover.jpg");object-position:center 25%;' },
+      true,
+    )).toBe(25);
   });
 
   it("replaces width and height placeholders correctly", () => {
