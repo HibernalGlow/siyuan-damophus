@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { RefreshCw, Trash2 } from "lucide-svelte";
+  import { RefreshCw, Smartphone, Trash2 } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label } from "@/components/ui/label";
@@ -13,11 +13,12 @@
   export let localCachePathTemplate = "{year}/{month}/{hash}.webp";
   export let localCacheMaxEdge: "none" | "1280" | "1920" | "2560" = "1920";
   export let onBasicChange: (key: string, value: unknown) => void;
-  export let onMaintenance: (detail: { action: "maintain" | "cleanup"; documentLink?: string }) => void | Promise<void>;
+  export let onMaintenance: (detail: { action: "maintain" | "cleanup" | "resetMobilePosition"; documentLink?: string }) => void | Promise<void>;
 
   let maintenanceDocumentLink = "";
   let maintenanceBusy = false;
   let cleanupBusy = false;
+  let mobileResetBusy = false;
 </script>
 
 <div class="mb-stack">
@@ -125,6 +126,24 @@
         >
           <Trash2 class="size-3.5" />
           <span>{label("lets-more-background.cacheCleanupButton", "清理孤立缓存")}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          class="gap-1.5"
+          disabled={mobileResetBusy}
+          title={label("lets-more-background.mobilePositionResetDescription", "清除所有文档的移动端专属对焦位置，手机恢复跟随桌面值。")}
+          onclick={async () => {
+            mobileResetBusy = true;
+            try {
+              await onMaintenance({ action: "resetMobilePosition" });
+            } finally {
+              mobileResetBusy = false;
+            }
+          }}
+        >
+          <Smartphone class="size-3.5" />
+          <span>{label("lets-more-background.mobilePositionResetButton", "清除移动端位置")}</span>
         </Button>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { mount, unmount } from "svelte";
-import { Dialog, getAllEditor, openTab, showMessage, type IEventBusMap, type Menu } from "siyuan";
+import { confirm, Dialog, getAllEditor, openTab, showMessage, type IEventBusMap, type Menu } from "siyuan";
 import { setScopeLogLevel } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
@@ -181,11 +181,31 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
     }
   }
 
-  async handleMaintenance(detail: { action: "maintain" | "cleanup"; documentLink?: string }): Promise<void> {
+  async handleMaintenance(detail: {
+    action: "maintain" | "cleanup" | "resetMobilePosition";
+    documentLink?: string;
+  }): Promise<void> {
     try {
       if (detail.action === "cleanup") {
         const result = await this.controller?.cleanupLocalCache();
         showMessage(this.t("lets-more-background.cacheCleanupSuccess" as any).replace("{count}", String(result?.removed ?? 0)));
+        return;
+      }
+      if (detail.action === "resetMobilePosition") {
+        const approved = await new Promise<boolean>((resolve) => {
+          confirm(
+            this.t("lets-more-background.displayName" as any),
+            this.t("lets-more-background.mobilePositionResetConfirm" as any),
+            () => resolve(true),
+            () => resolve(false),
+          );
+        });
+        if (!approved) return;
+        const result = await this.controller?.resetMobileCoverPositions();
+        const cleared = result?.cleared ?? 0;
+        showMessage(cleared > 0
+          ? this.t("lets-more-background.mobilePositionResetSuccess" as any).replace("{count}", String(cleared))
+          : this.t("lets-more-background.mobilePositionResetEmpty" as any));
         return;
       }
       const result = await this.controller?.maintainLocalCache(detail.documentLink || "");

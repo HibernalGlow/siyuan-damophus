@@ -117,6 +117,7 @@ export interface MoreBackgroundHandle {
   updateOptions(options: MoreBackgroundOptions): void;
   maintainLocalCache(documentLink: string): Promise<LegacyCoverMaintenanceResult>;
   cleanupLocalCache(): Promise<{ removed: number; kept: number }>;
+  resetMobileCoverPositions(): Promise<{ cleared: number }>;
 }
 
 const coverLayoutCss = `
@@ -1035,6 +1036,52 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
   async cleanupLocalCache(): Promise<{ removed: number; kept: number }> {
     if (!this.options.localCache) throw new Error("Local cover cache is disabled");
     return cleanupLocalCoverCache(this.options.localCacheRoot);
+  }
+
+  /**
+   * Clears the mobile cover position attribute from every document that has
+   * one, so mobile follows the shared/desktop position again. Documents
+   * without the attribute are never written. Open roots of cleared documents
+   * drop the runtime restore marker and re-restore from the remaining attrs.
+   */
+  async resetMobileCoverPositions(): Promise<{ cleared: number }> {
+    const clearedIds = new Set<string>();
+    let rows: Array<{ block_id?: string }> = [];
+    try {
+      rows = await sql(
+        `SELECT block_id FROM attributes WHERE name = '${COVER_POSITION_MOBILE_ATTRIBUTE}'`,
+      );
+    } catch (error) {
+      log.error("reset mobile positions: query failed", error);
+      throw error;
+    }
+    for (const row of rows) {
+      const blockId = row?.block_id;
+      if (!blockId) continue;
+      try {
+        const write = await fetch("/api/attr/setBlockAttrs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: blockId, attrs: { [COVER_POSITION_MOBILE_ATTRIBUTE]: "" } }),
+        });
+        await assertAttrWriteSucceeded(write);
+        clearedIds.add(blockId);
+      } catch (error) {
+        log.warn("reset mobile positions: block write failed", { blockId, error });
+      }
+    }
+    for (const root of this.rootCleanups.keys()) {
+      const background = root.querySelector<HTMLElement>(".protyle-background");
+      if (!background) continue;
+      const blockId =
+        background.getAttribute("data-node-id") ||
+        root.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
+      if (!blockId || !clearedIds.has(blockId)) continue;
+      background.removeAttribute(COVER_POSITION_MARKER);
+      void this.restoreCoverPosition(background);
+    }
+    log.info("reset mobile positions: done", { cleared: clearedIds.size });
+    return { cleared: clearedIds.size };
   }
 
   private async purgeCoverCacheFile(cachePath: string, exceptBlockId?: string): Promise<void> {

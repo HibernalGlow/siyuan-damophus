@@ -72,7 +72,7 @@
   export let coverHistoryLimit = 150;
   export let coverSeenLimit = 800;
   export let mobile = false;
-  export let onMaintenance: ((detail: { action: "maintain" | "cleanup"; documentLink?: string }) => void | Promise<void>) | undefined;
+  export let onMaintenance: ((detail: { action: "maintain" | "cleanup" | "resetMobilePosition"; documentLink?: string }) => void | Promise<void>) | undefined;
 
   const dispatch = createEventDispatcher();
 
