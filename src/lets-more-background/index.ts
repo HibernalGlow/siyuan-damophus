@@ -198,13 +198,24 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
     }
   }
 
+  // SiYuan fires loaded-protyle-static and switch-protyle back to back on every
+  // tab switch; a full scanRoot re-init per event doubles the attr fetches. Skip
+  // rescans of a still-connected root within this window.
+  private static readonly SCAN_TTL_MS = 1200;
+  private readonly scanTimestamps = new WeakMap<HTMLElement, number>();
+
   private readonly handleProtyle = (
     event: CustomEvent<
       | IEventBusMap["loaded-protyle-static"]
       | IEventBusMap["switch-protyle"]
     >,
   ): void => {
-    this.controller?.scanRoot(event.detail.protyle.element);
+    const root = event.detail.protyle.element;
+    const lastScanAt = this.scanTimestamps.get(root);
+    const now = Date.now();
+    if (lastScanAt && now - lastScanAt < MoreBackgroundPlugin.SCAN_TTL_MS && root.isConnected) return;
+    this.scanTimestamps.set(root, now);
+    this.controller?.scanRoot(root);
   };
 
   private readonly handleProtyleDestroyed = (

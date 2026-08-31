@@ -55,6 +55,9 @@ const LOCAL_CACHE_INDEX_NAME = "index.json";
 const COVER_SOURCE_ATTRIBUTE = "custom-damophus-cover-source-url";
 const COVER_CACHE_ATTRIBUTE = "custom-damophus-cover-cache-path";
 export const COVER_POSITION_ATTRIBUTE = "custom-damophus-cover-position";
+// Runtime-only DOM marker on .protyle-background recording the last restored
+// position. Lets repeat scans of the same DOM skip the getBlockAttrs round trip.
+const COVER_POSITION_MARKER = "data-damophus-cover-pos";
 const FAVORITE_BUTTON_ATTR = "data-damophus-cover-favorite";
 const FAVORITES_CHANGED_EVENT = "damophus-cover-favorites-changed";
 const objectUrls = new WeakMap<HTMLImageElement, string>();
@@ -1179,12 +1182,32 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     });
   }
 
+  /** Applies the position to all cover media and records the runtime marker. */
+  private applyCoverPosition(background: HTMLElement, position: number): boolean {
+    const media = [...background.querySelectorAll<HTMLElement>(
+      ".protyle-background__img img, .protyle-background__video",
+    )];
+    if (media.length === 0) return false;
+    const objectPosition = `center ${Number(position.toFixed(2))}%`;
+    media.forEach((element) => { element.style.objectPosition = objectPosition; });
+    background.setAttribute(COVER_POSITION_MARKER, String(position));
+    return true;
+  }
+
   private async restoreCoverPosition(background: HTMLElement): Promise<void> {
     const blockId =
       background.getAttribute("data-node-id") ||
       background.closest(".protyle")?.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id");
     if (!blockId || !background.isConnected) {
       log.debug("restore position skipped", { blockId, connected: background.isConnected });
+      return;
+    }
+    // Fast path: this DOM was already restored once (scanRoot runs on both
+    // loaded-protyle-static and switch-protyle, and again after cache
+    // hydration). Re-apply the cached value without another attr read.
+    const marked = normalizeCoverPosition(background.getAttribute(COVER_POSITION_MARKER));
+    if (marked !== null && this.applyCoverPosition(background, marked)) {
+      log.debug("restore position: cached", { blockId, position: marked });
       return;
     }
     try {
@@ -1210,16 +1233,13 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         parsedPosition: position,
       });
       if (position === null) return;
-      const media = [...background.querySelectorAll<HTMLElement>(
-        ".protyle-background__img img, .protyle-background__video",
-      )];
-      if (media.length === 0) {
+      if (!this.applyCoverPosition(background, position)) {
         log.warn("restore position: media not found", { blockId });
         return;
       }
-      const objectPosition = `center ${Number(position.toFixed(2))}%`;
-      media.forEach((element) => { element.style.objectPosition = objectPosition; });
-      log.info("restore position: applied", { blockId, position, mediaCount: media.length });
+      log.info("restore position: applied", { blockId, position, mediaCount: background.querySelectorAll(
+        ".protyle-background__img img, .protyle-background__video",
+      ).length });
       if (attrs[COVER_POSITION_ATTRIBUTE] !== serializeCoverPosition(position)) {
         await this.persistCoverPosition(blockId, position);
       }
@@ -2933,6 +2953,9 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         log.warn("save position skipped: invalid position", { blockId, positionPercent });
         return;
       }
+      // Keep the runtime restore marker in sync so the next scan of this DOM
+      // fast-path restores the just-saved value instead of a stale one.
+      background.setAttribute(COVER_POSITION_MARKER, serialized);
       log.debug("save position queued", { blockId, positionPercent, serialized });
       saveQueue = saveQueue.then(async () => {
         const attrs: Record<string, string> = { [COVER_POSITION_ATTRIBUTE]: serialized };
@@ -3003,13 +3026,18 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     // its cursor and persist the final rendered position explicitly.
     const handleNativePositionMouseUp = () => {
       const media = getMediaElement();
+      // This listener is bound on the document, so every click in any note
+      // lands here. Bail out silently before touching the DOM or the logger
+      // unless a native position gesture is actually in progress.
+      if (!media) return;
+      const cursorMove = media.style.cursor === "move";
+      if (!nativePositionActive && !cursorMove) return;
       log.debug("native mouseup captured", {
-        hasMedia: Boolean(media),
-        cursor: media?.style.cursor || null,
-        style: media?.getAttribute("style") || null,
+        hasMedia: true,
+        cursor: media.style.cursor || null,
+        style: media.getAttribute("style") || null,
         nativePositionActive,
       });
-      if (!media || (!nativePositionActive && media.style.cursor !== "move")) return;
       const position = parsePositionY(media);
       log.info("native mouseup position parsed", {
         position,
