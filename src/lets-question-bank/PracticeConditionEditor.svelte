@@ -854,10 +854,24 @@
     background: var(--b3-list-hover);
   }
 
+  /* Add rule is the primary action (solid primary); add group is secondary
+     (neutral dashed frame + square-plus icon) so the two never look alike. */
   .query-builder-theme :global(.ruleGroup-addRule),
   .query-builder-theme :global(.ruleGroup-addGroup) {
+    gap: 4px;
+  }
+
+  .query-builder-theme :global(.ruleGroup-addRule) {
     color: var(--b3-theme-primary);
     border-color: color-mix(in srgb, var(--b3-theme-primary) 48%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
+    font-weight: 600;
+  }
+
+  .query-builder-theme :global(.ruleGroup-addGroup) {
+    color: var(--b3-theme-on-surface);
+    border-color: var(--b3-border-color);
+    border-style: dashed;
   }
 
   .query-builder-theme :global(.rule-remove),
@@ -925,6 +939,13 @@
     .query-builder-theme :global(.rule-remove) {
       min-height: 32px;
       padding: 4px;
+    }
+
+    /* Icons alone fit the narrow rule grid; the distinct glyph still tells
+       "add rule" from "add group". */
+    .query-builder-theme :global(.ruleGroup-addRule .action-label),
+    .query-builder-theme :global(.ruleGroup-addGroup .action-label) {
+      display: none;
     }
 
     .query-builder-theme :global(.shiftActions) {

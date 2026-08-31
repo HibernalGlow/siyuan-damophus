@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowDown, ArrowUp, Copy, LockKeyhole, LockKeyholeOpen, Plus, Trash2 } from "lucide-svelte";
+  import { ArrowDown, ArrowUp, Copy, LockKeyhole, LockKeyholeOpen, Plus, SquarePlus, Trash2 } from "lucide-svelte";
   import type { ActionProps } from "svelte-querybuilder";
 
   export let className: ActionProps["className"] = undefined;
@@ -16,6 +16,9 @@
   $: removing = actionId.includes("remove");
   $: movingUp = actionId.includes("shiftUp");
   $: movingDown = actionId.includes("shiftDown");
+  // The two "add" actions would both render a bare "+" and become indistinguishable.
+  $: addingRule = actionId.includes("addRule");
+  $: addingGroup = !addingRule && actionId.includes("addGroup");
   $: effectiveDisabled = disabled && !disabledTranslation;
 </script>
 
@@ -39,8 +42,19 @@
     <ArrowUp size={15} aria-hidden="true" />
   {:else if movingDown}
     <ArrowDown size={15} aria-hidden="true" />
+  {:else if addingGroup}
+    <SquarePlus size={15} aria-hidden="true" />
   {:else}
     <Plus size={15} aria-hidden="true" />
   {/if}
+  {#if addingRule || addingGroup}
+    <span class="action-label">{label ?? title}</span>
+  {/if}
   <span class="sr-only">{title ?? "Action"}</span>
 </button>
+
+<style>
+  .action-label {
+    white-space: nowrap;
+  }
+</style>
