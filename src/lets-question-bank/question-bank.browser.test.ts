@@ -533,9 +533,9 @@ describe("question bank browser flow", () => {
     render(controller);
     await scanAndSync();
 
-    expect(document.querySelectorAll(".filter-preset-row")).toHaveLength(2);
-    expect(document.querySelector(".filter-preset-row.active")?.textContent).toContain("我的错题");
-    document.querySelectorAll<HTMLButtonElement>(".filter-preset-select")[1].click();
+    expect(document.querySelectorAll(".filter-condition-chips .condition-chip:not(.add)")).toHaveLength(2);
+    expect(document.querySelector(".filter-condition-chips .condition-chip.active")?.textContent).toContain("我的错题");
+    document.querySelectorAll<HTMLButtonElement>('[data-testid="filter-condition-chip"]')[1].click();
     await flush();
 
     expect(document.querySelector(".condition-summary-copy")?.textContent).toContain("Bookmarked");
@@ -1352,5 +1352,52 @@ describe("question bank browser flow", () => {
     await vi.waitFor(() => expect(document.querySelector(".quick-access-trigger")).not.toBeNull());
     expect(document.querySelector(".workspace-fab")).toBeNull();
     expect(localStorage.getItem("damophus-question-bank.fab-pinned")).toBe("true");
+  });
+
+  it("saves, renames and deletes named filter conditions", async () => {
+    const { controller } = mockController();
+    render(controller);
+    await scan();
+
+    const editorTrigger = document.querySelector<HTMLButtonElement>('[data-testid="practice-condition-editor"] .condition-summary-trigger');
+    expect(editorTrigger).not.toBeNull();
+    editorTrigger!.click();
+    await vi.waitFor(() => expect(document.querySelector('[data-testid="condition-library"]')).not.toBeNull());
+
+    // Add a rule in the builder (scoped to the dialog: the summary card shares the
+    // "Add condition" label), then save it under a name.
+    document.querySelector<HTMLButtonElement>(".condition-dialog .ruleGroup-addRule")!.click();
+    await flush();
+    const nameInput = document.querySelector<HTMLInputElement>('[data-testid="filter-condition-new-name"]')!;
+    expect(nameInput).not.toBeNull();
+    nameInput.value = "Wrong only";
+    nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    // Svelte 5 propagates two-way binding updates in a batch, so flush before
+    // the save button's disabled state reacts to the typed name.
+    await flush();
+    document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-save"]')!.click();
+    await flush();
+
+    const chip = document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-chip"]');
+    expect(chip).not.toBeNull();
+    expect(chip!.getAttribute("aria-pressed")).toBe("true");
+    expect(chip!.textContent).toContain("Wrong only");
+    expect(document.querySelector('[data-testid="condition-summary-title"]')?.textContent).toContain("Wrong only");
+
+    // Renaming inline (the row input) updates the chip and the summary title.
+    const rowName = document.querySelector<HTMLInputElement>('[data-testid="filter-condition-name"]')!;
+    expect(rowName.value).toBe("Wrong only");
+    rowName.value = "Wrong and due";
+    rowName.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    expect(chip!.textContent).toContain("Wrong and due");
+
+    // Deleting the condition removes the chip and falls back to the generic title.
+    const deleteButton = document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-row"] button[aria-label^="Delete filter condition"]');
+    expect(deleteButton).not.toBeNull();
+    deleteButton!.click();
+    await flush();
+    expect(document.querySelectorAll('[data-testid="filter-condition-chip"]')).toHaveLength(0);
+    expect(document.querySelector('[data-testid="condition-summary-title"]')?.textContent).not.toContain("Wrong");
   });
 });

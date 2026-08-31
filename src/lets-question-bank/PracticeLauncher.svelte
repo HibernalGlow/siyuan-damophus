@@ -6,17 +6,15 @@
     Circle,
     ListChecks,
     ListOrdered,
+    Plus,
     RotateCcw,
-    Save,
     Shuffle,
     SlidersHorizontal,
     Target,
-    Trash2,
     X,
   } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
-  import { Input } from "@/components/ui/input";
   import { Label as FormLabel } from "@/components/ui/label";
   import * as Select from "@/components/ui/select";
   import * as ToggleGroup from "@/components/ui/toggle-group";
@@ -60,27 +58,13 @@
     || preview.bindingRepairs.length > 0
     || (!syncComplete && preview.actions.some((action) => action.kind === "add"));
 
-  let presetName = "";
+  let conditionEditor: { openNewCondition(): void } | undefined;
 
   function selectPreset(id: string): void {
     const preset = filterPresets.find((candidate) => candidate.id === id);
     if (!preset) return;
     activeFilterPresetId = preset.id;
     filter = preset.filter;
-    presetName = preset.name;
-  }
-
-  function savePreset(): void {
-    const name = presetName.trim();
-    if (!name) return;
-    const id = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `preset-${Date.now()}`;
-    filterPresets = [...filterPresets, { id, name, filter }];
-    activeFilterPresetId = id;
-  }
-
-  function removePreset(id: string): void {
-    filterPresets = filterPresets.filter((preset) => preset.id !== id);
-    if (activeFilterPresetId === id) activeFilterPresetId = undefined;
   }
 </script>
 
@@ -205,47 +189,39 @@
 
       <fieldset class="control-block filter-control">
         <legend><SlidersHorizontal size={12} aria-hidden="true" />{label("filter", "题目筛选")}</legend>
-        <div class="filter-preset-toolbar">
-          <div class="filter-preset-heading">
-            <Bookmark size={14} aria-hidden="true" />
-            <span>{label("filterPresets", "筛选预设")}</span>
-          </div>
-          <Input
-            class="filter-preset-name"
-            bind:value={presetName}
-            placeholder={label("filterPresetNamePlaceholder", "预设名称")}
-            aria-label={label("filterPresetName", "筛选预设名称")}
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            title={label("saveFilterPreset", "保存筛选预设")}
-            aria-label={label("saveFilterPreset", "保存筛选预设")}
-            disabled={!presetName.trim()}
-            onclick={savePreset}
-          ><Save size={15} aria-hidden="true" /></Button>
+        <div class="filter-condition-chips" data-testid="filter-condition-chips">
+          {#each filterPresets as preset (preset.id)}
+            <button
+              type="button"
+              class="condition-chip"
+              class:active={preset.id === activeFilterPresetId}
+              aria-pressed={preset.id === activeFilterPresetId}
+              title={preset.name}
+              data-testid="filter-condition-chip"
+              onclick={() => selectPreset(preset.id)}
+            >
+              {#if preset.id === activeFilterPresetId}<Check size={13} aria-hidden="true" />{/if}
+              <span>{preset.name}</span>
+            </button>
+          {/each}
+          <button
+            type="button"
+            class="condition-chip add"
+            aria-label={label("addFilterCondition", "新增条件")}
+            data-testid="filter-condition-add"
+            onclick={() => conditionEditor?.openNewCondition()}
+          >
+            <Plus size={13} aria-hidden="true" />
+            <span>{label("addFilterCondition", "新增条件")}</span>
+          </button>
         </div>
-        {#if filterPresets.length > 0}
-          <div class="filter-preset-list" aria-label={label("filterPresets", "筛选预设")}>
-            {#each filterPresets as preset (preset.id)}
-              <div class:active={preset.id === activeFilterPresetId} class="filter-preset-row">
-                <button type="button" class="filter-preset-select" onclick={() => selectPreset(preset.id)} aria-pressed={preset.id === activeFilterPresetId}>
-                  <Bookmark size={14} aria-hidden="true" />
-                  <span>{preset.name}</span>
-                  {#if preset.id === activeFilterPresetId}<Check size={14} aria-hidden="true" />{/if}
-                </button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title={label("deleteFilterPreset", "删除筛选预设")}
-                  aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
-                  onclick={() => removePreset(preset.id)}
-                ><Trash2 size={14} aria-hidden="true" /></Button>
-              </div>
-            {/each}
-          </div>
-        {/if}
-        <PracticeConditionEditor {label} bind:filter />
+        <PracticeConditionEditor
+          bind:this={conditionEditor}
+          {label}
+          bind:filter
+          bind:presets={filterPresets}
+          bind:activePresetId={activeFilterPresetId}
+        />
       </fieldset>
     </div>
 
@@ -466,86 +442,55 @@
     color: var(--b3-theme-primary);
   }
 
-  .filter-preset-toolbar {
+  .filter-condition-chips {
     min-width: 0;
     display: flex;
-    align-items: center;
-    gap: 7px;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .filter-preset-heading {
-    flex: 0 0 auto;
+  .condition-chip {
+    max-width: 100%;
+    min-height: 30px;
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    color: var(--b3-theme-on-surface);
-    font-size: 11px;
-  }
-
-  .filter-preset-heading :global(svg) {
-    color: var(--b3-theme-primary);
-  }
-
-  :global(.filter-preset-name) {
-    min-width: 120px;
-    flex: 1 1 180px;
-  }
-
-  .filter-preset-toolbar :global(button) {
-    flex: 0 0 auto;
-  }
-
-  .filter-preset-list {
-    min-width: 0;
-    display: grid;
-    gap: 4px;
-  }
-
-  .filter-preset-row {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 3px;
+    padding: 4px 12px;
     border: 1px solid var(--b3-border-color);
-    border-radius: 5px;
-    background: var(--b3-theme-background);
-  }
-
-  .filter-preset-row.active {
-    border-color: color-mix(in srgb, var(--b3-theme-primary) 56%, var(--b3-border-color));
-    background: color-mix(in srgb, var(--b3-theme-primary) 10%, var(--b3-theme-background));
-  }
-
-  .filter-preset-select {
-    min-width: 0;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 9px;
-    border: 0;
-    color: var(--b3-theme-on-background);
-    background: transparent;
-    text-align: left;
+    border-radius: 999px;
+    background: var(--b3-theme-surface);
+    color: var(--b3-theme-on-surface);
+    font-size: 12px;
     cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
 
-  .filter-preset-select span {
+  .condition-chip span {
     min-width: 0;
+    max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .filter-preset-select :global(svg:last-child) {
-    flex: 0 0 auto;
-    margin-left: auto;
+  .condition-chip:hover { border-color: color-mix(in srgb, var(--b3-theme-primary) 40%, var(--b3-border-color)); }
+  .condition-chip:active { transform: scale(0.97); }
+
+  .condition-chip.active {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
     color: var(--b3-theme-primary);
+    font-weight: 600;
   }
 
-  .filter-preset-row > :global(button) {
-    margin-right: 3px;
+  .condition-chip.add {
+    border-style: dashed;
     color: var(--b3-theme-on-surface);
+  }
+
+  .condition-chip.add:hover {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color));
+    color: var(--b3-theme-primary);
   }
 
   .practice-order-grid {
@@ -807,18 +752,14 @@
       height: 12px;
     }
 
-    .filter-preset-toolbar {
-      align-items: center;
+    .filter-condition-chips {
+      gap: 5px;
     }
 
-    .filter-preset-heading {
-      display: none;
-    }
-
-    :global(.filter-preset-name) {
-      min-width: 0;
-      flex-basis: auto;
-      flex: 1 1 auto;
+    .condition-chip {
+      min-height: 28px;
+      padding: 3px 10px;
+      font-size: 11px;
     }
   }
 </style>

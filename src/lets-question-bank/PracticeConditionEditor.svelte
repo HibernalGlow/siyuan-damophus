@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, RotateCcw, SlidersHorizontal, X } from "lucide-svelte";
+  import { Check, RotateCcw, Save, SlidersHorizontal, Trash2, X } from "lucide-svelte";
   import {
     QueryBuilder,
     type Field,
@@ -15,6 +15,7 @@
   import PracticeQueryBuilderShiftActions from "./PracticeQueryBuilderShiftActions.svelte";
   import PracticeQueryBuilderUndoRedo from "./PracticeQueryBuilderUndoRedo.svelte";
   import PracticeQueryBuilderValueSelector from "./PracticeQueryBuilderValueSelector.svelte";
+  import type { PracticeFilterPreset } from "./practice-preferences";
   import {
     practiceFilterToCondition,
     type PracticeFilter,
@@ -31,10 +32,13 @@
 
   export let label: (key: string, fallback: string) => string;
   export let filter: PracticeFilter = "all";
+  export let presets: PracticeFilterPreset[] = [];
+  export let activePresetId: string | undefined = undefined;
 
   let sourceFilter: PracticeFilter = filter;
   let editorQuery: PracticeQueryGroup = practiceFilterToQuery(filter);
   let dialogOpen = false;
+  let newConditionName = "";
   let fields: Field[] = [];
   let operators: FullOperator[] = [];
   let combinators: FullCombinator[] = [];
@@ -146,6 +150,7 @@
 
   function clearFilter(): void {
     editorQuery = practiceFilterToQuery("all");
+    activePresetId = undefined;
     if (!dialogOpen) {
       sourceFilter = queryToPracticeFilter(editorQuery);
       filter = sourceFilter;
@@ -157,8 +162,15 @@
     dialogOpen = true;
   }
 
+  /** Entry point for the launcher's "new condition" chip. */
+  export function openNewCondition(): void {
+    newConditionName = "";
+    openEditor();
+  }
+
   function cancelEditor(): void {
     editorQuery = practiceFilterToQuery(filter);
+    newConditionName = "";
     dialogOpen = false;
   }
 
@@ -167,7 +179,49 @@
     sourceFilter = next;
     filter = next;
     editorQuery = practiceFilterToQuery(next);
+    newConditionName = "";
     dialogOpen = false;
+  }
+
+  // ---- Named condition library (saved filter presets) ----
+
+  function selectCondition(id: string): void {
+    const preset = presets.find((candidate) => candidate.id === id);
+    if (!preset) return;
+    activePresetId = preset.id;
+    filter = preset.filter;
+    sourceFilter = preset.filter;
+    editorQuery = practiceFilterToQuery(preset.filter);
+  }
+
+  function renameCondition(id: string, name: string): void {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    presets = presets.map((preset) => (preset.id === id ? { ...preset, name: trimmed } : preset));
+  }
+
+  function deleteCondition(id: string): void {
+    presets = presets.filter((preset) => preset.id !== id);
+    if (activePresetId === id) activePresetId = undefined;
+  }
+
+  function saveCondition(): void {
+    const name = newConditionName.trim();
+    if (!name) return;
+    const nextFilter = queryToPracticeFilter(editorQuery);
+    // Saving an existing name updates that condition instead of duplicating it.
+    const existing = presets.find((preset) => preset.name === name);
+    if (existing) {
+      presets = presets.map((preset) => (preset.id === existing.id ? { ...preset, filter: nextFilter } : preset));
+      activePresetId = existing.id;
+    } else {
+      const id = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `preset-${Date.now()}`;
+      presets = [...presets, { id, name, filter: nextFilter }];
+      activePresetId = id;
+    }
+    sourceFilter = nextFilter;
+    filter = nextFilter;
+    newConditionName = "";
   }
 
   function groupEntries(group: PracticeQueryGroup, path = ""): Array<{ path: string; group: PracticeQueryGroup }> {
@@ -250,6 +304,11 @@
     const condition = practiceFilterToCondition(value);
     return condition.rules.length ? formatCondition(condition) : label("allQuestions", "All questions");
   }
+
+  $: activePresetName = presets.find((preset) => preset.id === activePresetId)?.name;
+  $: hasConditionRules = countRules(practiceFilterToCondition(filter)) > 0;
+  $: summaryTitle = activePresetName
+    ?? (hasConditionRules ? label("editCondition", "编辑条件") : label("addCondition", "添加条件"));
 </script>
 
 <div bind:this={hostElement} class:condition-editor-compact={dockCompact} class="practice-condition-editor" data-testid="practice-condition-editor">
@@ -257,7 +316,7 @@
     <Button variant="ghost" class="condition-summary-trigger" title={filterSummary(filter)} aria-label={filterSummary(filter)} onclick={openEditor}>
       <span class="condition-summary-icon" aria-hidden="true"><SlidersHorizontal size={16} /></span>
       <span class="condition-summary-copy">
-        <strong>{countRules(practiceFilterToCondition(filter)) ? label("editCondition", "Edit conditions") : label("addCondition", "Add condition")}</strong>
+        <strong data-testid="condition-summary-title">{summaryTitle}</strong>
         <small>{filterSummary(filter)}</small>
       </span>
     </Button>
@@ -285,6 +344,67 @@
           <X size={17} aria-hidden="true" />
         </Button>
       </header>
+
+      <div class="condition-library" data-testid="condition-library">
+        <div class="condition-library-head">
+          <strong>{label("filterConditions", "筛选条件")}</strong>
+          <small>{label("filterConditionsHint", "点击应用；名称可直接修改，不需要的可删除")}</small>
+        </div>
+        {#if presets.length === 0}
+          <p class="condition-library-empty">{label("filterConditionsEmpty", "还没有保存的条件：先编辑规则，命名保存后即可一键复用。")}</p>
+        {/if}
+        {#each presets as preset (preset.id)}
+          <div class="condition-library-row" class:active={preset.id === activePresetId} data-testid="filter-condition-row">
+            <button
+              type="button"
+              class="condition-library-select"
+              aria-pressed={preset.id === activePresetId}
+              title={label("apply", "应用")}
+              aria-label={`${label("apply", "应用")} ${preset.name}`}
+              onclick={() => selectCondition(preset.id)}
+            >
+              {#if preset.id === activePresetId}
+                <Check size={14} aria-hidden="true" />
+              {:else}
+                <span class="condition-library-dot" aria-hidden="true"></span>
+              {/if}
+            </button>
+            <Input
+              data-testid="filter-condition-name"
+              value={preset.name}
+              placeholder={label("filterConditionNamePlaceholder", "条件名称")}
+              aria-label={`${label("renameFilterCondition", "重命名条件")} ${preset.name}`}
+              onfocus={() => selectCondition(preset.id)}
+              oninput={(event) => renameCondition(preset.id, (event.currentTarget as HTMLInputElement).value)}
+            />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title={label("deleteFilterPreset", "删除筛选预设")}
+              aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
+              onclick={() => deleteCondition(preset.id)}
+            ><Trash2 size={14} aria-hidden="true" /></Button>
+          </div>
+        {/each}
+        <div class="condition-library-save">
+          <Input
+            data-testid="filter-condition-new-name"
+            bind:value={newConditionName}
+            placeholder={label("filterConditionNamePlaceholder", "命名当前条件")}
+            aria-label={label("filterConditionNamePlaceholder", "命名当前条件")}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="filter-condition-save"
+            disabled={!newConditionName.trim()}
+            onclick={saveCondition}
+          >
+            <Save size={14} aria-hidden="true" />
+            <span>{label("saveFilterCondition", "保存条件")}</span>
+          </Button>
+        </div>
+      </div>
 
       <div class="condition-group-names">
         <div class="condition-group-names-heading">
@@ -484,6 +604,100 @@
     font-size: 14px;
     font-weight: 650;
   }
+
+  .condition-library {
+    display: grid;
+    gap: 7px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--b3-border-color);
+    background: color-mix(in srgb, var(--b3-theme-surface) 38%, transparent);
+  }
+
+  .condition-library-head {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .condition-library-head strong {
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .condition-library-head small {
+    color: var(--b3-theme-on-surface);
+    font-size: 11px;
+  }
+
+  .condition-library-empty {
+    margin: 0;
+    color: var(--b3-theme-on-surface);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .condition-library-row {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 4px;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 7px;
+    background: var(--b3-theme-background);
+  }
+
+  .condition-library-row.active {
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color));
+    background: color-mix(in srgb, var(--b3-theme-primary) 8%, var(--b3-theme-background));
+  }
+
+  .condition-library-select {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--b3-theme-primary);
+    cursor: pointer;
+  }
+
+  .condition-library-select:hover { background: var(--b3-list-hover); }
+
+  .condition-library-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1.5px solid var(--b3-border-color);
+  }
+
+  .condition-library-row.active .condition-library-dot { border-color: var(--b3-theme-primary); }
+
+  .condition-library-row :global(input) {
+    min-width: 0;
+    height: 30px;
+  }
+
+  .condition-library-row > :global(button:last-child) { color: var(--b3-theme-on-surface); }
+  .condition-library-row > :global(button:last-child:hover) { color: var(--b3-theme-error, #d23f31); }
+
+  .condition-library-save {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .condition-library-save :global(input) {
+    min-width: 0;
+    flex: 1 1 auto;
+    height: 32px;
+  }
+
+  .condition-library-save :global(button) { flex: 0 0 auto; }
 
   .condition-group-names {
     display: grid;
@@ -746,6 +960,13 @@
     .condition-dialog-body {
       padding: 8px;
     }
+
+    .condition-library {
+      gap: 6px;
+      padding: 9px 10px;
+    }
+
+    .condition-library-save :global(button) { padding-inline: 10px; }
 
     .condition-group-name-row {
       grid-template-columns: 1fr;
