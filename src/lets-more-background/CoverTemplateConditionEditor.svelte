@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { Check, GitBranch, ListFilter, RotateCcw, SlidersHorizontal, X } from "lucide-svelte";
+  import { Check, RotateCcw, SlidersHorizontal, X } from "lucide-svelte";
   import { QueryBuilder, type Field, type FullCombinator, type FullOperator, type RuleGroupType, type RuleType, type Translations } from "svelte-querybuilder";
   import "svelte-querybuilder/dist/query-builder.css";
   import "@/styles/query-builder-theme.css";
   import { Button } from "@/components/ui/button";
-  import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
+  // [条件图形视图-暂停维护] import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
   import PracticeQueryBuilderAction from "../lets-question-bank/PracticeQueryBuilderAction.svelte";
   import PracticeQueryBuilderShiftActions from "../lets-question-bank/PracticeQueryBuilderShiftActions.svelte";
   import PracticeQueryBuilderUndoRedo from "../lets-question-bank/PracticeQueryBuilderUndoRedo.svelte";
   import PracticeQueryBuilderValueSelector from "../lets-question-bank/PracticeQueryBuilderValueSelector.svelte";
-  import { coverConditionToGraph } from "./cover-condition-graph";
+  // [条件图形视图-暂停维护] import { coverConditionToGraph } from "./cover-condition-graph";
   import type { CoverConditionGroup, CoverConditionRule, TagPool } from "./sources";
 
   export let label: (key: string, fallback: string) => string;
@@ -31,66 +31,66 @@
   let sourceCondition = condition;
   let editorQuery: ConditionQuery = cloneCondition(condition);
   let dialogOpen = false;
-  let viewMode: "list" | "graph" = "list";
   let fields: Field[] = [];
   let operators: FullOperator[] = [];
   let combinators: FullCombinator[] = [];
   let translations: Partial<Translations> = {};
 
-  // ---- Graph view: click a rule node to edit it in the inspector ----
-  type EditorRule = { field: string; operator: string; value: unknown; disabled?: boolean };
-  let selectedGraphPath: number[] | undefined;
-  let selectedGraphRule: EditorRule | undefined;
-
-  function ruleAt(path: readonly number[] | undefined): EditorRule | undefined {
-    if (!path?.length) return undefined;
-    let group: ConditionQuery = editorQuery;
-    for (let depth = 0; depth < path.length; depth += 1) {
-      const entry = group.rules[path[depth]];
-      if (!entry || typeof entry !== "object") return undefined;
-      if (depth === path.length - 1) return "rules" in entry ? undefined : (entry as unknown as EditorRule);
-      group = entry as unknown as ConditionQuery;
-    }
-    return undefined;
-  }
-
-  function updateGraphRule(next: Partial<EditorRule>): void {
-    if (!selectedGraphPath?.length) return;
-    const rewrite = (group: ConditionQuery, depth: number): ConditionQuery => ({
-      ...group,
-      rules: group.rules.map((entry, index) => {
-        if (index !== selectedGraphPath![depth]) return entry;
-        if (depth === selectedGraphPath!.length - 1 && !("rules" in entry)) {
-          return { ...(entry as unknown as EditorRule), ...next };
-        }
-        if ("rules" in entry) return rewrite(entry as unknown as ConditionQuery, depth + 1);
-        return entry;
-      }),
-    });
-    editorQuery = rewrite(editorQuery, 0);
-  }
-
-  function graphNodeActivate(id: string): void {
-    const node = graphModel.nodes.find((candidate) => candidate.id === id);
-    const path = node?.meta?.rulePath;
-    if (Array.isArray(path) && path.every((item) => typeof item === "number")) {
-      selectedGraphPath = path as number[];
-    } else {
-      selectedGraphPath = undefined;
-      viewMode = "list";
-    }
-  }
-
-  $: selectedGraphRule = ruleAt(selectedGraphPath);
-  $: graphLabels = {
-    field: Object.fromEntries(fields.map((field) => [field.name, field.label])),
-    operator: Object.fromEntries(operators.map((operator) => [operator.name, operator.label])),
-    and: label("conditionAnd", "且"),
-    result: label("conditionGraphResult", "封面图"),
-    empty: label("conditionGraphEmpty", "全部图片"),
-  };
-  $: graphModel = coverConditionToGraph(editorQuery as unknown as CoverConditionGroup, graphLabels);
-  $: selectedGraphField = fields.find((field) => field.name === selectedGraphRule?.field);
+  // [条件图形视图-暂停维护] 图形视图状态、节点取值与检查器整体注释，恢复时还原本块。
+  // type EditorRule = { field: string; operator: string; value: unknown; disabled?: boolean };
+  // let selectedGraphPath: number[] | undefined;
+  // let selectedGraphRule: EditorRule | undefined;
+  //
+  // function ruleAt(path: readonly number[] | undefined): EditorRule | undefined {
+  //   if (!path?.length) return undefined;
+  //   let group: ConditionQuery = editorQuery;
+  //   for (let depth = 0; depth < path.length; depth += 1) {
+  //     const entry = group.rules[path[depth]];
+  //     if (!entry || typeof entry !== "object") return undefined;
+  //     if (depth === path.length - 1) return "rules" in entry ? undefined : (entry as unknown as EditorRule);
+  //     group = entry as unknown as ConditionQuery;
+  //   }
+  //   return undefined;
+  // }
+  //
+  // function updateGraphRule(next: Partial<EditorRule>): void {
+  //   if (!selectedGraphPath?.length) return;
+  //   const rewrite = (group: ConditionQuery, depth: number): ConditionQuery => ({
+  //     ...group,
+  //     rules: group.rules.map((entry, index) => {
+  //       if (index !== selectedGraphPath![depth]) return entry;
+  //       if (depth === selectedGraphPath!.length - 1 && !("rules" in entry)) {
+  //         return { ...(entry as unknown as EditorRule), ...next };
+  //       }
+  //       if ("rules" in entry) return rewrite(entry as unknown as ConditionQuery, depth + 1);
+  //       return entry;
+  //     }),
+  //   });
+  //   editorQuery = rewrite(editorQuery, 0);
+  // }
+  //
+  // function graphNodeActivate(id: string): void {
+  //   const node = graphModel.nodes.find((candidate) => candidate.id === id);
+  //   const path = node?.meta?.rulePath;
+  //   if (Array.isArray(path) && path.every((item) => typeof item === "number")) {
+  //     selectedGraphPath = path as number[];
+  //   } else {
+  //     selectedGraphPath = undefined;
+  //     viewMode = "list";
+  //   }
+  // }
+  //
+  // $: selectedGraphRule = ruleAt(selectedGraphPath);
+  // $: graphLabels = {
+  //   field: Object.fromEntries(fields.map((field) => [field.name, field.label])),
+  //   operator: Object.fromEntries(operators.map((operator) => [operator.name, operator.label])),
+  //   and: label("conditionAnd", "且"),
+  //   result: label("conditionGraphResult", "封面图"),
+  //   empty: label("conditionGraphEmpty", "全部图片"),
+  // };
+  // $: graphModel = coverConditionToGraph(editorQuery as unknown as CoverConditionGroup, graphLabels);
+  // $: selectedGraphField = fields.find((field) => field.name === selectedGraphRule?.field);
+  // let viewMode: "list" | "graph" = "list";
 
   function selectField(name: CoverConditionRule["field"], fieldLabel: string, values: Array<[string, string]>, operator: CoverConditionRule["operator"]): Field {
     return { name, label: fieldLabel, valueEditorType: "select", values: values.map(([value, text]) => ({ name: value, label: text })), defaultOperator: operator, defaultValue: values[0]?.[0] ?? "" };
@@ -98,16 +98,16 @@
 
   // Field values are flexible options (string | {name,label} | group); the
   // inspector only renders scalar options, so flatten defensively.
-  function optionValue(option: unknown): string {
-    if (typeof option === "object" && option !== null && "name" in option) return String((option as { name: unknown }).name);
-    if (typeof option === "object" && option !== null && "options" in option) return "";
-    return String(option);
-  }
-
-  function optionText(option: unknown): string {
-    if (typeof option === "object" && option !== null && "label" in option) return String((option as { label: unknown }).label);
-    return optionValue(option);
-  }
+  // [条件图形视图-暂停维护] function optionValue(option: unknown): string {
+  //   if (typeof option === "object" && option !== null && "name" in option) return String((option as { name: unknown }).name);
+  //   if (typeof option === "object" && option !== null && "options" in option) return "";
+  //   return String(option);
+  // }
+  //
+  // function optionText(option: unknown): string {
+  //   if (typeof option === "object" && option !== null && "label" in option) return String((option as { label: unknown }).label);
+  //   return optionValue(option);
+  // }
 
   $: fields = [
     selectField("aspectRatio", label("fieldRatio", "Aspect ratio"), [["landscape", label("ratioLandscape", "Landscape")], ["wide", label("ratioWide", "Wide")], ["portrait", label("ratioPortrait", "Portrait")], ["any", label("ratioAny", "Any ratio")]], "equals"),
@@ -156,6 +156,7 @@
     <div class="condition-dialog" role="dialog" aria-modal="true" aria-labelledby="cover-condition-dialog-title">
       <header class="condition-dialog-header"><strong id="cover-condition-dialog-title">{label("builderTitle", "Edit filter rules")}</strong><Button variant="ghost" size="icon" onclick={cancelEditor} aria-label={label("cancel", "Cancel")}><X size={17} aria-hidden="true" /></Button></header>
       <div class="condition-dialog-body">
+        <!-- [条件图形视图-暂停维护] 列表/图形切换与图形分支整体注释，恢复时还原本块。
         <div class="condition-view-switcher" role="group" aria-label={label("conditionViewMode", "Condition view")}>
           <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" class="condition-view-button" aria-pressed={viewMode === "list"} data-testid="condition-view-list" onclick={() => (viewMode = "list")}><ListFilter size={14} aria-hidden="true" /><span>{label("conditionViewList", "List view")}</span></Button>
           <Button variant={viewMode === "graph" ? "secondary" : "ghost"} size="sm" class="condition-view-button" aria-pressed={viewMode === "graph"} data-testid="condition-view-graph" onclick={() => (viewMode = "graph")}><GitBranch size={14} aria-hidden="true" /><span>{label("conditionViewGraph", "Graph view")}</span></Button>
@@ -183,8 +184,9 @@
             </div>
           {/if}
         {:else}
-          <div class="query-builder-theme cover-query-builder"><QueryBuilder {fields} {operators} {combinators} {translations} bind:query={editorQuery} getDefaultField="aspectRatio" getDefaultOperator={(field) => fields.find((item) => item.name === field)?.defaultOperator as string} getDefaultValue={(rule) => fields.find((item) => item.name === rule.field)?.defaultValue} maxLevels={4} resetOnFieldChange showCombinatorsBetweenRules showCloneButtons showShiftActions showUndoRedo controlElements={{ actionElement: PracticeQueryBuilderAction, addRuleAction: PracticeQueryBuilderAction, addGroupAction: PracticeQueryBuilderAction, combinatorSelector: PracticeQueryBuilderValueSelector, fieldSelector: PracticeQueryBuilderValueSelector, operatorSelector: PracticeQueryBuilderValueSelector, shiftActions: PracticeQueryBuilderShiftActions, undoRedoActions: PracticeQueryBuilderUndoRedo, valueSelector: PracticeQueryBuilderValueSelector }} /></div>
-        {/if}
+        -->
+        <div class="query-builder-theme cover-query-builder"><QueryBuilder {fields} {operators} {combinators} {translations} bind:query={editorQuery} getDefaultField="aspectRatio" getDefaultOperator={(field) => fields.find((item) => item.name === field)?.defaultOperator as string} getDefaultValue={(rule) => fields.find((item) => item.name === rule.field)?.defaultValue} maxLevels={4} resetOnFieldChange showCombinatorsBetweenRules showCloneButtons showShiftActions showUndoRedo controlElements={{ actionElement: PracticeQueryBuilderAction, addRuleAction: PracticeQueryBuilderAction, addGroupAction: PracticeQueryBuilderAction, combinatorSelector: PracticeQueryBuilderValueSelector, fieldSelector: PracticeQueryBuilderValueSelector, operatorSelector: PracticeQueryBuilderValueSelector, shiftActions: PracticeQueryBuilderShiftActions, undoRedoActions: PracticeQueryBuilderUndoRedo, valueSelector: PracticeQueryBuilderValueSelector }} /></div>
+        <!-- [条件图形视图-暂停维护] 原视图分支的 {/if} 一并注释 -->
       </div>
       <footer class="condition-dialog-footer"><Button class="condition-clear-button" variant="ghost" size="sm" onclick={clearEditor}><RotateCcw size={14} aria-hidden="true" /><span>{label("clearConditions", "Clear rules")}</span></Button><div class="condition-dialog-footer-actions"><Button class="condition-cancel-button" variant="outline" size="sm" onclick={cancelEditor}>{label("cancel", "Cancel")}</Button><Button class="condition-apply-button" size="sm" onclick={applyEditor}><Check size={14} aria-hidden="true" /><span>{label("apply", "Apply")}</span></Button></div></footer>
     </div>
@@ -200,11 +202,11 @@
   .condition-dialog-scrim { position: fixed; inset: 0; z-index: 9998; background: rgb(0 0 0 / 42%); }
   .condition-dialog { position: fixed; top: 50%; left: 50%; z-index: 9999; display: flex; flex-direction: column; width: min(94vw, 760px); max-height: min(86vh, 700px); overflow: hidden; transform: translate(-50%, -50%); border: 1px solid var(--b3-border-color); border-radius: 8px; color: var(--b3-theme-on-background); background: var(--b3-theme-background); box-shadow: var(--b3-dialog-shadow, 0 14px 36px rgb(0 0 0 / 25%)); }
   .condition-dialog-header { justify-content: space-between; border-bottom: 1px solid var(--b3-border-color); } .condition-dialog-body { min-height: 0; overflow: auto; padding: 12px; } .condition-dialog-footer { justify-content: space-between; border-top: 1px solid var(--b3-border-color); } .condition-dialog-footer-actions { display: flex; gap: 8px; }
-  .condition-view-switcher { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  /* [条件图形视图-暂停维护] .condition-view-switcher { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
   .condition-view-switcher :global(.condition-view-button) { min-height: 28px; padding: 3px 10px; font-size: 11.5px; }
   .condition-graph-inspector { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--b3-border-color); border-radius: 7px; background: var(--b3-theme-surface); }
   .condition-graph-inspector strong { margin-right: 3px; font-size: 12px; }
-  .condition-graph-inspector select, .condition-graph-inspector input { min-width: 118px; height: 28px; padding: 0 7px; border: 1px solid var(--b3-border-color); border-radius: 5px; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font: inherit; }
+  .condition-graph-inspector select, .condition-graph-inspector input { min-width: 118px; height: 28px; padding: 0 7px; border: 1px solid var(--b3-border-color); border-radius: 5px; color: var(--b3-theme-on-background); background: var(--b3-theme-background); font: inherit; } */
   :global(.condition-dialog-footer .condition-clear-button), :global(.condition-dialog-footer .condition-cancel-button) { border: 1px solid var(--b3-border-color) !important; color: var(--b3-theme-on-background) !important; background: var(--b3-theme-surface) !important; }
   :global(.condition-dialog-footer .condition-clear-button:hover), :global(.condition-dialog-footer .condition-cancel-button:hover) { background: var(--b3-list-hover) !important; }
   :global(.condition-dialog-footer .condition-apply-button) { border: 1px solid var(--b3-theme-primary) !important; color: var(--b3-theme-on-primary, #fff) !important; background: var(--b3-theme-primary) !important; }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, GitBranch, ListFilter, RotateCcw, Save, Trash2, X } from "lucide-svelte";
+  // [条件图形视图-暂停维护] import { Check, GitBranch, ListFilter, RotateCcw, Save, Trash2, X } from "lucide-svelte";
+  import { Check, RotateCcw, Save, Trash2, X } from "lucide-svelte";
   import {
     QueryBuilder,
     type Field,
@@ -18,15 +19,16 @@
   import PracticeQueryBuilderUndoRedo from "./PracticeQueryBuilderUndoRedo.svelte";
   import PracticeQueryBuilderValueSelector from "./PracticeQueryBuilderValueSelector.svelte";
   import PracticeRuleGroup from "./PracticeRuleGroup.svelte";
-  import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
+  // [条件图形视图-暂停维护] import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
   import type { PracticeFilterPreset } from "./practice-preferences";
-  import type { PracticeFilter, PracticeFilterField, PracticeFilterGroup, PracticeFilterRule, PracticeFilterOperator, PracticeFilterValue } from "@/question-bank/core/scope";
+  // [条件图形视图-暂停维护] import type { PracticeFilter, PracticeFilterField, PracticeFilterGroup, PracticeFilterRule, PracticeFilterOperator, PracticeFilterValue } from "@/question-bank/core/scope";
+  import type { PracticeFilter, PracticeFilterField } from "@/question-bank/core/scope";
   import {
     practiceFilterToQuery,
     queryToPracticeFilter,
     type PracticeQueryGroup,
   } from "./practice-querybuilder-adapter";
-  import { practiceFilterToGraph } from "./practice-condition-graph";
+  // [条件图形视图-暂停维护] import { practiceFilterToGraph } from "./practice-condition-graph";
 
   export let label: (key: string, fallback: string) => string;
   export let filter: PracticeFilter = "all";
@@ -47,87 +49,88 @@
   let hostElement: HTMLElement;
   let dockCompact = false;
   let dockDialogStyle = "";
-  let viewMode: "list" | "graph" = "list";
-  let selectedGraphPath: number[] | undefined;
-  let selectedGraphRule: PracticeFilterRule | undefined;
-
-  function graphRuleAt(path: readonly number[] | undefined): PracticeFilterRule | undefined {
-    if (!path) return undefined;
-    let group: PracticeFilterGroup = queryToPracticeFilter(editorQuery);
-    for (let index = 0; index < path.length; index += 1) {
-      const entry = group.rules[path[index]];
-      if (!entry) return undefined;
-      if (index === path.length - 1) return "rules" in entry ? undefined : entry;
-      if (!("rules" in entry)) return undefined;
-      group = entry;
-    }
-    return undefined;
-  }
-
-  function updateGraphRule(next: Partial<PracticeFilterRule>): void {
-    if (!selectedGraphPath) return;
-    const current = queryToPracticeFilter(editorQuery);
-    const updateGroup = (group: PracticeFilterGroup, depth: number): PracticeFilterGroup => {
-      const index = selectedGraphPath![depth];
-      return {
-        ...group,
-        rules: group.rules.map((entry, entryIndex) => {
-          if (entryIndex !== index) return entry;
-          if (depth === selectedGraphPath!.length - 1 && !('rules' in entry)) return { ...entry, ...next };
-          if ('rules' in entry) return updateGroup(entry, depth + 1);
-          return entry;
-        }),
-      };
-    };
-    editorQuery = practiceFilterToQuery(updateGroup(current, 0));
-  }
-
-  function graphNodeActivate(id: string): void {
-    const node = graphModel.nodes.find((candidate) => candidate.id === id);
-    const path = node?.meta?.rulePath;
-    if (Array.isArray(path) && path.every((item) => typeof item === "number")) {
-      selectedGraphPath = path as number[];
-    } else {
-      selectedGraphPath = undefined;
-      viewMode = "list";
-    }
-  }
-
-  $: selectedGraphRule = graphRuleAt(selectedGraphPath);
-
-  $: graphModel = practiceFilterToGraph(queryToPracticeFilter(editorQuery), {
-    field: {
-      attempted: label("attemptedStatus", "Attempt status"),
-      wrong: label("wrongStatus", "Wrong-answer status"),
-      review: label("reviewStatus", "Review status"),
-      due: label("dueStatus", "Due status"),
-      bookmarked: label("bookmarkedStatus", "Bookmark status"),
-    },
-    operator: {
-      equal: label("conditionEqual", "equals"),
-      notEqual: label("conditionNotEqual", "does not equal"),
-    },
-    value: {
-      ...Object.fromEntries(([
-        ["attempted", "attemptedStatus"],
-        ["wrong", "wrongStatus"],
-        ["review", "reviewStatus"],
-        ["due", "dueStatus"],
-        ["bookmarked", "bookmarkedStatus"],
-      ] as const).flatMap(([field]) => [
-        [`${field}:yes`, optionLabel(field, "yes")],
-        [`${field}:no`, optionLabel(field, "no")],
-      ])),
-      yes: label("yes", "Yes"),
-      no: label("no", "No"),
-      any: label("allQuestions", "All questions"),
-    },
-    and: label("conditionAnd", "AND"),
-    or: label("conditionOr", "OR"),
-    not: label("conditionNot", "NOT"),
-    result: label("conditionGraphResult", "Questions"),
-    empty: label("conditionGraphEmpty", "All questions"),
-  });
+  // [条件图形视图-暂停维护] 图形视图相关状态与函数整体注释，恢复时连同模板与组件一起还原。
+  // let viewMode: "list" | "graph" = "list";
+  // let selectedGraphPath: number[] | undefined;
+  // let selectedGraphRule: PracticeFilterRule | undefined;
+  //
+  // function graphRuleAt(path: readonly number[] | undefined): PracticeFilterRule | undefined {
+  //   if (!path) return undefined;
+  //   let group: PracticeFilterGroup = queryToPracticeFilter(editorQuery);
+  //   for (let index = 0; index < path.length; index += 1) {
+  //     const entry = group.rules[path[index]];
+  //     if (!entry) return undefined;
+  //     if (index === path.length - 1) return "rules" in entry ? undefined : entry;
+  //     if (!("rules" in entry)) return undefined;
+  //     group = entry;
+  //   }
+  //   return undefined;
+  // }
+  //
+  // function updateGraphRule(next: Partial<PracticeFilterRule>): void {
+  //   if (!selectedGraphPath) return;
+  //   const current = queryToPracticeFilter(editorQuery);
+  //   const updateGroup = (group: PracticeFilterGroup, depth: number): PracticeFilterGroup => {
+  //     const index = selectedGraphPath![depth];
+  //     return {
+  //       ...group,
+  //       rules: group.rules.map((entry, entryIndex) => {
+  //         if (entryIndex !== index) return entry;
+  //         if (depth === selectedGraphPath!.length - 1 && !('rules' in entry)) return { ...entry, ...next };
+  //         if ('rules' in entry) return updateGroup(entry, depth + 1);
+  //         return entry;
+  //       }),
+  //     };
+  //   };
+  //   editorQuery = practiceFilterToQuery(updateGroup(current, 0));
+  // }
+  //
+  // function graphNodeActivate(id: string): void {
+  //   const node = graphModel.nodes.find((candidate) => candidate.id === id);
+  //   const path = node?.meta?.rulePath;
+  //   if (Array.isArray(path) && path.every((item) => typeof item === "number")) {
+  //     selectedGraphPath = path as number[];
+  //   } else {
+  //     selectedGraphPath = undefined;
+  //     viewMode = "list";
+  //   }
+  // }
+  //
+  // $: selectedGraphRule = graphRuleAt(selectedGraphPath);
+  //
+  // $: graphModel = practiceFilterToGraph(queryToPracticeFilter(editorQuery), {
+  //   field: {
+  //     attempted: label("attemptedStatus", "Attempt status"),
+  //     wrong: label("wrongStatus", "Wrong-answer status"),
+  //     review: label("reviewStatus", "Review status"),
+  //     due: label("dueStatus", "Due status"),
+  //     bookmarked: label("bookmarkedStatus", "Bookmark status"),
+  //   },
+  //   operator: {
+  //     equal: label("conditionEqual", "equals"),
+  //     notEqual: label("conditionNotEqual", "does not equal"),
+  //   },
+  //   value: {
+  //     ...Object.fromEntries(([
+  //       ["attempted", "attemptedStatus"],
+  //       ["wrong", "wrongStatus"],
+  //       ["review", "reviewStatus"],
+  //       ["due", "dueStatus"],
+  //       ["bookmarked", "bookmarkedStatus"],
+  //     ] as const).flatMap(([field]) => [
+  //       [`${field}:yes`, optionLabel(field, "yes")],
+  //       [`${field}:no`, optionLabel(field, "no")],
+  //     ])),
+  //     yes: label("yes", "Yes"),
+  //     no: label("no", "No"),
+  //     any: label("allQuestions", "All questions"),
+  //   },
+  //   and: label("conditionAnd", "AND"),
+  //   or: label("conditionOr", "OR"),
+  //   not: label("conditionNot", "NOT"),
+  //   result: label("conditionGraphResult", "Questions"),
+  //   empty: label("conditionGraphEmpty", "All questions"),
+  // });
 
   function updateDockLayout(): void {
     if (!hostElement) return;
@@ -516,6 +519,8 @@
       </div>
 
       <div class="condition-dialog-body">
+        <!-- [条件图形视图-暂停维护] 列表/图形切换与图形分支整体注释，恢复时还原本块。 -->
+        <!--
         <div class="condition-view-switcher" role="group" aria-label={label("conditionViewMode", "Condition view") }>
           <Button
             variant={viewMode === "list" ? "secondary" : "ghost"}
@@ -552,6 +557,7 @@
             </div>
           {/if}
         {:else}
+        -->
         <div class="query-builder-theme">
           <QueryBuilder
             {fields}
@@ -586,7 +592,7 @@
             showUndoRedo
           />
         </div>
-        {/if}
+        <!-- [条件图形视图-暂停维护] 原视图分支的 {/if} 一并注释 -->
       </div>
 
       <footer class="condition-dialog-footer">
@@ -824,7 +830,7 @@
     padding: 10px 12px;
   }
 
-  .condition-view-switcher {
+  /* [条件图形视图-暂停维护] .condition-view-switcher {
     display: flex;
     gap: 4px;
     margin-bottom: 8px;
@@ -849,7 +855,7 @@
 
   .condition-graph-inspector strong { margin-right: 3px; font-size: 12px; }
   .condition-graph-inspector select { min-width: 118px; height: 28px; padding: 0 7px; border: 1px solid var(--b3-border-color); border-radius: 5px; color: var(--b3-theme-on-background); background: var(--b3-theme-background); }
-
+  */
 
   .condition-dialog-footer {
     flex-wrap: wrap;

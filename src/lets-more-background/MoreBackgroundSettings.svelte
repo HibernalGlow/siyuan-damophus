@@ -17,8 +17,8 @@
     XCircle,
   } from "lucide-svelte";
   import "./settings/more-background-settings.css";
-  import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
-  import { coverConditionToGraph } from "./cover-condition-graph";
+  // [条件图形视图-暂停维护] import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
+  // [条件图形视图-暂停维护] import { coverConditionToGraph } from "./cover-condition-graph";
   import CoverTemplatesTab from "./settings/CoverTemplatesTab.svelte";
   import CoverTagPoolsTab from "./settings/CoverTagPoolsTab.svelte";
   import CoverCredentialsTab from "./settings/CoverCredentialsTab.svelte";
@@ -288,31 +288,31 @@
     conditionMigrationOpen = false;
   }
 
-  const migrationGraphLabels = {
-    field: {
-      aspectRatio: t("lets-more-background.fieldRatio", "比例"),
-      site: t("lets-more-background.fieldSite", "站点"),
-      rating: t("lets-more-background.fieldRating", "分级"),
-      tags: t("lets-more-background.fieldTags", "固定 Tag"),
-      minScore: t("lets-more-background.fieldMinScore", "最低分"),
-      timeRange: t("lets-more-background.fieldTimeRange", "时间范围"),
-      tagPool: t("lets-more-background.fieldTagPool", "词库"),
-      imageQuality: t("lets-more-background.fieldImageQuality", "画质"),
-      excludeTagPool: t("lets-more-background.fieldExcludeTagPool", "排除词库"),
-      blacklist: t("lets-more-background.fieldBlacklist", "黑名单"),
-    },
-    operator: {
-      equals: t("lets-more-background.opEquals", "等于"),
-      contains: t("lets-more-background.opContains", "包含"),
-      gte: t("lets-more-background.opGte", "不低于"),
-      randomIn: t("lets-more-background.opRandomIn", "随机取"),
-      excludeAllIn: t("lets-more-background.opExcludeAllIn", "排除全部"),
-      containsNone: t("lets-more-background.opContainsNone", "不含"),
-    },
-    and: t("lets-more-background.conditionAnd", "且"),
-    result: t("lets-more-background.conditionGraphResult", "封面图"),
-    empty: t("lets-more-background.conditionGraphEmpty", "全部图片"),
-  };
+  // [条件图形视图-暂停维护] const migrationGraphLabels = {
+  //   field: {
+  //     aspectRatio: t("lets-more-background.fieldRatio", "比例"),
+  //     site: t("lets-more-background.fieldSite", "站点"),
+  //     rating: t("lets-more-background.fieldRating", "分级"),
+  //     tags: t("lets-more-background.fieldTags", "固定 Tag"),
+  //     minScore: t("lets-more-background.fieldMinScore", "最低分"),
+  //     timeRange: t("lets-more-background.fieldTimeRange", "时间范围"),
+  //     tagPool: t("lets-more-background.fieldTagPool", "词库"),
+  //     imageQuality: t("lets-more-background.fieldImageQuality", "画质"),
+  //     excludeTagPool: t("lets-more-background.fieldExcludeTagPool", "排除词库"),
+  //     blacklist: t("lets-more-background.fieldBlacklist", "黑名单"),
+  //   },
+  //   operator: {
+  //     equals: t("lets-more-background.opEquals", "等于"),
+  //     contains: t("lets-more-background.opContains", "包含"),
+  //     gte: t("lets-more-background.opGte", "不低于"),
+  //     randomIn: t("lets-more-background.opRandomIn", "随机取"),
+  //     excludeAllIn: t("lets-more-background.opExcludeAllIn", "排除全部"),
+  //     containsNone: t("lets-more-background.opContainsNone", "不含"),
+  //   },
+  //   and: t("lets-more-background.conditionAnd", "且"),
+  //   result: t("lets-more-background.conditionGraphResult", "封面图"),
+  //   empty: t("lets-more-background.conditionGraphEmpty", "全部图片"),
+  // };
 
   // --- 词库操作 ---
   function addTagPool() {
@@ -608,15 +608,16 @@
           </button>
         </header>
         <p class="mb-migration-desc">
-          {label("lets-more-background.conditionMigrationBody", `检测到 ${legacyConditionTemplates.length} 个模板仍使用旧版扁平筛选条件。下方是迁移后的条件图形预览，筛选效果保持不变，并支持条件分组。`)}
+          {label("lets-more-background.conditionMigrationBody", `检测到 ${legacyConditionTemplates.length} 个模板仍使用旧版扁平筛选条件。迁移为新的树形条件后筛选效果保持不变，并支持条件分组。`)}
         </p>
         <div class="mb-migration-list">
           {#each legacyConditionTemplates as tpl (tpl.id)}
             <div class="mb-migration-item">
               <strong class="mb-migration-item-name">{tpl.name}</strong>
-              <div class="mb-migration-preview" aria-hidden="true">
+              <!-- [条件图形视图-暂停维护] <div class="mb-migration-preview" aria-hidden="true">
                 <ConditionGraph model={coverConditionToGraph(migrateLegacyCoverRules(tpl.rules ?? []), migrationGraphLabels)} height={200} />
-              </div>
+              </div> -->
+              <small class="mb-migration-item-count">{tpl.rules?.length ?? 0} {label("lets-more-background.conditionsSummaryRules", "条规则")}</small>
             </div>
           {/each}
         </div>

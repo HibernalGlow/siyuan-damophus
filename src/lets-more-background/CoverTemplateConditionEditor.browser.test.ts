@@ -84,22 +84,22 @@ describe("cover template condition editor", () => {
     expect("rules" in applied.rules[1]).toBe(true);
   });
 
-  it("shows the condition graph view with a result node", async () => {
-    await render(migrateLegacyCoverRules([
-      { id: "ratio", field: "aspectRatio", operator: "equals", value: "landscape" },
-    ]));
-    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
-    await tick();
-
-    document.querySelector<HTMLButtonElement>('[data-testid="condition-view-graph"]')!.click();
-    await tick();
-    await vi.waitFor(() => expect(document.querySelectorAll(".svelte-flow__node").length).toBeGreaterThanOrEqual(3));
-
-    const nodes = [...document.querySelectorAll<HTMLElement>(".svelte-flow__node")].map((node) => node.textContent ?? "");
-    expect(nodes.some((text) => text.includes("Aspect ratio"))).toBe(true);
-    // Rule nodes inherit their field's glyph (Ratio icon for aspect ratio).
-    expect(document.querySelector(".svelte-flow__node svg.lucide-ratio")).not.toBeNull();
-  });
+  // [条件图形视图-暂停维护] it("shows the condition graph view with a result node", async () => {
+  //   await render(migrateLegacyCoverRules([
+  //     { id: "ratio", field: "aspectRatio", operator: "equals", value: "landscape" },
+  //   ]));
+  //   document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+  //   await tick();
+  //
+  //   document.querySelector<HTMLButtonElement>('[data-testid="condition-view-graph"]')!.click();
+  //   await tick();
+  //   await vi.waitFor(() => expect(document.querySelectorAll(".svelte-flow__node").length).toBeGreaterThanOrEqual(3));
+  //
+  //   const nodes = [...document.querySelectorAll<HTMLElement>(".svelte-flow__node")].map((node) => node.textContent ?? "");
+  //   expect(nodes.some((text) => text.includes("Aspect ratio"))).toBe(true);
+  //   // Rule nodes inherit their field's glyph (Ratio icon for aspect ratio).
+  //   expect(document.querySelector(".svelte-flow__node svg.lucide-ratio")).not.toBeNull();
+  // });
 
   it("clears the editor and applies the empty condition", async () => {
     const onApply = await render(migrateLegacyCoverRules([
