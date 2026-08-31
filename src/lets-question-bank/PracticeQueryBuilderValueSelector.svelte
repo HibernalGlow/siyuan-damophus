@@ -42,7 +42,7 @@
     }
     if (["and", "or"].includes(name)) return GitBranch;
     if (field !== undefined) {
-      return name === "yes" ? CheckCircle2 : XCircle;
+      return name === "yes" ? CheckCircle2 : name === "no" ? XCircle : ListFilter;
     }
     return ListFilter;
   }

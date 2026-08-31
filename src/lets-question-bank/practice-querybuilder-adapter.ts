@@ -58,7 +58,11 @@ function fromQueryGroup(group: PracticeQueryGroup): PracticeFilterGroup {
     if (entry === "and" || entry === "or") { connectors.push(entry); continue; }
     if (isGroup(entry)) { rules.push(fromQueryGroup(entry as PracticeQueryGroup)); continue; }
     if (!isPracticeField(entry.field)) continue;
-    rules.push({ field: entry.field, type: "tuple", filter: isPracticeOperator(entry.operator) ? entry.operator : "equal", value: isPracticeValue(entry.value) ? entry.value : "yes", ...(entry.disabled ? { disabled: true } : {}) });
+    // An empty value (or the explicit "any" option) means "no restriction on this
+    // dimension" — the core evaluator treats value-less rules as match-all — so the
+    // rule is dropped instead of being silently coerced to "yes" (attempted).
+    if (!isPracticeValue(entry.value)) continue;
+    rules.push({ field: entry.field, type: "tuple", filter: isPracticeOperator(entry.operator) ? entry.operator : "equal", value: entry.value, ...(entry.disabled ? { disabled: true } : {}) });
   }
   const glue = group.glue === "or" ? "or" : "and";
   const normalizedConnectors = connectors.length === Math.max(0, rules.length - 1) ? connectors : [];

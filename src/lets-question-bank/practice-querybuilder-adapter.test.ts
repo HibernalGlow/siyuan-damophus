@@ -42,6 +42,24 @@ describe("practice query builder adapter", () => {
     });
   });
 
+  it("drops rules without a valid value so they restrict nothing", () => {
+    // Blank (cleared) values and the explicit 全部题 option must not be coerced to
+    // "yes": a value-less tuple rule matches all questions in the core evaluator.
+    const filter = queryToPracticeFilter({
+      glue: "and",
+      rules: [
+        { field: "attempted", operator: "equal", value: "" },
+        "and",
+        { field: "wrong", operator: "equal", value: "any" },
+        "and",
+        { field: "bookmarked", operator: "equal", value: "yes" },
+      ],
+    });
+    expect(filter.rules).toEqual([
+      { field: "bookmarked", type: "tuple", filter: "equal", value: "yes" },
+    ]);
+  });
+
   it("round-trips independent combinators and editing state", () => {
     const filter = {
       glue: "and" as const,
