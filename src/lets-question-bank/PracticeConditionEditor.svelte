@@ -9,12 +9,14 @@
     type Translations,
   } from "svelte-querybuilder";
   import "svelte-querybuilder/dist/query-builder.css";
+  import "@/styles/query-builder-theme.css";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import PracticeQueryBuilderAction from "./PracticeQueryBuilderAction.svelte";
   import PracticeQueryBuilderShiftActions from "./PracticeQueryBuilderShiftActions.svelte";
   import PracticeQueryBuilderUndoRedo from "./PracticeQueryBuilderUndoRedo.svelte";
   import PracticeQueryBuilderValueSelector from "./PracticeQueryBuilderValueSelector.svelte";
+  import PracticeRuleGroup from "./PracticeRuleGroup.svelte";
   import type { PracticeFilterPreset } from "./practice-preferences";
   import {
     practiceFilterToCondition,
@@ -224,14 +226,8 @@
     newConditionName = "";
   }
 
-  function groupEntries(group: PracticeQueryGroup, path = ""): Array<{ path: string; group: PracticeQueryGroup }> {
-    const entries = [{ path, group }];
-    group.rules.forEach((rule, index) => {
-      if (typeof rule === "object" && rule !== null && "rules" in rule) {
-        entries.push(...groupEntries(rule, path ? `${path}.${index}` : String(index)));
-      }
-    });
-    return entries;
+  function renameGroupAt(path: readonly number[], name: string): void {
+    renameGroup(path.join("."), name);
   }
 
   function renameGroup(path: string, name: string): void {
@@ -250,10 +246,6 @@
       };
     };
     editorQuery = update(editorQuery, 0);
-  }
-
-  function updateGroupNameFromEvent(path: string, event: Event): void {
-    renameGroup(path, (event.currentTarget as HTMLInputElement).value);
   }
 
   function countRules(value: { rules?: unknown[] }): number {
@@ -406,24 +398,6 @@
         </div>
       </div>
 
-      <div class="condition-group-names">
-        <div class="condition-group-names-heading">
-          <strong>{label("conditionGroupName", "Condition group names")}</strong>
-          <small>{label("conditionGroupNameDescription", "Optional names make saved groups easier to recognize")}</small>
-        </div>
-        {#each groupEntries(editorQuery) as entry, index (`${entry.path}-${index}`)}
-          <div class="condition-group-name-row">
-            <span>{entry.path ? `${label("conditionGroup", "Group")} ${index}` : label("conditionRootGroup", "All conditions")}</span>
-            <Input
-              value={entry.group.name ?? ""}
-              placeholder={label("conditionGroupNamePlaceholder", "Name this group")}
-              aria-label={`${label("conditionGroup", "Group")} ${index} ${label("conditionGroupName", "name")}`}
-              oninput={(event) => updateGroupNameFromEvent(entry.path, event)}
-            />
-          </div>
-        {/each}
-      </div>
-
       <div class="condition-dialog-body">
         <div class="query-builder-theme">
           <QueryBuilder
@@ -437,11 +411,16 @@
             getDefaultValue={() => "yes"}
             maxLevels={4}
             resetOnFieldChange
+            context={{
+              renameGroupAt,
+              groupNamePlaceholder: label("conditionGroupNamePlaceholder", "为这组条件命名"),
+            }}
             controlElements={{
               actionElement: PracticeQueryBuilderAction,
               combinatorSelector: PracticeQueryBuilderValueSelector,
               fieldSelector: PracticeQueryBuilderValueSelector,
               operatorSelector: PracticeQueryBuilderValueSelector,
+              ruleGroup: PracticeRuleGroup,
               shiftActions: PracticeQueryBuilderShiftActions,
               undoRedoActions: PracticeQueryBuilderUndoRedo,
               valueSourceSelector: PracticeQueryBuilderValueSelector,
@@ -586,8 +565,7 @@
     border-bottom: 1px solid var(--b3-border-color);
   }
 
-  .condition-dialog-header > div,
-  .condition-group-names-heading {
+  .condition-dialog-header > div {
     min-width: 0;
     display: grid;
     gap: 2px;
@@ -699,37 +677,6 @@
 
   .condition-library-save :global(button) { flex: 0 0 auto; }
 
-  .condition-group-names {
-    display: grid;
-    gap: 7px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--b3-border-color);
-    background: color-mix(in srgb, var(--b3-theme-surface) 38%, transparent);
-  }
-
-  .condition-group-names-heading strong {
-    font-size: 12px;
-    font-weight: 650;
-  }
-
-  .condition-group-names-heading small,
-  .condition-group-name-row {
-    color: var(--b3-theme-on-surface);
-    font-size: 11px;
-  }
-
-  .condition-group-name-row {
-    display: grid;
-    grid-template-columns: minmax(110px, 0.32fr) minmax(0, 1fr);
-    align-items: center;
-    gap: 9px;
-  }
-
-  .condition-group-name-row :global(input) {
-    min-width: 0;
-    height: 30px;
-  }
-
   .condition-dialog-body {
     min-height: 0;
     overflow: auto;
@@ -747,145 +694,8 @@
     gap: 7px;
   }
 
-  .query-builder-theme {
-    --rqb-spacing: 7px;
-    --rqb-border-width: 1px;
-    --rqb-branch-indent: 9px;
-    --rqb-branch-width: 1px;
-    --rqb-border-color: var(--b3-border-color);
-    --rqb-branch-color: var(--b3-border-color);
-    --rqb-border-radius: 6px;
-    font-family: var(--b3-font-family);
-    font-size: 12px;
-  }
-
-  .query-builder-theme :global(.queryBuilder) {
-    width: 100%;
-  }
-
-  .query-builder-theme :global(.ruleGroup) {
-    border-style: solid;
-    border-color: var(--b3-border-color);
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--b3-theme-surface) 42%, transparent);
-  }
-
-  .query-builder-theme :global(.ruleGroup .ruleGroup) {
-    background: var(--b3-theme-background);
-  }
-
-  .query-builder-theme :global(.ruleGroup-header),
-  .query-builder-theme :global(.rule) {
-    min-width: 0;
-    flex-wrap: wrap;
-  }
-
-  .query-builder-theme :global(.rule) {
-    padding: 7px;
-    border: 1px solid var(--b3-border-color);
-    border-radius: 5px;
-    background: var(--b3-theme-background);
-  }
-
-  .query-builder-theme :global([data-slot="select-trigger"]),
-  .query-builder-theme :global(input:not([type="checkbox"])),
-  .query-builder-theme :global(button) {
-    min-height: 30px;
-    border: 1px solid var(--b3-border-color);
-    border-radius: 5px;
-    color: var(--b3-theme-on-background);
-    background: var(--b3-theme-background);
-    font: inherit;
-  }
-
-  .query-builder-theme :global([data-slot="select-trigger"]) {
-    min-width: 0;
-    gap: 6px;
-    padding-right: 7px;
-    text-align: left;
-  }
-
-  .query-builder-theme :global([data-slot="select-trigger"] > span) {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .query-builder-theme :global([data-slot="select-trigger"] > svg:first-child) {
-    flex: 0 0 auto;
-    color: var(--b3-theme-primary);
-  }
-
-  .query-builder-theme :global([data-slot="select-item"] > span) {
-    min-width: 0;
-  }
-
-  .query-builder-theme :global([data-slot="select-trigger"]),
-  .query-builder-theme :global(input:not([type="checkbox"])) {
-    min-width: 118px;
-    padding: 4px 8px;
-  }
-
-  .query-builder-theme :global(.rule-fields) {
-    flex: 1 1 160px;
-  }
-
-  .query-builder-theme :global(.rule-operators) {
-    flex: 1 1 140px;
-  }
-
-  .query-builder-theme :global(.rule-value) {
-    flex: 1 1 130px;
-  }
-
-  .query-builder-theme :global(.rule-fields),
-  .query-builder-theme :global(.rule-operators),
-  .query-builder-theme :global(.rule-value) {
-    min-width: 0;
-  }
-
-  .query-builder-theme :global(button) {
-    padding: 4px 9px;
-    cursor: pointer;
-  }
-
-  .query-builder-theme :global(button:hover) {
-    background: var(--b3-list-hover);
-  }
-
-  /* Add rule is the primary action (solid primary); add group is secondary
-     (neutral dashed frame + square-plus icon) so the two never look alike. */
-  .query-builder-theme :global(.ruleGroup-addRule),
-  .query-builder-theme :global(.ruleGroup-addGroup) {
-    gap: 4px;
-  }
-
-  .query-builder-theme :global(.ruleGroup-addRule) {
-    color: var(--b3-theme-primary);
-    border-color: color-mix(in srgb, var(--b3-theme-primary) 48%, var(--b3-border-color));
-    background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
-    font-weight: 600;
-  }
-
-  .query-builder-theme :global(.ruleGroup-addGroup) {
-    color: var(--b3-theme-on-surface);
-    border-color: var(--b3-border-color);
-    border-style: dashed;
-  }
-
-  .query-builder-theme :global(.rule-remove),
-  .query-builder-theme :global(.ruleGroup-remove) {
-    margin-left: auto;
-    color: var(--b3-theme-error, #d23f31);
-  }
-
-  .query-builder-theme :global([data-slot="select-trigger"]:focus-visible),
-  .query-builder-theme :global(input:focus-visible),
-  .query-builder-theme :global(button:focus-visible) {
-    outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
-    outline-offset: 1px;
-  }
+  /* Query-builder visuals live in the shared src/styles/query-builder-theme.css,
+     so every condition editor in the plugin renders identically. */
 
   @container (max-width: 700px) {
     .practice-condition-editor {
@@ -907,69 +717,6 @@
     .condition-dialog-body {
       padding: 9px;
     }
-
-    .query-builder-theme :global(.rule) {
-      display: grid;
-      grid-template-columns: 28px minmax(0, 1fr) 28px;
-      gap: 6px;
-      align-items: stretch;
-    }
-
-    .query-builder-theme :global(.rule-fields),
-    .query-builder-theme :global(.rule-operators),
-    .query-builder-theme :global(.rule-value) {
-      width: 100%;
-      min-height: 34px;
-    }
-
-    .query-builder-theme :global(.rule-fields) {
-      grid-column: 2 / 4;
-    }
-
-    .query-builder-theme :global(.rule-operators) {
-      grid-column: 2;
-    }
-
-    .query-builder-theme :global(.rule-value) {
-      grid-column: 2 / 4;
-    }
-
-    .query-builder-theme :global(.rule-cloneRule),
-    .query-builder-theme :global(.rule-lock),
-    .query-builder-theme :global(.rule-remove) {
-      min-height: 32px;
-      padding: 4px;
-    }
-
-    /* Icons alone fit the narrow rule grid; the distinct glyph still tells
-       "add rule" from "add group". */
-    .query-builder-theme :global(.ruleGroup-addRule .action-label),
-    .query-builder-theme :global(.ruleGroup-addGroup .action-label) {
-      display: none;
-    }
-
-    .query-builder-theme :global(.shiftActions) {
-      grid-column: 1;
-      grid-row: 1 / span 2;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .query-builder-theme :global(.rule-cloneRule) {
-      grid-column: 1;
-      grid-row: 3;
-    }
-
-    .query-builder-theme :global(.rule-lock) {
-      grid-column: 2;
-      grid-row: 3;
-      width: 100%;
-    }
-
-    .query-builder-theme :global(.rule-remove) {
-      grid-column: 3;
-      grid-row: 3;
-    }
   }
 
   @media (max-width: 620px) {
@@ -988,18 +735,5 @@
     }
 
     .condition-library-save :global(button) { padding-inline: 10px; }
-
-    .condition-group-name-row {
-      grid-template-columns: 1fr;
-      gap: 4px;
-    }
-
-    .query-builder-theme :global(.ruleGroup-body) {
-      margin-left: 6px;
-    }
-
-    .query-builder-theme :global(.rule-remove) {
-      margin-left: 0;
-    }
   }
 </style>

@@ -1,0 +1,296 @@
+/* Shared svelte-querybuilder theme for every condition editor in the plugin
+   (question bank practice/composer, cover template maintenance). A wrapper
+   element with class "query-builder-theme" activates it; nesting depth is
+   signalled by the builder's data-level attribute and rendered as alternating
+   theme-color tints so groups are distinguishable at a glance. */
+
+.query-builder-theme {
+  --rqb-spacing: 7px;
+  --rqb-border-width: 1px;
+  --rqb-branch-indent: 9px;
+  --rqb-branch-width: 1px;
+  --rqb-border-color: var(--b3-border-color);
+  --rqb-branch-color: var(--b3-border-color);
+  --rqb-border-radius: 6px;
+  font-family: var(--b3-font-family);
+  font-size: 12px;
+}
+
+.query-builder-theme .queryBuilder {
+  width: 100%;
+}
+
+.query-builder-theme .ruleGroup {
+  min-width: 0;
+  border-style: solid;
+  border-width: var(--rqb-border-width);
+  border-left-width: 3px;
+  border-color: var(--b3-border-color);
+  border-radius: var(--rqb-border-radius);
+  background: color-mix(in srgb, var(--b3-theme-surface) 42%, transparent);
+}
+
+/* Nesting depth: alternate the accent hue (primary / secondary) and deepen the
+   wash with every level, so a group's color names its position in the tree. */
+.query-builder-theme .ruleGroup[data-level="0"] {
+  border-left-color: color-mix(in srgb, var(--b3-theme-primary) 55%, var(--b3-border-color));
+}
+.query-builder-theme .ruleGroup[data-level="1"] {
+  border-left-color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 7%, var(--b3-theme-background));
+}
+.query-builder-theme .ruleGroup[data-level="2"] {
+  border-left-color: var(--b3-theme-secondary, var(--b3-theme-primary));
+  background: color-mix(in srgb, var(--b3-theme-secondary, var(--b3-theme-primary)) 10%, var(--b3-theme-background));
+}
+.query-builder-theme .ruleGroup[data-level="3"] {
+  border-left-color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 14%, var(--b3-theme-background));
+}
+.query-builder-theme .ruleGroup[data-level="4"] {
+  border-left-color: var(--b3-theme-secondary, var(--b3-theme-primary));
+  background: color-mix(in srgb, var(--b3-theme-secondary, var(--b3-theme-primary)) 16%, var(--b3-theme-background));
+}
+.query-builder-theme .ruleGroup[data-level="5"],
+.query-builder-theme .ruleGroup[data-level="6"] {
+  border-left-color: var(--b3-theme-primary);
+  background: color-mix(in srgb, var(--b3-theme-primary) 20%, var(--b3-theme-background));
+}
+
+.query-builder-theme .ruleGroup .ruleGroup-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rqb-spacing);
+}
+
+.query-builder-theme .ruleGroup .ruleGroup-body:empty {
+  display: none;
+}
+
+.query-builder-theme .ruleGroup .ruleGroup-header,
+.query-builder-theme .ruleGroup .rule,
+.query-builder-theme .ruleGroup .undoRedoActions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rqb-spacing);
+  align-items: center;
+}
+
+.query-builder-theme .ruleGroup .rule {
+  padding: 7px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 5px;
+  background: var(--b3-theme-background);
+}
+
+/* Optional per-group name, rendered inline above the group controls. */
+.query-builder-theme .rule-group-name {
+  flex: 1 1 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px dashed color-mix(in srgb, var(--b3-theme-primary) 34%, var(--b3-border-color));
+  border-radius: 5px;
+  background: transparent;
+  color: var(--b3-theme-on-background);
+  font: inherit;
+  font-size: 11.5px;
+}
+
+.query-builder-theme .rule-group-name::placeholder {
+  color: var(--b3-theme-on-surface);
+  opacity: 0.75;
+}
+
+.query-builder-theme .rule-group-name:focus-visible {
+  border-style: solid;
+  outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.query-builder-theme [data-slot="select-trigger"],
+.query-builder-theme input:not([type="checkbox"]),
+.query-builder-theme button {
+  min-height: 30px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 5px;
+  color: var(--b3-theme-on-background);
+  background: var(--b3-theme-background);
+  font: inherit;
+}
+
+.query-builder-theme [data-slot="select-trigger"] {
+  min-width: 0;
+  gap: 6px;
+  padding-right: 7px;
+  text-align: left;
+}
+
+.query-builder-theme [data-slot="select-trigger"] > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.query-builder-theme [data-slot="select-trigger"] > svg:first-child {
+  flex: 0 0 auto;
+  color: var(--b3-theme-primary);
+}
+
+.query-builder-theme [data-slot="select-item"] > span {
+  min-width: 0;
+}
+
+.query-builder-theme [data-slot="select-trigger"],
+.query-builder-theme input:not([type="checkbox"]) {
+  min-width: 118px;
+  padding: 4px 8px;
+}
+
+.query-builder-theme .rule-fields {
+  flex: 1 1 160px;
+}
+
+.query-builder-theme .rule-operators {
+  flex: 1 1 140px;
+}
+
+.query-builder-theme .rule-value {
+  flex: 1 1 130px;
+}
+
+.query-builder-theme .rule-fields,
+.query-builder-theme .rule-operators,
+.query-builder-theme .rule-value {
+  min-width: 0;
+}
+
+.query-builder-theme button {
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.query-builder-theme button:hover {
+  background: var(--b3-list-hover);
+}
+
+/* Add rule is the primary action (solid primary); add group is secondary
+   (neutral dashed frame + square-plus icon) so the two never look alike. */
+.query-builder-theme .ruleGroup-addRule,
+.query-builder-theme .ruleGroup-addGroup {
+  gap: 4px;
+}
+
+.query-builder-theme .ruleGroup-addRule {
+  color: var(--b3-theme-primary);
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 48%, var(--b3-border-color));
+  background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
+  font-weight: 600;
+}
+
+.query-builder-theme .ruleGroup-addGroup {
+  color: var(--b3-theme-on-surface);
+  border-color: var(--b3-border-color);
+  border-style: dashed;
+}
+
+.query-builder-theme .ruleGroup .shiftActions > *,
+.query-builder-theme .rule-hasSubQuery .shiftActions > * {
+  background-color: rgba(0, 0, 0, 0);
+  border: none;
+  cursor: pointer;
+}
+
+.query-builder-theme .rule-remove,
+.query-builder-theme .ruleGroup-remove {
+  color: var(--b3-theme-error, #d23f31);
+}
+
+.query-builder-theme [data-slot="select-trigger"]:focus-visible,
+.query-builder-theme input:focus-visible,
+.query-builder-theme button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--b3-theme-primary) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.query-builder-theme .ruleGroup.dndDragging,
+.query-builder-theme .rule.dndDragging {
+  opacity: 0.5;
+}
+
+@media (max-width: 640px) {
+  .query-builder-theme .rule {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 28px;
+    gap: 6px;
+    align-items: stretch;
+  }
+
+  .query-builder-theme .rule-fields,
+  .query-builder-theme .rule-operators,
+  .query-builder-theme .rule-value {
+    width: 100%;
+    min-height: 34px;
+  }
+
+  .query-builder-theme .rule-fields {
+    grid-column: 2 / 4;
+  }
+
+  .query-builder-theme .rule-operators {
+    grid-column: 2;
+  }
+
+  .query-builder-theme .rule-value {
+    grid-column: 2 / 4;
+  }
+
+  .query-builder-theme .rule-cloneRule,
+  .query-builder-theme .rule-lock,
+  .query-builder-theme .rule-remove {
+    min-height: 32px;
+    padding: 4px;
+  }
+
+  /* Icons alone fit the narrow rule grid; the distinct glyph still tells
+     "add rule" from "add group". */
+  .query-builder-theme .ruleGroup-addRule .action-label,
+  .query-builder-theme .ruleGroup-addGroup .action-label {
+    display: none;
+  }
+
+  .query-builder-theme .shiftActions {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .query-builder-theme .rule-cloneRule {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .query-builder-theme .rule-lock {
+    grid-column: 2;
+    grid-row: 3;
+    width: 100%;
+  }
+
+  .query-builder-theme .rule-remove {
+    grid-column: 3;
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 620px) {
+  .query-builder-theme .ruleGroup-body {
+    margin-left: 6px;
+  }
+
+  .query-builder-theme .rule-remove {
+    margin-left: 0;
+  }
+}

@@ -2,6 +2,7 @@
   import { Check, RotateCcw, SlidersHorizontal, X } from "lucide-svelte";
   import { QueryBuilder, type Field, type FullCombinator, type FullOperator, type Translations } from "svelte-querybuilder";
   import "svelte-querybuilder/dist/query-builder.css";
+  import "@/styles/query-builder-theme.css";
   import { Button } from "@/components/ui/button";
   import PracticeQueryBuilderShiftActions from "../lets-question-bank/PracticeQueryBuilderShiftActions.svelte";
   import PracticeQueryBuilderUndoRedo from "../lets-question-bank/PracticeQueryBuilderUndoRedo.svelte";
