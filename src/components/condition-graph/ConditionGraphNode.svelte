@@ -6,6 +6,9 @@
   export let data: ConditionGraphNode;
   export let selected = false;
 
+  // Node data carries the field's own lucide glyph; unknown falls back per kind.
+  $: NodeIcon = (data.icon ?? (data.kind === "logic" ? GitBranch : data.kind === "result" ? ShieldCheck : ListFilter)) as typeof ListFilter;
+
 </script>
 
 <Handle type="target" position={Position.Left} isConnectable={false} />
@@ -22,7 +25,7 @@
   aria-label={data.detail ? `${data.label}: ${data.detail}` : data.label}
 >
   <span class="condition-graph-node-icon" aria-hidden="true">
-    {#if data.kind === "logic"}<GitBranch size={15} />{:else if data.kind === "result"}<ShieldCheck size={14} />{:else}<ListFilter size={14} />{/if}
+    <NodeIcon size={15} />
   </span>
   <span class="condition-graph-node-copy">
     <strong>{data.label}</strong>

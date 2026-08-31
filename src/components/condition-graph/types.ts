@@ -6,6 +6,8 @@ export interface ConditionGraphNode {
   label: string;
   detail?: string;
   disabled?: boolean;
+  /** Lucide component rendered before the label; falls back to a kind-based glyph. */
+  icon?: unknown;
   meta?: Record<string, unknown>;
 }
 

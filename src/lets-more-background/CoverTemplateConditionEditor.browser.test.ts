@@ -97,6 +97,8 @@ describe("cover template condition editor", () => {
 
     const nodes = [...document.querySelectorAll<HTMLElement>(".svelte-flow__node")].map((node) => node.textContent ?? "");
     expect(nodes.some((text) => text.includes("Aspect ratio"))).toBe(true);
+    // Rule nodes inherit their field's glyph (Ratio icon for aspect ratio).
+    expect(document.querySelector(".svelte-flow__node svg.lucide-ratio")).not.toBeNull();
   });
 
   it("clears the editor and applies the empty condition", async () => {

@@ -3,6 +3,7 @@
 // group renders as one 且 gate over its children, rules render as leaf nodes and
 // the whole graph flows into a single result node.
 import type { ConditionGraphEdge, ConditionGraphModel, ConditionGraphNode } from "@/components/condition-graph/types";
+import { Ban, Clock3, EyeOff, GitBranch, Globe, Image, Library, Ratio, ShieldCheck, Star, Tag } from "lucide-svelte";
 import type { CoverConditionGroup, CoverConditionRule } from "./sources";
 
 export interface CoverConditionGraphLabels {
@@ -12,6 +13,20 @@ export interface CoverConditionGraphLabels {
   result: string;
   empty: string;
 }
+
+// Per-field glyphs so graph nodes read like the rest of the module's UI.
+const FIELD_ICONS: Record<string, typeof Image> = {
+  aspectRatio: Ratio,
+  site: Globe,
+  rating: ShieldCheck,
+  tags: Tag,
+  minScore: Star,
+  timeRange: Clock3,
+  tagPool: Library,
+  imageQuality: Image,
+  excludeTagPool: EyeOff,
+  blacklist: Ban,
+};
 
 type CoverEntry = CoverConditionRule | CoverConditionGroup;
 
@@ -38,13 +53,14 @@ export function coverConditionToGraph(condition: CoverConditionGroup, labels: Co
         label: labels.field[entry.field] ?? entry.field,
         detail: `${labels.operator[entry.operator] ?? entry.operator} ${String(entry.value ?? "")}`.trim(),
         disabled: entry.disabled,
+        icon: FIELD_ICONS[entry.field] ?? Image,
         meta: { rulePath: [...indices, index] },
       });
       childIds.push(id);
     });
     if (!childIds.length) return undefined;
     const gateId = `${path}-and`;
-    nodes.push({ id: gateId, kind: "logic", label: labels.and });
+    nodes.push({ id: gateId, kind: "logic", label: labels.and, icon: GitBranch });
     childIds.forEach((childId) => edges.push({ id: `${childId}-${gateId}`, source: childId, target: gateId }));
     return gateId;
   };
@@ -52,7 +68,7 @@ export function coverConditionToGraph(condition: CoverConditionGroup, labels: Co
   const model: ConditionGraphModel = { nodes, edges };
   const rootId = visitGroup(condition, "root", []);
   const resultId = "result";
-  nodes.push({ id: resultId, kind: "result", label: labels.result, detail: rootId ? undefined : labels.empty });
+  nodes.push({ id: resultId, kind: "result", label: labels.result, detail: rootId ? undefined : labels.empty, icon: Image });
   if (rootId) edges.push({ id: `${rootId}-${resultId}`, source: rootId, target: resultId });
   return model;
 }

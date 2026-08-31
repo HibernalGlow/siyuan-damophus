@@ -1,5 +1,6 @@
 import type { ConditionGraphEdge, ConditionGraphModel, ConditionGraphNode } from "@/components/condition-graph/types";
 import { practiceFilterToCondition, type PracticeFilter, type PracticeFilterGroup, type PracticeFilterRule } from "@/question-bank/core/scope";
+import { Bookmark, CheckCircle2, Clock3, GitBranch, ListFilter, RefreshCw, XCircle } from "lucide-svelte";
 
 export interface PracticeConditionGraphLabels {
   field: Record<string, string>;
@@ -12,6 +13,15 @@ export interface PracticeConditionGraphLabels {
   empty: string;
 }
 
+// Same glyphs the field pills use, so the graph reads like the list view.
+const FIELD_ICONS: Record<string, typeof ListFilter> = {
+  attempted: CheckCircle2,
+  wrong: XCircle,
+  review: RefreshCw,
+  due: Clock3,
+  bookmarked: Bookmark,
+};
+
 type Expression =
   | { kind: "rule"; id: string; node: ConditionGraphNode }
   | { kind: "gate"; id: string; node: ConditionGraphNode; children: Expression[] };
@@ -21,7 +31,7 @@ function isGroup(value: PracticeFilterRule | PracticeFilterGroup): value is Prac
 }
 
 function gate(id: string, operator: string, detail: string | undefined, children: Expression[]): Expression {
-  return { kind: "gate", id, node: { id, kind: "logic", label: operator, detail }, children };
+  return { kind: "gate", id, node: { id, kind: "logic", label: operator, detail, icon: GitBranch }, children };
 }
 
 function groupExpression(group: PracticeFilterGroup, path: string, labels: PracticeConditionGraphLabels, rulePath: number[] = []): Expression | undefined {
@@ -38,6 +48,7 @@ function groupExpression(group: PracticeFilterGroup, path: string, labels: Pract
             label: labels.field[rule.field] ?? rule.field,
             detail: `${labels.operator[rule.filter ?? "equal"] ?? rule.filter ?? "equal"} ${labels.value[`${rule.field}:${rule.value ?? ""}`] ?? labels.value[rule.value ?? ""] ?? rule.value ?? ""}`,
             disabled: rule.disabled,
+            icon: FIELD_ICONS[rule.field] ?? ListFilter,
             meta: { rulePath: [...rulePath, index] },
           },
         })
@@ -78,7 +89,7 @@ export function practiceFilterToGraph(filter: PracticeFilter, labels: PracticeCo
   };
 
   const resultId = "result";
-  nodes.push({ id: resultId, kind: "result", label: labels.result, detail: root ? undefined : labels.empty });
+  nodes.push({ id: resultId, kind: "result", label: labels.result, detail: root ? undefined : labels.empty, icon: ListFilter });
   if (root) {
     const rootId = visit(root);
     edges.push({ id: `${rootId}-${resultId}`, source: rootId, target: resultId });
