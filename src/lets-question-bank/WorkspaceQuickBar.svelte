@@ -151,58 +151,60 @@
 </script>
 
 <div class="workspace-quick-bar" aria-label={label("quickBarLabel", "Workspace shortcuts")}>
-  {#if modeMenuOpen}
-    <div class="quick-bar-mode-menu" role="menu" aria-label={label("practiceModes", "答题模式")}>
-      {#each modeOptions as option (option.id)}
-        <button type="button" role="menuitem" class:checked={mode === option.id} onclick={() => pickMode(option.id)}>
-          <svelte:component this={option.icon} size={15} aria-hidden="true" />
-          <span>{option.name}</span>
-          {#if mode === option.id}<Check size={14} aria-hidden="true" />{/if}
+  <div class="quick-bar-float">
+    {#if modeMenuOpen}
+      <div class="quick-bar-mode-menu" role="menu" aria-label={label("practiceModes", "答题模式")}>
+        {#each modeOptions as option (option.id)}
+          <button type="button" role="menuitem" class:checked={mode === option.id} onclick={() => pickMode(option.id)}>
+            <svelte:component this={option.icon} size={15} aria-hidden="true" />
+            <span>{option.name}</span>
+            {#if mode === option.id}<Check size={14} aria-hidden="true" />{/if}
+          </button>
+        {/each}
+      </div>
+    {/if}
+
+    <div class="quick-bar-peek">
+      {#each peeks as peek (peek.id)}
+        <div class="peek-card">
+          <span class="peek-icon" aria-hidden="true">
+            <svelte:component this={icons[peek.id]} size={13} />
+          </span>
+          <span class="peek-copy">
+            <strong>{peek.name}</strong>
+            <small>{peek.metrics}</small>
+          </span>
+          <Button size="sm" variant="outline" disabled={peek.actionDisabled} onclick={peek.run}>{peek.actionLabel}</Button>
+        </div>
+      {/each}
+    </div>
+
+    <div class="quick-bar-tabs">
+      {#each sections as section (section.id)}
+        <button
+          type="button"
+          class="quick-bar-tab"
+          class:active={activeView === section.id}
+          aria-pressed={activeView === section.id}
+          title={section.tabName}
+          onpointerdown={() => startPress(section.id)}
+          onpointerup={endPress}
+          onpointerleave={endPress}
+          onpointercancel={endPress}
+          oncontextmenu={(event) => {
+            if (section.id !== "practice") return;
+            event.preventDefault();
+            modeMenuOpen = true;
+          }}
+          onclick={() => select(section.id)}
+        >
+          <svelte:component this={icons[section.id]} size={14} aria-hidden="true" />
+          <span>{section.tabName}</span>
+          {#if section.badge > 0}<em class={`tone-${section.tone}`}>{section.badge}</em>{/if}
+          {#if section.id === "practice"}<i class="tab-more" aria-hidden="true"></i>{/if}
         </button>
       {/each}
     </div>
-  {/if}
-
-  <div class="quick-bar-peek">
-    {#each peeks as peek (peek.id)}
-      <div class="peek-card">
-        <span class="peek-icon" aria-hidden="true">
-          <svelte:component this={icons[peek.id]} size={13} />
-        </span>
-        <span class="peek-copy">
-          <strong>{peek.name}</strong>
-          <small>{peek.metrics}</small>
-        </span>
-        <Button size="sm" variant="outline" disabled={peek.actionDisabled} onclick={peek.run}>{peek.actionLabel}</Button>
-      </div>
-    {/each}
-  </div>
-
-  <div class="quick-bar-tabs">
-    {#each sections as section (section.id)}
-      <button
-        type="button"
-        class="quick-bar-tab"
-        class:active={activeView === section.id}
-        aria-pressed={activeView === section.id}
-        title={section.tabName}
-        onpointerdown={() => startPress(section.id)}
-        onpointerup={endPress}
-        onpointerleave={endPress}
-        onpointercancel={endPress}
-        oncontextmenu={(event) => {
-          if (section.id !== "practice") return;
-          event.preventDefault();
-          modeMenuOpen = true;
-        }}
-        onclick={() => select(section.id)}
-      >
-        <svelte:component this={icons[section.id]} size={14} aria-hidden="true" />
-        <span>{section.tabName}</span>
-        {#if section.badge > 0}<em class={`tone-${section.tone}`}>{section.badge}</em>{/if}
-        {#if section.id === "practice"}<i class="tab-more" aria-hidden="true"></i>{/if}
-      </button>
-    {/each}
   </div>
 </div>
 
@@ -212,20 +214,29 @@
 
   @container (max-width: 760px) {
     .workspace-quick-bar {
-      /* Docked to the container bottom like SiYuan's own floating pill bar:
-         pushed down by auto margin when the view is short, sticky while scrolling. */
+      /* Zero-height sticky anchor: the bar owns no layout slot and truly floats
+         over the content. The workspace keeps a matching bottom padding so fully
+         scrolled content can clear the pill. */
       position: sticky;
-      bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+      bottom: 0;
       z-index: 3;
-      margin: auto -4px calc(8px + env(safe-area-inset-bottom, 0px));
+      height: 0;
+      margin: auto -4px 0;
+      padding: 0 10px;
+    }
+
+    .quick-bar-float {
+      display: grid;
+      gap: 6px;
+      /* Lift the pill above its zero-height anchor: its bottom edge ends up
+         8px + safe-area above the container bottom. */
+      transform: translateY(calc(-100% - 8px - env(safe-area-inset-bottom, 0px)));
       padding: 7px 10px;
       border: 1px solid var(--b3-border-color);
       border-radius: 16px;
       background: color-mix(in srgb, var(--b3-theme-background) 93%, transparent);
       backdrop-filter: blur(14px);
       box-shadow: 0 10px 26px rgb(0 0 0 / 16%);
-      display: grid;
-      gap: 6px;
     }
 
     .quick-bar-peek { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

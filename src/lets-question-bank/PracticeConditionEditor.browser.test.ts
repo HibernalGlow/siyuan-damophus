@@ -211,6 +211,32 @@ describe("practice condition editor", () => {
     expect(document.querySelector(".undoRedoActions")).not.toBeNull();
   });
 
+  it("switches to a graph view with explicit logic nodes", async () => {
+    await render({
+      glue: "and",
+      combinators: ["and", "or"],
+      rules: [
+        { field: "bookmarked", filter: "equal", value: "yes" },
+        { field: "wrong", filter: "equal", value: "yes" },
+        { field: "review", filter: "equal", value: "yes" },
+      ],
+    });
+    openEditorProgrammatically();
+    await tick();
+    document.querySelector<HTMLButtonElement>('[data-testid="condition-view-graph"]')!.click();
+    await tick();
+
+    expect(document.querySelector('[data-testid="condition-graph"]')).not.toBeNull();
+    expect(document.querySelectorAll('.condition-graph-node[data-kind="rule"]')).toHaveLength(3);
+    expect(document.querySelectorAll('.condition-graph-node[data-kind="logic"]')).toHaveLength(2);
+    expect(document.querySelector('.condition-graph-node[data-kind="logic"]')?.textContent?.toLocaleLowerCase()).toMatch(/and|or/);
+    expect(document.querySelector('.condition-graph-node[data-kind="result"]')?.textContent).toContain("Questions");
+
+    document.querySelector<HTMLButtonElement>('[data-testid="condition-view-list"]')!.click();
+    await tick();
+    expect(document.querySelector(".query-builder-theme")).not.toBeNull();
+  });
+
   it("uses the same floating select menu on mobile instead of a native picker", async () => {
     await page.viewport(390, 844);
     await render({
@@ -229,18 +255,36 @@ describe("practice condition editor", () => {
     expect(fieldTrigger.getAttribute("data-state")).toBe("closed");
   });
 
-  it("docks the dialog full-bleed inside a narrow container", async () => {
+  it("docks the dialog inside a narrow desktop dock without covering the window", async () => {
     await render("review", "384px");
     openEditorProgrammatically();
     await tick();
 
     const dialog = document.querySelector<HTMLElement>(".condition-dialog")!;
     expect(dialog.classList.contains("condition-dialog")).toBe(true);
+    // The host is far narrower than the window: the dialog stays inside the
+    // host rect instead of going full bleed across the app window.
+    expect(dialog.style.width).toBe("384px");
+    expect(dialog.style.left).toBe("0px");
+    expect(dialog.style.top).toBe("0px");
+    expect(dialog.style.maxHeight).toBe("100dvh");
+    expect(dialog.style.transform).toBe("none");
+    // Narrow hosts switch conditions through the compact Select library.
+    expect(document.querySelector('[data-testid="filter-condition-switcher"]')).not.toBeNull();
+    expect(document.querySelector(".condition-library-chips")).toBeNull();
+    // Narrow hosts drop the summary row: the launcher chips open the editor.
+    expect(document.querySelector(".condition-summary-row")).toBeNull();
+  });
+
+  it("keeps the full-bleed dock when the host spans a phone viewport", async () => {
+    await page.viewport(390, 844);
+    await render("review");
+    openEditorProgrammatically();
+    await tick();
+
+    const dialog = document.querySelector<HTMLElement>(".condition-dialog")!;
     expect(dialog.style.width).toBe("100vw");
     expect(dialog.style.left).toBe("0px");
     expect(dialog.style.maxHeight).toBe("100dvh");
-    expect(dialog.style.transform).toBe("none");
-    // Narrow hosts drop the summary row: the launcher chips open the editor.
-    expect(document.querySelector(".condition-summary-row")).toBeNull();
   });
 });

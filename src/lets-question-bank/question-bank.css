@@ -281,9 +281,12 @@
       display: flex;
       flex-direction: column;
     }
-    /* The sticky shortcut bar is clamped inside the content box, so the trailing
-       padding would leave a dead strip below it. Drop it only when the bar exists. */
-    .workspace[data-has-quick-bar="true"] { padding-bottom: 0; }
+    /* The floating shortcut bar is a zero-height sticky anchor (no layout slot),
+       so keep a reserve here: fully scrolled content clears the pill instead of
+       hiding behind it. */
+    .workspace[data-has-quick-bar="true"] {
+      padding-bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+    }
 
     /* ---- Mobile card switching, driven by the bottom bar tabs ---- */
     .workspace[data-view="index"] .practice-launcher,

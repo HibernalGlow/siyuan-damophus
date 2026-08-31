@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, RotateCcw, Save, Trash2, X } from "lucide-svelte";
+  import { Check, GitBranch, ListFilter, RotateCcw, Save, Trash2, X } from "lucide-svelte";
   import {
     QueryBuilder,
     type Field,
@@ -12,11 +12,13 @@
   import "@/styles/query-builder-theme.css";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
+  import * as Select from "@/components/ui/select";
   import PracticeQueryBuilderAction from "./PracticeQueryBuilderAction.svelte";
   import PracticeQueryBuilderShiftActions from "./PracticeQueryBuilderShiftActions.svelte";
   import PracticeQueryBuilderUndoRedo from "./PracticeQueryBuilderUndoRedo.svelte";
   import PracticeQueryBuilderValueSelector from "./PracticeQueryBuilderValueSelector.svelte";
   import PracticeRuleGroup from "./PracticeRuleGroup.svelte";
+  import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
   import type { PracticeFilterPreset } from "./practice-preferences";
   import type { PracticeFilter, PracticeFilterField } from "@/question-bank/core/scope";
   import {
@@ -24,6 +26,7 @@
     queryToPracticeFilter,
     type PracticeQueryGroup,
   } from "./practice-querybuilder-adapter";
+  import { practiceFilterToGraph } from "./practice-condition-graph";
 
   export let label: (key: string, fallback: string) => string;
   export let filter: PracticeFilter = "all";
@@ -34,6 +37,9 @@
   let editorQuery: PracticeQueryGroup = practiceFilterToQuery(filter);
   let dialogOpen = false;
   let newConditionName = "";
+  // Set while the switcher pre-filled the name input: saving then updates that
+  // condition (rename + filter) instead of creating a copy.
+  let nameUpdateTarget: string | undefined = undefined;
   let fields: Field[] = [];
   let operators: FullOperator[] = [];
   let combinators: FullCombinator[] = [];
@@ -41,15 +47,61 @@
   let hostElement: HTMLElement;
   let dockCompact = false;
   let dockDialogStyle = "";
+  let viewMode: "list" | "graph" = "list";
+
+  $: graphModel = practiceFilterToGraph(queryToPracticeFilter(editorQuery), {
+    field: {
+      attempted: label("attemptedStatus", "Attempt status"),
+      wrong: label("wrongStatus", "Wrong-answer status"),
+      review: label("reviewStatus", "Review status"),
+      due: label("dueStatus", "Due status"),
+      bookmarked: label("bookmarkedStatus", "Bookmark status"),
+    },
+    operator: {
+      equal: label("conditionEqual", "equals"),
+      notEqual: label("conditionNotEqual", "does not equal"),
+    },
+    value: {
+      ...Object.fromEntries(([
+        ["attempted", "attemptedStatus"],
+        ["wrong", "wrongStatus"],
+        ["review", "reviewStatus"],
+        ["due", "dueStatus"],
+        ["bookmarked", "bookmarkedStatus"],
+      ] as const).flatMap(([field]) => [
+        [`${field}:yes`, optionLabel(field, "yes")],
+        [`${field}:no`, optionLabel(field, "no")],
+      ])),
+      yes: label("yes", "Yes"),
+      no: label("no", "No"),
+      any: label("allQuestions", "All questions"),
+    },
+    and: label("conditionAnd", "AND"),
+    or: label("conditionOr", "OR"),
+    not: label("conditionNot", "NOT"),
+    result: label("conditionGraphResult", "Questions"),
+    empty: label("conditionGraphEmpty", "All questions"),
+  });
 
   function updateDockLayout(): void {
     if (!hostElement) return;
-    // Narrow hosts mean phone widths: the dialog docks flush to the viewport
-    // edges (full bleed, no side gutters) instead of floating centered.
-    dockCompact = hostElement.getBoundingClientRect().width < 700;
-    dockDialogStyle = dockCompact
-      ? "left: 0px; top: 0px; width: 100vw; max-height: 100dvh; transform: none;"
-      : "";
+    const rect = hostElement.getBoundingClientRect();
+    // Narrow hosts mean phone-like widths: the dialog docks instead of floating
+    // centered. When the host spans the window (a phone viewport) it goes full
+    // bleed; inside a narrow DESKTOP dock it must stay inside the panel rect
+    // instead of covering the whole app window.
+    dockCompact = rect.width < 700;
+    if (!dockCompact) {
+      dockDialogStyle = "";
+      return;
+    }
+    const spansViewport = window.innerWidth - rect.width < 60;
+    if (spansViewport) {
+      dockDialogStyle = "left: 0px; top: 0px; width: 100vw; max-height: 100dvh; transform: none;";
+      return;
+    }
+    const top = Math.round(Math.max(0, rect.top));
+    dockDialogStyle = `left: ${Math.round(rect.left)}px; top: ${top}px; width: ${Math.round(rect.width)}px; max-height: ${top > 0 ? `calc(100dvh - ${top}px)` : "100dvh"}; transform: none;`;
   }
 
   onMount(() => {
@@ -163,6 +215,7 @@
   /** Entry point for the launcher's "new condition" chip. */
   export function openNewCondition(): void {
     newConditionName = "";
+    nameUpdateTarget = undefined;
     openEditor();
   }
 
@@ -172,6 +225,7 @@
     if (!preset) return;
     editorQuery = practiceFilterToQuery(preset.filter);
     newConditionName = "";
+    nameUpdateTarget = undefined;
     dialogOpen = true;
   }
 
@@ -185,6 +239,7 @@
   function cancelEditor(): void {
     editorQuery = practiceFilterToQuery(filter);
     newConditionName = "";
+    nameUpdateTarget = undefined;
     dialogOpen = false;
   }
 
@@ -217,17 +272,20 @@
   function deleteCondition(id: string): void {
     presets = presets.filter((preset) => preset.id !== id);
     if (activePresetId === id) activePresetId = undefined;
+    if (nameUpdateTarget === id) nameUpdateTarget = undefined;
   }
 
   function saveCondition(): void {
     const name = newConditionName.trim();
     if (!name) return;
     const nextFilter = queryToPracticeFilter(editorQuery);
-    // Saving an existing name updates that condition instead of duplicating it.
-    const existing = presets.find((preset) => preset.name === name);
-    if (existing) {
-      presets = presets.map((preset) => (preset.id === existing.id ? { ...preset, filter: nextFilter } : preset));
-      activePresetId = existing.id;
+    // With a switcher-selected target (mobile), saving renames/updates that
+    // condition; otherwise an existing name is updated in place.
+    let target = nameUpdateTarget ? presets.find((preset) => preset.id === nameUpdateTarget) : undefined;
+    if (!target) target = presets.find((preset) => preset.name === name);
+    if (target) {
+      presets = presets.map((preset) => (preset.id === target!.id ? { ...preset, name, filter: nextFilter } : preset));
+      activePresetId = target.id;
     } else {
       const id = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `preset-${Date.now()}`;
       presets = [...presets, { id, name, filter: nextFilter }];
@@ -236,6 +294,22 @@
     sourceFilter = nextFilter;
     filter = nextFilter;
     newConditionName = "";
+    nameUpdateTarget = undefined;
+  }
+
+  /** Switcher pick on compact hosts: apply the condition and aim the name input at it. */
+  function selectFromSwitcher(id: string): void {
+    selectCondition(id);
+    const preset = presets.find((candidate) => candidate.id === id);
+    if (!preset) return;
+    newConditionName = preset.name;
+    nameUpdateTarget = preset.id;
+  }
+
+  function onNameInput(event: Event): void {
+    newConditionName = (event.currentTarget as HTMLInputElement).value;
+    // Clearing the name drops the rename target: the next save starts fresh.
+    if (!newConditionName.trim()) nameUpdateTarget = undefined;
   }
 
   function renameGroupAt(path: readonly number[], name: string): void {
@@ -259,6 +333,8 @@
     };
     editorQuery = update(editorQuery, 0);
   }
+
+  $: activePresetName = presets.find((preset) => preset.id === activePresetId)?.name;
 </script>
 
 <div bind:this={hostElement} class:condition-editor-compact={dockCompact} class="practice-condition-editor" data-testid="practice-condition-editor">
@@ -276,63 +352,137 @@
         {#if presets.length === 0}
           <p class="condition-library-empty">{label("filterConditionsEmpty", "还没有保存的条件：先编辑规则，命名保存后即可一键复用。")}</p>
         {/if}
-        <div class="condition-library-chips">
-          {#each presets as preset (preset.id)}
-            <span class="condition-library-chip" class:active={preset.id === activePresetId} data-testid="filter-condition-row">
-              <button
-                type="button"
-                class="condition-library-select"
-                aria-pressed={preset.id === activePresetId}
-                title={label("apply", "应用")}
-                aria-label={`${label("apply", "应用")} ${preset.name}`}
-                onclick={() => selectCondition(preset.id)}
+        {#if dockCompact}
+          <div class="condition-library-compact">
+            <div class="condition-switcher-row">
+              <Select.Root
+                type="single"
+                value={activePresetId ?? ""}
+                onValueChange={(value) => { if (value) selectFromSwitcher(value); }}
               >
-                {#if preset.id === activePresetId}
-                  <Check size={12} aria-hidden="true" />
-                {:else}
-                  <span class="condition-library-dot" aria-hidden="true"></span>
-                {/if}
-              </button>
-              <input
-                data-testid="filter-condition-name"
-                value={preset.name}
-                size={inputSize(preset.name)}
-                placeholder={label("filterConditionNamePlaceholder", "条件名称")}
-                aria-label={`${label("renameFilterCondition", "重命名条件")} ${preset.name}`}
-                onfocus={() => selectCondition(preset.id)}
-                oninput={(event) => renameCondition(preset.id, (event.currentTarget as HTMLInputElement).value)}
-              />
-              <button
-                type="button"
-                class="condition-library-delete"
+                <Select.Trigger
+                  class="condition-switcher-trigger"
+                  data-testid="filter-condition-switcher"
+                  aria-label={label("selectFilterCondition", "切换条件")}
+                >
+                  <span>{activePresetName ?? label("selectFilterCondition", "切换条件")}</span>
+                </Select.Trigger>
+                <Select.Content portalProps={{ disabled: true }}>
+                  {#each presets as preset (preset.id)}
+                    <Select.Item value={preset.id} label={preset.name}>{preset.name}</Select.Item>
+                  {/each}
+                </Select.Content>
+              </Select.Root>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!activePresetId}
                 title={label("deleteFilterPreset", "删除筛选预设")}
-                aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
-                onclick={() => deleteCondition(preset.id)}
-              ><Trash2 size={12} aria-hidden="true" /></button>
+                aria-label={label("deleteFilterPreset", "删除筛选预设")}
+                onclick={() => { if (activePresetId) deleteCondition(activePresetId); }}
+              ><Trash2 size={14} aria-hidden="true" /></Button>
+            </div>
+            <div class="condition-library-save">
+              <Input
+                data-testid="filter-condition-new-name"
+                value={newConditionName}
+                placeholder={label("filterConditionNamePlaceholder", "命名当前条件")}
+                aria-label={label("filterConditionNamePlaceholder", "命名当前条件")}
+                oninput={onNameInput}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="filter-condition-save"
+                disabled={!newConditionName.trim()}
+                onclick={saveCondition}
+              >
+                <Save size={13} aria-hidden="true" />
+                <span>{label("saveFilterCondition", "保存条件")}</span>
+              </Button>
+            </div>
+          </div>
+        {:else}
+          <div class="condition-library-chips">
+            {#each presets as preset (preset.id)}
+              <span class="condition-library-chip" class:active={preset.id === activePresetId} data-testid="filter-condition-row">
+                <button
+                  type="button"
+                  class="condition-library-select"
+                  aria-pressed={preset.id === activePresetId}
+                  title={label("apply", "应用")}
+                  aria-label={`${label("apply", "应用")} ${preset.name}`}
+                  onclick={() => selectCondition(preset.id)}
+                >
+                  {#if preset.id === activePresetId}
+                    <Check size={12} aria-hidden="true" />
+                  {:else}
+                    <span class="condition-library-dot" aria-hidden="true"></span>
+                  {/if}
+                </button>
+                <input
+                  data-testid="filter-condition-name"
+                  value={preset.name}
+                  size={inputSize(preset.name)}
+                  placeholder={label("filterConditionNamePlaceholder", "条件名称")}
+                  aria-label={`${label("renameFilterCondition", "重命名条件")} ${preset.name}`}
+                  onfocus={() => selectCondition(preset.id)}
+                  oninput={(event) => renameCondition(preset.id, (event.currentTarget as HTMLInputElement).value)}
+                />
+                <button
+                  type="button"
+                  class="condition-library-delete"
+                  title={label("deleteFilterPreset", "删除筛选预设")}
+                  aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
+                  onclick={() => deleteCondition(preset.id)}
+                ><Trash2 size={12} aria-hidden="true" /></button>
+              </span>
+            {/each}
+            <span class="condition-library-save">
+              <Input
+                data-testid="filter-condition-new-name"
+                value={newConditionName}
+                placeholder={label("filterConditionNamePlaceholder", "命名当前条件")}
+                aria-label={label("filterConditionNamePlaceholder", "命名当前条件")}
+                oninput={onNameInput}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="filter-condition-save"
+                disabled={!newConditionName.trim()}
+                onclick={saveCondition}
+              >
+                <Save size={13} aria-hidden="true" />
+                <span>{label("saveFilterCondition", "保存条件")}</span>
+              </Button>
             </span>
-          {/each}
-          <span class="condition-library-save">
-            <Input
-              data-testid="filter-condition-new-name"
-              bind:value={newConditionName}
-              placeholder={label("filterConditionNamePlaceholder", "命名当前条件")}
-              aria-label={label("filterConditionNamePlaceholder", "命名当前条件")}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="filter-condition-save"
-              disabled={!newConditionName.trim()}
-              onclick={saveCondition}
-            >
-              <Save size={13} aria-hidden="true" />
-              <span>{label("saveFilterCondition", "保存条件")}</span>
-            </Button>
-          </span>
-        </div>
+          </div>
+        {/if}
       </div>
 
       <div class="condition-dialog-body">
+        <div class="condition-view-switcher" role="group" aria-label={label("conditionViewMode", "Condition view") }>
+          <Button
+            variant={viewMode === "list" ? "secondary" : "ghost"}
+            size="sm"
+            class="condition-view-button"
+            aria-pressed={viewMode === "list"}
+            data-testid="condition-view-list"
+            onclick={() => viewMode = "list"}
+          ><ListFilter size={14} aria-hidden="true" /><span>{label("conditionViewList", "List view")}</span></Button>
+          <Button
+            variant={viewMode === "graph" ? "secondary" : "ghost"}
+            size="sm"
+            class="condition-view-button"
+            aria-pressed={viewMode === "graph"}
+            data-testid="condition-view-graph"
+            onclick={() => viewMode = "graph"}
+          ><GitBranch size={14} aria-hidden="true" /><span>{label("conditionViewGraph", "Graph view")}</span></Button>
+        </div>
+        {#if viewMode === "graph"}
+          <ConditionGraph model={graphModel} height={360} />
+        {:else}
         <div class="query-builder-theme">
           <QueryBuilder
             {fields}
@@ -367,6 +517,7 @@
             showUndoRedo
           />
         </div>
+        {/if}
       </div>
 
       <footer class="condition-dialog-footer">
@@ -460,6 +611,36 @@
     color: var(--b3-theme-on-surface);
     font-size: 11px;
     line-height: 1.5;
+  }
+
+  /* Compact hosts (phones, narrow desktop docks): saved conditions switch via a
+     Select instead of a growing chip pile. */
+  .condition-library-compact {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .condition-switcher-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .condition-switcher-row :global([data-slot="select-trigger"]) {
+    min-width: 0;
+    flex: 1 1 auto;
+    height: 30px;
+  }
+
+  .condition-switcher-row > :global(button:last-child) {
+    flex: 0 0 auto;
+    color: var(--b3-theme-on-surface);
+  }
+
+  .condition-switcher-row > :global(button:last-child:hover) {
+    color: var(--b3-theme-error, #d23f31);
   }
 
   .condition-library-chips {
@@ -570,6 +751,18 @@
     overflow: auto;
     padding: 10px 12px;
   }
+
+  .condition-view-switcher {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    padding: 3px;
+    width: fit-content;
+    border: 1px solid var(--b3-border-color);
+    border-radius: 7px;
+    background: var(--b3-theme-surface);
+  }
+
 
   .condition-dialog-footer {
     flex-wrap: wrap;
