@@ -7,7 +7,7 @@
   import CoverTemplateConditionEditor from "../CoverTemplateConditionEditor.svelte";
   import { openCoverTagViewer } from "../tag-viewer";
   import { fetchImageForPreview, resolveBooruImageInfo } from "../booru";
-  import { templateToUrl, type CoverTemplateItem, type FilterRule, type SiteCredential, type TagPool } from "../sources";
+  import { templateToUrl, migrateLegacyCoverRules, type CoverConditionGroup, type CoverTemplateItem, type SiteCredential, type TagPool } from "../sources";
 
   export let label: (key: string, fallback: string) => string;
   export let template: CoverTemplateItem;
@@ -16,7 +16,7 @@
   export let writeToAssets = false;
   export let onUpdate: (patch: Partial<CoverTemplateItem>) => void;
   export let onRemove: () => void;
-  export let onApplyRules: (rules: FilterRule[]) => void;
+  export let onApplyCondition: (condition: CoverConditionGroup) => void;
 
   type TestResult = {
     success: boolean;
@@ -120,9 +120,9 @@
     {#if template.type === "booru"}
       <CoverTemplateConditionEditor
         label={(key, fallback) => label(`lets-more-background.${key}`, fallback)}
-        rules={template.rules ?? []}
+        condition={template.condition ?? migrateLegacyCoverRules(template.rules ?? [])}
         {tagPools}
-        onApply={onApplyRules}
+        onApply={onApplyCondition}
       />
     {:else}
       <div>

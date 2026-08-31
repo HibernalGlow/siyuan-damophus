@@ -13,9 +13,12 @@
     Loader2,
     SlidersHorizontal,
     Star,
+    X,
     XCircle,
   } from "lucide-svelte";
   import "./settings/more-background-settings.css";
+  import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
+  import { coverConditionToGraph } from "./cover-condition-graph";
   import CoverTemplatesTab from "./settings/CoverTemplatesTab.svelte";
   import CoverTagPoolsTab from "./settings/CoverTagPoolsTab.svelte";
   import CoverCredentialsTab from "./settings/CoverCredentialsTab.svelte";
@@ -28,6 +31,11 @@
     DEFAULT_TAG_POOLS,
     DEFAULT_TEMPLATES,
     templateToUrl,
+    COVER_CONDITION_SCHEMA_VERSION,
+    migrateLegacyCoverRules,
+    needsConditionMigration,
+    type CoverConditionGroup,
+    type CoverConditionRule,
     type CoverTemplateItem,
     type FilterRule,
     type SiteCredential,
@@ -237,21 +245,74 @@
     syncChanges(DEFAULT_TEMPLATES, DEFAULT_TAG_POOLS, normalizedCredentials);
   }
 
-  function applyRulesToTemplate(tplIndex: number, rules: FilterRule[]) {
-    const patch: Partial<CoverTemplateItem> = { rules };
-    for (const r of rules) {
-      if (r.field === "aspectRatio") patch.aspectRatio = r.value;
-      if (r.field === "site") patch.site = r.value;
-      if (r.field === "rating") patch.rating = r.value;
-      if (r.field === "tags") patch.tags = r.value;
-      if (r.field === "minScore") patch.minScore = Number(r.value) || undefined;
-      if (r.field === "timeRange") patch.timeRange = r.value;
-      if (r.field === "imageQuality") patch.imageQuality = r.value;
-      if (r.field === "tagPool") patch.poolId = r.value;
-      if (r.field === "blacklist") patch.blacklist = r.value;
-    }
+  function applyConditionToTemplate(tplIndex: number, condition: CoverConditionGroup) {
+    const patch: Partial<CoverTemplateItem> = { condition, conditionSchema: COVER_CONDITION_SCHEMA_VERSION, rules: undefined };
+    const backfill = (rule: CoverConditionRule) => {
+      if (rule.field === "aspectRatio") patch.aspectRatio = rule.value;
+      if (rule.field === "site") patch.site = rule.value;
+      if (rule.field === "rating") patch.rating = rule.value;
+      if (rule.field === "tags") patch.tags = rule.value;
+      if (rule.field === "minScore") patch.minScore = Number(rule.value) || undefined;
+      if (rule.field === "timeRange") patch.timeRange = rule.value;
+      if (rule.field === "imageQuality") patch.imageQuality = rule.value;
+      if (rule.field === "tagPool") patch.poolId = rule.value;
+      if (rule.field === "blacklist") patch.blacklist = rule.value;
+    };
+    const walk = (group: CoverConditionGroup) => {
+      group.rules.forEach((entry) => {
+        if ("rules" in entry) walk(entry);
+        else backfill(entry);
+      });
+    };
+    walk(condition);
     updateTemplate(tplIndex, patch);
   }
+
+  // --- 旧版条件迁移（schema 1 → 2），更新后首次打开设置时提示一次 ---
+  let conditionMigrationOpen = false;
+  let conditionMigrationSeen = false;
+  $: legacyConditionTemplates = templates.filter(needsConditionMigration);
+  $: if (!conditionMigrationSeen && legacyConditionTemplates.length > 0) {
+    conditionMigrationSeen = true;
+    conditionMigrationOpen = true;
+  }
+
+  function migrateAllConditions(): void {
+    syncChanges(
+      templates.map((tpl) => (needsConditionMigration(tpl)
+        ? { ...tpl, condition: migrateLegacyCoverRules(tpl.rules ?? []), conditionSchema: COVER_CONDITION_SCHEMA_VERSION, rules: undefined }
+        : tpl)),
+      normalizedTagPools,
+      normalizedCredentials,
+    );
+    conditionMigrationOpen = false;
+  }
+
+  const migrationGraphLabels = {
+    field: {
+      aspectRatio: t("lets-more-background.fieldRatio", "比例"),
+      site: t("lets-more-background.fieldSite", "站点"),
+      rating: t("lets-more-background.fieldRating", "分级"),
+      tags: t("lets-more-background.fieldTags", "固定 Tag"),
+      minScore: t("lets-more-background.fieldMinScore", "最低分"),
+      timeRange: t("lets-more-background.fieldTimeRange", "时间范围"),
+      tagPool: t("lets-more-background.fieldTagPool", "词库"),
+      imageQuality: t("lets-more-background.fieldImageQuality", "画质"),
+      excludeTagPool: t("lets-more-background.fieldExcludeTagPool", "排除词库"),
+      blacklist: t("lets-more-background.fieldBlacklist", "黑名单"),
+    },
+    operator: {
+      equals: t("lets-more-background.opEquals", "等于"),
+      contains: t("lets-more-background.opContains", "包含"),
+      gte: t("lets-more-background.opGte", "不低于"),
+      randomIn: t("lets-more-background.opRandomIn", "随机取"),
+      excludeAllIn: t("lets-more-background.opExcludeAllIn", "排除全部"),
+      containsNone: t("lets-more-background.opContainsNone", "不含"),
+    },
+    and: t("lets-more-background.conditionAnd", "且"),
+    result: t("lets-more-background.conditionGraphResult", "封面图"),
+    empty: t("lets-more-background.conditionGraphEmpty", "全部图片"),
+  };
 
   // --- 词库操作 ---
   function addTagPool() {
@@ -377,7 +438,7 @@
       </div>
     </header>
 
-    <div class="mb-body">
+    <div class="mb-body" data-has-nav="true">
       {#if activeTab === "templates"}
         <div id="mb-panel-templates" class="mb-panel" role="tabpanel" aria-labelledby="mb-tab-templates">
           <CoverTemplatesTab
@@ -389,7 +450,7 @@
             onAdd={addTemplate}
             onUpdate={updateTemplate}
             onRemove={removeTemplate}
-            onApplyRules={applyRulesToTemplate}
+            onApplyCondition={applyConditionToTemplate}
             onReorder={(items) => syncChanges(items, normalizedTagPools, normalizedCredentials)}
             onResetDefaults={resetDefaults}
             onImport={(nextTemplates, nextPools) => syncChanges(nextTemplates, nextPools, normalizedCredentials)}
@@ -536,5 +597,38 @@
         {/each}
       </div>
     </div>
+
+    {#if conditionMigrationOpen}
+      <div class="mb-migration-backdrop" role="presentation" onclick={() => (conditionMigrationOpen = false)}></div>
+      <div class="mb-migration-dialog" role="dialog" aria-modal="true" aria-labelledby="mb-migration-title">
+        <header class="mb-migration-head">
+          <strong id="mb-migration-title">{label("lets-more-background.conditionMigrationTitle", "筛选条件模型迁移")}</strong>
+          <button type="button" class="mb-migration-close" aria-label={label("lets-more-background.cancel", "关闭")} onclick={() => (conditionMigrationOpen = false)}>
+            <X class="size-4" aria-hidden="true" />
+          </button>
+        </header>
+        <p class="mb-migration-desc">
+          {label("lets-more-background.conditionMigrationBody", `检测到 ${legacyConditionTemplates.length} 个模板仍使用旧版扁平筛选条件。下方是迁移后的条件图形预览，筛选效果保持不变，并支持条件分组。`)}
+        </p>
+        <div class="mb-migration-list">
+          {#each legacyConditionTemplates as tpl (tpl.id)}
+            <div class="mb-migration-item">
+              <strong class="mb-migration-item-name">{tpl.name}</strong>
+              <div class="mb-migration-preview" aria-hidden="true">
+                <ConditionGraph model={coverConditionToGraph(migrateLegacyCoverRules(tpl.rules ?? []), migrationGraphLabels)} height={200} />
+              </div>
+            </div>
+          {/each}
+        </div>
+        <footer class="mb-migration-actions">
+          <button type="button" class="mb-migration-btn" onclick={() => (conditionMigrationOpen = false)}>
+            {label("lets-more-background.conditionMigrationLater", "稍后再说")}
+          </button>
+          <button type="button" class="mb-migration-btn primary" onclick={migrateAllConditions}>
+            {label("lets-more-background.conditionMigrationNow", "立即迁移")}
+          </button>
+        </footer>
+      </div>
+    {/if}
   </div>
 </div>

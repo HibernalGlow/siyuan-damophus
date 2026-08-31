@@ -848,8 +848,9 @@ html.neo-ide .neo-ide-body.body--toolbar-hide .damophus-mb-tab-host {
   }
 
   /* Content scrolling under the pinned bar ends at the bar's own edge,
-     exactly like the question-bank workspace. */
-  .mb-body:has(.mb-tabs) {
+     exactly like the question-bank workspace. The attribute mirrors the
+     component state because :has() is banned from the shipped stylesheet. */
+  .mb-body[data-has-nav="true"] {
     padding-bottom: 0;
   }
 
@@ -960,3 +961,108 @@ html.neo-ide .neo-ide-body.body--toolbar-hide .damophus-mb-tab-host {
     animation: none;
   }
 }
+
+/* --- 旧版条件迁移弹窗（schema 1 → 2） --- */
+.mb-migration-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgb(0 0 0 / 45%);
+}
+
+.mb-migration-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  width: min(92vw, 640px);
+  max-height: min(86vh, 680px);
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--b3-border-color);
+  border-radius: 10px;
+  background: var(--b3-theme-background);
+  box-shadow: 0 18px 44px rgb(0 0 0 / 24%);
+}
+
+.mb-migration-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--b3-border-color);
+}
+
+.mb-migration-head strong { font-size: 13.5px; }
+
+.mb-migration-close {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+}
+
+.mb-migration-close:hover { background: var(--b3-list-hover); color: var(--b3-theme-primary); }
+
+.mb-migration-desc { margin: 0; padding: 12px 16px 4px; color: var(--b3-theme-on-surface); font-size: 12px; line-height: 1.6; }
+
+.mb-migration-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  padding: 10px 16px;
+}
+
+.mb-migration-item { display: grid; gap: 6px; }
+
+.mb-migration-item-name { font-size: 12.5px; }
+
+.mb-migration-preview {
+  overflow: hidden;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 8px;
+  background: var(--b3-theme-surface);
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.mb-migration-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--b3-border-color);
+}
+
+.mb-migration-btn {
+  min-height: 30px;
+  padding: 5px 14px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 7px;
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-background);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.mb-migration-btn:hover { background: var(--b3-list-hover); }
+
+.mb-migration-btn.primary {
+  border-color: var(--b3-theme-primary);
+  color: var(--b3-theme-on-primary, #fff);
+  background: var(--b3-theme-primary);
+  font-weight: 600;
+}
+
+.mb-migration-btn.primary:hover { background: color-mix(in srgb, var(--b3-theme-primary) 84%, black); }

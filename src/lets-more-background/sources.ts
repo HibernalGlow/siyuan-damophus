@@ -38,6 +38,38 @@ export interface FilterRule {
   value: any;
 }
 
+/**
+ * v2 condition model (schema 2): the rule tree is stored exactly in the shape the
+ * shared query builder edits, so the condition editor needs no conversion adapter.
+ * Semantics are AND-only: groups organize rules, every leaf contributes parameters.
+ */
+export interface CoverConditionRule {
+  id?: string;
+  field: FilterRule["field"];
+  operator: FilterRule["operator"];
+  value: any;
+  disabled?: boolean;
+}
+
+export interface CoverConditionGroup {
+  combinator: "and" | "or";
+  rules: (CoverConditionRule | CoverConditionGroup)[];
+}
+
+export const COVER_CONDITION_SCHEMA_VERSION = 2;
+
+/** Legacy flat rules (schema 1) migrate to a single AND root group, preserving order. */
+export function migrateLegacyCoverRules(rules: FilterRule[] = []): CoverConditionGroup {
+  return {
+    combinator: "and",
+    rules: rules.map((rule) => ({ id: rule.id, field: rule.field, operator: rule.operator, value: rule.value })),
+  };
+}
+
+export function needsConditionMigration(template: CoverTemplateItem): boolean {
+  return !template.condition && (template.rules?.length ?? 0) > 0;
+}
+
 export interface CoverTemplateItem {
   id: string;
   name: string;
@@ -53,6 +85,10 @@ export interface CoverTemplateItem {
   poolId?: string; // Reference to an independent TagPool
   pool?: string[]; // Or inline pool items
   blacklist?: string;
+  /** v2 condition tree; authoritative when `conditionSchema` is 2. */
+  condition?: CoverConditionGroup;
+  conditionSchema?: number;
+  /** @deprecated legacy v1 flat condition, superseded by `condition`; auto-migrated on read. */
   rules?: FilterRule[];
   // For preset_api or custom_url
   url?: string;
@@ -292,13 +328,16 @@ export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] =
 
   const params = new URLSearchParams();
 
-  // 如果模板有显式 rules 列表，以 rules 为绝对基准
-  if (template.rules && template.rules.length > 0) {
+  // 显式条件树为绝对基准；旧版扁平 rules 在读取时原位迁移（语义不变）。
+  const condition = template.condition
+    ?? (template.rules && template.rules.length > 0 ? migrateLegacyCoverRules(template.rules) : undefined);
+
+  if (condition) {
     let site = template.site || "safebooru.org";
     let poolId: string | undefined;
     let explicitTags = "";
 
-    for (const r of template.rules) {
+    const applyRule = (r: CoverConditionRule) => {
       if (r.field === "site" && r.value) {
         site = r.value;
       } else if (r.field === "aspectRatio" && r.value && r.value !== "any") {
@@ -330,7 +369,14 @@ export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] =
         const currentBl = params.get("blacklist");
         params.set("blacklist", currentBl ? `${currentBl},${r.value}` : String(r.value));
       }
-    }
+    };
+    const walk = (group: CoverConditionGroup) => {
+      group.rules.forEach((entry) => {
+        if ("rules" in entry) walk(entry);
+        else applyRule(entry);
+      });
+    };
+    walk(condition);
 
     if (template.blacklist) {
       const currentBl = params.get("blacklist");

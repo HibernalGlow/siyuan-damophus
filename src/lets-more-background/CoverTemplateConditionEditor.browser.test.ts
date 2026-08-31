@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { page } from "vitest/browser";
 import CoverTemplateConditionEditor from "./CoverTemplateConditionEditor.svelte";
-import type { FilterRule } from "./sources";
+import { migrateLegacyCoverRules, type CoverConditionGroup } from "./sources";
 
 let mounted: ReturnType<typeof mount> | undefined;
 
@@ -10,7 +10,7 @@ function label(_key: string, fallback: string): string {
   return fallback;
 }
 
-async function render(rules: FilterRule[], onApply = vi.fn()): Promise<typeof onApply> {
+async function render(condition: CoverConditionGroup, onApply = vi.fn()): Promise<typeof onApply> {
   const target = document.createElement("div");
   target.style.width = "100%";
   document.body.appendChild(target);
@@ -19,7 +19,7 @@ async function render(rules: FilterRule[], onApply = vi.fn()): Promise<typeof on
     props: {
       label,
       onApply,
-      rules,
+      condition,
       tagPools: [{ id: "artists", name: "Artists", items: ["artist_a"] }],
     },
   });
@@ -35,11 +35,11 @@ afterEach(async () => {
 });
 
 describe("cover template condition editor", () => {
-  it("opens legacy template rules in the shared query builder", async () => {
-    await render([
+  it("opens migrated template conditions in the shared query builder", async () => {
+    await render(migrateLegacyCoverRules([
       { id: "ratio", field: "aspectRatio", operator: "equals", value: "landscape" },
       { id: "pool", field: "tagPool", operator: "randomIn", value: "artists" },
-    ]);
+    ]));
 
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
@@ -48,7 +48,10 @@ describe("cover template condition editor", () => {
     expect(rules).toHaveLength(2);
     expect(rules[0]).toContain("Aspect ratio");
     expect(rules[1]).toContain("Tag or artist pool");
-    expect(getComputedStyle(document.querySelector(".ruleGroup-addGroup")!).display).toBe("none");
+    // The add-group action is back: visible, labelled and distinct from add-rule.
+    const addGroup = document.querySelector<HTMLButtonElement>(".ruleGroup-addGroup")!;
+    expect(getComputedStyle(addGroup).display).not.toBe("none");
+    expect(addGroup.textContent).toContain("Add group");
     expect(document.querySelector<HTMLButtonElement>(".ruleGroup-addRule")?.textContent).toContain("Add filter rule");
     const clearButton = document.querySelector<HTMLButtonElement>(".condition-clear-button")!;
     const cancelButton = document.querySelector<HTMLButtonElement>(".condition-cancel-button")!;
@@ -58,10 +61,48 @@ describe("cover template condition editor", () => {
     expect(getComputedStyle(applyButton.querySelector("svg")!).color).toBe(getComputedStyle(applyButton).color);
   });
 
-  it("clears the editor and applies the original flat rule contract", async () => {
-    const onApply = await render([
+  it("adds a group and applies the tree back to the template", async () => {
+    const onApply = await render(migrateLegacyCoverRules([
       { id: "score", field: "minScore", operator: "gte", value: 10 },
-    ]);
+    ]));
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    document.querySelector<HTMLButtonElement>(".ruleGroup-addGroup")!.click();
+    await tick();
+    expect(document.querySelectorAll(".ruleGroup").length).toBeGreaterThanOrEqual(2);
+
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Apply"))
+      ?.click();
+    await tick();
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const applied = onApply.mock.calls[0][0] as CoverConditionGroup;
+    expect(applied.combinator).toBe("and");
+    expect(applied.rules).toHaveLength(2);
+    // The nested group stays in the tree: the template keeps the grouping.
+    expect("rules" in applied.rules[1]).toBe(true);
+  });
+
+  it("shows the condition graph view with a result node", async () => {
+    await render(migrateLegacyCoverRules([
+      { id: "ratio", field: "aspectRatio", operator: "equals", value: "landscape" },
+    ]));
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    document.querySelector<HTMLButtonElement>('[data-testid="condition-view-graph"]')!.click();
+    await tick();
+    await vi.waitFor(() => expect(document.querySelectorAll(".svelte-flow__node").length).toBeGreaterThanOrEqual(3));
+
+    const nodes = [...document.querySelectorAll<HTMLElement>(".svelte-flow__node")].map((node) => node.textContent ?? "");
+    expect(nodes.some((text) => text.includes("Aspect ratio"))).toBe(true);
+  });
+
+  it("clears the editor and applies the empty condition", async () => {
+    const onApply = await render(migrateLegacyCoverRules([
+      { id: "score", field: "minScore", operator: "gte", value: 10 },
+    ]));
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
 
@@ -75,6 +116,7 @@ describe("cover template condition editor", () => {
       .find((button) => button.textContent?.includes("Apply"))
       ?.click();
     await tick();
-    expect(onApply).toHaveBeenCalledWith([]);
+    // The builder stamps its own group id, so match on the contract shape.
+    expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ combinator: "and", rules: [] }));
   });
 });

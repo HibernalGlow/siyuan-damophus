@@ -6,7 +6,7 @@
   import { Button } from "@/components/ui/button";
   import CoverTemplateCard from "./CoverTemplateCard.svelte";
   import CoverJsonModal from "./CoverJsonModal.svelte";
-  import type { CoverTemplateItem, FilterRule, SiteCredential, TagPool } from "../sources";
+  import type { CoverConditionGroup, CoverTemplateItem, SiteCredential, TagPool } from "../sources";
 
   export let label: (key: string, fallback: string) => string;
   export let templates: CoverTemplateItem[] = [];
@@ -16,7 +16,7 @@
   export let onAdd: () => void;
   export let onUpdate: (index: number, patch: Partial<CoverTemplateItem>) => void;
   export let onRemove: (index: number) => void;
-  export let onApplyRules: (index: number, rules: FilterRule[]) => void;
+  export let onApplyCondition: (index: number, condition: CoverConditionGroup) => void;
   export let onReorder: (items: CoverTemplateItem[]) => void;
   export let onResetDefaults: () => void;
   export let onImport: (templates: CoverTemplateItem[], tagPools: TagPool[]) => void;
@@ -183,7 +183,7 @@
         {writeToAssets}
         onUpdate={(patch) => onUpdate(tplIndex, patch)}
         onRemove={() => onRemove(tplIndex)}
-        onApplyRules={(rules) => onApplyRules(tplIndex, rules)}
+        onApplyCondition={(condition) => onApplyCondition(tplIndex, condition)}
       />
     {/each}
   </div>
