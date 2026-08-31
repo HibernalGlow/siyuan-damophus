@@ -32,6 +32,12 @@ export const en = {
   "lets-layout-actions.moveUp": "Move up",
   "lets-layout-actions.moveDown": "Move down",
   "lets-layout-actions.remove": "Remove",
+  "lets-layout-actions.iconPickerBrowse": "Browse",
+  "lets-layout-actions.iconPickerTitle": "Choose an icon",
+  "lets-layout-actions.iconPickerSearch": "Search icons…",
+  "lets-layout-actions.iconPickerEmpty": "No icons match your search",
+  "lets-layout-actions.commandSearch": "Search commands…",
+  "lets-layout-actions.commandEmpty": "No commands match your search",
   "lets-layout-actions.executionFailed": "This command is unavailable. Editor commands require a configured SiYuan shortcut.",
 };
 
@@ -69,5 +75,11 @@ export const zhCN: typeof en = {
   "lets-layout-actions.moveUp": "上移",
   "lets-layout-actions.moveDown": "下移",
   "lets-layout-actions.remove": "删除",
+  "lets-layout-actions.iconPickerBrowse": "浏览",
+  "lets-layout-actions.iconPickerTitle": "选择图标",
+  "lets-layout-actions.iconPickerSearch": "搜索图标…",
+  "lets-layout-actions.iconPickerEmpty": "没有匹配的图标",
+  "lets-layout-actions.commandSearch": "搜索命令…",
+  "lets-layout-actions.commandEmpty": "没有匹配的命令",
   "lets-layout-actions.executionFailed": "该命令当前不可用；编辑器命令需要先在思源中配置快捷键。",
 };

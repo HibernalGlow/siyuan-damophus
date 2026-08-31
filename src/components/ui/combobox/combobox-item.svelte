@@ -1,0 +1,40 @@
+<script lang="ts">
+	import { Combobox as ComboboxPrimitive } from "bits-ui";
+	import CheckIcon from "lucide-svelte/icons/check";
+	import { cn, type WithoutChild } from "@/lib/utils.js";
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		value,
+		label,
+		children: childrenProp,
+		...restProps
+	}: WithoutChild<ComboboxPrimitive.ItemProps> = $props();
+</script>
+
+<ComboboxPrimitive.Item
+	bind:ref
+	{value}
+	data-slot="combobox-item"
+	class={cn(
+		"relative flex min-h-8 w-full min-w-0 cursor-default items-center rounded-md py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+		className
+	)}
+	{...restProps}
+>
+	{#snippet children({ selected, highlighted })}
+		<span class="absolute end-2 flex size-3.5 items-center justify-center">
+			{#if selected}
+				<CheckIcon class="cn-select-item-indicator-icon" />
+			{/if}
+		</span>
+		<span class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
+			{#if childrenProp}
+				{@render childrenProp({ selected, highlighted })}
+			{:else}
+				{label || value}
+			{/if}
+		</span>
+	{/snippet}
+</ComboboxPrimitive.Item>

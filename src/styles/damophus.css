@@ -489,6 +489,48 @@
   white-space: nowrap;
 }
 
+.damophus-combobox-content {
+  --background: var(--b3-theme-background, #fff);
+  --foreground: var(--b3-theme-on-background, #25282b);
+  --popover: var(--b3-theme-background, #fff);
+  --popover-foreground: var(--b3-theme-on-background, #25282b);
+  --primary: var(--b3-theme-primary, #2f6f91);
+  --primary-foreground: var(--b3-theme-on-primary, #fff);
+  --secondary: var(--b3-theme-surface, #f5f5f5);
+  --secondary-foreground: var(--b3-theme-on-surface, #25282b);
+  --muted: var(--b3-theme-surface, #f5f5f5);
+  --muted-foreground: var(--b3-theme-on-surface, #5c5c5c);
+  --accent: var(--b3-list-hover, #eef2f5);
+  --accent-foreground: var(--b3-theme-on-background, #25282b);
+  --border: var(--b3-border-color, #d9dde1);
+  --input: var(--b3-border-color, #d9dde1);
+  --ring: var(--b3-theme-primary, #2f6f91);
+  width: min(var(--bits-select-anchor-width), calc(100vw - 24px)) !important;
+  min-width: min(var(--bits-select-anchor-width), calc(100vw - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: min(60dvh, 360px) !important;
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+.damophus-combobox-content [data-slot="combobox-group"],
+.damophus-combobox-content [data-slot="combobox-item"] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.damophus-combobox-content [data-slot="combobox-item"] {
+  width: 100% !important;
+  min-height: 32px;
+  color: var(--b3-theme-on-background, #25282b);
+  background-color: var(--b3-theme-background, #fff);
+}
+
+.damophus-combobox-content [data-slot="combobox-item"][data-highlighted],
+.damophus-combobox-content [data-slot="combobox-item"]:focus {
+  background-color: var(--b3-list-hover, #eef2f5);
+}
+
 .damophus-settings-dialog--mobile {
   width: 100vw !important;
   max-width: 100vw !important;

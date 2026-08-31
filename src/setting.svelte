@@ -442,6 +442,12 @@
       moveUp: t("lets-layout-actions.moveUp", "Move up"),
       moveDown: t("lets-layout-actions.moveDown", "Move down"),
       remove: t("lets-layout-actions.remove", "Remove"),
+      iconPickerBrowse: t("lets-layout-actions.iconPickerBrowse", "Browse"),
+      iconPickerTitle: t("lets-layout-actions.iconPickerTitle", "Choose an icon"),
+      iconPickerSearch: t("lets-layout-actions.iconPickerSearch", "Search icons…"),
+      iconPickerEmpty: t("lets-layout-actions.iconPickerEmpty", "No icons match your search"),
+      commandSearch: t("lets-layout-actions.commandSearch", "Search commands…"),
+      commandEmpty: t("lets-layout-actions.commandEmpty", "No commands match your search"),
     };
   }
 

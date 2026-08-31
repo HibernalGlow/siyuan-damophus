@@ -26,6 +26,12 @@
     moveUp: string;
     moveDown: string;
     remove: string;
+    iconPickerBrowse: string;
+    iconPickerTitle: string;
+    iconPickerSearch: string;
+    iconPickerEmpty: string;
+    commandSearch: string;
+    commandEmpty: string;
   }
 </script>
 
@@ -35,6 +41,7 @@
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Switch } from "@/components/ui/switch";
+  import { openIconPickerDialog } from "@/components/icon-picker-dialog";
   // import SettingPanel from "@/libs/setting-panel.svelte"; // Restore with the commented detail switch below.
   import * as Select from "@/components/ui/select";
   import {
@@ -46,6 +53,7 @@
     type ConfiguredAction,
   } from "./actions";
   import { collectCommandOptions, type CommandOption } from "./runtime";
+  import CommandSelect from "./CommandSelect.svelte";
   import { plugin } from "@/utils";
   import type { TPluginDockPosition } from "siyuan";
 
@@ -107,12 +115,23 @@
     changed("actions", next);
   }
 
-  function optionLabel(action: ConfiguredAction): string {
-    return catalog[action.kind].find((option) => option.value === action.value)?.label || action.value;
+  function commandOptions(kind: ActionKind): CommandOption[] {
+    return catalog[kind].map((option) =>
+      option.available ? option : { ...option, label: `${option.label} (${labels.unavailable})` },
+    );
   }
 
   function actionTitle(action: ConfiguredAction): string {
     return resolveActionTitle(action, plugin?.i18n ?? {});
+  }
+
+  function browseIcons(index: number) {
+    openIconPickerDialog({
+      title: labels.iconPickerTitle,
+      labels: { search: labels.iconPickerSearch, empty: labels.iconPickerEmpty },
+      selected: normalizedActions[index]?.icon ?? "",
+      onSelect: (iconId) => updateAction(index, { icon: iconId }),
+    });
   }
 </script>
 
@@ -197,14 +216,12 @@
 
           <label class="grid gap-1 text-xs text-muted-foreground">
             <span>{labels.command}</span>
-            <Select.Root type="single" value={action.value} onValueChange={(value) => updateAction(index, { value })}>
-              <Select.Trigger class="w-full">{optionLabel(action)}</Select.Trigger>
-              <Select.Content>
-                {#each catalog[action.kind] as option}
-                  <Select.Item value={option.value} label={option.available ? option.label : `${option.label} (${labels.unavailable})`} />
-                {/each}
-              </Select.Content>
-            </Select.Root>
+            <CommandSelect
+              options={commandOptions(action.kind)}
+              value={action.value}
+              labels={{ search: labels.commandSearch, empty: labels.commandEmpty }}
+              onValueChange={(value) => updateAction(index, { value })}
+            />
           </label>
 
           <label class="grid gap-1 text-xs text-muted-foreground">
@@ -212,10 +229,26 @@
             <Input value={action.value} onchange={(event) => updateAction(index, { value: event.currentTarget.value })} />
           </label>
 
-          <label class="grid gap-1 text-xs text-muted-foreground sm:col-span-2">
+          <div class="grid gap-1 text-xs text-muted-foreground sm:col-span-2">
             <span>{labels.icon}</span>
-            <Input value={action.icon} placeholder="iconMenu" onchange={(event) => updateAction(index, { icon: event.currentTarget.value })} />
-          </label>
+            <div class="flex items-center gap-2">
+              <span
+                class="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground"
+                data-icon-preview
+                aria-hidden="true"
+              >
+                {#if action.icon}
+                  {#if /^icon/i.test(action.icon)}
+                    <svg class="size-5"><use href="#{action.icon}" xlink:href="#{action.icon}"></use></svg>
+                  {:else}
+                    <span class="text-xs">{action.icon}</span>
+                  {/if}
+                {/if}
+              </span>
+              <Input class="min-w-0 flex-1" value={action.icon} placeholder="iconMenu" onchange={(event) => updateAction(index, { icon: event.currentTarget.value })} />
+              <Button variant="outline" size="sm" class="shrink-0" onclick={() => browseIcons(index)}>{labels.iconPickerBrowse}</Button>
+            </div>
+          </div>
         </div>
       </article>
     {/each}

@@ -3,6 +3,9 @@ import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import LayoutActionsSettings from "./LayoutActionsSettings.svelte";
 import { DEFAULT_ACTIONS } from "./actions";
+import { openIconPickerDialog } from "@/components/icon-picker-dialog";
+
+vi.mock("@/components/icon-picker-dialog", () => ({ openIconPickerDialog: vi.fn() }));
 
 const actions = DEFAULT_ACTIONS.map((action, index) => ({
   ...action,
@@ -36,6 +39,12 @@ const labels = {
   moveUp: "上移",
   moveDown: "下移",
   remove: "删除",
+  iconPickerBrowse: "浏览",
+  iconPickerTitle: "选择图标",
+  iconPickerSearch: "搜索图标…",
+  iconPickerEmpty: "没有匹配的图标",
+  commandSearch: "搜索命令…",
+  commandEmpty: "没有匹配的命令",
 };
 
 let component: ReturnType<typeof mount> | undefined;
@@ -44,6 +53,7 @@ afterEach(async () => {
   if (component) await unmount(component);
   component = undefined;
   document.body.innerHTML = "";
+  vi.mocked(openIconPickerDialog).mockReset();
 });
 
 function render(changed = vi.fn()) {
@@ -99,5 +109,25 @@ describe("layout actions settings", () => {
       detail: expect.objectContaining({ key: "actions", value: expect.any(Array) }),
     }));
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+  });
+
+  it("previews the configured icon and opens the picker preselected with it", async () => {
+    const { target } = render();
+    await tick();
+
+    const preview = target.querySelector<SVGUseElement>("[data-icon-preview] use");
+    expect(preview?.getAttribute("href")).toBe("#iconDamophusPanelLeftClose");
+    expect(preview?.getAttribute("xlink:href")).toBe("#iconDamophusPanelLeftClose");
+
+    [...target.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes(labels.iconPickerBrowse))
+      ?.click();
+    await tick();
+
+    expect(openIconPickerDialog).toHaveBeenCalledWith(expect.objectContaining({
+      title: labels.iconPickerTitle,
+      selected: "iconDamophusPanelLeftClose",
+      labels: { search: labels.iconPickerSearch, empty: labels.iconPickerEmpty },
+    }));
   });
 });

@@ -13,6 +13,34 @@ export interface CommandOption {
   value: string;
   label: string;
   available: boolean;
+  /** Stable group key: `general` for system commands, the editor keymap category, or the plugin name. */
+  group: string;
+  /** Localized group label for display in a grouped picker. */
+  groupLabel: string;
+}
+
+export interface GroupedCommandOptions {
+  group: string;
+  groupLabel: string;
+  options: CommandOption[];
+}
+
+/**
+ * Groups flat command options by their native group while keeping the label
+ * order inside each group. Groups are ordered by their localized label.
+ */
+export function groupCommandOptions(options: CommandOption[]): GroupedCommandOptions[] {
+  const groups = new Map<string, GroupedCommandOptions>();
+  for (const option of options) {
+    const group = groups.get(option.group) ?? {
+      group: option.group,
+      groupLabel: option.groupLabel,
+      options: [],
+    };
+    group.options.push(option);
+    groups.set(option.group, group);
+  }
+  return [...groups.values()].sort((left, right) => left.groupLabel.localeCompare(right.groupLabel));
 }
 
 /**
@@ -37,6 +65,8 @@ export function collectCommandOptions(): Record<ActionKind, CommandOption[]> {
     value: key,
     label: systemCommandLabel(languages, key),
     available: true,
+    group: "general",
+    groupLabel: editorCategoryLabel(languages, "general"),
   }));
 
   const editor = Object.entries(
@@ -46,6 +76,8 @@ export function collectCommandOptions(): Record<ActionKind, CommandOption[]> {
       value: `editor::${category}::${key}`,
       label: `${systemCommandLabel(languages, key)} (${editorCategoryLabel(languages, category)})`,
       available: Boolean(keymap.custom),
+      group: category,
+      groupLabel: editorCategoryLabel(languages, category),
     })),
   );
 
@@ -54,6 +86,8 @@ export function collectCommandOptions(): Record<ActionKind, CommandOption[]> {
       value: `plugin::${item.name}::${command.langKey}`,
       label: `${item.displayName || item.name}: ${pluginCommandLabel(item, command)}`,
       available: Boolean(command.callback || command.globalCallback),
+      group: item.name,
+      groupLabel: item.displayName || item.name,
     })),
   );
 
