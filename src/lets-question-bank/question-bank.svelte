@@ -1,13 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { type BlockBreadcrumbItem } from "@/api";
-  import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
   import { normalizeBreadcrumbTextDisplay, type BreadcrumbTextDisplay, type BreadcrumbOverflowPriority } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import { getLogger } from "@/libs/logger";
-  import {
-    questionOptionsFromOrder,
-    restoreQuestionOptions,
-  } from "@/question-bank/core/shuffle";
   import type {
     AttemptAggregate,
     AttemptEvent,
@@ -17,20 +12,9 @@
     ScanMessage,
     ShuffledOption,
     ShuffledQuestion,
-    ObjectiveAnswer,
     QuestionBookmark,
   } from "@/question-bank/core/types";
-  import { buildStatistics, type StatisticsQuestion, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
-  import {
-    describeProjectionResult,
-    resolveMappingTarget,
-    runQuestionIndexSync,
-    type QuestionIndexSyncTarget,
-  } from "@/question-bank/application/projection";
-  import {
-    listQuestionIndexTargets,
-    markQuestionIndexTarget,
-  } from "@/question-bank/application/index-targets";
+  import { type StatisticsQuestion, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
   import {
     normalizeSubjectQuestionTotals,
     normalizeStatisticsLayout,
@@ -42,10 +26,8 @@
   import type { PracticeFilterPreset } from "./practice/practice-preferences";
   import {
     buildStatisticsBookmarkEntries,
-    type StatisticsBookmarkEntry,
   } from "./statistics/statistics-bookmarks";
   import {
-    createPracticeOptionOrder,
     createPracticeQueue,
     suggestedMasteryRating,
     type PracticeOptionOrder,
@@ -57,13 +39,6 @@
     type PracticeSessionSaveStatus,
   } from "@/question-bank/application/practice-runtime";
   import {
-    replacePracticeSession,
-    resumePracticeSession,
-    startPracticeSession,
-    type PracticeSessionActivation,
-  } from "@/question-bank/application/practice-lifecycle";
-  import {
-    createPracticeSessionSnapshot,
     practiceQuestionElapsedMs,
     practiceSessionElapsedMs,
     type PracticeSessionRecoveryIssue,
@@ -74,7 +49,6 @@
     AttemptImportResult,
   } from "@/question-bank/application/recovery";
   import type { QuestionIndexPreview } from "@/question-bank/application/indexing";
-  import type { QuestionIndexBatchPreview } from "@/question-bank/application/batch-indexing";
   import type {
     QuestionTopicAssignment,
     TopicRelationPreview,
@@ -87,7 +61,7 @@
   } from "@/question-bank/adapters/siyuan/binding";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
-  import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
+  import type { QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
   import QuestionBankView from "./QuestionBankView.svelte";
   import type { RiffCard } from "@/question-bank/adapters/siyuan/riff";
   import { renderMarkdownHtml } from "@/question-bank/markdown";
@@ -96,6 +70,15 @@
   import { createPracticeActions } from "./practice/question-bank-practice-actions";
   import type { StatisticsCardPreviewHandler } from "./statistics/statistics-preview";
   import { compareAttemptDuration } from "./statistics/attempt-duration-comparison";
+  import { applyIndexSync, createMappingActions } from "./mapping/mapping-actions";
+  import { createStatisticsActions } from "./statistics/statistics-actions";
+  import { buildStatisticsBookmarkTitles, createBookmarkActions } from "./practice/bookmark-actions";
+  import { createTopicResourceActions } from "./practice/topic-resources";
+  import { createTopicRelationActions } from "./practice/topic-relations";
+  import { createPracticeTimer } from "./practice/practice-timer";
+  import { createPracticeSessionActions } from "./practice/practice-session-actions";
+  import { createDocumentScanActions } from "./workspace/document-scan-actions";
+  import { createQuestionSetActions } from "./source/question-set-actions";
   import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
   import {
     completionStatusLabel as getCompletionStatusLabel,
@@ -210,8 +193,6 @@
   let currentQuestion: Question | undefined;
   let topicResources: TopicResourceProjection[] = [];
   let topicResourceQuestionId = "";
-  let topicResourceRequest = 0;
-  let topicResourceValidationTimer: ReturnType<typeof setTimeout> | undefined;
   let persistingTopicResourceIdentity = "";
   let persistedTopicResourceIdentities: ReadonlySet<string> = new Set();
   let breadcrumbItems: BlockBreadcrumbItem[] = [];
@@ -225,9 +206,6 @@
   let submitting = false;
   let sessionId = "";
   let timerNow = Date.now();
-  let timer: ReturnType<typeof setInterval> | undefined;
-  let autoScanTimer: ReturnType<typeof setTimeout> | undefined;
-  let sourcePreloadTimer: ReturnType<typeof setTimeout> | undefined;
   let answerCardOpen = false;
   let sourceEditingLocked = mobileBreadcrumb;
   let showStemStyles = false;
@@ -244,9 +222,6 @@
   let endConfirmation = false;
   let rootElement: HTMLElement;
   let workspaceResizeObserver: ResizeObserver | undefined;
-  let unsubscribePracticeState: (() => void) | undefined;
-  let unsubscribeSaveStatus: (() => void) | undefined;
-  let completionHandledSessionId = "";
   let scanPanelOpen = false;
   let dataPanelOpen = false;
   let scanPanelUserControlled = false;
@@ -262,152 +237,400 @@
   let mappingTarget: { avId: string; blockId: string } | undefined;
   let markedIndexTargets: Array<{ blockId: string; avId?: string }> = [];
 
-  function setPruneStaleMappingRows(value: boolean): void {
-    pruneStaleMappingRows = value;
-    controller.setSetting?.("projectionPruneStaleRows", value);
-  }
+  const mappingActions = createMappingActions({
+    state: {
+      get questionIndexProjectionBlockId() { return questionIndexProjectionBlockId; },
+      set questionIndexProjectionBlockId(value) { questionIndexProjectionBlockId = value; },
+      get pruneStaleMappingRows() { return pruneStaleMappingRows; },
+      set pruneStaleMappingRows(value) { pruneStaleMappingRows = value; },
+      get includeUnansweredMappingRows() { return includeUnansweredMappingRows; },
+      set includeUnansweredMappingRows(value) { includeUnansweredMappingRows = value; },
+      get mappingStatus() { return mappingStatus; },
+      set mappingStatus(value) { mappingStatus = value; },
+      get mappingMessage() { return mappingMessage; },
+      set mappingMessage(value) { mappingMessage = value; },
+      get mappingTarget() { return mappingTarget; },
+      set mappingTarget(value) { mappingTarget = value; },
+      get markedIndexTargets() { return markedIndexTargets; },
+      set markedIndexTargets(value) { markedIndexTargets = value; },
+    },
+    controller,
+    reviewThreshold,
+  });
+  const {
+    setPruneStaleMappingRows,
+    setIncludeUnansweredMappingRows,
+    setMappingTarget,
+    refreshMarkedIndexTargets,
+    selectCurrentMappingTarget,
+    checkMappingTarget,
+    syncMappingTarget,
+  } = mappingActions;
 
-  function setIncludeUnansweredMappingRows(value: boolean): void {
-    includeUnansweredMappingRows = value;
-    controller.setSetting?.("projectionIncludeUnanswered", value);
-  }
+  const runIndexSync = (target: QuestionIndexPreview) => applyIndexSync({
+    controller,
+    getDocumentId: () => documentId,
+    isIncludeSubdocuments: () => includeSubdocuments,
+    setSyncComplete: (value) => { syncComplete = value; },
+    setError: (value) => { error = value; },
+  }, target);
 
-  function setMappingTarget(value: string): void {
-    questionIndexProjectionBlockId = value.trim();
-    controller.setSetting?.("questionIndexProjectionBlockId", value.trim());
-  }
+  const statisticsActions = createStatisticsActions({
+    state: {
+      get view() { return view; },
+      set view(value) { view = value; },
+      get statisticsSnapshot() { return statisticsSnapshot; },
+      set statisticsSnapshot(value) { statisticsSnapshot = value; },
+      get statisticsTopicDictionary() { return statisticsTopicDictionary; },
+      set statisticsTopicDictionary(value) { statisticsTopicDictionary = value; },
+      get subjectQuestionTotals() { return subjectQuestionTotals; },
+      set subjectQuestionTotals(value) { subjectQuestionTotals = value; },
+      get subjectTotalsSaveStatus() { return subjectTotalsSaveStatus; },
+      set subjectTotalsSaveStatus(value) { subjectTotalsSaveStatus = value; },
+      get statisticsLayout() { return statisticsLayout; },
+      set statisticsLayout(value) { statisticsLayout = value; },
+      get statisticsLoading() { return statisticsLoading; },
+      set statisticsLoading(value) { statisticsLoading = value; },
+      get statisticsRange() { return statisticsRange; },
+      set statisticsRange(value) { statisticsRange = value; },
+      get statisticsSort() { return statisticsSort; },
+      set statisticsSort(value) { statisticsSort = value; },
+      get importSource() { return importSource; },
+      set importSource(value) { importSource = value; },
+      get importPreview() { return importPreview; },
+      set importPreview(value) { importPreview = value; },
+      get importResult() { return importResult; },
+      set importResult(value) { importResult = value; },
+      get preview() { return preview; },
+      set preview(value) { preview = value; },
+      get syncComplete() { return syncComplete; },
+      set syncComplete(value) { syncComplete = value; },
+      get aggregates() { return aggregates; },
+      set aggregates(value) { aggregates = value; },
+      get dueCards() { return dueCards; },
+      set dueCards(value) { dueCards = value; },
+      get error() { return error; },
+      set error(value) { error = value; },
+      get cachedStatisticsQuestions() { return cachedStatisticsQuestions; },
+      set cachedStatisticsQuestions(value) { cachedStatisticsQuestions = value; },
+      get cachedAttemptEvents() { return cachedAttemptEvents; },
+      set cachedAttemptEvents(value) { cachedAttemptEvents = value; },
+    },
+    controller,
+    loadTopicDictionary,
+    now,
+    run,
+    applyIndexSync: runIndexSync,
+  });
+  const {
+    selectView,
+    changeStatisticsRange,
+    changeStatisticsSort,
+    changeSubjectQuestionTotal,
+    changeStatisticsLayout,
+    confirmSync,
+    exportAttempts,
+    selectImportFile,
+    confirmImport,
+  } = statisticsActions;
 
-  async function refreshMarkedIndexTargets(): Promise<void> {
-    try {
-      const records = await listQuestionIndexTargets(siyuanKernelClient);
-      markedIndexTargets = records.map((record) => ({ blockId: record.blockId, avId: record.mark.avId || undefined }));
-    } catch {
-      markedIndexTargets = [];
-    }
-  }
 
-  function projectionOptions() {
-    return {
-      pruneStale: pruneStaleMappingRows,
-      includeUnanswered: includeUnansweredMappingRows,
-    };
-  }
+  const bookmarkActions = createBookmarkActions({
+    state: {
+      get currentQuestion() { return currentQuestion; },
+      get currentBookmark() { return currentBookmark; },
+      get bookmarks() { return bookmarks; },
+      set bookmarks(value) { bookmarks = value; },
+    },
+    controller,
+    openQuestionSource,
+  });
+  const { toggleBookmark, saveBookmarkDetails, removeCurrentBookmark, openBookmarkSource } = bookmarkActions;
 
-  async function selectCurrentMappingTarget(): Promise<void> {
-    const selected = document.querySelector<HTMLElement>('.protyle-wysiwyg--select[data-node-id][data-type="NodeAttributeView"], .protyle-wysiwyg [data-node-id].protyle-wysiwyg--select[data-type="NodeAttributeView"]');
-    if (!selected) { mappingStatus = "error"; mappingMessage = "未找到选中的属性视图块"; return; }
-    const blockId = selected.dataset.nodeId ?? "";
-    setMappingTarget(blockId);
-    mappingStatus = "idle";
-    try {
-      const resolved = await resolveMappingTarget(siyuanKernelClient, blockId);
-      await markQuestionIndexTarget(siyuanKernelClient, resolved.blockId, resolved.avId, projectionOptions());
-      mappingMessage = `已选择并标记为索引数据库：${resolved.name || resolved.avId}，后续可直接右键该数据库同步`;
-    } catch {
-      mappingMessage = "已选择目标，点击检查连接";
-    }
-    void refreshMarkedIndexTargets();
-  }
+  const topicResourceActions = createTopicResourceActions({
+    state: {
+      get topicResources() { return topicResources; },
+      set topicResources(value) { topicResources = value; },
+      get topicResourceQuestionId() { return topicResourceQuestionId; },
+      set topicResourceQuestionId(value) { topicResourceQuestionId = value; },
+      get persistedTopicResourceIdentities() { return persistedTopicResourceIdentities; },
+      set persistedTopicResourceIdentities(value) { persistedTopicResourceIdentities = value; },
+      get persistingTopicResourceIdentity() { return persistingTopicResourceIdentity; },
+      set persistingTopicResourceIdentity(value) { persistingTopicResourceIdentity = value; },
+      get currentQuestion() { return currentQuestion; },
+      get currentQuestionBlockId() { return currentQuestionBlockId; },
+      get preview() { return preview; },
+    },
+    controller,
+    run,
+    label,
+    reload: (questionId) => void loadTopicResources(questionId),
+  });
+  const { loadTopicResources, persistTopicResource } = topicResourceActions;
 
-  async function checkMappingTarget(): Promise<boolean> {
-    const id = questionIndexProjectionBlockId;
-    if (!id) return false;
-    mappingStatus = "checking";
-    try {
-      const resolved = await resolveMappingTarget(siyuanKernelClient, id);
-      mappingTarget = { avId: resolved.avId, blockId: resolved.blockId };
-      mappingStatus = "ready";
-      mappingMessage = `连接正常：${resolved.name || resolved.avId} · 块 ${resolved.blockId}`;
-      return true;
-    } catch (error) {
-      mappingStatus = "error";
-      mappingMessage = error instanceof Error ? error.message : String(error);
-      return false;
-    }
-  }
+  const topicRelationActions = createTopicRelationActions({
+    state: {
+      get topicRelationMode() { return topicRelationMode; },
+      set topicRelationMode(value) { topicRelationMode = value; },
+      get topicRelationPreview() { return topicRelationPreview; },
+      set topicRelationPreview(value) { topicRelationPreview = value; },
+      get topicAssignments() { return topicAssignments; },
+      get topicRelationReady() { return topicRelationReady; },
+      get syncTopicProgress() { return syncTopicProgress; },
+      set syncTopicProgress(value) { syncTopicProgress = value; },
+    },
+    controller,
+    run,
+    onSyncTopicProgressChange: (value) => onSyncTopicProgressChange?.(value),
+  });
+  const { setTopicRelationMode, previewTopicRelations, toggleSyncTopicProgress, rebuildTopicProgress, confirmTopicRelations } = topicRelationActions;
 
-  async function syncMappingTarget(): Promise<void> {
-    if (!questionIndexProjectionBlockId && markedIndexTargets.length === 0) {
-      mappingStatus = "error";
-      mappingMessage = "请先指定 Question Index 目标，或右键数据库块标记索引";
-      return;
-    }
+  const questionSetActions = createQuestionSetActions({
+    state: {
+      get composerOpen() { return composerOpen; },
+      set composerOpen(value) { composerOpen = value; },
+      get sourceDocuments() { return sourceDocuments; },
+      set sourceDocuments(value) { sourceDocuments = value; },
+      get questionCatalog() { return questionCatalog; },
+      set questionCatalog(value) { questionCatalog = value; },
+      get questionSetBlueprints() { return questionSetBlueprints; },
+      set questionSetBlueprints(value) { questionSetBlueprints = value; },
+      get assembledQuestions() { return assembledQuestions; },
+      set assembledQuestions(value) { assembledQuestions = value; },
+      get assembledBlockIdsByQuestionId() { return assembledBlockIdsByQuestionId; },
+      set assembledBlockIdsByQuestionId(value) { assembledBlockIdsByQuestionId = value; },
+      get assembledSourceKey() { return assembledSourceKey; },
+      set assembledSourceKey(value) { assembledSourceKey = value; },
+      get assembledSourceLabel() { return assembledSourceLabel; },
+      set assembledSourceLabel(value) { assembledSourceLabel = value; },
+      get pendingFrozenSetLabel() { return pendingFrozenSetLabel; },
+      set pendingFrozenSetLabel(value) { pendingFrozenSetLabel = value; },
+    },
+    controller,
+    run,
+    label,
+    onFrozenSetAssembled: async () => {
+      await beginNewPractice(assembledQuestions, assembledSourceKey, assembledSourceLabel);
+    },
+  });
+  const {
+    loadQuestionSetData,
+    openQuestionSetComposer,
+    previewSourceSync,
+    confirmSourceSync,
+    assembleBlueprint,
+    saveBlueprint,
+    removeBlueprint,
+    useFrozenPracticeSet,
+    exportSessionDiagnostic,
+  } = questionSetActions;
 
-    let prompt = includeUnansweredMappingRows
-      ? "确认将题库统计同步投射到选中的 Question Index 数据库？"
-      : "确认将题库中【已作答】题目的统计同步投射到选中的 Question Index 数据库？";
-    if (pruneStaleMappingRows) {
-      prompt += "\n（已勾选“删除失效数据行”：目标数据库中不存在或未作答的旧条目将被清理）";
-    }
+  const timerActions = createPracticeTimer({
+    state: {
+      get timerNow() { return timerNow; },
+      set timerNow(value) { timerNow = value; },
+      get timingEnabled() { return timingEnabled; },
+      get pauseOnBlur() { return pauseOnBlur; },
+      get practiceRuntime() { return practiceRuntime; },
+      get submitting() { return submitting; },
+      get reviewing() { return reviewing; },
+      get answerTimerPaused() { return answerTimerPaused; },
+      get rootElement() { return rootElement; },
+    },
+    now,
+  });
+  const {
+    isTargetInsideQuestionBank,
+    handleFocusOrPointer,
+    handleWindowBlur,
+    handleWindowFocus,
+    handleVisibilityChange,
+    clearTimer,
+    startTimer,
+    togglePracticeTimer,
+    isAutoPaused,
+    clearAutoPaused,
+  } = timerActions;
 
-    if (!window.confirm(prompt)) {
-      return;
-    }
+  const scanActions = createDocumentScanActions({
+    state: {
+      get documentId() { return documentId; },
+      set documentId(value) { documentId = value; },
+      get autoScanDocument() { return autoScanDocument; },
+      get includeSubdocuments() { return includeSubdocuments; },
+      get autoSyncIndex() { return autoSyncIndex; },
+      get busy() { return busy; },
+      get binding() { return binding; },
+      set binding(value) { binding = value; },
+      get initializationPreview() { return initializationPreview; },
+      set initializationPreview(value) { initializationPreview = value; },
+      get systemDocumentId() { return systemDocumentId; },
+      get rebindingPreview() { return rebindingPreview; },
+      set rebindingPreview(value) { rebindingPreview = value; },
+      get preview() { return preview; },
+      set preview(value) { preview = value; },
+      get topicRelationPreview() { return topicRelationPreview; },
+      set topicRelationPreview(value) { topicRelationPreview = value; },
+      get sourceIdentity() { return sourceIdentity; },
+      set sourceIdentity(value) { sourceIdentity = value; },
+      get syncComplete() { return syncComplete; },
+      set syncComplete(value) { syncComplete = value; },
+      get topicId() { return topicId; },
+      set topicId(value) { topicId = value; },
+      get queue() { return queue; },
+      set queue(value) { queue = value; },
+      get currentQuestion() { return currentQuestion; },
+      set currentQuestion(value) { currentQuestion = value; },
+      get complete() { return complete; },
+      set complete(value) { complete = value; },
+      get answerCardOpen() { return answerCardOpen; },
+      set answerCardOpen(value) { answerCardOpen = value; },
+      get completedQuestionIndices() { return completedQuestionIndices; },
+      set completedQuestionIndices(value) { completedQuestionIndices = value; },
+      get recoverableSession() { return recoverableSession; },
+      set recoverableSession(value) { recoverableSession = value; },
+      get scanPanelOpen() { return scanPanelOpen; },
+      set scanPanelOpen(value) { scanPanelOpen = value; },
+      get scanPanelUserControlled() { return scanPanelUserControlled; },
+      set scanPanelUserControlled(value) { scanPanelUserControlled = value; },
+      get aggregates() { return aggregates; },
+      set aggregates(value) { aggregates = value; },
+      get bookmarks() { return bookmarks; },
+      set bookmarks(value) { bookmarks = value; },
+      get dueCards() { return dueCards; },
+      set dueCards(value) { dueCards = value; },
+    },
+    controller,
+    getCurrentDocumentId,
+    run,
+    refreshStoredSessions,
+    runIndexSync,
+    clearTimer,
+  });
+  const {
+    validDocument,
+    invalidateDocumentTarget,
+    useCurrentDocument,
+    scheduleAutoScan,
+    cancelAutoScan,
+    invalidateSystemDocumentTarget,
+    previewInitialization,
+    confirmInitialization,
+    previewRebinding,
+    confirmRebinding,
+    scanDocument,
+  } = scanActions;
 
-    mappingStatus = "syncing";
-    mappingMessage = "正在检查目标数据库连接...";
-    try {
-      const targets: QuestionIndexSyncTarget[] = [];
-      if (questionIndexProjectionBlockId) {
-        if (!await checkMappingTarget()) return;
-        targets.push({
-          blockId: mappingTarget!.blockId,
-          avId: mappingTarget!.avId,
-          label: questionIndexProjectionBlockId,
-          options: projectionOptions(),
-        });
-      }
-      for (const marked of markedIndexTargets) {
-        if (questionIndexProjectionBlockId && marked.blockId === mappingTarget?.blockId) continue;
-        targets.push({ blockId: marked.blockId, avId: marked.avId, label: marked.avId || marked.blockId, options: projectionOptions() });
-      }
-      if (targets.length === 0) {
-        mappingStatus = "error";
-        mappingMessage = "没有可同步的目标数据库";
-        return;
-      }
-      const outcomes = await runQuestionIndexSync(
-        {
-          client: siyuanKernelClient,
-          loadCatalog: () => {
-            if (!controller.loadQuestionCatalog) throw new Error("当前题库没有可执行的索引同步上下文");
-            return controller.loadQuestionCatalog();
-          },
-          loadAggregates: () => controller.loadAggregates(),
-          reviewThreshold,
-        },
-        targets,
-        { onProgress: (message) => { mappingMessage = message; } },
-      );
-      const okOutcomes = outcomes.filter((outcome) => outcome.ok);
-      if (okOutcomes.length === 0) {
-        mappingStatus = "error";
-        mappingMessage = outcomes.map((outcome) => `${outcome.label}: ${outcome.message}`).join("；");
-        return;
-      }
-      const totals = okOutcomes.reduce((acc, outcome) => ({
-        added: acc.added + (outcome.result?.added ?? 0),
-        updated: acc.updated + (outcome.result?.updated ?? 0),
-        deleted: acc.deleted + (outcome.result?.deleted ?? 0),
-        columns: acc.columns + (outcome.result?.columns ?? 0),
-      }), { added: 0, updated: 0, deleted: 0, columns: 0 });
-      const detail = okOutcomes.length === 1
-        ? describeProjectionResult(okOutcomes[0].result!)
-        : targets.map((target, index) => `${target.label}: ${outcomes[index].message}`).join("；");
-      mappingStatus = "success";
-      mappingMessage = `同步完成（${targets.length} 个库）：新增 ${totals.added}，更新 ${totals.updated}${totals.deleted ? `，删除失效 ${totals.deleted}` : ""} —— ${detail}`;
-      const failures = outcomes.filter((outcome) => !outcome.ok);
-      if (failures.length > 0) {
-        mappingMessage += `；失败: ${failures.map((outcome) => `${outcome.label}: ${outcome.message}`).join("；")}`;
-      }
-    } catch (error) {
-      mappingStatus = "error";
-      mappingMessage = error instanceof Error ? error.message : String(error);
-    }
-    void refreshMarkedIndexTargets();
-  }
+  const practiceSessionActions = createPracticeSessionActions({
+    state: {
+      get practiceRuntime() { return practiceRuntime; },
+      set practiceRuntime(value) { practiceRuntime = value; },
+      get practiceState() { return practiceState; },
+      set practiceState(value) { practiceState = value; },
+      get sessionId() { return sessionId; },
+      set sessionId(value) { sessionId = value; },
+      get queue() { return queue; },
+      set queue(value) { queue = value; },
+      get completedQuestionIndices() { return completedQuestionIndices; },
+      set completedQuestionIndices(value) { completedQuestionIndices = value; },
+      get questionIndex() { return questionIndex; },
+      set questionIndex(value) { questionIndex = value; },
+      get complete() { return complete; },
+      set complete(value) { complete = value; },
+      get submitting() { return submitting; },
+      set submitting(value) { submitting = value; },
+      get timerNow() { return timerNow; },
+      set timerNow(value) { timerNow = value; },
+      get currentQuestion() { return currentQuestion; },
+      set currentQuestion(value) { currentQuestion = value; },
+      get currentQuestionBlockId() { return currentQuestionBlockId; },
+      get shuffled() { return shuffled; },
+      set shuffled(value) { shuffled = value; },
+      get displayedOptions() { return displayedOptions; },
+      set displayedOptions(value) { displayedOptions = value; },
+      get selectedOptionIds() { return selectedOptionIds; },
+      set selectedOptionIds(value) { selectedOptionIds = value; },
+      get revealed() { return revealed; },
+      set revealed(value) { revealed = value; },
+      get objectiveCorrect() { return objectiveCorrect; },
+      set objectiveCorrect(value) { objectiveCorrect = value; },
+      get subjectiveScore() { return subjectiveScore; },
+      set subjectiveScore(value) { subjectiveScore = value; },
+      get rootElement() { return rootElement; },
+      get questions() { return questions; },
+      get practiceSourceQuestions() { return practiceSourceQuestions; },
+      get topics() { return topics; },
+      get topicId() { return topicId; },
+      get filter() { return filter; },
+      get order() { return order; },
+      get optionOrder() { return optionOrder; },
+      get aggregates() { return aggregates; },
+      get dueCards() { return dueCards; },
+      get bookmarks() { return bookmarks; },
+      get reviewThreshold() { return reviewThreshold; },
+      get documentId() { return documentId; },
+      get preview() { return preview; },
+      get assembledQuestions() { return assembledQuestions; },
+      set assembledQuestions(value) { assembledQuestions = value; },
+      get assembledBlockIdsByQuestionId() { return assembledBlockIdsByQuestionId; },
+      set assembledBlockIdsByQuestionId(value) { assembledBlockIdsByQuestionId = value; },
+      get assembledSourceKey() { return assembledSourceKey; },
+      set assembledSourceKey(value) { assembledSourceKey = value; },
+      get assembledSourceLabel() { return assembledSourceLabel; },
+      set assembledSourceLabel(value) { assembledSourceLabel = value; },
+      get sourceIdentity() { return sourceIdentity; },
+      get recoverableSession() { return recoverableSession; },
+      set recoverableSession(value) { recoverableSession = value; },
+      get recoveryIssues() { return recoveryIssues; },
+      set recoveryIssues(value) { recoveryIssues = value; },
+      get pendingReplacement() { return pendingReplacement; },
+      set pendingReplacement(value) { pendingReplacement = value; },
+      get endConfirmation() { return endConfirmation; },
+      set endConfirmation(value) { endConfirmation = value; },
+      get answerCardOpen() { return answerCardOpen; },
+      set answerCardOpen(value) { answerCardOpen = value; },
+      get practiceSaveStatus() { return practiceSaveStatus; },
+      set practiceSaveStatus(value) { practiceSaveStatus = value; },
+      get practiceSaveError() { return practiceSaveError; },
+      set practiceSaveError(value) { practiceSaveError = value; },
+      set error(value) { error = value; },
+    },
+    controller,
+    run,
+    label,
+    now,
+    uuid,
+    random,
+    prepareSourceBlock,
+    getQuestionRenderMode: () => questionRenderMode,
+    getPauseOnAnswerReveal: () => pauseOnAnswerReveal,
+    refreshStoredSessions,
+    timer: { startTimer, clearTimer, clearAutoPaused },
+    scan: { invalidateDocumentTarget, scanDocument },
+  });
+  const {
+    correctCurrentAnswer,
+    startPractice,
+    startBookmarkPractice,
+    beginNewPractice,
+    resumePractice,
+    confirmRestartPractice,
+    goToQuestion,
+    previousQuestion,
+    nextQuestion,
+    pausePractice,
+    requestEndPractice,
+    confirmEndPractice,
+    retryPracticeSave,
+    openStoredSession,
+    resetPractice,
+    exitReview,
+  } = practiceSessionActions;
+
   let statisticsSnapshot: StatisticsSnapshot | undefined;
   let statisticsTopicDictionary: TopicDictionaryDocument | undefined;
+  let cachedStatisticsQuestions: StatisticsQuestion[] | undefined;
+  let cachedAttemptEvents: AttemptEvent[] | undefined;
   let subjectQuestionTotals: SubjectQuestionTotals = normalizeSubjectQuestionTotals(
     controller.getSetting?.("statisticsSubjectQuestionTotals"),
   );
@@ -553,54 +776,6 @@
     reviewThreshold,
   });
 
-  async function toggleBookmark(): Promise<void> {
-    if (!currentQuestion) return;
-    const qid = currentQuestion.id;
-    if (currentBookmark) {
-      await controller.removeBookmark(qid);
-      const next = new Map(bookmarks);
-      next.delete(qid);
-      bookmarks = next;
-    } else {
-      const b: QuestionBookmark = {
-        questionId: qid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        tags: [],
-        note: "",
-      };
-      await controller.saveBookmark(b);
-      const next = new Map(bookmarks);
-      next.set(qid, b);
-      bookmarks = next;
-    }
-  }
-
-  async function saveBookmarkDetails(tags: string[], note: string): Promise<void> {
-    if (!currentQuestion) return;
-    const qid = currentQuestion.id;
-    const b: QuestionBookmark = {
-      questionId: qid,
-      createdAt: currentBookmark?.createdAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      tags,
-      note,
-    };
-    await controller.saveBookmark(b);
-    const next = new Map(bookmarks);
-    next.set(qid, b);
-    bookmarks = next;
-  }
-
-  async function removeCurrentBookmark(): Promise<void> {
-    if (!currentQuestion) return;
-    const qid = currentQuestion.id;
-    await controller.removeBookmark(qid);
-    const next = new Map(bookmarks);
-    next.delete(qid);
-    bookmarks = next;
-  }
-
   $: if (currentQuestionBlockId && currentQuestionBlockId !== breadcrumbBlockId) {
     breadcrumbBlockId = currentQuestionBlockId;
     void loadPracticeBreadcrumb(currentQuestionBlockId);
@@ -643,78 +818,6 @@
   $: reviewing = Boolean(practiceState?.matches("reviewing"));
   $: answerTimerPaused = Boolean(revealed && pauseOnAnswerReveal && practiceState?.matches("active"));
   $: timerEffectivelyPaused = Boolean(practiceState?.context.timerPaused) || answerTimerPaused;
-  // Two distinct auto-pause sources need distinct resume rules: a window-blur
-  // pause resumes as soon as the window is focused again (returning via Alt-Tab,
-  // taskbar or the title bar produces no pointer event, and document.activeElement
-  // is unreliable at that moment), while a pointer pause outside the question
-  // bank waits for the user to click back into the question bank.
-  let autoPausedByWindowBlur = false;
-  let autoPausedByOutsidePointer = false;
-
-  function isTargetInsideQuestionBank(target: EventTarget | null): boolean {
-    if (!target || !(target instanceof Node)) return false;
-    if (rootElement && rootElement.contains(target)) return true;
-    if (target instanceof Element) {
-      if (target.closest(".damophus-question-bank-host, .b3-menu, .b3-dialog, .protyle-util, .correction-dialog, [data-testid='question-bank']")) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function handleFocusOrPointer(target: EventTarget | null): void {
-    if (!pauseOnBlur || !practiceRuntime || submitting || reviewing) return;
-    const current = practiceRuntime.actor.getSnapshot();
-    if (!current.matches("active")) return;
-
-    const inside = isTargetInsideQuestionBank(target);
-    if (inside) {
-      if ((autoPausedByWindowBlur || autoPausedByOutsidePointer) && current.context.timerPaused) {
-        practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
-        startTimer();
-      }
-      autoPausedByWindowBlur = false;
-      autoPausedByOutsidePointer = false;
-    } else {
-      if (!current.context.timerPaused && !answerTimerPaused) {
-        practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
-        clearTimer();
-        autoPausedByOutsidePointer = true;
-      }
-    }
-  }
-
-  function handleWindowBlur(): void {
-    if (!pauseOnBlur || !practiceRuntime || submitting || reviewing) return;
-    const current = practiceRuntime.actor.getSnapshot();
-    if (!current.matches("active")) return;
-    if (!current.context.timerPaused && !answerTimerPaused) {
-      practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
-      clearTimer();
-      autoPausedByWindowBlur = true;
-    }
-  }
-
-  function handleWindowFocus(): void {
-    if (!pauseOnBlur || !practiceRuntime || submitting || reviewing) return;
-    const current = practiceRuntime.actor.getSnapshot();
-    if (!current.matches("active")) return;
-    if (autoPausedByWindowBlur) {
-      if (current.context.timerPaused) {
-        practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
-        startTimer();
-      }
-      autoPausedByWindowBlur = false;
-    }
-  }
-
-  function handleVisibilityChange(): void {
-    if (document.hidden) {
-      handleWindowBlur();
-    } else {
-      handleWindowFocus();
-    }
-  }
 
   onMount(() => {
     const host = rootElement.closest<HTMLElement>(".damophus-question-bank-host");
@@ -775,26 +878,10 @@
   onDestroy(() => {
     clearTimer();
     workspaceResizeObserver?.disconnect();
-    if (autoScanTimer) clearTimeout(autoScanTimer);
-    if (sourcePreloadTimer) clearTimeout(sourcePreloadTimer);
-    if (topicResourceValidationTimer) clearTimeout(topicResourceValidationTimer);
-    unsubscribePracticeState?.();
-    unsubscribeSaveStatus?.();
-    if (practiceRuntime) void practiceRuntime.dispose();
+    scanActions.dispose();
+    topicResourceActions.dispose();
+    practiceSessionActions.dispose();
   });
-
-  function clearTimer(): void {
-    if (timer) clearInterval(timer);
-    timer = undefined;
-  }
-  function startTimer(): void {
-    clearTimer();
-    timerNow = now();
-    if (!timingEnabled) return;
-    timer = setInterval(() => {
-      timerNow = now();
-    }, 1000);
-  }
 
   async function run(operation: () => Promise<void>): Promise<void> {
     busy = true;
@@ -809,638 +896,10 @@
     }
   }
 
-  function validDocument(): boolean {
-    return /^\d{14}-[a-z0-9]{7}$/u.test(documentId);
-  }
-
-  function invalidateDocumentTarget(): void {
-    clearTimer();
-    initializationPreview = undefined;
-    preview = undefined;
-    topicRelationPreview = undefined;
-    sourceIdentity = undefined;
-    syncComplete = false;
-    topicId = "";
-    queue = [];
-    currentQuestion = undefined;
-    complete = false;
-    answerCardOpen = false;
-    completedQuestionIndices = [];
-    recoverableSession = undefined;
-    scanPanelUserControlled = false;
-    scheduleAutoScan();
-  }
-
-  function useCurrentDocument(): void {
-    const currentDocumentId = getCurrentDocumentId?.();
-    if (!currentDocumentId || currentDocumentId === documentId) return;
-    documentId = currentDocumentId;
-    invalidateDocumentTarget();
-  }
-
-  async function loadTopicResources(questionId: string | undefined): Promise<void> {
-    if (topicResourceValidationTimer) clearTimeout(topicResourceValidationTimer);
-    topicResourceValidationTimer = undefined;
-    const request = ++topicResourceRequest;
-    if (topicResourceQuestionId !== (questionId ?? "")) {
-      persistedTopicResourceIdentities = new Set();
-    }
-    topicResourceQuestionId = questionId ?? "";
-    topicResources = [];
-    if (!questionId || !controller.loadQuestionTopicResources) return;
-    try {
-      const questionBlockId = preview?.scan.blockIdsByQuestionId.get(questionId);
-      const resources = await controller.loadQuestionTopicResources(questionId, questionBlockId);
-      if (request === topicResourceRequest && currentQuestion?.id === questionId) {
-        topicResources = resources;
-        if (resources.length > 0) {
-          topicResourceValidationTimer = setTimeout(() => void loadTopicResources(questionId), 10_000);
-        }
-      }
-    } catch (reason) {
-      log.warn("topic-resources.failed", { questionId, reason });
-    }
-  }
-
-  function topicResourceIdentity(projection: TopicResourceProjection): string {
-    return `${projection.topicId}:${projection.resource.type}:${projection.resource.content}`;
-  }
-
-  function persistTopicResource(projection: TopicResourceProjection): void {
-    if (!currentQuestion || !currentQuestionBlockId || !controller.persistQuestionTopicResource) return;
-    const identity = topicResourceIdentity(projection);
-    if (!window.confirm(label("confirmPersistTopicResource", "确认将此考点资源固化到题目文档中？"))) return;
-    void run(async () => {
-      persistingTopicResourceIdentity = identity;
-      try {
-        await controller.persistQuestionTopicResource!({
-          questionId: currentQuestion!.id,
-          questionBlockId: currentQuestionBlockId!,
-          projection,
-        });
-        persistedTopicResourceIdentities = new Set([...persistedTopicResourceIdentities, identity]);
-      } finally {
-        persistingTopicResourceIdentity = "";
-      }
-    });
-  }
-
-  function scheduleAutoScan(delay = 450): void {
-    if (autoScanTimer) clearTimeout(autoScanTimer);
-    autoScanTimer = undefined;
-    if (!autoScanDocument || !validDocument()) return;
-    autoScanTimer = setTimeout(() => {
-      autoScanTimer = undefined;
-      if (busy) {
-        scheduleAutoScan(250);
-        return;
-      }
-      scanDocument(false);
-    }, delay);
-  }
-
-  function invalidateSystemDocumentTarget(): void {
-    rebindingPreview = undefined;
-  }
-
-  function previewInitialization(): void {
-    void run(async () => {
-      initializationPreview = await controller.previewInitialization(documentId);
-    });
-  }
-
-  function confirmInitialization(): void {
-    if (!initializationPreview) return;
-    void run(async () => {
-      binding = await controller.confirmInitialization(initializationPreview!);
-      initializationPreview = undefined;
-    });
-  }
-
-  function previewRebinding(): void {
-    void run(async () => {
-      rebindingPreview = await controller.previewRebinding(systemDocumentId);
-    });
-  }
-
-  function confirmRebinding(): void {
-    if (!rebindingPreview) return;
-    void run(async () => {
-      binding = await controller.confirmRebinding(systemDocumentId, rebindingPreview!.token);
-      rebindingPreview = undefined;
-    });
-  }
-
-  function scanDocument(revealScanSummary = true): void {
-    if (autoScanTimer) clearTimeout(autoScanTimer);
-    autoScanTimer = undefined;
-    if (revealScanSummary) {
-      scanPanelUserControlled = true;
-      scanPanelOpen = true;
-    }
-    void run(async () => {
-      const [nextPreview, nextSourceIdentity, stored] = await Promise.all([
-        includeSubdocuments
-          ? controller.previewSync(documentId, true)
-          : controller.previewSync(documentId),
-        controller.loadSourceIdentity(documentId),
-        controller.loadPracticeSession(documentId),
-      ]);
-      preview = nextPreview;
-      topicRelationPreview = undefined;
-      if (nextPreview.blockers.length > 0) scanPanelOpen = true;
-      sourceIdentity = nextSourceIdentity;
-      recoverableSession = stored?.status === "ok" ? stored.snapshot : undefined;
-      syncComplete = false;
-      if (autoSyncIndex && hasPendingSync(nextPreview) && nextPreview.blockers.length === 0) {
-        preview = await applyIndexSync(nextPreview);
-      }
-      if (preview.bindingRepairs.length === 0) {
-        [aggregates, bookmarks, dueCards] = await Promise.all([
-          controller.loadAggregates(),
-          controller.loadBookmarks(),
-          controller.loadDueCards(preview.scan.blockIdsByQuestionId),
-        ]);
-      } else {
-        aggregates = new Map();
-        bookmarks = new Map();
-        dueCards = new Map();
-      }
-      const saved = controller.getRecentScope();
-      const savedHeadingBlockId = saved?.documentId === documentId ? saved.headingBlockId : undefined;
-      const savedTopicId = savedHeadingBlockId
-        ? [...preview.scan.topicBlockIdsByTopicId].find(([, blockId]) => blockId === savedHeadingBlockId)?.[0]
-        : saved?.documentId === documentId ? saved.topicId : undefined;
-      const topicExists = savedTopicId
-        ? preview.scan.report.document.topics.some((topic) => topic.id === savedTopicId)
-        : false;
-      topicId = topicExists ? savedTopicId! : "";
-      if ((savedHeadingBlockId || savedTopicId) && !topicExists) controller.saveRecentScope({ documentId });
-      await refreshStoredSessions();
-    });
-  }
-
-  let cachedStatisticsQuestions: StatisticsQuestion[] | undefined;
-  let cachedAttemptEvents: AttemptEvent[] | undefined;
-
-  function loadStatistics(forceRefresh = false): void {
-    if (!controller.loadStatisticsQuestions || !controller.loadAttemptEvents) {
-      statisticsSnapshot = undefined;
-      return;
-    }
-    if (!forceRefresh && cachedStatisticsQuestions && cachedAttemptEvents) {
-      statisticsSnapshot = buildStatistics(
-        cachedStatisticsQuestions,
-        cachedAttemptEvents,
-        statisticsRange,
-        now(),
-        statisticsSort,
-      );
-      return;
-    }
-    void run(async () => {
-      statisticsLoading = true;
-      try {
-        const [statisticsQuestions, attempts, dictionary] = await Promise.all([
-          controller.loadStatisticsQuestions!(),
-          controller.loadAttemptEvents!(),
-          loadTopicDictionary?.().catch((dictionaryError) => {
-            log.warn("statistics.topic-dictionary-unavailable", dictionaryError);
-            return undefined;
-          }),
-        ]);
-        cachedStatisticsQuestions = statisticsQuestions;
-        cachedAttemptEvents = attempts;
-        statisticsTopicDictionary = dictionary;
-        statisticsSnapshot = buildStatistics(
-          statisticsQuestions,
-          attempts,
-          statisticsRange,
-          now(),
-          statisticsSort,
-        );
-      } finally {
-        statisticsLoading = false;
-      }
-    });
-  }
-
-  function selectView(next: "practice" | "statistics" | "mapping"): void {
-    view = next;
-    if (next === "statistics") loadStatistics(true);
-  }
-
-  function changeStatisticsRange(value: StatisticsRange): void {
-    statisticsRange = value;
-    loadStatistics(false);
-  }
-
-  function changeStatisticsSort(value: StatisticsSort): void {
-    statisticsSort = value;
-    loadStatistics(false);
-  }
-
-  async function changeSubjectQuestionTotal(subjectId: string, rawValue: string): Promise<void> {
-    const next = {...subjectQuestionTotals};
-    const total = Number(rawValue);
-    if (rawValue.trim() && Number.isFinite(total) && total > 0) next[subjectId] = Math.floor(total);
-    else delete next[subjectId];
-    subjectQuestionTotals = normalizeSubjectQuestionTotals(next);
-    subjectTotalsSaveStatus = "saving";
-    try {
-      if (controller.saveSetting) await controller.saveSetting("statisticsSubjectQuestionTotals", subjectQuestionTotals);
-      else await controller.setSetting?.("statisticsSubjectQuestionTotals", subjectQuestionTotals);
-      subjectTotalsSaveStatus = "saved";
-    } catch (saveError) {
-      subjectTotalsSaveStatus = "error";
-      error = saveError instanceof Error ? saveError.message : String(saveError);
-    }
-  }
-
-  function changeStatisticsLayout(next: StatisticsLayout): void {
-    statisticsLayout = normalizeStatisticsLayout(next);
-    controller.setSetting?.("statisticsLayout", statisticsLayout);
-  }
-
-  function confirmSync(): void {
-    if (!preview) return;
-    void run(async () => {
-      preview = await applyIndexSync(preview!);
-      if (syncComplete) {
-        [aggregates, dueCards] = await Promise.all([
-          controller.loadAggregates(),
-          controller.loadDueCards(preview.scan.blockIdsByQuestionId),
-        ]);
-      }
-    });
-  }
-
-  function exportAttempts(): void {
-    void run(async () => {
-      const source = await controller.exportAttempts();
-      const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `damophus-attempts-${new Date().toISOString().slice(0, 10)}.json`;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-    });
-  }
-
-  async function selectImportFile(event: Event): Promise<void> {
-    const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    await run(async () => {
-      importSource = await file.text();
-      importResult = undefined;
-      importPreview = await controller.previewImport(importSource);
-    });
-    input.value = "";
-  }
-
-  function confirmImport(): void {
-    if (!importPreview) return;
-    void run(async () => {
-      importResult = await controller.confirmImport(importSource, importPreview!.token);
-      importPreview = undefined;
-      aggregates = await controller.loadAggregates();
-    });
-  }
-
   async function refreshStoredSessions(): Promise<void> {
     storedSessions = await controller.listPracticeSessions();
     const current = storedSessions.find((stored) => stored.sourceKey === documentId);
     recoverableSession = current?.result.status === "ok" ? current.result.snapshot : undefined;
-  }
-
-  function setTopicRelationMode(mode: "off" | TopicRelationSyncMode): void {
-    topicRelationMode = mode;
-    topicRelationPreview = undefined;
-  }
-
-  function previewTopicRelations(): void {
-    if (topicRelationMode === "off" || !topicRelationReady || !controller.previewTopicRelationSync) return;
-    const mode = topicRelationMode;
-    void run(async () => {
-      topicRelationPreview = await controller.previewTopicRelationSync!(topicAssignments, mode);
-    });
-  }
-
-  function toggleSyncTopicProgress(checked: boolean): void {
-    syncTopicProgress = checked;
-    controller.setSetting?.("syncTopicProgress", checked);
-    void controller.saveSetting?.("syncTopicProgress", checked);
-    onSyncTopicProgressChange?.(checked);
-  }
-
-  function rebuildTopicProgress(): void {
-    if (!controller.rebuildTopicStatistics) return;
-    void run(async () => {
-      await controller.rebuildTopicStatistics!();
-    });
-  }
-
-  function confirmTopicRelations(): void {
-    if (topicRelationMode === "off" || !topicRelationPreview || !controller.confirmTopicRelationSync) return;
-    const mode = topicRelationMode;
-    void run(async () => {
-      topicRelationPreview = await controller.confirmTopicRelationSync!(
-        topicAssignments,
-        mode,
-        topicRelationPreview!.token,
-        { syncProgress: syncTopicProgress },
-      );
-    });
-  }
-
-  function syncPracticeView(snapshot: PracticeSessionActorSnapshot): void {
-    practiceState = snapshot;
-    const session = snapshot.context.session;
-    sessionId = session.session_id;
-    queue = session.queue_question_ids
-      .map((questionId) => questions.find((question) => question.id === questionId))
-      .filter((question): question is Question => Boolean(question));
-    completedQuestionIndices = session.completed_question_ids
-      .map((questionId) => session.queue_question_ids.indexOf(questionId))
-      .filter((index) => index >= 0);
-    questionIndex = Math.max(0, session.queue_question_ids.indexOf(session.current_question_id));
-    complete = snapshot.matches("completed");
-    submitting = snapshot.matches("submitting");
-    timerNow = now();
-    const host = rootElement?.closest<HTMLElement>(".damophus-question-bank-host, .damophus-question-bank-dialog");
-    if (host) host.dataset.practiceActive = String(
-      snapshot.matches("active") || snapshot.matches("paused") || snapshot.matches("reviewing"),
-    );
-    currentQuestion = complete ? undefined : queue[questionIndex];
-    if (!currentQuestion) {
-      shuffled = undefined;
-      displayedOptions = [];
-      return;
-    }
-
-    const draft = session.drafts[currentQuestion.id];
-    const attempt = snapshot.context.attemptsByQuestionId[currentQuestion.id];
-    shuffled = questionOptionsFromOrder(currentQuestion, attempt?.option_order ?? draft?.option_order ?? []);
-    selectedOptionIds = [...(attempt?.selected_option_ids ?? draft?.selected_option_ids ?? [])];
-    revealed = Boolean(attempt) || Boolean(draft?.revealed);
-    objectiveCorrect = attempt?.objective_correct ?? draft?.objective_correct ?? null;
-    subjectiveScore = attempt?.subjective_score ?? draft?.subjective_score;
-    displayedOptions = revealed ? restoreQuestionOptions(currentQuestion, shuffled) : shuffled.options;
-    scheduleSourcePreload();
-  }
-
-  function sourceBlockId(question: Question | undefined): string | undefined {
-    return question
-      ? (assembledQuestions ? assembledBlockIdsByQuestionId : preview?.scan.blockIdsByQuestionId)?.get(question.id)
-      : undefined;
-  }
-
-  function correctCurrentAnswer(answer: ObjectiveAnswer): void {
-    const question = currentQuestion;
-    const blockId = currentQuestionBlockId;
-    if (!question || !blockId || !controller.correctQuestionAnswer || !question.answer) return;
-    void run(async () => {
-      await controller.correctQuestionAnswer!(blockId, question, answer);
-      const updated = { ...question, answer };
-      queue = queue.map((item) => item.id === updated.id ? updated : item);
-      currentQuestion = updated;
-    });
-  }
-
-  function scheduleSourcePreload(): void {
-    if (sourcePreloadTimer) clearTimeout(sourcePreloadTimer);
-    sourcePreloadTimer = undefined;
-    if (questionRenderMode === "html" || !prepareSourceBlock) return;
-    const currentBlockId = sourceBlockId(currentQuestion);
-    if (currentBlockId) void prepareSourceBlock(currentBlockId);
-    const nextBlockId = sourceBlockId(queue[questionIndex + 1]);
-    if (!nextBlockId) return;
-    sourcePreloadTimer = setTimeout(() => {
-      void prepareSourceBlock?.(nextBlockId);
-    }, 50);
-  }
-
-  async function activateRuntime(activation: PracticeSessionActivation): Promise<void> {
-    const { snapshot, attempts, persistedRevision } = activation;
-    unsubscribePracticeState?.();
-    unsubscribeSaveStatus?.();
-    if (practiceRuntime) await practiceRuntime.dispose();
-    completionHandledSessionId = "";
-    const runtime = new PracticeSessionRuntime({
-      host: controller,
-      input: { snapshot, attempts, now: now(), pauseOnAnswerReveal },
-      persistedRevision,
-    });
-    practiceRuntime = runtime;
-    unsubscribePracticeState = runtime.subscribeState((state) => {
-      syncPracticeView(state);
-      if (state.matches("completed") && completionHandledSessionId !== state.context.session.session_id) {
-        completionHandledSessionId = state.context.session.session_id;
-        clearTimer();
-        void runtime.complete()
-          .then(refreshStoredSessions)
-          .catch((reason) => { error = reason instanceof Error ? reason.message : String(reason); });
-      }
-    });
-    unsubscribeSaveStatus = runtime.subscribeSaveStatus((status, reason) => {
-      practiceSaveStatus = status;
-      practiceSaveError = reason?.message ?? "";
-    });
-    recoverableSession = undefined;
-    recoveryIssues = activation.recoveryIssues;
-    pendingReplacement = false;
-    endConfirmation = false;
-    answerCardOpen = false;
-    if (!runtime.actor.getSnapshot().matches("completed")) startTimer();
-  }
-
-  function practiceQueue(filterOverride: PracticeFilter = filter): Question[] {
-    if (assembledQuestions) return [...assembledQuestions];
-    return createPracticeQueue({
-      questions,
-      topics,
-      rootTopicId: topicId || undefined,
-      filter: filterOverride,
-      order,
-      aggregates,
-      dueQuestionIds: new Set(dueCards.keys()),
-      bookmarkedQuestionIds: new Set([...bookmarks.keys()].filter((id) => !bookmarks.get(id)?.isArchived)),
-      reviewThreshold,
-      random,
-    });
-  }
-
-  function hasPendingSync(target: QuestionIndexPreview): boolean {
-    return target.actions.length > 0
-      || target.bindingRepairs.length > 0
-      || target.ialWriteActions.length > 0;
-  }
-
-  async function applyIndexSync(target: QuestionIndexPreview): Promise<QuestionIndexPreview> {
-    const synced = includeSubdocuments
-      ? await controller.confirmSync(documentId, target.token, true)
-      : await controller.confirmSync(documentId, target.token);
-    const failures = synced.results.filter((result) => result.status === "failed");
-    syncComplete = failures.length === 0;
-    if (failures.length > 0) {
-      error = failures.map((failure) => `${failure.questionId}: ${failure.message ?? "failed"}`).join("; ");
-    }
-    return synced;
-  }
-
-  function startPractice(): void {
-    if (!preview) return;
-    const nextQueue = practiceQueue();
-    if (nextQueue.length === 0) {
-      queue = [];
-      complete = true;
-      clearTimer();
-      return;
-    }
-    if (recoverableSession) {
-      pendingReplacement = true;
-      return;
-    }
-    void run(() => beginNewPractice(nextQueue));
-  }
-
-  // Launches a redo session scoped to active bookmarks without touching the
-  // user's workspace filter selection (the launcher button passes the DOM
-  // event straight through, so startPractice must stay zero-arg).
-  function startBookmarkPractice(): void {
-    if (!preview) return;
-    const nextQueue = practiceQueue("bookmarked");
-    if (nextQueue.length === 0) return;
-    if (recoverableSession) {
-      pendingReplacement = true;
-      return;
-    }
-    void run(() => beginNewPractice(nextQueue, undefined, undefined, "bookmarked"));
-  }
-
-  function openBookmarkSource(entry: StatisticsBookmarkEntry): void {
-    if (entry.blockId) openQuestionSource?.(entry.blockId);
-  }
-
-  function buildStatisticsBookmarkTitles(
-    catalog: readonly { questionId: string; title?: string }[] | undefined,
-    scannedQuestions: readonly Question[],
-  ): Map<string, string> {
-    const titles = new Map<string, string>();
-    for (const entry of catalog ?? []) {
-      if (entry.title) titles.set(entry.questionId, entry.title);
-    }
-    for (const question of scannedQuestions) {
-      if (question.title) titles.set(question.id, question.title);
-    }
-    return titles;
-  }
-
-  async function beginNewPractice(
-    nextQueue = practiceQueue(),
-    sourceKey = assembledSourceKey || documentId,
-    sourceLabel = assembledSourceLabel || sourceIdentity?.content,
-    filterOverride?: PracticeFilter,
-  ): Promise<void> {
-    if ((!preview && !assembledQuestions) || nextQueue.length === 0) return;
-    if (questionRenderMode !== "html" && prepareSourceBlock) {
-      const initialBlockIds = nextQueue.slice(0, 2)
-        .map((question) => sourceBlockId(question))
-        .filter((blockId): blockId is string => Boolean(blockId));
-      await Promise.allSettled(initialBlockIds.map((blockId) => prepareSourceBlock!(blockId)));
-    }
-    await startPracticeSession({
-      host: controller,
-      sourceKey,
-      createSnapshot: () => createNewPracticeSnapshot(nextQueue, sourceKey, sourceLabel, filterOverride),
-      activate: activateRuntime,
-    });
-  }
-
-  function createNewPracticeSnapshot(
-    nextQueue = practiceQueue(),
-    sourceKey = assembledSourceKey || documentId,
-    sourceLabel = assembledSourceLabel || sourceIdentity?.content,
-    filterOverride?: PracticeFilter,
-  ): PracticeSessionSnapshot {
-    if ((!preview && !assembledQuestions) || nextQueue.length === 0) throw new Error("A practice session requires at least one question");
-    if (!assembledQuestions && preview) {
-      controller.saveRecentScope({
-        documentId,
-        headingBlockId: topicId ? preview.scan.topicBlockIdsByTopicId.get(topicId) : undefined,
-      });
-    }
-    return createPracticeSessionSnapshot({
-      sessionId: uuid(),
-      sourceKey,
-      sourceLabel,
-      scopeId: assembledQuestions ? undefined : topicId || undefined,
-      filter: assembledQuestions ? "all" : filterOverride ?? filter,
-      order: assembledQuestions ? "sequential" : order,
-      queue: nextQueue.map((question) => ({
-        question,
-        optionOrder: createPracticeOptionOrder(
-          question,
-          assembledQuestions ? "random" : optionOrder,
-          random,
-        ),
-      })),
-      now: new Date(now()),
-    });
-  }
-
-  function resumePractice(): void {
-    const snapshot = recoverableSession;
-    if (!snapshot || (!preview && !assembledQuestions)) return;
-    void run(async () => {
-      await resumePracticeSession({
-        host: controller,
-        snapshot,
-        questions: practiceSourceQuestions,
-        now: new Date(now()),
-        activate: activateRuntime,
-      });
-    });
-  }
-
-  function confirmRestartPractice(): void {
-    const previous = recoverableSession;
-    if (!previous) {
-      pendingReplacement = false;
-      return;
-    }
-    void run(async () => {
-      await replacePracticeSession({
-        host: controller,
-        previous,
-        createSnapshot: createNewPracticeSnapshot,
-        activate: activateRuntime,
-      });
-      await refreshStoredSessions();
-    });
-  }
-
-  function goToQuestion(index: number): void {
-    const questionId = practiceState?.context.session.queue_question_ids[index];
-    if (!practiceRuntime || !questionId || (index === questionIndex && !practiceState?.matches("completed"))) {
-      answerCardOpen = false;
-      return;
-    }
-    practiceRuntime.actor.send({
-      type: practiceState?.matches("completed") ? "REVIEW" : "NAVIGATE",
-      questionId,
-      now: now(),
-    });
-    answerCardOpen = false;
-  }
-
-  function previousQuestion(): void {
-    if (questionIndex > 0) goToQuestion(questionIndex - 1);
-  }
-
-  function nextQuestion(): void {
-    if (questionIndex < queue.length - 1) goToQuestion(questionIndex + 1);
   }
 
   const toggleOption = practiceActions.toggleOption;
@@ -1450,181 +909,6 @@
   const changeSubjectiveScore = practiceActions.changeSubjectiveScore;
   const submitRating = practiceActions.submitRating;
   const correctRating = practiceActions.correctRating;
-  function pausePractice(): void {
-    if (!practiceRuntime || !practiceState?.matches("active")) return;
-    void run(async () => {
-      const runtime = practiceRuntime!;
-      await runtime.pause(now());
-      await leavePracticeRuntime(runtime);
-      await refreshStoredSessions();
-    });
-  }
-
-  function togglePracticeTimer(): void {
-    if (!practiceRuntime || submitting || reviewing) return;
-    const current = practiceRuntime.actor.getSnapshot();
-    if (!current.matches("active")) return;
-    autoPausedByWindowBlur = false;
-    autoPausedByOutsidePointer = false;
-    if (!current.context.timerPaused) {
-      practiceRuntime.actor.send({ type: "PAUSE_TIMER", now: now() });
-      clearTimer();
-    } else {
-      practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
-      startTimer();
-    }
-  }
-
-  function requestEndPractice(): void {
-    endConfirmation = true;
-  }
-
-  function confirmEndPractice(): void {
-    if (!practiceRuntime) return;
-    void run(async () => {
-      const runtime = practiceRuntime!;
-      await runtime.end(now());
-      await leavePracticeRuntime(runtime);
-      await refreshStoredSessions();
-    });
-  }
-
-  async function leavePracticeRuntime(runtime = practiceRuntime): Promise<void> {
-    clearTimer();
-    autoPausedByWindowBlur = false;
-    autoPausedByOutsidePointer = false;
-    unsubscribePracticeState?.();
-    unsubscribePracticeState = undefined;
-    unsubscribeSaveStatus?.();
-    unsubscribeSaveStatus = undefined;
-    if (runtime) await runtime.dispose();
-    if (practiceRuntime === runtime) practiceRuntime = undefined;
-    practiceState = undefined;
-    queue = [];
-    currentQuestion = undefined;
-    complete = false;
-    answerCardOpen = false;
-    completedQuestionIndices = [];
-    endConfirmation = false;
-  }
-
-  function retryPracticeSave(): void {
-    if (!practiceRuntime) return;
-    void run(() => practiceRuntime!.retrySave());
-  }
-
-  function openStoredSession(stored: StoredPracticeSession): void {
-    const parsedStored = stored.result;
-    if (parsedStored.status === "ok"
-      && controller.hydrateQuestionSources
-      && !/^\d{14}-[a-z0-9]{7}$/u.test(stored.sourceKey)) {
-      void run(async () => {
-        const hydrated = await controller.hydrateQuestionSources!(parsedStored.snapshot.queue_question_ids);
-        assembledQuestions = hydrated.questions;
-        assembledBlockIdsByQuestionId = hydrated.blockIdsByQuestionId;
-        assembledSourceKey = stored.sourceKey;
-        assembledSourceLabel = parsedStored.snapshot.source_label ?? label("questionSet", "跨文档组卷");
-        await resumePracticeSession({
-          host: controller,
-          snapshot: parsedStored.snapshot,
-          questions: hydrated.questions,
-          now: new Date(now()),
-          activate: activateRuntime,
-        });
-      });
-      return;
-    }
-    documentId = stored.sourceKey;
-    invalidateDocumentTarget();
-    scanDocument(false);
-  }
-
-  async function loadQuestionSetData(): Promise<void> {
-    if (!controller.listQuestionSourceDocuments || !controller.loadQuestionCatalog || !controller.listQuestionSetBlueprints) return;
-    [sourceDocuments, questionCatalog, questionSetBlueprints] = await Promise.all([
-      controller.listQuestionSourceDocuments(),
-      controller.loadQuestionCatalog(),
-      controller.listQuestionSetBlueprints(),
-    ]);
-  }
-
-  function openQuestionSetComposer(): void {
-    composerOpen = true;
-    void run(loadQuestionSetData);
-  }
-
-  async function previewSourceSync(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {
-    if (!controller.previewSyncBatch) throw new Error(label("questionSetIndexUnavailable", "跨文档入库服务尚未连接"));
-    return controller.previewSyncBatch(documentIds);
-  }
-
-  async function confirmSourceSync(target: QuestionIndexBatchPreview): Promise<QuestionIndexBatchPreview> {
-    if (!controller.confirmSyncBatch) throw new Error(label("questionSetIndexUnavailable", "跨文档入库服务尚未连接"));
-    const confirmed = await controller.confirmSyncBatch(target.documentIds, target.token);
-    await loadQuestionSetData();
-    return confirmed;
-  }
-
-  function assembleBlueprint(blueprint: QuestionSetBlueprint): FrozenQuestionSet {
-    if (!controller.assembleQuestionSet) throw new Error(label("questionSetAssemblyUnavailable", "组卷服务尚未连接"));
-    pendingFrozenSetLabel = blueprint.name;
-    return controller.assembleQuestionSet({
-      blueprint,
-      catalog: questionCatalog,
-      sourceRevision: questionCatalog.map((entry) => `${entry.questionId}:${entry.blockId}:${entry.indexedAt ?? ""}`).sort().join("|"),
-      setId: crypto.randomUUID(),
-      seed: crypto.randomUUID(),
-    });
-  }
-
-  async function saveBlueprint(blueprint: QuestionSetBlueprint): Promise<void> {
-    await controller.saveQuestionSetBlueprint?.(blueprint);
-    questionSetBlueprints = await controller.listQuestionSetBlueprints?.() ?? questionSetBlueprints;
-  }
-
-  async function removeBlueprint(blueprintId: string): Promise<void> {
-    await controller.removeQuestionSetBlueprint?.(blueprintId);
-    questionSetBlueprints = await controller.listQuestionSetBlueprints?.() ?? [];
-  }
-
-  async function useFrozenPracticeSet(frozen: FrozenQuestionSet): Promise<void> {
-    if (!controller.hydrateQuestionSources) throw new Error(label("questionSetHydrationUnavailable", "跨文档题源加载服务尚未连接"));
-    const hydrated = await controller.hydrateQuestionSources(frozen.question_ids);
-    assembledQuestions = frozen.question_ids
-      .map((questionId) => hydrated.questions.find((question) => question.id === questionId))
-      .filter((question): question is Question => Boolean(question));
-    assembledBlockIdsByQuestionId = hydrated.blockIdsByQuestionId;
-    assembledSourceKey = frozen.set_id;
-    assembledSourceLabel = pendingFrozenSetLabel || label("questionSet", "跨文档组卷");
-    composerOpen = false;
-    await beginNewPractice(assembledQuestions, assembledSourceKey, assembledSourceLabel);
-  }
-
-  function exportSessionDiagnostic(sourceKey: string): void {
-    void run(async () => {
-      const source = await controller.exportPracticeSessionDiagnostic(sourceKey);
-      const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `damophus-session-${sourceKey}.json`;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-    });
-  }
-
-  function exitReview(): void {
-    practiceRuntime?.actor.send({ type: "EXIT_REVIEW", now: now() });
-  }
-
-  function resetPractice(): void {
-    void run(async () => {
-      await leavePracticeRuntime();
-      error = "";
-      aggregates = await controller.loadAggregates();
-      await refreshStoredSessions();
-    });
-  }
-
   function renderedQuestionContent(markdown: string, sourceStyles: boolean): string {
     // Prefer the plugin's SiYuan-faithful Lute renderer in every mode: the
     // remark pipeline cannot parse kramdown IAL ({: ...}), ==mark==, or
@@ -1641,7 +925,7 @@
     autoScanDocument = checked;
     onAutoScanDocumentChange?.(checked);
     if (checked) scheduleAutoScan(0);
-    else if (autoScanTimer) clearTimeout(autoScanTimer);
+    else cancelAutoScan();
   }
 
   function toggleIncludeSubdocuments(checked: boolean): void {
@@ -1665,13 +949,12 @@
   function togglePauseOnBlur(): void {
     pauseOnBlur = !pauseOnBlur;
     onPauseOnBlurChange?.(pauseOnBlur);
-    if (!pauseOnBlur && (autoPausedByWindowBlur || autoPausedByOutsidePointer)) {
+    if (!pauseOnBlur && isAutoPaused()) {
       if (practiceRuntime && practiceState?.matches("active") && practiceState?.context.timerPaused) {
         practiceRuntime.actor.send({ type: "RESUME_TIMER", now: now() });
         startTimer();
       }
-      autoPausedByWindowBlur = false;
-      autoPausedByOutsidePointer = false;
+      clearAutoPaused();
     }
   }
 </script>
