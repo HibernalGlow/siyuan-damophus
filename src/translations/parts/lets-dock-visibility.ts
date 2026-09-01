@@ -1,0 +1,31 @@
+export const en = {
+  "lets-dock-visibility.displayName": "Dock visibility",
+  "lets-dock-visibility.description": "Choose whether each Dock button shows on desktop, mobile, or both",
+  "lets-dock-visibility.dockPlatforms": "Dock buttons",
+  "lets-dock-visibility.dockPlatformsDescription": "Unlisted buttons show on both platforms by default. Use the eye button on each row to pin it to one platform.",
+  "lets-dock-visibility.settingsTitle": "Dock visibility",
+  "lets-dock-visibility.showOn": "Show on",
+  "lets-dock-visibility.platformDesktop": "Desktop only",
+  "lets-dock-visibility.platformMobile": "Mobile only",
+  "lets-dock-visibility.platformBoth": "Both platforms",
+  "lets-dock-visibility.positionLeft": "Left dock",
+  "lets-dock-visibility.positionRight": "Right dock",
+  "lets-dock-visibility.positionBottom": "Bottom dock",
+  "lets-dock-visibility.chooseHint": "Pick where this button should show",
+};
+
+export const zhCN: typeof en = {
+  "lets-dock-visibility.displayName": "Dock 显示端",
+  "lets-dock-visibility.description": "控制每个 Dock 按钮只在 PC 端、只在移动端显示，或两端都显示",
+  "lets-dock-visibility.dockPlatforms": "Dock 按钮",
+  "lets-dock-visibility.dockPlatformsDescription": "未配置的按钮默认两端都显示。点击每行的眼睛图标可将其固定到单个平台。",
+  "lets-dock-visibility.settingsTitle": "Dock 显示端",
+  "lets-dock-visibility.showOn": "显示端",
+  "lets-dock-visibility.platformDesktop": "只在 PC 端",
+  "lets-dock-visibility.platformMobile": "只在移动端",
+  "lets-dock-visibility.platformBoth": "两端都显示",
+  "lets-dock-visibility.positionLeft": "左侧 Dock",
+  "lets-dock-visibility.positionRight": "右侧 Dock",
+  "lets-dock-visibility.positionBottom": "底部 Dock",
+  "lets-dock-visibility.chooseHint": "选择该按钮的显示端",
+};

@@ -29,6 +29,8 @@
   import QuestionBankSettings from "./lets-question-bank/QuestionBankSettings.svelte";
   import FlashcardSettings from "./lets-flashcard/FlashcardSettings.svelte";
   import LayoutActionsSettings from "./lets-layout-actions/LayoutActionsSettings.svelte";
+  import DockVisibilitySettings from "./lets-dock-visibility/DockVisibilitySettings.svelte";
+  import { collectDockItems } from "./lets-dock-visibility/dock-items";
   import CalloutAppearanceSettings from "./lets-callout-appearance/CalloutAppearanceSettings.svelte";
   import ExpandedPluginMenuSettings from "./lets-expanded-plugin-menu/ExpandedPluginMenuSettings.svelte";
   import AppearanceTweaksSettings from "./lets-appearance-tweaks/AppearanceTweaksSettings.svelte";
@@ -66,6 +68,7 @@
   const FLASHCARD_PLUGIN = "flashcard";
   const COMPACT_LAYOUT_MAX_WIDTH = 720;
   const LAYOUT_ACTIONS_PLUGIN = "layoutActions";
+  const DOCK_VISIBILITY_PLUGIN = "dockVisibility";
   const CALLOUT_APPEARANCE_PLUGIN = "calloutAppearance";
   const EXPANDED_PLUGIN_MENU_PLUGIN = "expandedPluginMenu";
   const APPEARANCE_TWEAKS_PLUGIN = "appearanceTweaks";
@@ -228,6 +231,7 @@
   } | undefined;
   $: flashcardRuntime = flashcardModule?.getSettingsRuntime?.();
   $: showLayoutActionsSettings = focusedPlugin?.name === LAYOUT_ACTIONS_PLUGIN;
+  $: showDockVisibilitySettings = focusedPlugin?.name === DOCK_VISIBILITY_PLUGIN;
   $: showCalloutAppearanceSettings = focusedPlugin?.name === CALLOUT_APPEARANCE_PLUGIN;
   $: showExpandedPluginMenuSettings = focusedPlugin?.name === EXPANDED_PLUGIN_MENU_PLUGIN;
   $: showAppearanceTweaksSettings = focusedPlugin?.name === APPEARANCE_TWEAKS_PLUGIN;
@@ -252,6 +256,7 @@
   );
   $: layoutActions = settingItems[focusGroup]?.find((item) => item.key === "actions")?.value ?? [];
   $: layoutActionsDockPosition = settingItems[focusGroup]?.find((item) => item.key === "dockPosition")?.value ?? "RightBottom";
+  $: dockVisibilityPlatforms = settingItems[focusGroup]?.find((item) => item.key === "dockPlatforms")?.value ?? {};
   $: if (groups && !groups.includes(focusGroup)) focusGroup = SWITCH_GROUP;
 
   function t(key: string, fallback: string) {
@@ -426,6 +431,10 @@
       command: t("lets-layout-actions.command", "Command"),
       commandId: t("lets-layout-actions.commandId", "Command ID"),
       placement: t("lets-layout-actions.placement", "Show in"),
+      platform: t("lets-layout-actions.platform", "Show on"),
+      platformDesktop: t("lets-layout-actions.platformDesktop", "Desktop"),
+      platformMobile: t("lets-layout-actions.platformMobile", "Mobile"),
+      platformBoth: t("lets-layout-actions.platformBoth", "Desktop and mobile"),
       system: t("lets-layout-actions.system", "SiYuan system command"),
       plugin: t("lets-layout-actions.plugin", "Plugin command"),
       editor: t("lets-layout-actions.editor", "Editor command"),
@@ -448,6 +457,19 @@
       iconPickerEmpty: t("lets-layout-actions.iconPickerEmpty", "No icons match your search"),
       commandSearch: t("lets-layout-actions.commandSearch", "Search commands…"),
       commandEmpty: t("lets-layout-actions.commandEmpty", "No commands match your search"),
+    };
+  }
+
+  function dockVisibilitySettingsLabels() {
+    return {
+      settingsTitle: t("lets-dock-visibility.settingsTitle", "Dock visibility"),
+      showOn: t("lets-dock-visibility.showOn", "Show on"),
+      platformDesktop: t("lets-dock-visibility.platformDesktop", "Desktop only"),
+      platformMobile: t("lets-dock-visibility.platformMobile", "Mobile only"),
+      platformBoth: t("lets-dock-visibility.platformBoth", "Both platforms"),
+      positionLeft: t("lets-dock-visibility.positionLeft", "Left dock"),
+      positionRight: t("lets-dock-visibility.positionRight", "Right dock"),
+      positionBottom: t("lets-dock-visibility.positionBottom", "Bottom dock"),
     };
   }
 
@@ -772,7 +794,7 @@
       />
     {/if}
     <div class={`mx-auto box-border flex w-full max-w-5xl flex-col ${compactLayout ? "gap-4 p-4" : "gap-5 p-6"}`}>
-      {#if !compactLayout && !showQuestionBankSettings && !showFlashcardSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
+      {#if !compactLayout && !showQuestionBankSettings && !showFlashcardSettings && !showLayoutActionsSettings && !showDockVisibilitySettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
         <header class="border-b border-border pb-4">
           <div class="text-lg font-semibold" role="heading" aria-level="2">{getGroupLabel(focusGroup)}</div>
         </header>
@@ -789,7 +811,7 @@
           on:bulkChanged={onBulkSwitchChanged}
           on:expandedChanged={onSwitchesExpandedChanged}
         />
-      {:else if focusedPlugin && !showQuestionBankSettings && !showFlashcardSettings && !showLayoutActionsSettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
+      {:else if focusedPlugin && !showQuestionBankSettings && !showFlashcardSettings && !showLayoutActionsSettings && !showDockVisibilitySettings && !showCalloutAppearanceSettings && !showExpandedPluginMenuSettings && !showAppearanceTweaksSettings && !showSnippetAuditSettings && !showRemoteAccessSettings && !showSlashMenuSettings}
         <!--
           Module enable controls are managed from the settings overview.
           Uncomment this panel to restore the enable switch inside plugin details.
@@ -887,6 +909,15 @@
           dockPosition={layoutActionsDockPosition}
           mobile={compactLayout}
           labels={layoutActionsSettingsLabels()}
+          on:changed={onChanged}
+        />
+      {:else if showDockVisibilitySettings}
+        <DockVisibilitySettings
+          group={focusGroup}
+          title={getGroupLabel(focusGroup)}
+          items={collectDockItems(window.siyuan)}
+          platforms={dockVisibilityPlatforms}
+          labels={dockVisibilitySettingsLabels()}
           on:changed={onChanged}
         />
       {:else if showCalloutAppearanceSettings}
