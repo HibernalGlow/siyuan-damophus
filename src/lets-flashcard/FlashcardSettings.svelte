@@ -10,13 +10,7 @@
   import { getReviewToolbarActions, type ReviewToolbarAction } from "@/flashcard/review-action-registry";
   import { DEFAULT_DOCUMENT_PATH_HIGHLIGHTS } from "@/libs/document-path-highlights";
   import {
-    createSiyuanReviewLogReader,
-    downloadReviewLog,
-    loadReviewLogArchive,
-    monthlyReviewLogZip,
     filterReviewLogEntries,
-    groupReviewLogEntriesByMonth,
-    reviewLogToCsv,
     type ReviewLogCardContext,
     type ReviewLogArchive,
     type ReviewLogSelection,
@@ -31,6 +25,7 @@
   import FsrsOptimizerPanel from "./settings/FsrsOptimizerPanel.svelte";
   import GlobalSettingsPanel from "./settings/GlobalSettingsPanel.svelte";
   import GroupsPanel from "./settings/GroupsPanel.svelte";
+  import { createReviewLogWorkbench } from "./settings/review-log-workbench";
 
   export let runtime: FlashcardRuntime;
   export let onReviewGroup: (group: FlashcardGroup) => void;
@@ -264,195 +259,59 @@
     applyReviewLogDocumentValue(exact ?? uniqueMatch ?? query);
   }
 
-  async function openOfficialDocumentPicker(): Promise<void> {
-    const host = globalThis as unknown as { siyuan?: Record<string, unknown> };
-    const siyuan = host.siyuan;
-    const candidates = [
-      siyuan?.openDocumentPicker,
-      siyuan?.openDocPicker,
-      siyuan?.openDocumentSelector,
-      (siyuan?.app as Record<string, unknown> | undefined)?.openDocumentPicker,
-      (siyuan?.layout as Record<string, unknown> | undefined)?.openDocumentPicker,
-    ].filter((candidate): candidate is (...args: unknown[]) => unknown => typeof candidate === "function");
-    const picker = candidates[0];
-    if (!picker) {
-      message = "当前思源未公开文档选择器，已提供搜索、文档 ID 和路径输入作为回退";
-      return;
-    }
-    let selected = false;
-    const onSelect = (value: unknown) => {
-      if (selected || value === undefined || value === null) return;
-      selected = true;
-      if (typeof value === "string" || typeof value === "object") applyReviewLogDocumentValue(value as DocumentPickerValue);
-    };
-    try {
-      const result = picker.call(siyuan, { multiple: false, onSelect, onConfirm: onSelect });
-      const resolved = result && typeof (result as Promise<unknown>).then === "function" ? await result : result;
-      if (resolved !== undefined && resolved !== null) onSelect(resolved);
-    } catch (error) {
-      message = `调用思源文档选择器失败，已保留搜索回退：${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-
-  async function loadReviewLogContexts(entries: readonly ReviewLogArchive["entries"][number][]): Promise<void> {
-    reviewLogContextLoading = true;
-    reviewLogContextError = "";
-    try {
-      const cardIds = [...new Set(entries.map((entry) => entry.cardId).filter(Boolean))];
-      const directRows = await runtime.adapter.loadBlocks(cardIds);
-      const blockByCardId = new Map(directRows.map((row) => [row.id, row]));
-      const unresolved = cardIds.filter((cardId) => !blockByCardId.has(cardId));
-      if (unresolved.length > 0) {
-        try {
-          const registered = await runtime.adapter.getAllCardsByDeckId(runtime.getSettings().deckId);
-          const cardMap = new Map(registered.map((card) => [card.cardID, card.blockID]));
-          const mappedBlockIds = unresolved.map((cardId) => cardMap.get(cardId)).filter((id): id is string => Boolean(id));
-          const mappedRows = await runtime.adapter.loadBlocks(mappedBlockIds);
-          for (const row of mappedRows) {
-            const cardId = unresolved.find((candidate) => cardMap.get(candidate) === row.id);
-            if (cardId) blockByCardId.set(cardId, row);
-          }
-        } catch (error) {
-          reviewLogContextError = `部分旧卡无法反查文档范围：${error instanceof Error ? error.message : String(error)}`;
-        }
-      }
-      const roots = [...new Set([...blockByCardId.values()].map((row) => row.root_id || row.id).filter(Boolean))];
-      const rootRows = await runtime.adapter.loadBlocks(roots);
-      const rootById = new Map(rootRows.map((row) => [row.id, row]));
-      const notebooks = new Map<string, string>((window.siyuan?.notebooks ?? []).map((notebook) => [notebook.id, String(notebook.name ?? notebook.id)]));
-      reviewLogContexts = cardIds.map((cardId) => {
-        const row = blockByCardId.get(cardId);
-        const documentId = row?.root_id || (row?.type === "d" ? row.id : undefined);
-        const root = documentId ? rootById.get(documentId) : undefined;
-        return {
-          cardId,
-          blockId: row?.id,
-          documentId,
-          documentPath: root?.hpath || undefined,
-          notebookId: row?.box || root?.box,
-          notebookName: (row?.box || root?.box) ? notebooks.get(row?.box || root?.box!) : undefined,
-        };
-      });
-    } catch (error) {
-      reviewLogContexts = [];
-      reviewLogContextError = `读取卡片范围失败：${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      reviewLogContextLoading = false;
-    }
-  }
-
-  async function scanReviewLogs(): Promise<ReviewLogArchive | undefined> {
-    reviewLogLoading = true;
-    try {
-      reviewLogArchive = await loadReviewLogArchive(createSiyuanReviewLogReader());
-      await loadReviewLogContexts(reviewLogArchive.entries);
-      message = reviewLogArchive.entries.length
-        ? `已读取 ${reviewLogArchive.entries.length} 条复习记录`
-        : "没有找到可导出的复习记录";
-      return reviewLogArchive;
-    } catch (error) {
-      message = `读取复习记录失败：${error instanceof Error ? error.message : String(error)}`;
-      return undefined;
-    } finally {
-      reviewLogLoading = false;
-    }
-  }
-
-  async function exportMergedReviewLog(): Promise<void> {
-    const archive = reviewLogArchive ?? await scanReviewLogs();
-    if (!archive?.entries.length) return;
-    try {
-      downloadReviewLog(reviewLogToCsv(selectedReviewLogEntries), "revlog.csv", "text/csv;charset=utf-8");
-      message = `已导出合并记录，共 ${selectedReviewLogEntries.length} 条`;
-    } catch (error) {
-      message = `导出合并记录失败：${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-
-  async function exportMonthlyReviewLogs(): Promise<void> {
-    const archive = reviewLogArchive ?? await scanReviewLogs();
-    if (!archive?.entries.length) return;
-    reviewLogLoading = true;
-    try {
-      const selected = selectedReviewLogEntries;
-      const bytes = await monthlyReviewLogZip({
-        ...archive,
-        entries: selected,
-        entriesByMonth: groupReviewLogEntriesByMonth(selected),
-        files: [...groupReviewLogEntriesByMonth(selected).keys()].map((month) => ({ name: `${month}.msgpack`, month })),
-      });
-      downloadReviewLog(bytes as BlobPart, "siyuan-revlog-by-month.zip", "application/zip");
-      message = `已导出 ${groupReviewLogEntriesByMonth(selected).size} 个月份和合并记录`;
-    } catch (error) {
-      message = `按月导出失败：${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      reviewLogLoading = false;
-    }
-  }
-
-  async function optimizeReviewLogs(): Promise<void> {
-    const archive = reviewLogArchive ?? await scanReviewLogs();
-    if (!archive?.entries.length || !selectedReviewLogEntries.length) {
-      message = "当前筛选没有可用于训练的记录";
-      return;
-    }
-    optimizerLoading = true;
-    optimizerApplied = false;
-    optimization = undefined;
-    message = config.fsrsOptimizerMode === "internal" ? "正在思源插件内部训练 FSRS 参数" : "已打开系统浏览器，等待 FSRS 训练完成";
-    try {
-      optimization = await onOptimizeReviewLog(selectedReviewLogEntries);
-      message = `训练完成，用时 ${(optimization.result.durationMs / 1000).toFixed(1)} 秒；请预览后确认应用`;
-    } catch (error) {
-      message = `FSRS 优化失败：${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      optimizerLoading = false;
-    }
-  }
-
-  async function applyOptimization(): Promise<void> {
-    if (!optimization) return;
-    optimizerApplying = true;
-    try {
-      optimizerApplied = await onApplyFsrsWeights(optimization.result.weights);
-      if (optimizerApplied) {
-        message = "已写入并回读验证 FSRS 参数";
-        await loadFsrsHistory();
-        currentFsrsWeights = onGetFsrsWeights();
-      }
-    } catch (error) {
-      message = `应用 FSRS 参数失败：${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      optimizerApplying = false;
-    }
-  }
-
-  async function loadFsrsHistory(): Promise<void> {
-    fsrsHistoryLoading = true;
-    try {
-      fsrsHistory = await onLoadFsrsHistory();
-    } catch (error) {
-      message = `读取 FSRS 参数历史失败：${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      fsrsHistoryLoading = false;
-    }
-  }
-
-  async function undoFsrsHistory(entry: FsrsWeightHistoryEntry): Promise<void> {
-    if (fsrsUndoingId) return;
-    fsrsUndoingId = entry.id;
-    try {
-      if (await onUndoFsrsWeights(entry)) {
-        message = "已撤销这次 FSRS 参数修改，并完成回读验证";
-        await loadFsrsHistory();
-        currentFsrsWeights = onGetFsrsWeights();
-      }
-    } catch (error) {
-      message = `撤销 FSRS 参数失败：${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      fsrsUndoingId = "";
-    }
-  }
+  const reviewLogWorkbench = createReviewLogWorkbench({
+    state: {
+      get config() { return config; },
+      get message() { return message; },
+      set message(value) { message = value; },
+      get reviewLogArchive() { return reviewLogArchive; },
+      set reviewLogArchive(value) { reviewLogArchive = value; },
+      get reviewLogLoading() { return reviewLogLoading; },
+      set reviewLogLoading(value) { reviewLogLoading = value; },
+      get reviewLogContextLoading() { return reviewLogContextLoading; },
+      set reviewLogContextLoading(value) { reviewLogContextLoading = value; },
+      get reviewLogContextError() { return reviewLogContextError; },
+      set reviewLogContextError(value) { reviewLogContextError = value; },
+      get reviewLogContexts() { return reviewLogContexts; },
+      set reviewLogContexts(value) { reviewLogContexts = value; },
+      get reviewLogDocuments() { return reviewLogDocuments; },
+      get filteredReviewLogDocuments() { return filteredReviewLogDocuments; },
+      get optimizerLoading() { return optimizerLoading; },
+      set optimizerLoading(value) { optimizerLoading = value; },
+      get optimizerApplying() { return optimizerApplying; },
+      set optimizerApplying(value) { optimizerApplying = value; },
+      get optimizerApplied() { return optimizerApplied; },
+      set optimizerApplied(value) { optimizerApplied = value; },
+      get optimization() { return optimization; },
+      set optimization(value) { optimization = value; },
+      get currentFsrsWeights() { return currentFsrsWeights; },
+      set currentFsrsWeights(value) { currentFsrsWeights = value; },
+      get fsrsHistory() { return fsrsHistory; },
+      set fsrsHistory(value) { fsrsHistory = value; },
+      get fsrsHistoryLoading() { return fsrsHistoryLoading; },
+      set fsrsHistoryLoading(value) { fsrsHistoryLoading = value; },
+      get fsrsUndoingId() { return fsrsUndoingId; },
+      set fsrsUndoingId(value) { fsrsUndoingId = value; },
+      get selectedReviewLogEntries() { return selectedReviewLogEntries; },
+    },
+    runtime,
+    onOptimizeReviewLog,
+    onApplyFsrsWeights,
+    onGetFsrsWeights,
+    onLoadFsrsHistory,
+    onUndoFsrsWeights,
+    onPickDocument: (value) => applyReviewLogDocumentValue(value),
+  });
+  const {
+    openOfficialDocumentPicker,
+    scanReviewLogs,
+    exportMergedReviewLog,
+    exportMonthlyReviewLogs,
+    optimizeReviewLogs,
+    applyOptimization,
+    loadFsrsHistory,
+    undoFsrsHistory,
+  } = reviewLogWorkbench;
 
   onMount(() => {
     toolbarActions = getReviewToolbarActions();
