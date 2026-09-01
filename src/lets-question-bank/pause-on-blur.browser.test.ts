@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { page } from "vitest/browser";
-import { button, flush, makePreview, mockController, objectiveQuestion, option, render, scanAndSync } from "./question-bank.browser.fixtures";
+import { button, flush, makePreview, mockController, objectiveQuestion, render, scanAndSync } from "./question-bank.browser.fixtures";
 
 const pauseButton = () => {
   const result = [...document.querySelectorAll<HTMLButtonElement>("button")]
@@ -28,10 +28,6 @@ const fireWindowBlur = (): void => {
 };
 const fireWindowFocus = (): void => {
   window.dispatchEvent(new FocusEvent("focus"));
-};
-const fireVisibilityChange = (hidden: boolean): void => {
-  Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
-  document.dispatchEvent(new Event("visibilitychange"));
 };
 const pointerDownOn = (target: Element): void => {
   target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true }));

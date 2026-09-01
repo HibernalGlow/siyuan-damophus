@@ -215,6 +215,7 @@ export function mockController(options: {
   }));
   const controller: QuestionBankUiController = {
     getBinding: () => currentBinding,
+    exportQuestionAuthoringPackage: vi.fn(async () => "{}"),
     previewInitialization: vi.fn(async () => initializationPreview()),
     confirmInitialization: vi.fn(async () => {
       currentBinding = binding();

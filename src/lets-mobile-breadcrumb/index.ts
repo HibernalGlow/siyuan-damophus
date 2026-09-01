@@ -53,7 +53,7 @@ export default class MobileBreadcrumbPlugin extends SubPluginBase {
     }
   }
 
-  override onDataChanged(): void {
+  onDataChanged(): void {
     this.applySettings();
   }
 

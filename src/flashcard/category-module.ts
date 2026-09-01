@@ -224,7 +224,6 @@ export class FlashcardCategoryModule {
         const menu = new Menu("damophus-flashcard-category-menu");
         const names = [...new Set([...this.config.rules.map((rule) => rule.name), ...selected])];
         for (const name of names) {
-          const rule = this.config.rules.find((candidate) => candidate.name === name);
           menu.addItem({
             icon: selected.has(name) ? "iconCheck" : "iconUncheck",
             label: name,

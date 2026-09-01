@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PracticeFilterValue } from "@/question-bank/core/scope";
 import { practiceFilterToQuery, queryToPracticeFilter } from "./practice-querybuilder-adapter";
 
 describe("practice query builder adapter", () => {
@@ -48,9 +49,9 @@ describe("practice query builder adapter", () => {
     const filter = queryToPracticeFilter({
       glue: "and",
       rules: [
-        { field: "attempted", operator: "equal", value: "" },
+        { field: "attempted", operator: "equal", value: "" as PracticeFilterValue },
         "and",
-        { field: "wrong", operator: "equal", value: "any" },
+        { field: "wrong", operator: "equal", value: "any" as PracticeFilterValue },
         "and",
         { field: "bookmarked", operator: "equal", value: "yes" },
       ],

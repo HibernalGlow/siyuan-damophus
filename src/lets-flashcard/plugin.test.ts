@@ -54,9 +54,9 @@ describe("flashcard plugin metadata", () => {
       "应用",
       "复习",
     ]);
-    const detectMenu = item.submenu?.find((child) => child.label === "检测") as { submenu?: Array<{ label?: string }> };
-    const applyMenu = item.submenu?.find((child) => child.label === "应用") as { submenu?: Array<{ label?: string }> };
-    const reviewMenu = item.submenu?.find((child) => child.label === "复习") as { submenu?: Array<{ label?: string }> };
+    const detectMenu = item.submenu?.find((child) => child.label === "检测") as { submenu?: Array<{ label?: string; click?: () => void }> };
+    const applyMenu = item.submenu?.find((child) => child.label === "应用") as { submenu?: Array<{ label?: string; click?: () => void }> };
+    const reviewMenu = item.submenu?.find((child) => child.label === "复习") as { submenu?: Array<{ label?: string; click?: () => void }> };
     expect(detectMenu.submenu?.map((child) => child.label)).toEqual(["含指定标签"]);
     expect(applyMenu.submenu?.map((child) => child.label)).toEqual(["含指定标签"]);
     expect(reviewMenu.submenu?.map((child) => child.label)).toEqual(["lets-flashcard.reviewAll", "含指定标签"]);
@@ -94,7 +94,7 @@ describe("flashcard plugin metadata", () => {
 
     FlashcardPlugin.prototype.addMenuItem.call(fakePlugin as never, { addItem } as never);
 
-    const item = addItem.mock.calls[0][0] as { submenu?: Array<{ label?: string }> };
+    const item = addItem.mock.calls[0][0] as { submenu?: Array<{ label?: string; click?: () => void }> };
     expect(item.submenu?.map((child) => child.label)).not.toContain("当前笔记本专项复习");
     expect(item.submenu?.map((child) => child.label)).not.toContain("取消当前笔记本下所有闪卡登记");
   });
@@ -224,7 +224,7 @@ describe("flashcard plugin metadata", () => {
       detail: { menu: blockMenu, type: "document", elements: [{ dataset: { nodeId: "document-1", name: "测试文档" } }] },
     });
     expect(addItem).toHaveBeenCalledTimes(1);
-    const treeDocumentMenu = addItem.mock.calls[0][0] as { submenu?: Array<{ label?: string }> };
+    const treeDocumentMenu = addItem.mock.calls[0][0] as { submenu?: Array<{ label?: string; click?: () => void }> };
     expect(treeDocumentMenu.submenu?.map((item) => item.label)).toContain("检测");
     expect(treeDocumentMenu.submenu?.map((item) => item.label)).toContain("应用");
     expect(treeDocumentMenu.submenu?.map((item) => item.label)).toContain("复习");
