@@ -22,6 +22,38 @@ const pluginMetadata: PluginMetadata = {
       key: "currentDocumentSearch",
       value: false,
     },
+    {
+      type: "checkbox",
+      title: "lets-search-group.openAsTabTitle",
+      description: "lets-search-group.openAsTabDescription",
+      key: "openSearchAsTab",
+      value: false,
+    },
+    {
+      type: "checkbox",
+      title: "lets-search-group.tabGlobalTitle",
+      description: "lets-search-group.tabGlobalDescription",
+      key: "globalSearchAsTab",
+      value: true,
+    },
+    {
+      type: "checkbox",
+      title: "lets-search-group.tabDocumentTitle",
+      description: "lets-search-group.tabDocumentDescription",
+      key: "documentSearchAsTab",
+      value: true,
+    },
+    {
+      type: "select",
+      title: "lets-search-group.tabPositionTitle",
+      description: "lets-search-group.tabPositionDescription",
+      key: "searchTabPosition",
+      value: "current",
+      options: {
+        current: "lets-search-group.tabPositionCurrent",
+        opposite: "lets-search-group.tabPositionOpposite",
+      },
+    },
   ],
 };
 
