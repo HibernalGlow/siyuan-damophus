@@ -25,22 +25,22 @@ import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
 import { BroadcastPracticeSessionLeaseCoordinator } from "./session-host";
 import { questionBankTabTarget, questionBankTabType } from "./tab-contract";
 import { replaceQuestionBankTabs } from "./tab-replacement";
-import { loadSourceBlockIdentity } from "./source-identity";
-import { questionSourceOpenTarget } from "./source-navigation";
+import { loadSourceBlockIdentity } from "./source/source-identity";
+import { questionSourceOpenTarget } from "./source/source-navigation";
 import { createQuestionBankMenuItem, focusWindow, oppositeWindow, type QuestionBankOpenAction } from "./open-actions";
-import { normalizeDurationComparisonPosition } from "./duration-comparison-position";
+import { normalizeDurationComparisonPosition } from "./statistics/duration-comparison-position";
 import {
   ANSWER_MASK_STYLES,
   DEFAULT_ANSWER_MASK_STYLE,
   installSourceAnswerMask,
-} from "./source-answer-mask";
+} from "./source/source-answer-mask";
 import {
   normalizeBreadcrumbPriority,
   normalizeBreadcrumbTextDisplay,
 } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
-import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
-import { PersistentMobileDockPortal } from "./mobile-dock-portal";
-import { isolateFloatingOutlinesFromMobileDock } from "./mobile-dock-outline-isolation";
+import { isolateMobileDialogGestures } from "./workspace/mobile-dialog-scroll";
+import { PersistentMobileDockPortal } from "./workspace/mobile-dock-portal";
+import { isolateFloatingOutlinesFromMobileDock } from "./workspace/mobile-dock-outline-isolation";
 import {
   EMPTY_SOURCE_EMBED_SQL,
   loadSourceEmbedRows,
@@ -49,7 +49,7 @@ import {
   sourceEmbedSql,
   type SourceEmbedBlockRow,
   type SourceEmbedSection,
-} from "./source-embed-query";
+} from "./source/source-embed-query";
 import {
   defocusProtyleEditor,
   enforceSourceBlockReadOnly,
@@ -57,7 +57,7 @@ import {
   sourceBlockEditorMode,
   sourceBlockProtyleActions,
   sourceEmbedBlockAttributes,
-} from "./source-embed-presentation";
+} from "./source/source-embed-presentation";
 import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyuan-file-io";
 import { TopicDictionaryStore } from "@/question-bank/adapters/siyuan/topic-dictionary";
 import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
@@ -65,7 +65,7 @@ import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 import { bindMenuIdentity } from "@/libs/menu-identity";
-import { openStatisticsCardPreview, type StatisticsCardPreviewRequest } from "./statistics-preview";
+import { openStatisticsCardPreview, type StatisticsCardPreviewRequest } from "./statistics/statistics-preview";
 import type { OpenDocumentTab } from "@/libs/open-document-tabs";
 import {
   DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY,

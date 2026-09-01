@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { installSourceAnswerMask, sourceAnswerMaskRootsFromMutations } from "./source-answer-mask";
+import { installSourceAnswerMask, sourceAnswerMaskRootsFromMutations } from "./source/source-answer-mask";
 
 let cleanup: (() => void) | undefined;
 

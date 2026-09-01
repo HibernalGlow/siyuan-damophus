@@ -7,7 +7,7 @@ import type { AttemptEvent } from "@/question-bank/core/types";
 import { emptyTopicDictionary, updateTopicDictionaryLabel } from "@/question-bank/topic-dictionary";
 import { zhCN as questionBankZhCN } from "@/translations/parts/lets-question-bank";
 import { zhCN as topicDictionaryZhCN } from "@/translations/parts/lets-topic-dictionary";
-import Statistics from "./Statistics.svelte";
+import Statistics from "./statistics/Statistics.svelte";
 
 const questions = [
   { questionId: "civil-1", questionType: "single" as const, subject: "civil-procedure", category: "mediation", collection: "gold" },

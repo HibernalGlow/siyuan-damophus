@@ -3,7 +3,7 @@ import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@/styles/damophus.css";
 import type { AttemptEvent, Question } from "@/question-bank/core/types";
-import PracticeCompletion from "./PracticeCompletion.svelte";
+import PracticeCompletion from "./practice/PracticeCompletion.svelte";
 
 const questions: Question[] = Array.from({ length: 20 }, (_, index) => ({
   id: `question-${index + 1}`,

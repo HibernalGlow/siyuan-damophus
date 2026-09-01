@@ -1,7 +1,7 @@
 import { Dialog } from "siyuan";
 import { plugin } from "@/utils";
 import { getLogger } from "@/libs/logger";
-import { isolateMobileDialogGestures } from "@/lets-question-bank/mobile-dialog-scroll";
+import { isolateMobileDialogGestures } from "@/lets-question-bank/workspace/mobile-dialog-scroll";
 import { coverFavoriteKey } from "./cover-favorites";
 import type { BooruResolvedInfo } from "./booru";
 

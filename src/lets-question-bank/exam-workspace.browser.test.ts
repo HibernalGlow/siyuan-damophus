@@ -6,7 +6,7 @@ import type { QuestionIndexBatchPreview } from "@/question-bank/application";
 import type { FrozenQuestionSet, QuestionCatalogEntry } from "@/question-bank/assembly";
 import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
 import "@/styles/damophus.css";
-import ExamWorkspace from "./ExamWorkspace.svelte";
+import ExamWorkspace from "./workspace/ExamWorkspace.svelte";
 import type { QuestionBankUiController } from "./controller";
 
 const questions: Question[] = [

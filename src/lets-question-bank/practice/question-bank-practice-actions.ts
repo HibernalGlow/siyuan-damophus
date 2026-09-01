@@ -2,7 +2,7 @@ import { gradeQuestion, normalizeOptionIds } from "@/question-bank/core/answer";
 import { practiceFilterTargetsDueCards, type PracticeFilter } from "@/question-bank/core/scope";
 import type { AttemptEvent, MasteryRating, Question } from "@/question-bank/core/types";
 import type { PracticeSessionRuntime } from "@/question-bank/application";
-import type { QuestionBankUiController } from "./controller";
+import type { QuestionBankUiController } from "../controller";
 
 export interface PracticeActionState {
   currentQuestion: Question | undefined;

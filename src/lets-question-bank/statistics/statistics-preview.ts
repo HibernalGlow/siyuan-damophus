@@ -61,4 +61,4 @@ export function openStatisticsCardPreview(
   previewCard.classList.add("damophus-statistics-preview-card");
   target.append(previewCard);
 }
-import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
+import { isolateMobileDialogGestures } from "../workspace/mobile-dialog-scroll";

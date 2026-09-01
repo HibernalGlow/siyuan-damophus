@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PracticeSessionRuntime } from "@/question-bank/application";
 import type { Question } from "@/question-bank/core/types";
-import { createPracticeActions } from "./question-bank-practice-actions";
+import { createPracticeActions } from "./practice/question-bank-practice-actions";
 
 const question: Question = {
   id: "civil-procedure-gold-2022-2-4-15",

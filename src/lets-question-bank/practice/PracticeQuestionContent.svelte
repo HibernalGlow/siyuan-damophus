@@ -6,12 +6,12 @@
   import { Label as FormLabel } from "@/components/ui/label";
   import type { AttemptEvent, Question, QuestionBookmark, QuestionGroup, QuestionType, ShuffledOption } from "@/question-bank/core/types";
   import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
-  import type { AttemptDurationComparison } from "./attempt-duration-comparison";
-  import type { DurationComparisonPosition } from "./duration-comparison-position";
+  import type { AttemptDurationComparison } from "../statistics/attempt-duration-comparison";
+  import type { DurationComparisonPosition } from "../statistics/duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
   import PracticeTopicResources from "./PracticeTopicResources.svelte";
-  import { hideTrailingQuestionTypeMarker } from "./question-bank-display";
-  import { staticContentRender } from "./static-render";
+  import { hideTrailingQuestionTypeMarker } from "../question-bank-display";
+  import { staticContentRender } from "../static-render";
 
   type Label = (key: string, fallback: string) => string;
   type RenderMarkdown = (markdown: string, inheritStyles: boolean) => string;

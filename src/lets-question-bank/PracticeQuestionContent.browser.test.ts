@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import type { Question, ShuffledOption } from "@/question-bank/core/types";
-import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
+import PracticeQuestionContent from "./practice/PracticeQuestionContent.svelte";
 
 const blockId = "20260804120001-abcdefg";
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PersistentMobileDockPortal } from "./mobile-dock-portal";
+import { PersistentMobileDockPortal } from "./workspace/mobile-dock-portal";
 
 type TestApp = { host: HTMLElement };
 

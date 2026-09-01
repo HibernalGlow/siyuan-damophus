@@ -6,13 +6,13 @@
     createPracticeBreadcrumbAction,
     formatDuration,
     type Label,
-  } from "./question-bank-display";
+  } from "../question-bank-display";
   import type { BreadcrumbOverflowPriority, BreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import type { ObjectiveAnswer, Question, QuestionBookmark } from "@/question-bank/core/types";
-  import type { AttemptDurationComparison } from "./attempt-duration-comparison";
-  import type { DurationComparisonPosition } from "./duration-comparison-position";
+  import type { AttemptDurationComparison } from "../statistics/attempt-duration-comparison";
+  import type { DurationComparisonPosition } from "../statistics/duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
-  import QuestionBookmarkModal from "./QuestionBookmarkModal.svelte";
+  import QuestionBookmarkModal from "../QuestionBookmarkModal.svelte";
 
   export let currentQuestion: Question | undefined;
   export let buildRevision: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SiyuanKernelClient } from "../question-bank/adapters/siyuan/types";
+import type { SiyuanKernelClient } from "../../question-bank/adapters/siyuan/types";
 import { loadSourceBlockIdentity } from "./source-identity";
 
 describe("source block identity", () => {

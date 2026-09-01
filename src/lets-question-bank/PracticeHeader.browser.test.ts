@@ -1,6 +1,6 @@
 import { mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import PracticeHeader from "./PracticeHeader.svelte";
+import PracticeHeader from "./practice/PracticeHeader.svelte";
 import "./question-bank.css";
 import { normalizeBreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
 import type { Question } from "@/question-bank/core/types";

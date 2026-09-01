@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import "./question-bank.css";
-import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
+import { isolateMobileDialogGestures } from "./workspace/mobile-dialog-scroll";
 
 describe("question bank mobile dialog scrolling", () => {
   it("contains vertical overscroll on the dialog and its scroll surfaces", () => {

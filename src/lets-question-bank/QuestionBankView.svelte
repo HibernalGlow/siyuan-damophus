@@ -5,15 +5,15 @@
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
   import * as Tabs from "@/components/ui/tabs";
-  import PracticeHeader from "./PracticeHeader.svelte";
+  import PracticeHeader from "./practice/PracticeHeader.svelte";
   import QuestionBankSetup from "./QuestionBankSetup.svelte";
-  import Statistics from "./Statistics.svelte";
+  import Statistics from "./statistics/Statistics.svelte";
   import QuestionBankMapping from "./QuestionBankMapping.svelte";
-  import QuestionBankWorkspace from "./QuestionBankWorkspace.svelte";
-  import QuestionBankPractice from "./QuestionBankPractice.svelte";
-  import PracticeCompletion from "./PracticeCompletion.svelte";
-  import { loadFabPinned, saveFabPinned } from "./fab-preferences";
-  import type { StatisticsBookmarkEntry } from "./statistics-bookmarks";
+  import QuestionBankWorkspace from "./workspace/QuestionBankWorkspace.svelte";
+  import QuestionBankPractice from "./practice/QuestionBankPractice.svelte";
+  import PracticeCompletion from "./practice/PracticeCompletion.svelte";
+  import { loadFabPinned, saveFabPinned } from "./workspace/fab-preferences";
+  import type { StatisticsBookmarkEntry } from "./statistics/statistics-bookmarks";
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
 
   export let rootElement: HTMLElement;
@@ -177,7 +177,7 @@
   export let order: any;
   export let optionOrder: any;
   export let filter: any;
-  export let filterPresets: import("./practice-preferences").PracticeFilterPreset[] = [];
+  export let filterPresets: import("./practice/practice-preferences").PracticeFilterPreset[] = [];
   export let activeFilterPresetId: string | undefined = undefined;
   export let startPractice: any;
   export let openQuestionSetComposer: any;

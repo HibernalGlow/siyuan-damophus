@@ -24,7 +24,7 @@
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicNode } from "@/question-bank/core/types";
-  import type { SourceBlockIdentity } from "./controller";
+  import type { SourceBlockIdentity } from "../controller";
   import PracticeScopeTree from "./PracticeScopeTree.svelte";
   import PracticeConditionEditor from "./PracticeConditionEditor.svelte";
 

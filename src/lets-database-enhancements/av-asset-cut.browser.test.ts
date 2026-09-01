@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendAssetCutMenu } from "./av-asset-cut";
+import { appendAssetCutMenu } from "./av/av-asset-cut";
 
 describe("database asset cut menu", () => {
   it("copies through the native action before deleting the asset", () => {

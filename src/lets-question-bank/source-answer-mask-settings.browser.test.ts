@@ -1,6 +1,6 @@
 import { mount, tick, unmount } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import SourceAnswerMaskSettings from "./SourceAnswerMaskSettings.svelte";
+import SourceAnswerMaskSettings from "./source/SourceAnswerMaskSettings.svelte";
 
 let component: ReturnType<typeof mount> | undefined;
 

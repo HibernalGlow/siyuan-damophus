@@ -21,7 +21,7 @@ import type {
 import {
   DEFAULT_PRACTICE_PREFERENCES,
   type PracticePreferences,
-} from "@/lets-question-bank/practice-preferences";
+} from "@/lets-question-bank/practice/practice-preferences";
 import type { StoredPracticeSession } from "@/lets-question-bank/session-host";
 
 const documentId = "20260805120000-damodev";

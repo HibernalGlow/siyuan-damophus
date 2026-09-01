@@ -7,7 +7,7 @@ import {
   serializeBindingConfig,
   resolveColumn,
   type RawAttributeView,
-} from "./av-column-binding";
+} from "./av/av-column-binding";
 
 const av: RawAttributeView = {
   id: "av-1",

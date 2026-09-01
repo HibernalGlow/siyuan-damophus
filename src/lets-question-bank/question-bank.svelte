@@ -39,11 +39,11 @@
   } from "@/question-bank/core/subject-dashboard";
   import type { TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
   import type { PracticeFilter } from "@/question-bank/core/scope";
-  import type { PracticeFilterPreset } from "./practice-preferences";
+  import type { PracticeFilterPreset } from "./practice/practice-preferences";
   import {
     buildStatisticsBookmarkEntries,
     type StatisticsBookmarkEntry,
-  } from "./statistics-bookmarks";
+  } from "./statistics/statistics-bookmarks";
   import {
     createPracticeOptionOrder,
     createPracticeQueue,
@@ -93,9 +93,9 @@
   import { renderMarkdownHtml } from "@/question-bank/markdown";
   import type { QuestionBankUiController, SourceBlockIdentity } from "./controller";
   import type { StoredPracticeSession } from "./session-host";
-  import { createPracticeActions } from "./question-bank-practice-actions";
-  import type { StatisticsCardPreviewHandler } from "./statistics-preview";
-  import { compareAttemptDuration } from "./attempt-duration-comparison";
+  import { createPracticeActions } from "./practice/question-bank-practice-actions";
+  import type { StatisticsCardPreviewHandler } from "./statistics/statistics-preview";
+  import { compareAttemptDuration } from "./statistics/attempt-duration-comparison";
   import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
   import {
     completionStatusLabel as getCompletionStatusLabel,

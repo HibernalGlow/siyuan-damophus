@@ -1,6 +1,6 @@
-import { ExamSessionSnapshotSchema, type ExamSessionSnapshot } from "../question-bank/exam";
-import type { PluginDataApi } from "./session-host";
-import { rebaseExamSessionSnapshot } from "../question-bank/exam/session-merge";
+import { ExamSessionSnapshotSchema, type ExamSessionSnapshot } from "../../question-bank/exam";
+import type { PluginDataApi } from "../session-host";
+import { rebaseExamSessionSnapshot } from "../../question-bank/exam/session-merge";
 
 const examStorageName = "damophus-exam-sessions";
 

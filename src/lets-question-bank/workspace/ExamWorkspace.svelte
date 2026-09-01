@@ -21,9 +21,9 @@
     type ExamSessionActor,
     type ExamSessionSnapshot,
   } from "@/question-bank/exam";
-  import type { QuestionBankUiController } from "./controller";
-  import QuestionSetComposer from "./QuestionSetComposer.svelte";
-  import { staticContentRender } from "./static-render";
+  import type { QuestionBankUiController } from "../controller";
+  import QuestionSetComposer from "../QuestionSetComposer.svelte";
+  import { staticContentRender } from "../static-render";
 
   export let controller: QuestionBankUiController;
   export let questions: Question[] = [];

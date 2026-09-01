@@ -1,6 +1,6 @@
 import type { PluginMetadata } from "@/types/plugin";
 import { createEntrySettings } from "../libs/plugin-entry-settings";
-import { DEFAULT_ANSWER_MASK_STYLE } from "./source-answer-mask";
+import { DEFAULT_ANSWER_MASK_STYLE } from "./source/source-answer-mask";
 
 const pluginMetadata: PluginMetadata = {
   name: "questionBank",

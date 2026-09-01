@@ -1,4 +1,4 @@
-import type { SiyuanKernelClient } from "../question-bank/adapters/siyuan/types";
+import type { SiyuanKernelClient } from "../../question-bank/adapters/siyuan/types";
 
 export interface SourceBlockIdentity {
   id: string;

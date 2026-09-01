@@ -4,12 +4,12 @@
   import { Button } from "@/components/ui/button";
   import * as ScrollArea from "@/components/ui/scroll-area";
   import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
-  import type { AttemptDurationComparison } from "./attempt-duration-comparison";
-  import type { DurationComparisonPosition } from "./duration-comparison-position";
+  import type { AttemptDurationComparison } from "../statistics/attempt-duration-comparison";
+  import type { DurationComparisonPosition } from "../statistics/duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
   import type { AttemptEvent, Question, QuestionBookmark, QuestionGroup, ShuffledOption, MasteryRating } from "@/question-bank/core/types";
   import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
-  import type { Label } from "./question-bank-display";
+  import type { Label } from "../question-bank-display";
 
   export let label: Label;
   export let currentQuestion: Question;

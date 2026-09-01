@@ -5,7 +5,7 @@ import "@/styles/damophus.css";
 import { en } from "@/translations/parts/lets-question-bank";
 import type { AttemptAggregate, AttemptEvent, Question, QuestionBookmark, TopicNode } from "@/question-bank/core/types";
 import type { PracticeSessionSnapshot } from "@/question-bank/core";
-import type { PracticePreferences } from "./practice-preferences";
+import type { PracticePreferences } from "./practice/practice-preferences";
 import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
   QuestionBankBinding,

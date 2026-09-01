@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import "@/styles/damophus.css";
-import { openStatisticsCardPreview, type StatisticsPreviewDialog } from "./statistics-preview";
+import { openStatisticsCardPreview, type StatisticsPreviewDialog } from "./statistics/statistics-preview";
 
 let activeDialog: FakeDialog | undefined;
 

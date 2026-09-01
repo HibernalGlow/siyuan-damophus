@@ -6,14 +6,14 @@ import {
   extractCardBlockId,
   INHERITED_IMG_CLASS,
   AvCoverInheritManager,
-} from "./av-cover-inherit";
+} from "./av/av-cover-inherit";
 import {
   detectSubject,
   extractTopicNumber,
   parseChineseOrArabicNumber,
   calculateRelationRelevance,
   type DocContext,
-} from "./av-relation-reorder";
+} from "./av/av-relation-reorder";
 
 describe("Database Enhancements: Card Cover Inherit", () => {
   it("parses doc title-img in IAL correctly", () => {

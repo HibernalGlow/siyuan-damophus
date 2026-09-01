@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isolateFloatingOutlinesFromMobileDock } from "./mobile-dock-outline-isolation";
+import { isolateFloatingOutlinesFromMobileDock } from "./workspace/mobile-dock-outline-isolation";
 import "@/styles/damophus.css";
 
 const OUTLINE_ISOLATION_CLASS = "damophus-question-bank-dock-open";

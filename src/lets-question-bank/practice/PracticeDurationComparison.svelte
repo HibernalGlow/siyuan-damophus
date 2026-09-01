@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ArrowDown, ArrowUp, Minus } from "lucide-svelte";
-  import type { AttemptDurationComparison } from "./attempt-duration-comparison";
-  import type { Label } from "./question-bank-display";
+  import type { AttemptDurationComparison } from "../statistics/attempt-duration-comparison";
+  import type { Label } from "../question-bank-display";
 
   export let comparisons: AttemptDurationComparison[] = [];
   export let label: Label;

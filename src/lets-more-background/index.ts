@@ -4,7 +4,7 @@ import { setScopeLogLevel } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 import { isMobile, plugin } from "@/utils";
-import { isolateMobileDialogGestures } from "@/lets-question-bank/mobile-dialog-scroll";
+import { isolateMobileDialogGestures } from "@/lets-question-bank/workspace/mobile-dialog-scroll";
 import {
   DEFAULT_COVER_HISTORY_LIMIT,
   DEFAULT_SEEN_COVERS_LIMIT,

@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import type { Question } from "@/question-bank/core/types";
 import { normalizeBreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
-import PracticeHeader from "./PracticeHeader.svelte";
-import QuestionBankPractice from "./QuestionBankPractice.svelte";
+import PracticeHeader from "./practice/PracticeHeader.svelte";
+import QuestionBankPractice from "./practice/QuestionBankPractice.svelte";
 
 const question: Question = {
   id: "q-duration-placement",

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { initialized } from "../question-bank/adapters/siyuan/siyuan-adapter.fixtures";
+import { initialized } from "../../question-bank/adapters/siyuan/siyuan-adapter.fixtures";
 import { resolveSourceRenderingBinding } from "./source-rendering-binding";
 
 describe("source rendering binding", () => {

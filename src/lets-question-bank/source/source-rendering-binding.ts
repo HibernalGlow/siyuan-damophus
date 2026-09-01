@@ -2,7 +2,7 @@ import {
   migrateQuestionBankBinding,
   QuestionBankBindingSchema,
   type QuestionBankBinding,
-} from "../question-bank/adapters/siyuan/binding";
+} from "../../question-bank/adapters/siyuan/binding";
 
 const bindingSetting = "binding";
 

@@ -1,17 +1,17 @@
 import { Dialog, getAllEditor, showMessage, type IEventBusMap } from "siyuan";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { plugin } from "@/utils";
-import { AvCoverInheritManager } from "./av-cover-inherit";
-import { AvColumnBindingManager } from "./av-column-binding";
-import { AvRelationReorderManager } from "./av-relation-reorder";
-import { AvAssetCutManager } from "./av-asset-cut";
+import { AvCoverInheritManager } from "./av/av-cover-inherit";
+import { AvColumnBindingManager } from "./av/av-column-binding";
+import { AvRelationReorderManager } from "./av/av-relation-reorder";
+import { AvAssetCutManager } from "./av/av-asset-cut";
 import {
   DATE_NOW_GENERATOR,
   COLUMN_BINDINGS_ATTR,
   parseBindingConfig,
   type AttributeViewKey,
   type ColumnBindingRule,
-} from "./av-column-binding";
+} from "./av/av-column-binding";
 import { getBlockAttrsStrict, requestStrict } from "@/api";
 
 export default class DatabaseEnhancementsPlugin extends SubPluginBase {

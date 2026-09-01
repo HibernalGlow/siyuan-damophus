@@ -36,24 +36,24 @@ import type { QuestionIndexPreview } from "@/question-bank/application/indexing"
 import type { QuestionIndexBatchPreview } from "@/question-bank/application/batch-indexing";
 import { shouldAutoCreateQuickCard } from "@/question-bank/application/review";
 import type { QuestionSourceDocument, HydratedQuestionSource } from "@/question-bank/adapters/siyuan/source-catalog";
-import { loadSourceBlockIdentity, type SourceBlockIdentity } from "./source-identity";
+import { loadSourceBlockIdentity, type SourceBlockIdentity } from "./source/source-identity";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "@/question-bank/core";
 import type {
   PracticeSessionLeaseCoordinator,
   PracticeSessionRepository,
   StoredPracticeSession,
 } from "./session-host";
-import type { SiyuanExamSessionRepository } from "./exam-session-host";
+import type { SiyuanExamSessionRepository } from "./workspace/exam-session-host";
 import type { TinyBaseRuntime } from "./tinybase-runtime";
 import type { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
-import { resolveSourceRenderingBinding } from "./source-rendering-binding";
+import { resolveSourceRenderingBinding } from "./source/source-rendering-binding";
 import {
   normalizePracticeDefaults,
   resolvePracticePreferences,
   type PracticePreferences,
-} from "./practice-preferences";
+} from "./practice/practice-preferences";
 
-export type { SourceBlockIdentity } from "./source-identity";
+export type { SourceBlockIdentity } from "./source/source-identity";
 
 const log = getLogger("lets-question-bank");
 

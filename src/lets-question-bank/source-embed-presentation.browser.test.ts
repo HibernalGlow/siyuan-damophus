@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enforceSourceBlockReadOnly, observeFocusedBlock } from "./source-embed-presentation";
+import { enforceSourceBlockReadOnly, observeFocusedBlock } from "./source/source-embed-presentation";
 
 describe("source embed read-only enforcement", () => {
   it("locks existing and dynamically rendered editable descendants", async () => {

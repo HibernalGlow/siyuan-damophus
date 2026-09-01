@@ -2,7 +2,7 @@
   import { BookOpen, RotateCcw, SquarePen, Star } from "lucide-svelte";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
-  import { BOOKMARK_PRESET_TAGS } from "./bookmark-tags";
+  import { BOOKMARK_PRESET_TAGS } from "../bookmark-tags";
   import { countBookmarkTags, type StatisticsBookmarkEntry } from "./statistics-bookmarks";
 
   export let entries: StatisticsBookmarkEntry[] = [];

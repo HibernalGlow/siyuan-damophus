@@ -24,7 +24,7 @@
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicRelationPreview, TopicRelationSyncMode } from "@/question-bank/adapters/siyuan";
   import type { ScanMessage } from "@/question-bank/core/types";
-  import type { SourceBlockIdentity } from "./controller";
+  import type { SourceBlockIdentity } from "../controller";
 
   type Label = (key: string, fallback: string) => string;
   type ScanMessageGroup = { key: string; messages: ScanMessage[] };

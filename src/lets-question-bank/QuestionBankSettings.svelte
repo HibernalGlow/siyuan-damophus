@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  import type { SourceAnswerMaskSettingsLabels } from "./SourceAnswerMaskSettings.svelte";
+  import type { SourceAnswerMaskSettingsLabels } from "./source/SourceAnswerMaskSettings.svelte";
 
   export interface QuestionBankSettingsLabels {
     navigation: string;
@@ -32,8 +32,8 @@
   import { plugin } from "@/utils";
   import QuestionBankDisplaySelect from "./QuestionBankDisplaySelect.svelte";
   import QuestionBankPanel from "./QuestionBankPanel.svelte";
-  import SourceAnswerMaskSettings from "./SourceAnswerMaskSettings.svelte";
-  import type { AnswerMaskStyle } from "./source-answer-mask";
+  import SourceAnswerMaskSettings from "./source/SourceAnswerMaskSettings.svelte";
+  import type { AnswerMaskStyle } from "./source/source-answer-mask";
 
   export let group: string;
   export let title: string;

@@ -1,4 +1,4 @@
-import { parseIal } from "../question-bank/markdown/ial";
+import { parseIal } from "../../question-bank/markdown/ial";
 
 const nodeIdPattern = /^\d{14}-[a-z0-9]{7}$/u;
 export const EMPTY_SOURCE_EMBED_SQL = "SELECT * FROM blocks WHERE 1 = 0";

@@ -2,7 +2,7 @@
   import { ExternalLink, FileText, Pin } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
   import type { TopicResourceProjection } from "@/question-bank/adapters/siyuan";
-  import type { Label } from "./question-bank-display";
+  import type { Label } from "../question-bank-display";
 
   export let resources: TopicResourceProjection[] = [];
   export let label: Label;

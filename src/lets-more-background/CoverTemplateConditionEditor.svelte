@@ -5,10 +5,10 @@
   import "@/styles/query-builder-theme.css";
   import { Button } from "@/components/ui/button";
   // [条件图形视图-暂停维护] import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
-  import PracticeQueryBuilderAction from "../lets-question-bank/PracticeQueryBuilderAction.svelte";
-  import PracticeQueryBuilderShiftActions from "../lets-question-bank/PracticeQueryBuilderShiftActions.svelte";
-  import PracticeQueryBuilderUndoRedo from "../lets-question-bank/PracticeQueryBuilderUndoRedo.svelte";
-  import PracticeQueryBuilderValueSelector from "../lets-question-bank/PracticeQueryBuilderValueSelector.svelte";
+  import PracticeQueryBuilderAction from "../lets-question-bank/practice/PracticeQueryBuilderAction.svelte";
+  import PracticeQueryBuilderShiftActions from "../lets-question-bank/practice/PracticeQueryBuilderShiftActions.svelte";
+  import PracticeQueryBuilderUndoRedo from "../lets-question-bank/practice/PracticeQueryBuilderUndoRedo.svelte";
+  import PracticeQueryBuilderValueSelector from "../lets-question-bank/practice/PracticeQueryBuilderValueSelector.svelte";
   // [条件图形视图-暂停维护] import { coverConditionToGraph } from "./cover-condition-graph";
   import type { CoverConditionGroup, CoverConditionRule, TagPool } from "./sources";
 

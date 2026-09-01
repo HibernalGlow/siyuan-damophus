@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { Question } from "../question-bank/core/types";
-import { createExamSessionSnapshot, type ExamBlueprint } from "../question-bank/exam";
-import type { PluginDataApi } from "./session-host";
+import type { Question } from "../../question-bank/core/types";
+import { createExamSessionSnapshot, type ExamBlueprint } from "../../question-bank/exam";
+import type { PluginDataApi } from "../session-host";
 import { SiyuanExamSessionRepository } from "./exam-session-host";
 
 const question: Question = {

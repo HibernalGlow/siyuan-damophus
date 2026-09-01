@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { normalizeBreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
-import PracticeHeader from "./PracticeHeader.svelte";
+import PracticeHeader from "./practice/PracticeHeader.svelte";
 import "./question-bank.css";
 
 let mounted: ReturnType<typeof mount> | undefined;

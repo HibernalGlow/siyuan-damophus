@@ -9,18 +9,18 @@
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
   import type { ScanMessage, TopicNode } from "@/question-bank/core/types";
   import type { PracticeFilter } from "@/question-bank/core/scope";
-  import type { PracticeFilterPreset } from "./practice-preferences";
+  import type { PracticeFilterPreset } from "../practice/practice-preferences";
   import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application";
   import type { QuestionIndexPreview } from "@/question-bank/application";
   import type { TopicRelationPreview, TopicRelationSyncMode } from "@/question-bank/adapters/siyuan";
-  import type { SourceBlockIdentity } from "./controller";
-  import type { StoredPracticeSession } from "./session-host";
-  import PracticeScanSummary from "./PracticeScanSummary.svelte";
-  import PracticeLauncher from "./PracticeLauncher.svelte";
-  import AnswerModeSwitcher, { type AnswerMode } from "./AnswerModeSwitcher.svelte";
+  import type { SourceBlockIdentity } from "../controller";
+  import type { StoredPracticeSession } from "../session-host";
+  import PracticeScanSummary from "../practice/PracticeScanSummary.svelte";
+  import PracticeLauncher from "../practice/PracticeLauncher.svelte";
+  import AnswerModeSwitcher, { type AnswerMode } from "../AnswerModeSwitcher.svelte";
   import ExamWorkspace from "./ExamWorkspace.svelte";
-  import QuestionSetComposer from "./QuestionSetComposer.svelte";
-  import QuestionBankPanel from "./QuestionBankPanel.svelte";
+  import QuestionSetComposer from "../QuestionSetComposer.svelte";
+  import QuestionBankPanel from "../QuestionBankPanel.svelte";
   import WorkspaceQuickBar from "./WorkspaceQuickBar.svelte";
   import WorkspaceFab from "./WorkspaceFab.svelte";
 

@@ -3,7 +3,7 @@ import { mount, tick, unmount } from "svelte";
 import { page } from "vitest/browser";
 import type { PracticeFilter } from "@/question-bank/core/scope";
 import { en } from "@/translations/parts/lets-question-bank";
-import PracticeConditionEditor from "./PracticeConditionEditor.svelte";
+import PracticeConditionEditor from "./practice/PracticeConditionEditor.svelte";
 
 let mounted: ReturnType<typeof mount> | undefined;
 
