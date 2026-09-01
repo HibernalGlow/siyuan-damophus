@@ -169,18 +169,24 @@ export class TinyBaseSiyuanCatalogRuntime {
     return rows[0];
   }
 
-  async listDocumentTreeIds(documentId: string): Promise<string[]> {
+  async listDocumentTreeRows(documentId: string): Promise<DocumentRow[]> {
     const source = await this.documentRow(documentId);
     if (!source?.box || !source.hpath) {
       if (!source) throw new Error(`Question source document '${documentId}' is unavailable`);
-      return [documentId];
+      return [source];
     }
     const prefix = `${source.hpath.replace(/\/+$/u, "")}/%`;
-    const rows = await this.client.request<Array<{ id?: string }>>("/api/query/sql", {
-      stmt: `SELECT id FROM blocks WHERE type = 'd' AND box = '${escapeSql(source.box)}' `
+    const rows = await this.client.request<DocumentRow[]>("/api/query/sql", {
+      stmt: `SELECT id, box, content, path, hpath, updated FROM blocks WHERE type = 'd' AND box = '${escapeSql(source.box)}' `
         + `AND (hpath = '${escapeSql(source.hpath)}' OR hpath LIKE '${escapeSql(prefix)}') ORDER BY hpath, id`,
     });
-    return [...new Set([documentId, ...rows.flatMap((row) => row.id ? [row.id] : [])])];
+    const byId = new Map((rows ?? []).filter((row) => row.id).map((row) => [row.id, row]));
+    byId.set(documentId, source);
+    return [...byId.values()];
+  }
+
+  async listDocumentTreeIds(documentId: string): Promise<string[]> {
+    return (await this.listDocumentTreeRows(documentId)).map((row) => row.id);
   }
 
   async listSourceDocuments(): Promise<QuestionSourceDocument[]> {
@@ -204,11 +210,11 @@ export class TinyBaseSiyuanCatalogRuntime {
     };
   }
 
-  async previewDocument(documentId: string): Promise<QuestionIndexPreview> {
+  async previewDocument(documentId: string, sourceOverride?: DocumentRow): Promise<QuestionIndexPreview> {
     await this.runtime.ensureReady();
     const [scan, source] = await Promise.all([
       scanSiyuanDocument(this.client, documentId),
-      this.documentRow(documentId),
+      sourceOverride ? Promise.resolve(sourceOverride) : this.documentRow(documentId),
     ]);
     if (!source?.box) throw new Error(`Question source document '${documentId}' is unavailable`);
     const core = this.runtime.warehouse.getReadView().core;
@@ -263,9 +269,10 @@ export class TinyBaseSiyuanCatalogRuntime {
   }
 
   async previewDocumentTree(documentId: string): Promise<QuestionIndexPreview> {
-    const documentIds = await this.listDocumentTreeIds(documentId);
-    if (documentIds.length <= 1) return this.previewDocument(documentId);
-    const batch = await this.previewBatch(documentIds);
+    const sourceRows = await this.listDocumentTreeRows(documentId);
+    const documentIds = sourceRows.map((row) => row.id);
+    if (documentIds.length <= 1) return this.previewDocument(documentId, sourceRows[0]);
+    const batch = await this.previewBatch(documentIds, new Map(sourceRows.map((row) => [row.id, row])));
     return mergeQuestionIndexPreviews(documentId, batch.documents, batch.token, batch.blockers);
   }
 
@@ -384,9 +391,12 @@ export class TinyBaseSiyuanCatalogRuntime {
     return mergeQuestionIndexPreviews(documentId, batch.documents, batch.token, batch.blockers);
   }
 
-  async previewBatch(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {
+  async previewBatch(
+    documentIds: readonly string[],
+    sourceRowsById?: ReadonlyMap<string, DocumentRow>,
+  ): Promise<QuestionIndexBatchPreview> {
     const unique = [...new Set(documentIds)];
-    const documents = await Promise.all(unique.map((documentId) => this.previewDocument(documentId)));
+    const documents = await Promise.all(unique.map((documentId) => this.previewDocument(documentId, sourceRowsById?.get(documentId))));
     const byQuestionId = new Map<string, Array<{documentId: string; signature: string}>>();
     for (const document of documents) {
       for (const question of document.scan.report.document.questions) {

@@ -91,8 +91,8 @@ export interface QuestionBankUiController {
   submitExamAttempt?: (event: AttemptEvent) => Promise<"created" | "duplicate">;
   correctAttemptRating?(attempt: AttemptEvent, rating: MasteryRating, dueCard?: RiffCard): Promise<AttemptEvent>;
   loadSessionAttempts(sessionId: string): Promise<AttemptEvent[]>;
-  previewSync(documentId: string): Promise<QuestionIndexPreview>;
-  confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview>;
+  previewSync(documentId: string, includeSubdocuments?: boolean): Promise<QuestionIndexPreview>;
+  confirmSync(documentId: string, token: string, includeSubdocuments?: boolean): Promise<QuestionIndexPreview>;
   previewSyncBatch?(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview>;
   confirmSyncBatch?(documentIds: readonly string[], token: string): Promise<QuestionIndexBatchPreview>;
   listQuestionSourceDocuments?(): Promise<QuestionSourceDocument[]>;
@@ -303,10 +303,10 @@ export class QuestionBankController implements QuestionBankUiController {
       .filter((event) => event.session_id === sessionId);
   }
 
-  async previewSync(documentId: string): Promise<QuestionIndexPreview> {
+  async previewSync(documentId: string, includeSubdocuments = false): Promise<QuestionIndexPreview> {
     log.info("scan.started", { documentId });
     try {
-      const preview = this.getSetting("includeSubdocuments") === true
+      const preview = includeSubdocuments
         ? await this.requireTinyBaseCatalog().previewDocumentTree(documentId)
         : await this.requireTinyBaseCatalog().previewDocument(documentId);
       log.info("scan.completed", {
@@ -323,8 +323,8 @@ export class QuestionBankController implements QuestionBankUiController {
     }
   }
 
-  async confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview> {
-    return this.getSetting("includeSubdocuments") === true
+  async confirmSync(documentId: string, token: string, includeSubdocuments = false): Promise<QuestionIndexPreview> {
+    return includeSubdocuments
       ? this.requireTinyBaseCatalog().confirmDocumentTree(documentId, token)
       : this.requireTinyBaseCatalog().confirmDocument(documentId, token);
   }
