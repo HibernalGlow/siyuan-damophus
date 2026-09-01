@@ -34,9 +34,27 @@
   export let invalidateDocumentTarget: () => void;
   export let busy = false;
   export let preview: QuestionIndexPreview | undefined;
+  // Renders the practice card and the floating nav bar immediately, before the
+  // first index exists: the empty preview blocks practicing with a hint instead
+  // of hiding the whole card until a scan completes.
+  const idlePracticePreview: QuestionIndexPreview = {
+    token: "idle",
+    generatedAt: "",
+    documentId: "",
+    scan: {} as QuestionIndexPreview["scan"],
+    actions: [],
+    staleQuestionIds: [],
+    blockers: [{ code: "index-pending", message: "Index the document before practicing" }],
+    bindingRepairs: [],
+    ialWriteActions: [],
+    results: [],
+  };
+  $: effectivePreview = preview ?? idlePracticePreview;
   export let scanDocument: (reveal?: boolean) => void;
   export let autoScanDocument = false;
   export let toggleAutoScanDocument: (checked: boolean) => void;
+  export let includeSubdocuments = false;
+  export let toggleIncludeSubdocuments: (checked: boolean) => void;
   export let storedSessions: StoredPracticeSession[] = [];
   export let openStoredSession: (stored: StoredPracticeSession) => void;
   export let exportSessionDiagnostic: (sourceKey: string) => void;
@@ -187,7 +205,7 @@
   }
 </script>
 
-<section class="workspace min-h-0 flex-1 overflow-y-auto" data-view={mobileView} data-has-quick-bar={preview ? "true" : "false"} bind:this={workspaceEl}>
+<section class="workspace min-h-0 flex-1 overflow-y-auto" data-view={mobileView} data-has-quick-bar="true" bind:this={workspaceEl}>
   <div class="workspace-quick-access" class:open={quickAccessOpen} class:pinned={fabPinned}>
     <div class="quick-access-head">
       <strong>{label("fabPanelTitle", "文档与未完成")}</strong>
@@ -302,11 +320,13 @@
 
   <AnswerModeSwitcher {label} mode={answerMode} onSelect={selectAnswerMode} />
 
-  {#if answerMode === "practice" && preview}
+  {#if answerMode === "practice"}
     <PracticeLauncher
       {label}
-      {preview}
+      preview={effectivePreview}
       {sourceIdentity}
+      {includeSubdocuments}
+      {toggleIncludeSubdocuments}
       progressQuestionCount={progressQuestions.length}
       {attemptedQuestions}
       {untouchedQuestions}
@@ -495,8 +515,7 @@
   {/if}
   </section>
 
-  {#if preview}
-    <WorkspaceQuickBar
+  <WorkspaceQuickBar
       {label}
       {busy}
       questionCount={progressQuestions.length}
@@ -505,9 +524,8 @@
       {attemptedQuestions}
       canStartPractice={true}
       {startPractice}
-      indexChanges={preview.actions.length}
-      blockers={preview.blockers.length}
-      {pendingSync}
+      indexChanges={preview?.actions.length ?? 0}
+      blockers={preview?.blockers.length ?? 0}
       {confirmSync}
       {exportAttempts}
       {topicRelationMode}
@@ -519,6 +537,4 @@
       onViewChange={showSection}
       mode={answerMode}
       selectMode={selectAnswerMode}
-    />
-  {/if}
-</section>
+    /></section>

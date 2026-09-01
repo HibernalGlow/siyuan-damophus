@@ -23,6 +23,7 @@
   } from "@/question-bank/exam";
   import type { QuestionBankUiController } from "./controller";
   import QuestionSetComposer from "./QuestionSetComposer.svelte";
+  import { staticContentRender } from "./static-render";
 
   export let controller: QuestionBankUiController;
   export let questions: Question[] = [];
@@ -432,18 +433,18 @@
     </nav>
     <article class="exam-question">
       <div class="exam-question-toolbar"><span>{currentQuestion.type}</span><Button variant="ghost" size="icon" title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class={currentDraft.marked ? "active" : ""} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></Button></div>
-      <div class="exam-stem">{@html rendered(currentQuestion.stemMarkdown)}</div>
+      <div class="exam-stem" use:staticContentRender>{@html rendered(currentQuestion.stemMarkdown)}</div>
       {#if currentQuestion.type === "subjective"}
         <Textarea value={currentDraft.answer_text ?? ""} oninput={(event) => answerText(event.currentTarget.value)} placeholder={label("subjectiveAnswer", "Write your answer")} />
       {:else}
         <div class="exam-options">
           {#each currentDraft.option_order as optionId (optionId)}
             {@const option = currentQuestion.options.find((candidate) => candidate.id === optionId)}
-            {#if option}<Button variant={currentDraft.selected_option_ids.includes(option.id) ? "secondary" : "outline"} class="exam-option" onclick={() => selectOption(option.id)}>{@html rendered(option.markdown)}</Button>{/if}
+            {#if option}<Button variant={currentDraft.selected_option_ids.includes(option.id) ? "secondary" : "outline"} class="exam-option" onclick={() => selectOption(option.id)}><span use:staticContentRender>{@html rendered(option.markdown)}</span></Button>{/if}
           {/each}
         </div>
       {/if}
-      {#if currentDraft.revealed}<div class="exam-solution">{@html rendered(currentQuestion.solutionMarkdown)}</div>{/if}
+      {#if currentDraft.revealed}<div class="exam-solution" use:staticContentRender>{@html rendered(currentQuestion.solutionMarkdown)}</div>{/if}
     </article>
     <footer class="exam-footer">
       <Button variant="destructive" onclick={abandonExam} disabled={busy}>{label("abandonExam", "Abandon")}</Button>

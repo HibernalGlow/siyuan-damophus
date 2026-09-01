@@ -224,7 +224,11 @@ describe("question bank scan and import browser flow", () => {
     await flush();
 
     expect(document.querySelector(".scan-summary")).toBeNull();
-    expect(document.body.textContent).not.toContain("Start practice");
+    // The card stays visible in its idle state: the stale preview is discarded,
+    // so practicing is blocked until the new document is indexed again.
+    const startButton = button("Start practice");
+    expect(startButton.hasAttribute("disabled")).toBe(true);
+    expect(document.body.textContent).toContain("Complete the required scan or index sync before answering.");
   });
 
   it("submits mapped Riff cards when practicing the due filter", async () => {

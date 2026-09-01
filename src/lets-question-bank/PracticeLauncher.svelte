@@ -16,6 +16,7 @@
   } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
+  import { Switch } from "@/components/ui/switch";
   import { Label as FormLabel } from "@/components/ui/label";
   import * as ToggleGroup from "@/components/ui/toggle-group";
   import { practiceFilterToCondition, type PracticeFilter } from "@/question-bank/core/scope";
@@ -52,6 +53,8 @@
   export let filterPresets: PracticeFilterPreset[] = [];
   export let activeFilterPresetId: string | undefined = undefined;
   export let startPractice: () => void;
+  export let includeSubdocuments = false;
+  export let toggleIncludeSubdocuments: (checked: boolean) => void = () => {};
 
   $: blocked = preview.blockers.length > 0
     || preview.bindingRepairs.length > 0
@@ -68,6 +71,7 @@
     activeFilterPresetId = preset.id;
     filter = preset.filter;
   }
+
 </script>
 
 <section class="practice-launcher" aria-labelledby="practice-launcher-heading" data-testid="practice-launcher">
@@ -80,6 +84,16 @@
         <small>{sourceIdentity?.content ?? label("currentDocument", "当前文档")}</small>
       </div>
     </div>
+
+    <aside class="practice-launcher-actions" aria-label={label("practiceModes", "答题模式")}>
+      <Button class="practice-primary-action" disabled={busy || blocked} onclick={startPractice}>
+        <BookOpenCheck aria-hidden="true" />
+        <span><strong>{label("start", "开始练习")}</strong><small>{label("startPracticeHint", "按当前设置立即答题")}</small></span>
+      </Button>
+      {#if blocked}
+        <p>{label("practiceBlockedHint", "完成必要的扫描或索引同步后即可开始答题。")}</p>
+      {/if}
+    </aside>
 
     <dl class="practice-launcher-stats" aria-label={label("practiceProgress", "练习进度")}>
       <div><dt>{label("questions", "题")}</dt><dd><ListChecks size={13} aria-hidden="true" /><span>{progressQuestionCount}</span></dd></div>
@@ -125,7 +139,19 @@
   <div class="practice-launcher-body">
     <div class="practice-launcher-form">
       <div class="scope-control control-block">
-        <FormLabel><Target size={12} aria-hidden="true" />{label("scope", "答题范围")}</FormLabel>
+        <div class="scope-control-heading">
+          <FormLabel><Target size={12} aria-hidden="true" />{label("scope", "答题范围")}</FormLabel>
+          <label class="subdocument-toggle" title={label("includeSubdocumentsHint", "Include child documents when scanning")}>
+            <Switch
+              id="include-subdocuments-toggle"
+              size="sm"
+              checked={includeSubdocuments}
+              onCheckedChange={toggleIncludeSubdocuments}
+              aria-label={label("includeSubdocuments", "Include child documents")}
+            />
+            <span>{label("includeSubdocuments", "Include child documents")}</span>
+          </label>
+        </div>
         <PracticeScopeTree
           {label}
           {topics}
@@ -180,7 +206,11 @@
         <legend><SlidersHorizontal size={12} aria-hidden="true" />{label("filter", "题目筛选")}</legend>
         <div class="filter-condition-chips" data-testid="filter-condition-chips">
           {#each filterPresets as preset (preset.id)}
-            <span class="condition-chip" class:active={preset.id === activeFilterPresetId} data-testid="filter-condition-chip">
+            <span
+              class="condition-chip"
+              class:active={preset.id === activeFilterPresetId}
+              data-testid="filter-condition-chip"
+            >
               <button
                 type="button"
                 class="condition-chip-select"
@@ -235,16 +265,6 @@
         />
       </fieldset>
     </div>
-
-    <aside class="practice-launcher-actions" aria-label={label("practiceModes", "答题模式")}>
-      <Button class="practice-primary-action" disabled={busy || blocked} onclick={startPractice}>
-        <BookOpenCheck aria-hidden="true" />
-        <span><strong>{label("start", "开始练习")}</strong><small>{label("startPracticeHint", "按当前设置立即答题")}</small></span>
-      </Button>
-      {#if blocked}
-        <p>{label("practiceBlockedHint", "完成必要的扫描或索引同步后即可开始答题。")}</p>
-      {/if}
-    </aside>
   </div>
 </section>
 
@@ -264,8 +284,7 @@
     background: color-mix(in srgb, var(--b3-theme-primary-lightest) 45%, var(--b3-theme-background));
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 18px;
+    gap: 14px;
     flex-wrap: wrap;
   }
 
@@ -569,14 +588,20 @@
     gap: 14px;
   }
 
+  /* Desktop: the CTA sits beside the card title; touch widths reflow it into a
+     full-width row under the stats band (see the narrow container block). */
   .practice-launcher-actions {
     min-width: 0;
-    padding-top: 14px;
-    border-top: 1px solid var(--b3-border-color);
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 12px;
+  }
+
+  .practice-launcher-actions p {
+    margin: 0;
+    color: var(--b3-theme-on-surface);
+    font-size: 11px;
+    line-height: 1.5;
   }
 
   .practice-launcher-actions :global(button) {
@@ -619,13 +644,6 @@
 
   :global(.practice-primary-action strong) {
     font-size: 14px;
-  }
-
-  .practice-launcher-actions p {
-    margin: 0 auto 0 0;
-    color: var(--b3-theme-on-surface);
-    font-size: 11px;
-    line-height: 1.5;
   }
 
   @container (max-width: 900px) {
@@ -681,18 +699,19 @@
       background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
     }
 
-    /* Hoist the primary action above the form on narrow screens: even when the blocks
-       above (unfinished sessions, etc.) are tall, the start button stays right below
-       the stats band instead of being pushed out of the first screen. */
+    /* Touch widths: the CTA leaves the title row and becomes a full-width row
+       under the stats band, still above the form so it stays on the first screen. */
+    .practice-launcher-title { order: 1; }
+    .practice-launcher-stats { order: 2; }
     .practice-launcher-actions {
-      order: -1;
+      order: 3;
+      flex-basis: 100%;
       flex-direction: column;
       align-items: stretch;
       justify-content: stretch;
       gap: 8px;
-      padding: 0 0 13px;
-      border-top: 0;
-      border-bottom: 1px solid var(--b3-border-color);
+      padding: 10px 0 0;
+      border-top: 1px solid var(--b3-border-color);
     }
 
     .practice-launcher-actions p {

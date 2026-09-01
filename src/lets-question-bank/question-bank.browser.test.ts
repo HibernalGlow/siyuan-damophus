@@ -220,6 +220,59 @@ describe("question bank browser flow", () => {
     expect(document.querySelector('[data-testid="workspace-navigation"]')).toBe(navigation);
   });
 
+  it("keeps the floating quick bar visible at mobile width", async () => {
+    await page.viewport(390, 844);
+    const { controller } = mockController();
+    render(controller);
+    await scan();
+
+    const bar = document.querySelector<HTMLElement>(".workspace-quick-bar");
+    expect(bar).not.toBeNull();
+    const barStyle = getComputedStyle(bar!);
+    expect(barStyle.display).toBe("grid");
+    expect(barStyle.position).toBe("absolute");
+
+    const barRect = bar!.getBoundingClientRect();
+    const workspace = document.querySelector<HTMLElement>(".workspace")!;
+    const workspaceRect = workspace.getBoundingClientRect();
+    // Pinned to the bottom of the visible panel (8px above its bottom edge).
+    expect(barRect.height).toBeGreaterThan(40);
+    expect(Math.abs(barRect.bottom - (workspaceRect.bottom - 8))).toBeLessThanOrEqual(2);
+    expect(barRect.top).toBeGreaterThanOrEqual(workspaceRect.top - 1);
+  });
+
+  it("keeps the floating quick bar inside the panel on desktop narrow tabs", async () => {
+    await page.viewport(1600, 900);
+    const { controller } = mockController();
+    render(controller);
+    await scan();
+
+    // Split-tab layout: the plugin pane is narrow while the window stays wide.
+    const bank = document.querySelector<HTMLElement>(".question-bank")!;
+    bank.parentElement!.style.width = "680px";
+    await flush();
+
+    const bar = document.querySelector<HTMLElement>(".workspace-quick-bar")!;
+    expect(getComputedStyle(bar).display).toBe("grid");
+    const barRect = bar.getBoundingClientRect();
+    const bankRect = bank.getBoundingClientRect();
+    expect(bankRect.width).toBe(680);
+    expect(barRect.left).toBeGreaterThanOrEqual(bankRect.left - 1);
+    expect(barRect.right).toBeLessThanOrEqual(bankRect.right + 1);
+    expect(Math.abs(barRect.bottom - (bankRect.bottom - 8))).toBeLessThanOrEqual(2);
+  });
+
+  it("renders the practice card and nav bar before the first index", async () => {
+    await page.viewport(390, 844);
+    const { controller } = mockController();
+    render(controller);
+    await flush();
+
+    expect(document.querySelector(".practice-launcher")).not.toBeNull();
+    expect(button("Start practice").hasAttribute("disabled")).toBe(true);
+    expect(document.querySelector(".workspace-quick-bar")).not.toBeNull();
+  });
+
   it("keeps the condition editor usable at mobile width", async () => {
     await page.viewport(390, 844);
     const { controller } = mockController({
@@ -560,6 +613,7 @@ describe("question bank browser flow", () => {
     expect([...document.querySelectorAll('[data-testid="filter-condition-chip"]')][1].classList.contains("active")).toBe(true);
     expect(savePracticePreferences).toHaveBeenLastCalledWith(expect.objectContaining({ activePresetId: "saved" }));
   });
+
 
   it("preloads initial and upcoming embed sources without revealing the solution", async () => {
     const thirdQuestion: Question = {

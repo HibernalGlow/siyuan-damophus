@@ -122,6 +122,8 @@
   export let autoScanDocument: boolean;
   export let scanDocument: any;
   export let toggleAutoScanDocument: any;
+  export let includeSubdocuments = false;
+  export let toggleIncludeSubdocuments: any = () => {};
   export let storedSessions: any[];
   export let openStoredSession: any;
   export let exportSessionDiagnostic: any;
@@ -367,6 +369,25 @@
   {:else}
     {#if !currentQuestion && !practiceRuntime && !complete}
       <header class="question-bank-home-header" class:with-quick-access={quickAccessTriggerVisible} data-testid="workspace-navigation">
+        {#if quickAccessTriggerVisible}
+          <button
+            type="button"
+            class="quick-access-trigger"
+            class:open={quickAccessOpen}
+            aria-expanded={quickAccessOpen}
+            title={`${label("fabLabel", "文档与未完成")} · ${label("fabLongPressUnpin", "长按改为悬浮球")}`}
+            aria-label={label("fabLabel", "文档与未完成")}
+            onpointerdown={startTriggerPress}
+            onpointerup={endTriggerPress}
+            onpointerleave={endTriggerPress}
+            onpointercancel={endTriggerPress}
+            oncontextmenu={(event) => event.preventDefault()}
+            onclick={toggleQuickAccess}
+          >
+            <Layers3 size={16} aria-hidden="true" />
+            {#if storedSessions.length > 0}<em>{storedSessions.length}</em>{/if}
+          </button>
+        {/if}
         <div class="question-bank-home-identity">
           <strong>{label("questionBankWorkspace", "题库工作台")}</strong>
           <span>{sourceIdentity?.content ?? label("currentDocument", "当前文档")}</span>
@@ -387,25 +408,6 @@
             </Tabs.Trigger>
           </Tabs.List>
         </Tabs.Root>
-        {#if quickAccessTriggerVisible}
-          <button
-            type="button"
-            class="quick-access-trigger"
-            class:open={quickAccessOpen}
-            aria-expanded={quickAccessOpen}
-            title={`${label("fabLabel", "文档与未完成")} · ${label("fabLongPressUnpin", "长按改为悬浮球")}`}
-            aria-label={label("fabLabel", "文档与未完成")}
-            onpointerdown={startTriggerPress}
-            onpointerup={endTriggerPress}
-            onpointerleave={endTriggerPress}
-            onpointercancel={endTriggerPress}
-            oncontextmenu={(event) => event.preventDefault()}
-            onclick={toggleQuickAccess}
-          >
-            <Layers3 size={16} aria-hidden="true" />
-            {#if storedSessions.length > 0}<em>{storedSessions.length}</em>{/if}
-          </button>
-        {/if}
         {#if onClose}
           <Button variant="ghost" size="icon" class="question-bank-home-close" title={label("close", "Close")} aria-label={label("close", "Close")} onclick={onClose}>
             <X size={17} aria-hidden="true" />
@@ -467,6 +469,8 @@
       {scanDocument}
       bind:autoScanDocument
       {toggleAutoScanDocument}
+      bind:includeSubdocuments
+      {toggleIncludeSubdocuments}
       {storedSessions}
       {openStoredSession}
       {exportSessionDiagnostic}

@@ -151,60 +151,58 @@
 </script>
 
 <div class="workspace-quick-bar" aria-label={label("quickBarLabel", "Workspace shortcuts")}>
-  <div class="quick-bar-float">
-    {#if modeMenuOpen}
-      <div class="quick-bar-mode-menu" role="menu" aria-label={label("practiceModes", "答题模式")}>
-        {#each modeOptions as option (option.id)}
-          <button type="button" role="menuitem" class:checked={mode === option.id} onclick={() => pickMode(option.id)}>
-            <svelte:component this={option.icon} size={15} aria-hidden="true" />
-            <span>{option.name}</span>
-            {#if mode === option.id}<Check size={14} aria-hidden="true" />{/if}
-          </button>
-        {/each}
-      </div>
-    {/if}
-
-    <div class="quick-bar-peek">
-      {#each peeks as peek (peek.id)}
-        <div class="peek-card">
-          <span class="peek-icon" aria-hidden="true">
-            <svelte:component this={icons[peek.id]} size={13} />
-          </span>
-          <span class="peek-copy">
-            <strong>{peek.name}</strong>
-            <small>{peek.metrics}</small>
-          </span>
-          <Button size="sm" variant="outline" disabled={peek.actionDisabled} onclick={peek.run}>{peek.actionLabel}</Button>
-        </div>
-      {/each}
-    </div>
-
-    <div class="quick-bar-tabs">
-      {#each sections as section (section.id)}
-        <button
-          type="button"
-          class="quick-bar-tab"
-          class:active={activeView === section.id}
-          aria-pressed={activeView === section.id}
-          title={section.tabName}
-          onpointerdown={() => startPress(section.id)}
-          onpointerup={endPress}
-          onpointerleave={endPress}
-          onpointercancel={endPress}
-          oncontextmenu={(event) => {
-            if (section.id !== "practice") return;
-            event.preventDefault();
-            modeMenuOpen = true;
-          }}
-          onclick={() => select(section.id)}
-        >
-          <svelte:component this={icons[section.id]} size={14} aria-hidden="true" />
-          <span>{section.tabName}</span>
-          {#if section.badge > 0}<em class={`tone-${section.tone}`}>{section.badge}</em>{/if}
-          {#if section.id === "practice"}<i class="tab-more" aria-hidden="true"></i>{/if}
+  {#if modeMenuOpen}
+    <div class="quick-bar-mode-menu" role="menu" aria-label={label("practiceModes", "答题模式")}>
+      {#each modeOptions as option (option.id)}
+        <button type="button" role="menuitem" class:checked={mode === option.id} onclick={() => pickMode(option.id)}>
+          <svelte:component this={option.icon} size={15} aria-hidden="true" />
+          <span>{option.name}</span>
+          {#if mode === option.id}<Check size={14} aria-hidden="true" />{/if}
         </button>
       {/each}
     </div>
+  {/if}
+
+  <div class="quick-bar-peek">
+    {#each peeks as peek (peek.id)}
+      <div class="peek-card">
+        <span class="peek-icon" aria-hidden="true">
+          <svelte:component this={icons[peek.id]} size={13} />
+        </span>
+        <span class="peek-copy">
+          <strong>{peek.name}</strong>
+          <small>{peek.metrics}</small>
+        </span>
+        <Button size="sm" variant="outline" disabled={peek.actionDisabled} onclick={peek.run}>{peek.actionLabel}</Button>
+      </div>
+    {/each}
+  </div>
+
+  <div class="quick-bar-tabs">
+    {#each sections as section (section.id)}
+      <button
+        type="button"
+        class="quick-bar-tab"
+        class:active={activeView === section.id}
+        aria-pressed={activeView === section.id}
+        title={section.tabName}
+        onpointerdown={() => startPress(section.id)}
+        onpointerup={endPress}
+        onpointerleave={endPress}
+        onpointercancel={endPress}
+        oncontextmenu={(event) => {
+          if (section.id !== "practice") return;
+          event.preventDefault();
+          modeMenuOpen = true;
+        }}
+        onclick={() => select(section.id)}
+      >
+        <svelte:component this={icons[section.id]} size={14} aria-hidden="true" />
+        <span>{section.tabName}</span>
+        {#if section.badge > 0}<em class={`tone-${section.tone}`}>{section.badge}</em>{/if}
+        {#if section.id === "practice"}<i class="tab-more" aria-hidden="true"></i>{/if}
+      </button>
+    {/each}
   </div>
 </div>
 
@@ -214,23 +212,18 @@
 
   @container (max-width: 760px) {
     .workspace-quick-bar {
-      /* Zero-height sticky anchor: the bar owns no layout slot and truly floats
-         over the content. The workspace keeps a matching bottom padding so fully
-         scrolled content can clear the pill. */
-      position: sticky;
-      bottom: 0;
-      z-index: 3;
-      height: 0;
-      margin: auto -4px 0;
-      padding: 0 10px;
-    }
-
-    .quick-bar-float {
+      /* Pinned to the bottom of the visible panel like SiYuan's own floating
+         pill: position:absolute (against the positioned question-bank root)
+         takes it out of the content flow and ignores both workspace scrolling
+         and whatever transforms SiYuan's tab panes apply higher up — fixed
+         would resolve against those and land outside the panel. */
       display: grid;
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+      z-index: 3;
       gap: 6px;
-      /* Lift the pill above its zero-height anchor: its bottom edge ends up
-         8px + safe-area above the container bottom. */
-      transform: translateY(calc(-100% - 8px - env(safe-area-inset-bottom, 0px)));
       padding: 7px 10px;
       border: 1px solid var(--b3-border-color);
       border-radius: 16px;

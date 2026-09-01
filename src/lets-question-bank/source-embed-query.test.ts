@@ -36,7 +36,7 @@ describe("source embed query", () => {
   it("mounts only top-level solution roots without duplicating their descendants", () => {
     const nestedRows: SourceEmbedBlockRow[] = [
       { id: "20260806030000-q000001", type: "h", ial: '{: custom-qb-id="nested-solution"}' },
-      { id: "20260806030001-answer-heading", parent_id: "20260806030000-q000001", type: "h", content: "答案与解析" },
+      { id: "20260806030001-answer-heading", parent_id: "20260806030000-q000001", type: "h", content: "Answer & Analysis" },
       { id: "20260806030002-sol0001", parent_id: "20260806030001-answer-heading", type: "l", content: "Answer: A", ial: '{: custom-qb-section="solution"}' },
       { id: "20260806030003-explanation", parent_id: "20260806030001-answer-heading", type: "p", content: "Explanation" },
       { id: "20260806030004-heading", parent_id: "20260806030000-q000001", type: "h", content: "主线图" },
@@ -194,6 +194,41 @@ describe("source embed query", () => {
     expect(sourceEmbedBlockIds(loaded, "20260806005231-9llmnk4", "solution")).toEqual([
       "20260806005231-c4lr18w",
       "20260806005231-1gxlpdc",
+    ]);
+  });
+
+  it("keeps the whole answer heading subtree out of the stem when the marker sits deeper", () => {
+    const deepRows: SourceEmbedBlockRow[] = [
+      { id: "20260806120001-q000001", type: "h" },
+      { id: "20260806120002-stem001", parent_id: "20260806120001-q000001", type: "p", content: "Stem" },
+      { id: "20260806120003-answhead", parent_id: "20260806120001-q000001", type: "h", content: "Answer & Analysis" },
+      { id: "20260806120004-pic0001", parent_id: "20260806120003-answhead", type: "p", content: "![](assets/answer.png)" },
+      { id: "20260806120005-sol0001", parent_id: "20260806120003-answhead", type: "l", content: "Answer: CD.", ial: '{: custom-qb-section="solution"}' },
+    ];
+
+    expect(sourceEmbedBlockIds(deepRows, "20260806120001-q000001", "stem")).toEqual([
+      "20260806120002-stem001",
+    ]);
+    expect(sourceEmbedBlockIds(deepRows, "20260806120001-q000001", "solution")).toEqual([
+      "20260806120003-answhead",
+    ]);
+  });
+
+  it("climbs past intermediate headings to the top-level answer block", () => {
+    const nestedRows: SourceEmbedBlockRow[] = [
+      { id: "20260806130001-q000001", type: "h" },
+      { id: "20260806130002-stem001", parent_id: "20260806130001-q000001", type: "p", content: "Stem" },
+      { id: "20260806130003-answhead", parent_id: "20260806130001-q000001", type: "h", content: "Answer & Analysis" },
+      { id: "20260806130004-pic0001", parent_id: "20260806130003-answhead", type: "p", content: "![](assets/answer.png)" },
+      { id: "20260806130005-luodian0", parent_id: "20260806130003-answhead", type: "h", content: "Breakdown" },
+      { id: "20260806130006-sol0001", parent_id: "20260806130005-luodian0", type: "l", content: "Answer: AB.", ial: '{: custom-qb-section="solution"}' },
+    ];
+
+    expect(sourceEmbedBlockIds(nestedRows, "20260806130001-q000001", "stem")).toEqual([
+      "20260806130002-stem001",
+    ]);
+    expect(sourceEmbedBlockIds(nestedRows, "20260806130001-q000001", "solution")).toEqual([
+      "20260806130003-answhead",
     ]);
   });
 });

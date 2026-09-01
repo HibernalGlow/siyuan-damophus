@@ -136,6 +136,7 @@
   export let onAutoSyncIndexChange: ((value: boolean) => void) | undefined = undefined;
   export let autoScanDocument = false;
   export let onAutoScanDocumentChange: ((value: boolean) => void) | undefined = undefined;
+  let includeSubdocuments = false;
   export let syncTopicProgress = false;
   export let onSyncTopicProgressChange: ((value: boolean) => void) | undefined = undefined;
   export let showPracticeTitle = false;
@@ -939,7 +940,9 @@
     }
     void run(async () => {
       const [nextPreview, nextSourceIdentity, stored] = await Promise.all([
-        controller.previewSync(documentId),
+        includeSubdocuments
+          ? controller.previewSync(documentId, true)
+          : controller.previewSync(documentId),
         controller.loadSourceIdentity(documentId),
         controller.loadPracticeSession(documentId),
       ]);
@@ -1275,7 +1278,9 @@
   }
 
   async function applyIndexSync(target: QuestionIndexPreview): Promise<QuestionIndexPreview> {
-    const synced = await controller.confirmSync(documentId, target.token);
+    const synced = includeSubdocuments
+      ? await controller.confirmSync(documentId, target.token, true)
+      : await controller.confirmSync(documentId, target.token);
     const failures = synced.results.filter((result) => result.status === "failed");
     syncComplete = failures.length === 0;
     if (failures.length > 0) {
@@ -1621,7 +1626,9 @@
   }
 
   function renderedQuestionContent(markdown: string, sourceStyles: boolean): string {
-    if (questionRenderMode === "html") return renderMarkdownHtml(markdown);
+    // Prefer the plugin's SiYuan-faithful Lute renderer in every mode: the
+    // remark pipeline cannot parse kramdown IAL ({: ...}), ==mark==, or
+    // SiYuan-specific blocks and leaks them as raw text.
     return renderQuestionMarkdown?.(markdown, sourceStyles) ?? renderMarkdownHtml(markdown);
   }
 
@@ -1635,6 +1642,11 @@
     onAutoScanDocumentChange?.(checked);
     if (checked) scheduleAutoScan(0);
     else if (autoScanTimer) clearTimeout(autoScanTimer);
+  }
+
+  function toggleIncludeSubdocuments(checked: boolean): void {
+    includeSubdocuments = checked;
+    invalidateDocumentTarget();
   }
 
   function toggleSourceEditingLock(): void {
@@ -1682,7 +1694,7 @@
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}
   {statisticsBookmarkEntries} {openBookmarkSource} {startBookmarkPractice}
   {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {subjectTotalsSaveStatus} {statisticsLayout} {changeStatisticsLayout} {openStatisticsCardPreview} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
-  {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
+  {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {includeSubdocuments} {toggleIncludeSubdocuments} {storedSessions} {openStoredSession}
   {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}
   {completionPercent} {attemptedQuestions} {untouchedQuestions} {wrongQuestions} {reviewQuestions} {reviewAgainQuestions} {reviewHardQuestions} {pendingSync} {syncComplete} {autoSyncIndex}
   {scanMessageGroups} {sourceTypeLabel} {completionStatusLabel} {messageContext} {messageClipboardText} {scanLogText} {copyText}

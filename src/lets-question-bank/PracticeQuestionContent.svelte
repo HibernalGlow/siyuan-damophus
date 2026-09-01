@@ -11,6 +11,7 @@
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
   import PracticeTopicResources from "./PracticeTopicResources.svelte";
   import { hideTrailingQuestionTypeMarker } from "./question-bank-display";
+  import { staticContentRender } from "./static-render";
 
   type Label = (key: string, fallback: string) => string;
   type RenderMarkdown = (markdown: string, inheritStyles: boolean) => string;
@@ -167,7 +168,7 @@
     {#if currentGroup}
       <div class="group-material">
         <strong>{label("sharedMaterial", "Shared material")}</strong>
-        <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
+        <div class="markdown native-content protyle-wysiwyg" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
     <div class="native-question-source" class:stem-styles-hidden={!showStemStyles}>
@@ -186,7 +187,7 @@
             onclick={() => toggleOption(option.originalId)}
           >
             <span class="option-label">{option.displayLabel}</span>
-            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
+            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
           </Button>
         {/each}
       </div>
@@ -197,7 +198,7 @@
     {#if currentGroup}
       <div class="group-material">
         <strong>{label("sharedMaterial", "Shared material")}</strong>
-        <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
+        <div class="markdown native-content protyle-wysiwyg" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
     <div class="embedded-question-source" class:stem-styles-hidden={!showStemStyles}>
@@ -216,7 +217,7 @@
             onclick={() => toggleOption(option.originalId)}
           >
             <span class="option-label">{option.displayLabel}</span>
-            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
+            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
           </Button>
         {/each}
       </div>
@@ -237,10 +238,10 @@
     {#if currentGroup}
       <div class="group-material">
         <strong>{label("sharedMaterial", "Shared material")}</strong>
-        <div class="markdown native-content protyle-wysiwyg" contenteditable="false">{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
+        <div class="markdown native-content protyle-wysiwyg" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="markdown native-content protyle-wysiwyg stem" class:stem-styles-hidden={!showStemStyles} contenteditable="false">{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
+    <div class="markdown native-content protyle-wysiwyg stem" class:stem-styles-hidden={!showStemStyles} contenteditable="false" use:staticContentRender>{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
     {#if displayedOptions.length > 0}
       <div class="options">
         {#each displayedOptions as option (option.originalId)}
@@ -252,7 +253,7 @@
             onclick={() => toggleOption(option.originalId)}
           >
             <span class="option-label">{option.displayLabel}</span>
-            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false">{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
+            <div class="markdown native-content protyle-wysiwyg option-content" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(optionMarkdown(option), inheritSourceStyles)}</div>
           </Button>
         {/each}
       </div>
@@ -296,7 +297,7 @@
         {/key}
       </div>
     {:else}
-      <div class="markdown native-content protyle-wysiwyg solution" contenteditable="false">{@html renderQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
+      <div class="markdown native-content protyle-wysiwyg solution" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(currentQuestion.solutionMarkdown, inheritSourceStyles)}</div>
     {/if}
     {#if currentQuestion.type === "subjective"}
       <FormLabel class="mt-4 flex items-center gap-2.5">

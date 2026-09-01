@@ -75,6 +75,10 @@
   .auto-scan-button { color: var(--b3-theme-on-surface); }
   .auto-scan-button[aria-pressed="true"] { color: var(--b3-theme-primary); border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color)); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); }
   .auto-scan-button[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--b3-theme-primary) 22%, transparent); }
+  .subdocument-toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--b3-theme-on-surface); font-size: 12px; white-space: nowrap; cursor: pointer; }
+  .subdocument-toggle span { overflow: hidden; text-overflow: ellipsis; }
+  .scope-control-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .scope-control-heading > :global(label) { min-width: 0; }
   .setup { max-width: 760px; }
   .setup .document-row { grid-template-columns: minmax(220px, 1fr) auto; }
   .rebind-setup { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--b3-border-color); }
@@ -213,7 +217,7 @@
 
   @container (max-width: 760px) {
     .question-bank-home-header { min-height: 50px; padding-inline: 14px 10px; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
-    .question-bank-home-header.with-quick-access { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+    .question-bank-home-header.with-quick-access { grid-template-columns: auto minmax(0, 1fr) auto auto; }
     /* Pinned quick-access trigger in the title bar, styled like the nav pill.
        Long press unpins it, so text selection and callouts stay off. */
     .quick-access-trigger {

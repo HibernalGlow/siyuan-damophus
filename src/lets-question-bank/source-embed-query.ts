@@ -143,16 +143,30 @@ export function sourceEmbedBlockIds(
   const byParent = buildChildren(rows);
   const question = rows.find((row) => row.id === questionBlockId);
   if (!question) return [questionBlockId];
+  const byId = new Map(rows.map((row) => [row.id, row]));
 
   const subtree = descendants(question, byParent);
   const solutionIndex = subtree.findIndex((row) => (
     row.id !== questionBlockId && attributes(row)["custom-qb-section"] === "solution"
   ));
-  const stemRows = solutionIndex < 0 ? subtree.slice(1) : subtree.slice(1, solutionIndex);
+  // The marker often sits deep inside the answer section (e.g. on the
+  // answer list below the section heading). Both sections must treat the
+  // marker's top-level ancestor as the section start: otherwise blocks before
+  // the marker but inside that ancestor (the heading itself, images) leak into
+  // the stem while the solution subtree renders them as well.
+  let solutionRoot = solutionIndex >= 0 ? subtree[solutionIndex] : undefined;
+  while (solutionRoot?.parent_id && solutionRoot.parent_id !== questionBlockId) {
+    const parent = byId.get(solutionRoot.parent_id);
+    if (!parent) break;
+    solutionRoot = parent;
+  }
+  const solutionRootIndex = solutionRoot
+    ? subtree.findIndex((row) => row.id === solutionRoot!.id)
+    : -1;
+  const stemRows = solutionRootIndex < 0 ? subtree.slice(1) : subtree.slice(1, solutionRootIndex);
   const optionRoots = stemRows.filter(looksLikeOption);
   const optionIds = new Set<string>();
   const optionAncestors = new Set<string>();
-  const byId = new Map(rows.map((row) => [row.id, row]));
   for (const optionRoot of optionRoots) {
     for (const row of descendants(optionRoot, byParent)) optionIds.add(row.id);
     let parent = optionRoot.parent_id;
@@ -165,20 +179,14 @@ export function sourceEmbedBlockIds(
   const selected: string[] = [];
   if (section === "solution" && solutionIndex < 0) return [];
   if (section === "solution" && solutionIndex >= 0) {
-    // The solution marker can live inside an answer heading. Start from that
-    // heading and mount only the question's top-level solution roots. Protyle
-    // renders each root's descendants, so mounting children separately would
-    // duplicate answer lists, diagrams, and callouts.
-    let solutionRoot = subtree[solutionIndex];
-    while (solutionRoot.parent_id && solutionRoot.parent_id !== questionBlockId) {
-      const parent = byId.get(solutionRoot.parent_id);
-      if (!parent) break;
-      solutionRoot = parent;
-    }
+    // Mount only the question's top-level solution roots. Protyle renders each
+    // root's descendants, so mounting children separately would duplicate
+    // answer lists, diagrams, and callouts.
+    const root = solutionRoot!;
     const questionChildren = byParent.get(questionBlockId) ?? [];
-    const solutionRootIndex = questionChildren.findIndex((row) => row.id === solutionRoot.id);
-    const solutionRoots = solutionRootIndex >= 0
-      ? questionChildren.slice(solutionRootIndex)
+    const topLevelRootIndex = questionChildren.findIndex((row) => row.id === root.id);
+    const solutionRoots = topLevelRootIndex >= 0
+      ? questionChildren.slice(topLevelRootIndex)
       : [subtree[solutionIndex]];
     for (const row of solutionRoots) {
       if (options.hideEmptySolutionBlocks && isEmptyDisplayBlock(row, byParent)) continue;

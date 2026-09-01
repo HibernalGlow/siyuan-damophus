@@ -40,6 +40,7 @@ import {
 } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
 import { isolateMobileDialogGestures } from "./mobile-dialog-scroll";
 import { PersistentMobileDockPortal } from "./mobile-dock-portal";
+import { isolateFloatingOutlinesFromMobileDock } from "./mobile-dock-outline-isolation";
 import {
   EMPTY_SOURCE_EMBED_SQL,
   loadSourceEmbedRows,
@@ -108,6 +109,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private mobileDockPortal?: PersistentMobileDockPortal<ReturnType<typeof mount>>;
   private openEntry?: UnifiedEntryPoint;
   private removeDockGestureIsolation?: () => void;
+  private stopMobileDockOutlineIsolation?: () => void;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
   private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private tinybaseRuntime?: TinyBaseRuntime;
@@ -359,6 +361,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
               unmount: (app) => void unmount(app),
             });
             owner.mobileDockPortal.attach(target);
+            owner.stopMobileDockOutlineIsolation?.();
+            owner.stopMobileDockOutlineIsolation = isolateFloatingOutlinesFromMobileDock(target);
             return;
           }
           target.replaceChildren();
@@ -368,6 +372,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
           owner.removeDockGestureIsolation?.();
           owner.removeDockGestureIsolation = undefined;
           if (isMobile) {
+            owner.stopMobileDockOutlineIsolation?.();
+            owner.stopMobileDockOutlineIsolation = undefined;
             owner.mobileDockPortal?.detach(target);
             return;
           }
@@ -386,6 +392,8 @@ export default class QuestionBankPlugin extends SubPluginBase {
     this.stopSourceAnswerMask = undefined;
     this.removeDockGestureIsolation?.();
     this.removeDockGestureIsolation = undefined;
+    this.stopMobileDockOutlineIsolation?.();
+    this.stopMobileDockOutlineIsolation = undefined;
     this.openEntry?.destroyDockContent();
     this.mobileDockPortal?.dispose();
     this.mobileDockPortal = undefined;
