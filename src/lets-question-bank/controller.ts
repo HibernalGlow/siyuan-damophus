@@ -306,7 +306,9 @@ export class QuestionBankController implements QuestionBankUiController {
   async previewSync(documentId: string): Promise<QuestionIndexPreview> {
     log.info("scan.started", { documentId });
     try {
-      const preview = await this.requireTinyBaseCatalog().previewDocument(documentId);
+      const preview = this.getSetting("includeSubdocuments") === true
+        ? await this.requireTinyBaseCatalog().previewDocumentTree(documentId)
+        : await this.requireTinyBaseCatalog().previewDocument(documentId);
       log.info("scan.completed", {
         documentId,
         questions: preview.scan.report.document.questions.length,
@@ -322,7 +324,9 @@ export class QuestionBankController implements QuestionBankUiController {
   }
 
   async confirmSync(documentId: string, token: string): Promise<QuestionIndexPreview> {
-    return this.requireTinyBaseCatalog().confirmDocument(documentId, token);
+    return this.getSetting("includeSubdocuments") === true
+      ? this.requireTinyBaseCatalog().confirmDocumentTree(documentId, token)
+      : this.requireTinyBaseCatalog().confirmDocument(documentId, token);
   }
 
   async previewSyncBatch(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {

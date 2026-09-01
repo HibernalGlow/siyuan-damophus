@@ -108,4 +108,48 @@ describe("TinyBase SiYuan catalog runtime", () => {
       }),
     ]);
   });
+
+  it("scans a document and all descendant documents as one practice preview", async () => {
+    const childDocumentId = "20260808000010-doc0002";
+    const childQuestionBlockId = "20260808000011-quest02";
+    const childMarkdown = markdown
+      .replace(topicBlockId, "20260808000012-topic02")
+      .replace(questionBlockId, childQuestionBlockId)
+      .replace("q-contract-1", "q-contract-2");
+    const kernel = client();
+    (kernel.request as ReturnType<typeof vi.fn>).mockImplementation(async <T,>(endpoint: string, payload: any) => {
+      if (endpoint === "/api/block/getBlockKramdown") {
+        return { id: payload.id, kramdown: payload.id === childDocumentId ? childMarkdown : markdown } as T;
+      }
+      if (endpoint === "/api/query/sql" && payload.stmt?.includes("hpath LIKE")) {
+        return [
+          { id: documentId, box: "notebook-1", content: "Subject", hpath: "/Subject", updated: "2026-08-08T00:00:00Z" },
+          { id: childDocumentId, box: "notebook-1", content: "Topic", hpath: "/Subject/Topic", updated: "2026-08-08T00:00:00Z" },
+        ] as T;
+      }
+      if (endpoint === "/api/query/sql" && payload.stmt?.includes(documentId)) {
+        return [{ id: documentId, box: "notebook-1", content: "Subject", hpath: "/Subject", updated: "2026-08-08T00:00:00Z" }] as T;
+      }
+      if (endpoint === "/api/query/sql" && payload.stmt?.includes(childDocumentId)) {
+        return [{ id: childDocumentId, box: "notebook-1", content: "Topic", hpath: "/Subject/Topic", updated: "2026-08-08T00:00:00Z" }] as T;
+      }
+      if (endpoint === "/api/query/sql" && payload.stmt?.includes("type = 'd'")) {
+        return [{ id: documentId, box: "notebook-1", content: "Subject", hpath: "/Subject", updated: "2026-08-08T00:00:00Z" }] as T;
+      }
+      if (endpoint === "/api/query/sql") return [] as T;
+      return undefined as T;
+    });
+    const catalog = new TinyBaseSiyuanCatalogRuntime(
+      new TinyBaseRuntime(new TinyBaseWarehouse(new MemoryFiles(), "device-a")),
+      kernel,
+    );
+
+    const preview = await catalog.previewDocumentTree(documentId);
+    expect(preview.documentId).toBe(documentId);
+    expect(preview.scan.report.document.questions.map((question) => question.id)).toEqual([
+      "q-contract-1",
+      "q-contract-2",
+    ]);
+    expect(preview.scan.blockIdsByQuestionId.get("q-contract-2")).toBe(childQuestionBlockId);
+  });
 });

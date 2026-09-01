@@ -26,6 +26,48 @@ import {
 import { inferSubjectFromQuestionId, inferTopicSubjectId, resolveTopicSubjectId } from "../question-bank/topic-subjects";
 import type { TinyBaseRuntime } from "./tinybase-runtime";
 
+export function mergeQuestionIndexPreviews(
+  rootDocumentId: string,
+  previews: readonly QuestionIndexPreview[],
+  token: string,
+  batchBlockers: readonly ScanMessage[] = [],
+): QuestionIndexPreview {
+  const first = previews[0];
+  if (!first) throw new Error("Question source document tree is empty");
+  const questions = previews.flatMap((preview) => preview.scan.report.document.questions);
+  const topics = previews.flatMap((preview) => preview.scan.report.document.topics);
+  const groups = previews.flatMap((preview) => preview.scan.report.document.groups);
+  const blockIdsByQuestionId = new Map(previews.flatMap((preview) => [...preview.scan.blockIdsByQuestionId]));
+  const topicBlockIdsByTopicId = new Map(previews.flatMap((preview) => [...preview.scan.topicBlockIdsByTopicId]));
+  const scans: SiyuanDocumentScan[] = previews.map((preview) => preview.scan);
+  return {
+    token,
+    generatedAt: new Date().toISOString(),
+    documentId: rootDocumentId,
+    scan: {
+      documentId: rootDocumentId,
+      kramdown: scans.map((scan) => scan.kramdown).join("\n\n"),
+      report: {
+        document: { questions, topics, groups },
+        inferences: previews.flatMap((preview) => preview.scan.report.inferences),
+        issues: previews.flatMap((preview) => preview.scan.report.issues),
+        conflicts: previews.flatMap((preview) => preview.scan.report.conflicts),
+        ialUpdates: previews.flatMap((preview) => preview.scan.report.ialUpdates),
+      },
+      blockIdsByQuestionId,
+      topicBlockIdsByTopicId,
+      ialWriteActions: previews.flatMap((preview) => preview.scan.ialWriteActions),
+      sourceIssues: previews.flatMap((preview) => preview.scan.sourceIssues),
+    },
+    actions: previews.flatMap((preview) => preview.actions),
+    staleQuestionIds: previews.flatMap((preview) => preview.staleQuestionIds),
+    blockers: [...batchBlockers, ...previews.flatMap((preview) => preview.blockers)],
+    bindingRepairs: previews.flatMap((preview) => preview.bindingRepairs),
+    ialWriteActions: previews.flatMap((preview) => preview.ialWriteActions),
+    results: previews.flatMap((preview) => preview.results),
+  };
+}
+
 interface DocumentRow {
   id: string;
   box: string;
@@ -127,6 +169,20 @@ export class TinyBaseSiyuanCatalogRuntime {
     return rows[0];
   }
 
+  async listDocumentTreeIds(documentId: string): Promise<string[]> {
+    const source = await this.documentRow(documentId);
+    if (!source?.box || !source.hpath) {
+      if (!source) throw new Error(`Question source document '${documentId}' is unavailable`);
+      return [documentId];
+    }
+    const prefix = `${source.hpath.replace(/\/+$/u, "")}/%`;
+    const rows = await this.client.request<Array<{ id?: string }>>("/api/query/sql", {
+      stmt: `SELECT id FROM blocks WHERE type = 'd' AND box = '${escapeSql(source.box)}' `
+        + `AND (hpath = '${escapeSql(source.hpath)}' OR hpath LIKE '${escapeSql(prefix)}') ORDER BY hpath, id`,
+    });
+    return [...new Set([documentId, ...rows.flatMap((row) => row.id ? [row.id] : [])])];
+  }
+
   async listSourceDocuments(): Promise<QuestionSourceDocument[]> {
     const rows = await this.client.request<DocumentRow[]>("/api/query/sql", {
       stmt: "SELECT id, box, content, path, hpath, updated FROM blocks WHERE type = 'd' ORDER BY box, hpath, id",
@@ -204,6 +260,13 @@ export class TinyBaseSiyuanCatalogRuntime {
       ialWriteActions,
       results: [],
     };
+  }
+
+  async previewDocumentTree(documentId: string): Promise<QuestionIndexPreview> {
+    const documentIds = await this.listDocumentTreeIds(documentId);
+    if (documentIds.length <= 1) return this.previewDocument(documentId);
+    const batch = await this.previewBatch(documentIds);
+    return mergeQuestionIndexPreviews(documentId, batch.documents, batch.token, batch.blockers);
   }
 
   private async writeInferredIal(scan: SiyuanDocumentScan): Promise<void> {
@@ -312,6 +375,13 @@ export class TinyBaseSiyuanCatalogRuntime {
       throw new Error("Question catalog preview is stale; scan again before confirming");
     }
     return this.confirmPreview(preview);
+  }
+
+  async confirmDocumentTree(documentId: string, expectedToken: string): Promise<QuestionIndexPreview> {
+    const documentIds = await this.listDocumentTreeIds(documentId);
+    if (documentIds.length <= 1) return this.confirmDocument(documentId, expectedToken);
+    const batch = await this.confirmBatch(documentIds, expectedToken);
+    return mergeQuestionIndexPreviews(documentId, batch.documents, batch.token, batch.blockers);
   }
 
   async previewBatch(documentIds: readonly string[]): Promise<QuestionIndexBatchPreview> {

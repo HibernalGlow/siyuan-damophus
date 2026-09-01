@@ -77,6 +77,13 @@ const pluginMetadata: PluginMetadata = {
     },
     {
       type: "checkbox",
+      title: "lets-question-bank.includeSubdocuments",
+      description: "lets-question-bank.includeSubdocumentsDescription",
+      key: "includeSubdocuments",
+      value: false,
+    },
+    {
+      type: "checkbox",
       title: "lets-question-bank.syncTopicProgress",
       description: "lets-question-bank.syncTopicProgressDescription",
       key: "syncTopicProgress",
