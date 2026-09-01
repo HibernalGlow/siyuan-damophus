@@ -181,8 +181,8 @@ export class TinyBaseSiyuanCatalogRuntime {
         + `AND (hpath = '${escapeSql(source.hpath)}' OR hpath LIKE '${escapeSql(prefix)}') ORDER BY hpath, id`,
     });
     const byId = new Map((rows ?? []).filter((row) => row.id).map((row) => [row.id, row]));
-    byId.set(documentId, source);
-    return [...byId.values()];
+    byId.delete(documentId);
+    return [source, ...byId.values()];
   }
 
   async listDocumentTreeIds(documentId: string): Promise<string[]> {
