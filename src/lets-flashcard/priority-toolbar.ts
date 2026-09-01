@@ -22,7 +22,7 @@ export interface PriorityControlsHost {
 }
 
 export function createNativePriorityControls(host: PriorityControlsHost): NativePriorityControls {
-  return new NativePriorityControls({
+  const controls = new NativePriorityControls({
     documentRef: document,
     getSettings: () => {
       const settings = host.runtime.getSettings();
@@ -87,4 +87,5 @@ export function createNativePriorityControls(host: PriorityControlsHost): Native
       controls.refresh();
     },
   });
+  return controls;
 }

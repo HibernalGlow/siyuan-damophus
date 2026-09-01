@@ -1,4 +1,5 @@
 import { getLogger } from "@/libs/logger";
+const log = getLogger("lets-flashcard");
 import { orderCardsByPriority } from "@/flashcard/priority-queue";
 import { readReviewCardStats } from "@/flashcard/review-stats";
 import type { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
@@ -21,8 +22,8 @@ export interface FlashcardReviewQueueHost {
   readonly reviewCards: Map<string, RiffCardRecord>;
   readonly reviewTimer: NativeReviewTimer;
   readonly reviewCounter: NativeReviewCounter;
-  reviewScope: { scope: FlashcardReviewScope; ids: Set<string> } | undefined;
-  pendingExactReview: DueCardsData | undefined;
+  reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> } | undefined;
+  pendingExactReview?: DueCardsData;
   orderCards(cards: readonly RiffCardRecord[], limit?: number): Promise<RiffCardRecord[]>;
   orderCardsData(cardsData: DueCardsData, limit?: number): Promise<DueCardsData>;
 }
@@ -130,12 +131,12 @@ export async function updateCardsQueue(
     };
   } catch (error) {
     if (!scope) {
-      getLogger().warn("priority-ordering-failed", error);
+      log.warn("priority-ordering-failed", error);
       return cardsData;
     }
     // A failed dynamic query must fail closed. Returning the native input
     // here would silently widen a scoped review to the whole deck.
-    getLogger().error("dynamic-review-query-failed", error);
+      log.error("dynamic-review-query-failed", error);
     return { cards: [], unreviewedCount: 0, unreviewedNewCardCount: 0, unreviewedOldCardCount: 0 };
   }
 }

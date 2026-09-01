@@ -1,5 +1,6 @@
 import { mount } from "svelte";
 import { getLogger } from "@/libs/logger";
+const log = getLogger("lets-flashcard");
 import FlashcardSettings from "./FlashcardSettings.svelte";
 import type { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
 import type { FlashcardRuntime } from "@/flashcard/runtime";
@@ -98,7 +99,7 @@ export function mountFlashcardSettings(
         if (host.runtime.getSettings().rendererInterceptionEnabled) {
           host.compat.setVisibility(host.runtime.getSettings().rendererVisibility);
           const status = host.compat.install();
-          if (!status.installed) getLogger().warn("renderer-compat-unavailable", status.reason);
+          if (!status.installed) log.warn("renderer-compat-unavailable", status.reason);
         } else {
           host.compat.uninstall();
         }
