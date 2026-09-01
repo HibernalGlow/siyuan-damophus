@@ -13,6 +13,7 @@
   import QuestionBankPractice from "./QuestionBankPractice.svelte";
   import PracticeCompletion from "./PracticeCompletion.svelte";
   import { loadFabPinned, saveFabPinned } from "./fab-preferences";
+  import type { StatisticsBookmarkEntry } from "./statistics-bookmarks";
   import type { OpenDocumentTabLoader } from "@/libs/open-document-tabs";
 
   export let rootElement: HTMLElement;
@@ -96,6 +97,9 @@
   export let useFrozenPracticeSet: any;
   export let statisticsSnapshot: any;
   export let statisticsLoading: boolean;
+  export let statisticsBookmarkEntries: StatisticsBookmarkEntry[] = [];
+  export let openBookmarkSource: ((entry: StatisticsBookmarkEntry) => void) | undefined = undefined;
+  export let startBookmarkPractice: (() => void) | undefined = undefined;
   export let statisticsRange: any;
   export let statisticsSort: any;
   export let changeStatisticsRange: any;
@@ -431,6 +435,9 @@
       <Statistics
         snapshot={statisticsSnapshot}
         loading={statisticsLoading}
+        bookmarkEntries={statisticsBookmarkEntries}
+        onOpenBookmarkSource={openBookmarkSource}
+        onStartBookmarkPractice={startBookmarkPractice}
         range={statisticsRange}
         sort={statisticsSort}
         onRangeChange={changeStatisticsRange}

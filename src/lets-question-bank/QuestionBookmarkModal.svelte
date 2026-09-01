@@ -4,6 +4,7 @@
   import { Textarea } from "@/components/ui/textarea";
   import { Label } from "@/components/ui/label";
   import type { QuestionBookmark } from "@/question-bank/core/types";
+  import { BOOKMARK_PRESET_TAGS } from "./bookmark-tags";
   import type { Label as LabelFn } from "./question-bank-display";
 
   export let open = false;
@@ -12,13 +13,6 @@
   export let onSave: (tags: string[], note: string) => void;
   export let onRemove: () => void;
   export let onClose: () => void;
-
-  const PRESET_TAGS = [
-    { key: "classic", icon: "⭐️", defaultLabel: "经典好题" },
-    { key: "trap", icon: "⚠️", defaultLabel: "易混陷阱" },
-    { key: "hard", icon: "🔥", defaultLabel: "重难点" },
-    { key: "cramming", icon: "📌", defaultLabel: "考前必刷" },
-  ] as const;
 
   let selectedTags: string[] = [];
   let noteText = "";
@@ -64,7 +58,7 @@
       <div class="tag-section">
         <Label class="text-xs font-semibold text-muted-foreground">{label("bookmarkTags", "收藏标签")}</Label>
         <div class="tag-list">
-          {#each PRESET_TAGS as tag}
+          {#each BOOKMARK_PRESET_TAGS as tag}
             <button
               type="button"
               class="tag-btn"

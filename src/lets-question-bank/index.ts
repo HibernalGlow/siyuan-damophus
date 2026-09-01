@@ -490,6 +490,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
         client: siyuanKernelClient,
         loadCatalog: () => this.getTinyBaseCatalogRuntime().loadCatalog(),
         loadAggregates: () => this.getTinyBaseRuntime().loadAggregates(),
+        loadBookmarks: () => this.getTinyBaseRuntime().loadBookmarks(),
         reviewThreshold: this.reviewThresholdFromSettings(),
       },
       targets.map((target) => ({ ...target, options: this.projectionOptionsFromSettings() })),

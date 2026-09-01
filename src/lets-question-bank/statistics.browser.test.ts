@@ -215,4 +215,88 @@ describe("Statistics", () => {
     expect(getComputedStyle(content).overscrollBehaviorY).toBe("contain");
     expect(dialog.querySelector(".statistics-card-resizer")).not.toBeVisible();
   });
+
+  it("renders the bookmark card with tag counts, notes, redo, and open-source actions", async () => {
+    const onOpenBookmarkSource = vi.fn();
+    const onStartBookmarkPractice = vi.fn();
+    const target = document.createElement("div");
+    target.style.height = "100vh";
+    document.body.appendChild(target);
+    mounted = mount(Statistics, {
+      target,
+      props: {
+        snapshot: buildStatistics(questions, attempts, "all", Date.parse("2026-08-06T02:00:00.000Z")),
+        translations,
+        label,
+        topicDictionary,
+        bookmarkEntries: [
+          {
+            questionId: "civil-1",
+            title: "民诉经典题",
+            blockId: "20260820120002-aaa0001",
+            tags: ["classic", "hard"],
+            note: "注意调解协议的生效时点",
+            updatedAt: "2026-08-31T10:00:00Z",
+            attempts: 2,
+            accuracy: 50,
+            needsReview: true,
+          },
+          {
+            questionId: "criminal-1",
+            title: "刑诉收藏题",
+            tags: ["classic"],
+            note: "",
+            updatedAt: "2026-08-30T10:00:00Z",
+            attempts: 0,
+            needsReview: false,
+          },
+        ],
+        onOpenBookmarkSource,
+        onStartBookmarkPractice,
+      },
+    });
+    await tick();
+    const card = document.querySelector('[data-testid="statistics-bookmarks"]') as HTMLElement;
+    expect(card).not.toBeNull();
+    expect(card.textContent).toContain("收藏");
+    expect(card.textContent).toContain("民诉经典题");
+    expect(card.textContent).toContain("刑诉收藏题");
+    expect(card.textContent).toContain("经典好题");
+    expect(card.textContent).toContain("重难点");
+    expect(card.textContent).toContain("未作答");
+    expect(card.textContent).toContain("需复习");
+    expect(card.textContent).toContain("注意调解协议的生效时点");
+    const chips = [...card.querySelectorAll(".statistics-bookmark-tag-chip")];
+    expect(chips).toHaveLength(2);
+    expect(chips[0].textContent).toContain("2");
+    expect(chips[1].textContent).toContain("1");
+
+    await page.getByRole("button", { name: "重做收藏" }).click();
+    expect(onStartBookmarkPractice).toHaveBeenCalledTimes(1);
+
+    const openButtons = [...card.querySelectorAll<HTMLButtonElement>(".statistics-bookmark-open")];
+    expect(openButtons).toHaveLength(1);
+    openButtons[0].click();
+    expect(onOpenBookmarkSource).toHaveBeenCalledWith(expect.objectContaining({ questionId: "civil-1" }));
+  });
+
+  it("shows the bookmark empty state and keeps redo disabled without entries", async () => {
+    const target = document.createElement("div");
+    target.style.height = "100vh";
+    document.body.appendChild(target);
+    mounted = mount(Statistics, {
+      target,
+      props: {
+        snapshot: buildStatistics(questions, attempts, "all", Date.parse("2026-08-06T02:00:00.000Z")),
+        translations,
+        label,
+        topicDictionary,
+      },
+    });
+    await tick();
+    const card = document.querySelector('[data-testid="statistics-bookmarks"]') as HTMLElement;
+    expect(card.textContent).toContain("还没有收藏的题目");
+    const redo = card.querySelector<HTMLButtonElement>("button[data-disabled], button:disabled");
+    expect(redo).not.toBeNull();
+  });
 });

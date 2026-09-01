@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MockKernelClient } from "../adapters/siyuan/siyuan-adapter.fixtures";
 import type { SiyuanKernelClient } from "../adapters/siyuan/types";
 import type { QuestionCatalogEntry } from "../assembly";
-import { projectQuestionIndex } from "./projection";
+import { projectQuestionIndex, runQuestionIndexSync } from "./projection";
 
 const avId = "20260820120000-target1";
 const blockId = "20260820120001-target1";
@@ -38,7 +38,7 @@ describe("projectQuestionIndex", () => {
     };
 
     const first = await projectQuestionIndex(client, { avId, blockId }, [question()], new Map());
-    expect(first).toEqual({ added: 1, updated: 0, deleted: 0, columns: 9 });
+    expect(first).toEqual({ added: 1, updated: 0, deleted: 0, columns: 10 });
 
     const second = await projectQuestionIndex(client, { avId, blockId }, [question()], new Map());
     expect(second).toEqual({ added: 0, updated: 1, deleted: 0, columns: 0 });
@@ -87,7 +87,7 @@ describe("projectQuestionIndex", () => {
 
     const q = question();
     const result = await projectQuestionIndex(client, { avId, blockId }, [q], new Map());
-    expect(result).toEqual({ added: 1, updated: 0, deleted: 0, columns: 9 });
+    expect(result).toEqual({ added: 1, updated: 0, deleted: 0, columns: 10 });
 
     const addCalls = kernel.requests.filter((r) => r.endpoint === "/api/av/addAttributeViewBlocks");
     expect(addCalls).toHaveLength(1);
@@ -124,7 +124,7 @@ describe("projectQuestionIndex", () => {
       2,
       { includeUnanswered: false },
     );
-    expect(res).toEqual({ added: 1, updated: 0, deleted: 0, columns: 9 });
+    expect(res).toEqual({ added: 1, updated: 0, deleted: 0, columns: 10 });
 
     const av = await kernel.request<any>("/api/av/getAttributeView", { id: avId });
     const questionValues = (av.av?.keyValues ?? av.keyValues).find((kv: any) => kv.key.name === "Question ID")?.values;
@@ -225,5 +225,67 @@ describe("projectQuestionIndex", () => {
     const questionValues = (av.av?.keyValues ?? av.keyValues).find((kv: any) => kv.key.name === "Question ID")?.values;
     expect(questionValues.map((value: any) => value.text?.content)).toContain("q-ok");
     expect(questionValues.map((value: any) => value.text?.content)).not.toContain("q-broken");
+  });
+
+  it("projects bookmark state into the 收藏 column and ignores archived bookmarks", async () => {
+    const kernel = new MockKernelClient();
+    await kernel.request("/api/av/renderAttributeView", {
+      id: avId, blockID: blockId, viewID: "", page: 1, pageSize: 1,
+      query: "", groupPaging: {}, createIfNotExist: true,
+    });
+
+    const active: QuestionCatalogEntry = { ...question(), questionId: "q-bookmarked", blockId: "20260820120002-mark001" };
+    const archived: QuestionCatalogEntry = { ...question(), questionId: "q-archived", blockId: "20260820120002-arch01" };
+    const plain: QuestionCatalogEntry = { ...question(), questionId: "q-plain", blockId: "20260820120002-plain01" };
+    const bookmarks = new Map([
+      ["q-bookmarked", { questionId: "q-bookmarked", createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z", tags: ["classic"], note: "" }],
+      ["q-archived", { questionId: "q-archived", createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z", tags: [], note: "", isArchived: true }],
+    ] as const);
+
+    const result = await projectQuestionIndex(kernel, { avId, blockId }, [active, archived, plain], new Map(), 2, {
+      bookmarkedQuestionIds: new Set([...bookmarks.values()].filter((bookmark) => !bookmark.isArchived).map((bookmark) => bookmark.questionId)),
+    });
+    expect(result.columns).toBe(10);
+
+    const av = await kernel.request<any>("/api/av/getAttributeView", { id: avId });
+    const keyValues = av.av?.keyValues ?? av.keyValues;
+    expect(keyValues.find((kv: any) => kv.key.name === "收藏")?.key.type).toBe("checkbox");
+    const questionIdByRowId = new Map(
+      (keyValues.find((kv: any) => kv.key.name === "Question ID")?.values ?? []).map((value: any) => [value.blockID, value.text?.content]),
+    );
+    const checkedByQuestionId = new Map(
+      (keyValues.find((kv: any) => kv.key.name === "收藏")?.values ?? []).map((value: any) => [questionIdByRowId.get(value.blockID), value.checkbox?.checked === true]),
+    );
+    expect(checkedByQuestionId.get("q-bookmarked")).toBe(true);
+    expect(checkedByQuestionId.get("q-archived")).toBe(false);
+    expect(checkedByQuestionId.get("q-plain")).toBe(false);
+  });
+
+  it("loads bookmarks through the sync deps and merges them into projection options", async () => {
+    const kernel = new MockKernelClient();
+    await kernel.request("/api/av/renderAttributeView", {
+      id: avId, blockID: blockId, viewID: "", page: 1, pageSize: 1,
+      query: "", groupPaging: {}, createIfNotExist: true,
+    });
+
+    const q = question();
+    const outcomes = await runQuestionIndexSync(
+      {
+        client: kernel,
+        loadCatalog: async () => [q],
+        loadAggregates: async () => new Map(),
+        loadBookmarks: async () => new Map([
+          [q.questionId, { questionId: q.questionId, createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z", tags: [], note: "" }],
+        ]),
+      },
+      [{ blockId, avId, options: { pruneStale: false, includeUnanswered: true } }],
+    );
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0].ok).toBe(true);
+
+    const av = await kernel.request<any>("/api/av/getAttributeView", { id: avId });
+    const keyValues = av.av?.keyValues ?? av.keyValues;
+    const checked = keyValues.find((kv: any) => kv.key.name === "收藏")?.values ?? [];
+    expect(checked.map((value: any) => value.checkbox?.checked)).toEqual([true]);
   });
 });

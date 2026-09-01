@@ -1,4 +1,4 @@
-import type { AttemptAggregate } from "../core/types";
+import type { AttemptAggregate, QuestionBookmark } from "../core/types";
 import type { QuestionCatalogEntry } from "../assembly";
 import {
   numberCell,
@@ -15,6 +15,8 @@ import type { SiyuanKernelClient, AttributeViewKeyType } from "../adapters/siyua
 export interface QuestionIndexProjectionOptions {
   pruneStale?: boolean;
   includeUnanswered?: boolean;
+  /** Active (non-archived) bookmarked question IDs; drives the 收藏 checkbox column. */
+  bookmarkedQuestionIds?: ReadonlySet<string>;
 }
 
 export interface QuestionIndexProjectionResult {
@@ -36,6 +38,7 @@ const columns = [
   ["正确", "correct", "number"],
   ["正确率", "accuracy", "number"],
   ["需复习", "needs_review", "checkbox"],
+  ["收藏", "bookmarked", "checkbox"],
   ["最近评级", "latest_rating", "select"],
   ["最近作答", "last_answered_at", "date"],
 ] as const;
@@ -192,6 +195,7 @@ export async function projectQuestionIndex(
         { keyId: keys.correct.id, itemId, value: numberCell(correct) },
         { keyId: keys.accuracy.id, itemId, value: numberCell(accuracy) },
         { keyId: keys.needs_review.id, itemId, value: { type: "checkbox", checkbox: { checked: (aggregate?.consecutiveReviewCount ?? 0) >= reviewThreshold } } },
+        { keyId: keys.bookmarked.id, itemId, value: { type: "checkbox", checkbox: { checked: options.bookmarkedQuestionIds?.has(question.questionId) ?? false } } },
         { keyId: keys.latest_rating.id, itemId, value: selectCell(aggregate?.latestRating) },
         { keyId: keys.last_answered_at.id, itemId, value: dateCell(aggregate?.lastAnsweredAt ? Date.parse(aggregate.lastAnsweredAt) : undefined) },
       ];
@@ -246,6 +250,7 @@ export interface QuestionIndexSyncDeps {
   client: SiyuanKernelClient;
   loadCatalog: () => Promise<QuestionCatalogEntry[]>;
   loadAggregates: () => Promise<ReadonlyMap<string, AttemptAggregate>>;
+  loadBookmarks?: () => Promise<ReadonlyMap<string, QuestionBookmark>>;
   reviewThreshold?: number;
 }
 
@@ -293,16 +298,26 @@ export async function runQuestionIndexSync(
         target.blockId = resolved.blockId;
       }
       hooks.onProgress?.(`正在同步 ${label}...`);
-      const [catalog, aggregates] = await Promise.all([deps.loadCatalog(), deps.loadAggregates()]);
+      const [catalog, aggregates, bookmarks] = await Promise.all([
+        deps.loadCatalog(),
+        deps.loadAggregates(),
+        deps.loadBookmarks?.() ?? Promise.resolve(undefined),
+      ]);
+      const bookmarkedQuestionIds = bookmarks
+        ? new Set([...bookmarks.values()].filter((bookmark) => !bookmark.isArchived).map((bookmark) => bookmark.questionId))
+        : undefined;
       const result = await projectQuestionIndex(
         deps.client,
         { avId: target.avId, blockId: target.blockId },
         catalog,
         aggregates,
         deps.reviewThreshold ?? 2,
-        target.options ?? {
-          pruneStale: hooks.pruneStale,
-          includeUnanswered: hooks.includeUnanswered ?? true,
+        {
+          ...(target.options ?? {
+            pruneStale: hooks.pruneStale,
+            includeUnanswered: hooks.includeUnanswered ?? true,
+          }),
+          bookmarkedQuestionIds,
         },
       );
       outcomes.push({ label, ok: true, message: describeProjectionResult(result), result });

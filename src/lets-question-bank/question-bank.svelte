@@ -41,6 +41,10 @@
   import type { PracticeFilter } from "@/question-bank/core/scope";
   import type { PracticeFilterPreset } from "./practice-preferences";
   import {
+    buildStatisticsBookmarkEntries,
+    type StatisticsBookmarkEntry,
+  } from "./statistics-bookmarks";
+  import {
     createPracticeOptionOrder,
     createPracticeQueue,
     suggestedMasteryRating,
@@ -539,6 +543,14 @@
   }
   $: currentBookmark = currentQuestion ? bookmarks.get(currentQuestion.id) : undefined;
   $: bookmarkedQuestions = questions.filter((q) => bookmarks.has(q.id) && !bookmarks.get(q.id)?.isArchived).length;
+  $: statisticsBookmarkTitles = buildStatisticsBookmarkTitles(cachedStatisticsQuestions, questions);
+  $: statisticsBookmarkEntries = buildStatisticsBookmarkEntries({
+    bookmarks,
+    aggregates,
+    titles: statisticsBookmarkTitles,
+    blockIdsByQuestionId: preview?.scan.blockIdsByQuestionId,
+    reviewThreshold,
+  });
 
   async function toggleBookmark(): Promise<void> {
     if (!currentQuestion) return;
@@ -1240,13 +1252,13 @@
     if (!runtime.actor.getSnapshot().matches("completed")) startTimer();
   }
 
-  function practiceQueue(): Question[] {
+  function practiceQueue(filterOverride: PracticeFilter = filter): Question[] {
     if (assembledQuestions) return [...assembledQuestions];
     return createPracticeQueue({
       questions,
       topics,
       rootTopicId: topicId || undefined,
-      filter,
+      filter: filterOverride,
       order,
       aggregates,
       dueQuestionIds: new Set(dueCards.keys()),
@@ -1288,10 +1300,43 @@
     void run(() => beginNewPractice(nextQueue));
   }
 
+  // Launches a redo session scoped to active bookmarks without touching the
+  // user's workspace filter selection (the launcher button passes the DOM
+  // event straight through, so startPractice must stay zero-arg).
+  function startBookmarkPractice(): void {
+    if (!preview) return;
+    const nextQueue = practiceQueue("bookmarked");
+    if (nextQueue.length === 0) return;
+    if (recoverableSession) {
+      pendingReplacement = true;
+      return;
+    }
+    void run(() => beginNewPractice(nextQueue, undefined, undefined, "bookmarked"));
+  }
+
+  function openBookmarkSource(entry: StatisticsBookmarkEntry): void {
+    if (entry.blockId) openQuestionSource?.(entry.blockId);
+  }
+
+  function buildStatisticsBookmarkTitles(
+    catalog: readonly { questionId: string; title?: string }[] | undefined,
+    scannedQuestions: readonly Question[],
+  ): Map<string, string> {
+    const titles = new Map<string, string>();
+    for (const entry of catalog ?? []) {
+      if (entry.title) titles.set(entry.questionId, entry.title);
+    }
+    for (const question of scannedQuestions) {
+      if (question.title) titles.set(question.id, question.title);
+    }
+    return titles;
+  }
+
   async function beginNewPractice(
     nextQueue = practiceQueue(),
     sourceKey = assembledSourceKey || documentId,
     sourceLabel = assembledSourceLabel || sourceIdentity?.content,
+    filterOverride?: PracticeFilter,
   ): Promise<void> {
     if ((!preview && !assembledQuestions) || nextQueue.length === 0) return;
     if (questionRenderMode !== "html" && prepareSourceBlock) {
@@ -1303,7 +1348,7 @@
     await startPracticeSession({
       host: controller,
       sourceKey,
-      createSnapshot: () => createNewPracticeSnapshot(nextQueue, sourceKey, sourceLabel),
+      createSnapshot: () => createNewPracticeSnapshot(nextQueue, sourceKey, sourceLabel, filterOverride),
       activate: activateRuntime,
     });
   }
@@ -1312,6 +1357,7 @@
     nextQueue = practiceQueue(),
     sourceKey = assembledSourceKey || documentId,
     sourceLabel = assembledSourceLabel || sourceIdentity?.content,
+    filterOverride?: PracticeFilter,
   ): PracticeSessionSnapshot {
     if ((!preview && !assembledQuestions) || nextQueue.length === 0) throw new Error("A practice session requires at least one question");
     if (!assembledQuestions && preview) {
@@ -1325,7 +1371,7 @@
       sourceKey,
       sourceLabel,
       scopeId: assembledQuestions ? undefined : topicId || undefined,
-      filter: assembledQuestions ? "all" : filter,
+      filter: assembledQuestions ? "all" : filterOverride ?? filter,
       order: assembledQuestions ? "sequential" : order,
       queue: nextQueue.map((question) => ({
         question,
@@ -1634,6 +1680,7 @@
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}
   {questionSetBlueprints} {run} {loadQuestionSetData} {previewSourceSync} {confirmSourceSync} {assembleBlueprint} {saveBlueprint}
   {removeBlueprint} {useFrozenPracticeSet} {statisticsSnapshot} {statisticsLoading} {statisticsRange} {statisticsSort}
+  {statisticsBookmarkEntries} {openBookmarkSource} {startBookmarkPractice}
   {changeStatisticsRange} {changeStatisticsSort} {statisticsTopicDictionary} {subjectQuestionTotals} {changeSubjectQuestionTotal} {subjectTotalsSaveStatus} {statisticsLayout} {changeStatisticsLayout} {openStatisticsCardPreview} {controller} {examQuestions} {preview} {sourceIdentity} {uuid} {random}
   {renderQuestionMarkdown} {refreshStoredSessions} {scanDocument} {toggleAutoScanDocument} {storedSessions} {openStoredSession}
   {exportSessionDiagnostic} {exportAttempts} {selectImportFile} {importPreview} {confirmImport} {importResult} {progressQuestions}

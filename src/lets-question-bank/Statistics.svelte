@@ -29,6 +29,8 @@
   import { Badge } from "@/components/ui/badge";
   import { Input } from "@/components/ui/input";
   import StatisticsHeatmap from "./StatisticsHeatmap.svelte";
+  import StatisticsBookmarks from "./StatisticsBookmarks.svelte";
+  import type { StatisticsBookmarkEntry } from "./statistics-bookmarks";
   import { resolveTopicDictionaryClassificationLabel, type TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
   import {
     subjectCompletionPercent,
@@ -67,6 +69,9 @@
   export let translations: Record<string, string> = {};
   export let label: (key: string, fallback: string) => string = (_key, fallback) => fallback;
   export let onFullscreenPreview: StatisticsCardPreviewHandler | undefined = undefined;
+  export let bookmarkEntries: StatisticsBookmarkEntry[] = [];
+  export let onOpenBookmarkSource: ((entry: StatisticsBookmarkEntry) => void) | undefined = undefined;
+  export let onStartBookmarkPractice: (() => void) | undefined = undefined;
 
   function getSubjectIcon(subjectKey: string) {
     switch (subjectKey) {
@@ -722,6 +727,13 @@
         </section>
       {/each}
     </div>
+
+    <StatisticsBookmarks
+      entries={bookmarkEntries}
+      {label}
+      onOpenSource={onOpenBookmarkSource}
+      onStartRedo={onStartBookmarkPractice}
+    />
 
     <section
       class="statistics-panel statistics-resizable-panel relative flex min-h-0 flex-col overflow-hidden mt-4 p-4"
