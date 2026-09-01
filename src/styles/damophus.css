@@ -107,6 +107,16 @@
   display: none !important;
 }
 
+/* Mobile dock: the question-bank panel lives in the full-screen sidebar while
+   the document editor behind stays "visible", so the floating outline's
+   fixed-position element would float above the panel. Hide every floating
+   outline while the question-bank dock panel is the visible sidebar surface
+   (body class kept in sync by isolateFloatingOutlinesFromMobileDock). */
+body.damophus-question-bank-dock-open .siyuan-floating-toc-plugin-container,
+body.damophus-question-bank-dock-open .floating-toc {
+  display: none !important;
+}
+
 .damophus-statistics-preview-dialog {
   color: var(--foreground);
 }
