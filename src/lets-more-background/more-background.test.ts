@@ -9,10 +9,8 @@ import {
 import {
   clearCoverHistory,
   clearSeenCovers,
-  filterUnusedCoverAssets,
   getCoverHistory,
   getCoverHistoryLimit,
-  getLastUsedSource,
   getSeenCovers,
   getSeenCoversLimit,
   initializeCoverDedupStorage,
@@ -20,17 +18,22 @@ import {
   recordSeenCover,
   removeCoverHistoryEntry,
   setCoverHistoryLimit,
-  setLastUsedSource,
   setSeenCoversLimit,
+} from "./cover-history";
+import {
+  getLastUsedSource,
+  setLastUsedSource,
   updateAllLastUsedButtons,
-  localCachePath,
-  inferCoverSourceFromImage,
+} from "./cover-last-used";
+import { localCachePath, inferCoverSourceFromImage } from "./cover-local-cache";
+import {
   parseCoverPosition,
   normalizeCoverPosition,
   serializeCoverPosition,
   selectCoverPositionFromAttrs,
-  buildNonBooruGachaCards,
-} from "./more-background";
+} from "./cover-position";
+import { filterUnusedCoverAssets } from "./cover-dedup-set";
+import { buildNonBooruGachaCards } from "./cover-gacha";
 
 describe("more-background sources utilities", () => {
   it("does not clone a fixed image into multiple gacha cards", () => {

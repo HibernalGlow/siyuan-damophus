@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { Check, Copy, Download, History, Info, RefreshCw, Trash2, X, XCircle } from "lucide-svelte";
   import { Button } from "@/components/ui/button";
-  import { clearCoverHistory, getCoverHistory, removeCoverHistoryEntry } from "../more-background";
+  import { clearCoverHistory, getCoverHistory, removeCoverHistoryEntry } from "../cover-history";
   import { buildCoverExportPayload } from "../cover-export";
   import type { CoverHistoryEntry } from "../sources";
 

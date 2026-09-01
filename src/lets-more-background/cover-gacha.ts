@@ -1,9 +1,28 @@
-import { Dialog } from "siyuan";
-import { plugin } from "@/utils";
+import { Dialog, showMessage } from "siyuan";
+import { plugin, isMobile } from "@/utils";
 import { getLogger } from "@/libs/logger";
 import { isolateMobileDialogGestures } from "@/lets-question-bank/workspace/mobile-dialog-scroll";
-import { coverFavoriteKey } from "./cover-favorites";
-import type { BooruResolvedInfo } from "./booru";
+import {
+  coverFavoriteKey,
+  loadCoverFavorites,
+  removeCoverFavorite,
+  upsertCoverFavorite,
+} from "./cover-favorites";
+import { booruPostDedupKey, coverDedupIdentity } from "./cover-dedup";
+import { loadDedupCoverUrls } from "./cover-dedup-set";
+import {
+  extractImageElementBlob,
+  triggerRandomIfNoImg,
+} from "./cover-local-cache";
+import { readBlockAttrs } from "./cover-attrs";
+import {
+  isBooruSource,
+  resolveBooruImageCandidates,
+  type BooruResolvedInfo,
+} from "./booru";
+import { DEFAULT_BLACKLISTED_TAGS, type CoverSourceItem } from "./sources";
+import type { MoreBackgroundOptions } from "./more-background";
+import type { CoverApplyService } from "./cover-service";
 
 const log = getLogger("lets-more-background:gacha");
 
@@ -486,4 +505,407 @@ export function openCoverGachaDialog(config: CoverGachaDialogConfig): void {
   }
 
   void render();
+}
+
+export function getGachaDrawCount(options: Pick<MoreBackgroundOptions, "gachaDrawCount">): number {
+  const parsed = Number(options.gachaDrawCount);
+  return Number.isFinite(parsed) && parsed >= 2 ? Math.min(12, Math.floor(parsed)) : 6;
+}
+
+function isLikelyRandomCoverEndpoint(url: string): boolean {
+  const value = String(url || "").trim().toLowerCase();
+  if (!value) return false;
+  // A concrete image file is a single candidate, even when it has query
+  // parameters for resizing or authentication.
+  if (/\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(value)) return false;
+  return /(?:picsum\.photos|unsplash(?:\.it|\.com)|biturl\.top|xjh\.me|\/random(?:[_./?-]|$)|[?&](?:random|return=302)(?:[=&]|$))/i.test(value);
+}
+
+function addGachaCacheBust(url: string, index: number): string {
+  const token = `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    const parsed = new URL(url, typeof location !== "undefined" ? location.href : "http://localhost/");
+    parsed.searchParams.set("__damophus_gacha", token);
+    return parsed.href;
+  } catch {
+    return `${url}${url.includes("?") ? "&" : "?"}__damophus_gacha=${encodeURIComponent(token)}`;
+  }
+}
+
+/** Build non-Booru cards without cloning a fixed image into every slot. */
+export function buildNonBooruGachaCards(
+  url: string,
+  count: number,
+  excludedCoverIdentities: ReadonlySet<string> = new Set(),
+): GachaCardData[] {
+  const requested = Math.max(1, Math.floor(Number(count) || 1));
+  if (!isLikelyRandomCoverEndpoint(url)) {
+    const identity = coverDedupIdentity(url);
+    if (identity && excludedCoverIdentities.has(identity)) return [];
+    return [{ key: `cover-${identity || url}`, imageUrl: url }];
+  }
+
+  const cards: GachaCardData[] = [];
+  const batchIdentities = new Set<string>();
+  for (let index = 0; index < requested; index += 1) {
+    const imageUrl = addGachaCacheBust(url, index);
+    const identity = coverDedupIdentity(imageUrl);
+    if (identity && (excludedCoverIdentities.has(identity) || batchIdentities.has(identity))) continue;
+    if (identity) batchIdentities.add(identity);
+    cards.push({
+      key: `card-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+      imageUrl,
+    });
+  }
+  return cards;
+}
+
+export interface GachaFlowDeps {
+  options: MoreBackgroundOptions;
+  service: Pick<CoverApplyService,
+    "applyPostMetadata" | "fetchAndSetBackground" | "saveBlobAndSetBackground" | "setBlockBackgroundImage" | "ensureFavoriteCache">;
+  findCoverBlockId(root: HTMLElement, background: HTMLElement): string;
+  resolveDocTitle(root: HTMLElement, background: HTMLElement): string;
+}
+
+export interface CoverGachaFlow {
+  openGachaDraw(item: CoverSourceItem, url: string, root: HTMLElement, background: HTMLElement): Promise<void>;
+  applyFromStash(root: HTMLElement, background: HTMLElement): Promise<void>;
+  toggleGachaFavorite(
+    card: Pick<GachaCardData, "imageUrl" | "postUrl" | "site" | "postId" | "tags" | "width" | "height" | "score">,
+    favoriteKeys: Set<string>,
+    root: HTMLElement,
+    background: HTMLElement,
+  ): Promise<boolean>;
+  toggleGachaStash(
+    card: Pick<GachaCardData, "imageUrl" | "previewUrl" | "postUrl" | "site" | "postId" | "tags" | "width" | "height" | "score">,
+    stashKeys: Set<string>,
+    templateLabel?: string,
+  ): Promise<boolean>;
+}
+
+const flowLog = getLogger("lets-more-background");
+const dedupLog = getLogger("lets-more-background:dedup");
+
+/**
+ * 抽卡编排：先抽出 gachaDrawCount 张候选卡，弹窗让用户选一张设为题头图；
+ * 其余喜欢的卡可收藏进暂存区，之后可通过「从暂存区随机应用」取出。
+ */
+export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
+  const { options, service } = deps;
+
+  async function openGachaDraw(
+    item: CoverSourceItem,
+    url: string,
+    root: HTMLElement,
+    background: HTMLElement,
+  ): Promise<void> {
+    const count = getGachaDrawCount(options);
+    const isBooru = isBooruSource(url);
+    // 累计排除集：初始为去重记忆，之后每批抽出的卡也会加入，保证「换一批」不重复。
+    const excluded = new Set<string>();
+    if (options.deduplicateNewCovers !== false) {
+      try {
+        const loaded = await loadDedupCoverUrls(background, options.localCacheRoot);
+        for (const key of loaded) excluded.add(key);
+      } catch (error) {
+        dedupLog.warn("Failed to load used cover URLs before gacha draw:", error);
+      }
+    }
+
+    const rememberCard = (card: GachaCardData): void => {
+      const normalized = coverDedupIdentity(card.imageUrl);
+      if (normalized) excluded.add(normalized);
+      const postKey = card.site && card.postId !== undefined
+        ? booruPostDedupKey(card.site, card.postId)
+        : null;
+      if (postKey) excluded.add(postKey);
+    };
+
+    const [stashEntries, favoriteEntries] = await Promise.all([loadCoverStash(), loadCoverFavorites()]);
+    const stashKeys = new Set(stashEntries.map((entry) => coverStashKey(entry)));
+    const favoriteKeys = new Set(favoriteEntries.map((entry) => coverFavoriteKey(entry)));
+    const cardKey = (card: Pick<GachaCardData, "imageUrl" | "postUrl" | "site" | "postId">): string =>
+      coverStashKey(card);
+
+    const drawCards = async (handlers: {
+      onCard: (card: GachaCardData) => void;
+      onProgress: (done: number, wanted: number) => void;
+    }): Promise<GachaCardData[]> => {
+      if (isBooru) {
+        // 词库池的随机语义是「每次解析随机一个画师」：逐卡补抽让每张卡各占
+        // 一次随机画师，避免整批卡挤在同一位画师的作品里。单画师被比例/评分
+        // 条件筛光时跳过继续抽下一张，直至抽满或超出尝试上限。
+        const cardsByKey = new Map<string, GachaCardData>();
+        const maxAttempts = Math.min(12, Math.max(count + 4, 8));
+        let attempts = 0;
+        while (cardsByKey.size < count && attempts < maxAttempts) {
+          attempts += 1;
+          const infos = await resolveBooruImageCandidates(
+            url,
+            options.siteCredentials,
+            options.blacklistedTags || DEFAULT_BLACKLISTED_TAGS,
+            excluded,
+            1,
+          );
+          for (const info of infos) {
+            const key = `${info.site || ""}:${info.postId ?? info.imageUrl}`;
+            if (cardsByKey.has(key)) continue;
+            const card: GachaCardData = {
+              key,
+              imageUrl: info.imageUrl,
+              previewUrl: info.previewUrl,
+              postUrl: info.postUrl,
+              site: info.site,
+              postId: info.postId,
+              tags: info.tags,
+              width: info.width,
+              height: info.height,
+              score: info.score,
+              info,
+            };
+            cardsByKey.set(key, card);
+            rememberCard(card);
+            // 抽到一张立即上屏，不必等整批完成。
+            handlers.onCard(card);
+          }
+          handlers.onProgress(cardsByKey.size, count);
+          flowLog.info("Gacha draw attempt", {
+            attempt: attempts,
+            fetched: infos.length,
+            total: cardsByKey.size,
+            wanted: count,
+          });
+        }
+        return [...cardsByKey.values()];
+      }
+      // 非 booru 模板（Picsum/Unsplash 等随机端点）：每次 <img> 请求各自出图，
+      // 选中后优先用画布截取已加载的那一张，保证所见即所得。
+      const cards = buildNonBooruGachaCards(url, count, excluded);
+      for (const card of cards) {
+        rememberCard(card);
+        handlers.onCard(card);
+      }
+      handlers.onProgress(cards.length, count);
+      return cards;
+    };
+
+    openCoverGachaDialog({
+      title: `🎴 ${options.t("lets-more-background.gachaDialogTitle")} · ${deps.resolveDocTitle(root, background)}`,
+      hint: options.t("lets-more-background.gachaDialogHint")
+        + (isMobile ? "" : ` ${options.t("lets-more-background.floatHint")}`),
+      drawing: options.t("lets-more-background.gachaDrawing"),
+      empty: options.t("lets-more-background.gachaEmpty"),
+      pickLabel: options.t("lets-more-background.gachaPick"),
+      favoriteLabel: options.t("lets-more-background.gachaFavorite"),
+      favoritedLabel: options.t("lets-more-background.gachaFavorited"),
+      stashLabel: options.t("lets-more-background.gachaStash"),
+      stashedLabel: options.t("lets-more-background.gachaStashed"),
+      rerollLabel: options.t("lets-more-background.gachaReroll"),
+      failedLabel: options.t("lets-more-background.previewLoadFailed"),
+      mobile: isMobile,
+      drawCards,
+      onPick: async (card) => {
+        triggerRandomIfNoImg(root);
+        if (card.info) {
+          service.applyPostMetadata(background, card.info);
+          await service.fetchAndSetBackground(card.info.imageUrl, background, 1, 1, undefined, card.info);
+        } else {
+          const blob = card.element ? await extractImageElementBlob(card.element) : null;
+          if (blob && blob.size > 0) {
+            await service.saveBlobAndSetBackground(blob, background);
+          } else {
+            // 画布被跨域污染时兜底重拉（随机端点可能换图，属于降级路径）。
+            await service.fetchAndSetBackground(card.imageUrl, background);
+          }
+        }
+      },
+      isFavorited: (card) => favoriteKeys.has(cardKey(card)),
+      onFavoriteToggle: (card) => toggleGachaFavorite(card, favoriteKeys, root, background),
+      isStashed: (card) => stashKeys.has(cardKey(card)),
+      onStashToggle: (card) => toggleGachaStash(card, stashKeys, item.label),
+    });
+  }
+
+  /**
+   * 浏览暂存区：全部暂存卡直接铺开（相当于抽完的状态），点选即应用并移出
+   * 暂存区；应用失败弹窗保持打开可重试，⚑ 仅移出暂存，「刷新」重读列表。
+   */
+  async function applyFromStash(root: HTMLElement, background: HTMLElement): Promise<void> {
+    const total = (await loadCoverStash()).length;
+    if (total === 0) {
+      showMessage(options.t("lets-more-background.stashEmpty"));
+      return;
+    }
+    let stashKeys = new Set<string>();
+    let favoriteKeys = new Set<string>();
+    const cardKey = (card: Pick<GachaCardData, "imageUrl" | "postUrl" | "site" | "postId">): string =>
+      coverStashKey(card);
+    const toCard = (entry: CoverStashEntry): GachaCardData => ({
+      key: coverStashKey(entry),
+      stashEntryId: entry.id,
+      imageUrl: entry.imageUrl,
+      previewUrl: entry.previewUrl,
+      postUrl: entry.postUrl,
+      site: entry.site,
+      postId: entry.postId,
+      tags: entry.tags,
+      width: entry.width,
+      height: entry.height,
+      score: entry.score,
+    });
+    openCoverGachaDialog({
+      title: `🗂 ${options.t("lets-more-background.applyFromStash")} · ${deps.resolveDocTitle(root, background)}`,
+      hint: options.t("lets-more-background.stashBrowserHint")
+        + (isMobile ? "" : ` ${options.t("lets-more-background.floatHint")}`),
+      drawing: options.t("lets-more-background.gachaDrawing"),
+      empty: options.t("lets-more-background.stashEmpty"),
+      pickLabel: options.t("lets-more-background.stashDrawApply"),
+      favoriteLabel: options.t("lets-more-background.gachaFavorite"),
+      favoritedLabel: options.t("lets-more-background.gachaFavorited"),
+      stashLabel: options.t("lets-more-background.gachaStash"),
+      stashedLabel: options.t("lets-more-background.gachaStashed"),
+      rerollLabel: options.t("lets-more-background.refreshFavorites"),
+      failedLabel: options.t("lets-more-background.previewLoadFailed"),
+      mobile: isMobile,
+      drawCards: async (handlers) => {
+        const [entries, favorites] = await Promise.all([loadCoverStash(), loadCoverFavorites()]);
+        stashKeys = new Set(entries.map((entry) => coverStashKey(entry)));
+        favoriteKeys = new Set(favorites.map((entry) => coverFavoriteKey(entry)));
+        const cards = entries.map(toCard);
+        for (const card of cards) handlers.onCard(card);
+        handlers.onProgress(cards.length, Math.max(cards.length, 1));
+        return cards;
+      },
+      onPick: (card) => applyStashEntry(root, background, {
+        id: card.stashEntryId || card.key,
+        imageUrl: card.imageUrl,
+        postUrl: card.postUrl,
+        site: card.site,
+        postId: card.postId,
+        tags: card.tags,
+        width: card.width,
+        height: card.height,
+        score: card.score,
+      }),
+      isFavorited: (card) => favoriteKeys.has(cardKey(card)),
+      onFavoriteToggle: (card) => toggleGachaFavorite(card, favoriteKeys, root, background),
+      isStashed: (card) => stashKeys.has(cardKey(card)),
+      onStashToggle: (card) => toggleGachaStash(card, stashKeys),
+    });
+  }
+
+  /** 应用一张暂存卡；应用成功（题头图属性确实变化）后才从暂存区删除。 */
+  async function applyStashEntry(
+    root: HTMLElement,
+    background: HTMLElement,
+    entry: { id: string; imageUrl: string; postUrl?: string; site?: string; postId?: string | number; tags?: string[]; width?: number | string; height?: number | string; score?: number | string },
+  ): Promise<void> {
+    const blockId = deps.findCoverBlockId(root, background);
+    const previousTitleImg = blockId ? (await readBlockAttrs(blockId))["title-img"] || "" : "";
+    const postInfo: BooruResolvedInfo = {
+      imageUrl: entry.imageUrl,
+      postUrl: entry.postUrl,
+      site: entry.site,
+      postId: entry.postId,
+      tags: entry.tags,
+      width: entry.width === undefined ? undefined : Number(entry.width) || undefined,
+      height: entry.height === undefined ? undefined : Number(entry.height) || undefined,
+      score: entry.score === undefined ? undefined : Number(entry.score) || undefined,
+    };
+    triggerRandomIfNoImg(root);
+    service.applyPostMetadata(background, postInfo);
+    if (/^(?:https?:\/\/|data:)/i.test(entry.imageUrl)) {
+      await service.fetchAndSetBackground(entry.imageUrl, background, 1, 1, undefined, postInfo);
+    } else {
+      await service.setBlockBackgroundImage(background, entry.imageUrl, postInfo);
+    }
+    // fetchAndSetBackground 内部吞错，这里以题头图属性确实变化为成功判据，
+    // 失败时抛错让弹窗保持打开，卡片仍留在暂存区。
+    if (blockId) {
+      const nextTitleImg = (await readBlockAttrs(blockId))["title-img"] || "";
+      if (!nextTitleImg || nextTitleImg === previousTitleImg) {
+        showMessage(options.t("lets-more-background.stashApplyFailed"));
+        throw new Error(`Stashed cover failed to apply: ${entry.imageUrl}`);
+      }
+    }
+    // 成功才消费：把这张卡移出暂存区（收藏与暂存互相独立，不自动转收藏）。
+    await removeCoverStashEntry(entry.id);
+    const remaining = (await loadCoverStash()).length;
+    showMessage(
+      options.t("lets-more-background.stashApplied").replace("{count}", String(remaining)),
+    );
+    flowLog.info("Applied random stashed cover", { id: entry.id, imageUrl: entry.imageUrl, remaining });
+  }
+
+  /** 抽卡/暂存浏览共用：★ 收藏到收藏夹（与暂存完全独立）。 */
+  async function toggleGachaFavorite(
+    card: Pick<GachaCardData, "imageUrl" | "postUrl" | "site" | "postId" | "tags" | "width" | "height" | "score">,
+    favoriteKeys: Set<string>,
+    root: HTMLElement,
+    background: HTMLElement,
+  ): Promise<boolean> {
+    const key = coverStashKey(card);
+    if (favoriteKeys.has(key)) {
+      const existing = (await loadCoverFavorites()).find((item) => coverFavoriteKey(item) === key);
+      if (existing) await removeCoverFavorite(existing.id);
+      favoriteKeys.delete(key);
+      showMessage(options.t("lets-more-background.gachaUnfavoriteMessage"));
+      return false;
+    }
+    const input = await service.ensureFavoriteCache({
+      imageUrl: card.imageUrl,
+      postUrl: card.postUrl,
+      site: card.site,
+      postId: card.postId,
+      tags: card.tags,
+      width: card.width,
+      height: card.height,
+      sourceScore: card.score,
+      documentId: deps.findCoverBlockId(root, background) || undefined,
+      documentTitle: deps.resolveDocTitle(root, background),
+    });
+    await upsertCoverFavorite(input);
+    favoriteKeys.add(key);
+    showMessage(options.t("lets-more-background.gachaFavoriteMessage"));
+    return true;
+  }
+
+  /** 抽卡/暂存浏览共用：⚑ 暂存到暂存区（与收藏完全独立）。 */
+  async function toggleGachaStash(
+    card: Pick<GachaCardData, "imageUrl" | "previewUrl" | "postUrl" | "site" | "postId" | "tags" | "width" | "height" | "score">,
+    stashKeys: Set<string>,
+    templateLabel?: string,
+  ): Promise<boolean> {
+    const key = coverStashKey(card);
+    if (stashKeys.has(key)) {
+      const existing = (await loadCoverStash()).find((entry) => coverStashKey(entry) === key);
+      if (existing) await removeCoverStashEntry(existing.id);
+      stashKeys.delete(key);
+      showMessage(options.t("lets-more-background.gachaUnstashMessage"));
+      return false;
+    }
+    await addCoverStashEntry({
+      imageUrl: card.imageUrl,
+      previewUrl: card.previewUrl,
+      postUrl: card.postUrl,
+      site: card.site,
+      postId: card.postId,
+      tags: card.tags,
+      width: card.width,
+      height: card.height,
+      score: card.score,
+      templateLabel,
+    });
+    stashKeys.add(key);
+    showMessage(options.t("lets-more-background.gachaStashMessage"));
+    return true;
+  }
+
+  return {
+    openGachaDraw,
+    applyFromStash,
+    toggleGachaFavorite,
+    toggleGachaStash,
+  };
 }

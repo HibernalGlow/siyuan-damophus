@@ -6,13 +6,15 @@ import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 import { isMobile, plugin } from "@/utils";
 import { isolateMobileDialogGestures } from "@/lets-question-bank/workspace/mobile-dialog-scroll";
 import {
-  DEFAULT_COVER_HISTORY_LIMIT,
-  DEFAULT_SEEN_COVERS_LIMIT,
-  initializeCoverDedupStorage,
   startMoreBackground,
   type MoreBackgroundHandle,
   type MoreBackgroundOptions,
 } from "./more-background";
+import {
+  DEFAULT_COVER_HISTORY_LIMIT,
+  DEFAULT_SEEN_COVERS_LIMIT,
+  initializeCoverDedupStorage,
+} from "./cover-history";
 import {
   DEFAULT_COVER_SOURCES,
   DEFAULT_SITE_CREDENTIALS,

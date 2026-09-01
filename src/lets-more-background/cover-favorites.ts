@@ -6,6 +6,8 @@ const log = getLogger("lets-more-background:favorites");
 export const COVER_FAVORITES_STORAGE_NAME = "more_background_cover_favorites.json";
 export const COVER_FAVORITES_SCHEMA_VERSION = 1;
 export const MAX_COVER_FAVORITES = 2000;
+/** Dispatched on window after a cover favorite toggles so gallery tabs can refresh. */
+export const FAVORITES_CHANGED_EVENT = "damophus-cover-favorites-changed";
 
 export interface CoverFavorite {
   id: string;

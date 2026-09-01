@@ -1,6 +1,6 @@
 import { getHPathByID, sql } from "@/api";
 import { getLogger } from "@/libs/logger";
-import { getCoverHistory, getSeenCovers, type SeenCoverEntry } from "./more-background";
+import { getCoverHistory, getSeenCovers, type SeenCoverEntry } from "./cover-history";
 import type { CoverHistoryEntry } from "./sources";
 
 const log = getLogger("lets-more-background:export");

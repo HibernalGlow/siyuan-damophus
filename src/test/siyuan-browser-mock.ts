@@ -41,3 +41,7 @@ export function getFrontend(): string {
 export function getAllEditor(): never[] {
   return [];
 }
+
+export function getAllTabs(): never[] {
+  return [];
+}

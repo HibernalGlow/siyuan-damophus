@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { applyCoverLayout, MoreBackgroundController, type MoreBackgroundOptions } from "./more-background";
+import { MoreBackgroundController, type MoreBackgroundOptions } from "./more-background";
+import { applyCoverLayout } from "./cover-layout";
 
 function renderHeader(): HTMLElement {
   document.body.innerHTML = `

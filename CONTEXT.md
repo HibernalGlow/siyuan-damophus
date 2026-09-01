@@ -1,3 +1,39 @@
+# Cover Terms
+
+These terms cover the document title-image (题头图) domain of the more-background module.
+
+**Cover**:
+The title/background image of one document, persisted in the root block's `title-img` plus Damophus companion attributes (source URL, cache path, post metadata).
+_Avoid_: wallpaper, banner, background image (when referring to the managed title cover)
+
+**Cover position**:
+The per-document vertical crop of the cover, a 0-100 percentage. Desktop and mobile keep independent adjustment attributes with different visual meaning per platform; replacing the cover resets it.
+_Avoid_: zoom, crop offset
+
+**Cover history**:
+The visible, capped list of covers applied to and replaced on documents. Clearing it never erases deduplication memory.
+_Avoid_: dedup memory, usage log
+
+**Seen covers**:
+The durable, user-invisible record of covers already displayed, used to exclude them from future random picks. It survives history clearing and has a larger cap.
+_Avoid_: cover history, blacklist
+
+**Local cover cache**:
+Device-local WebP copies of remote covers under the plugin's petal storage, indexed and excluded from SiYuan sync. It is a display optimization, never the authoritative source.
+_Avoid_: asset export, cover storage
+
+**Gacha draw**:
+Drawing several candidate cards from one template and picking exactly one as the cover. Unpicked cards may be stashed or favorited.
+_Avoid_: random apply, batch download
+
+**Stash**:
+One-time parking for gacha candidate cards; applying a stashed card consumes it. Fully independent of favorites.
+_Avoid_: favorites, history
+
+**Cover favorites**:
+Persisted favorite covers with source metadata, reusable across documents without being consumed.
+_Avoid_: stash
+
 # Question Progress Terms
 
 These terms extend the Damophus glossary for per-question progress shown from topic blocks and projected into SiYuan.
