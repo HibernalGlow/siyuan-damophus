@@ -1,20 +1,14 @@
-import { Dialog, Menu, confirm, getActiveTab, getAllEditor, getAllTabs, openMobileFileById, openTab, showMessage, type IEventBusMap, type IMenu, type IProtyle } from "siyuan";
-import { mount, unmount } from "svelte";
+import { Dialog, Menu, showMessage, openMobileFileById, openTab, type IEventBusMap, type IMenu, type IProtyle } from "siyuan";
+import { unmount } from "svelte";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { isMobileEntryFrontend } from "@/libs/plugin-entry-settings";
 import { getLogger } from "@/libs/logger";
 import { isMobile, plugin } from "@/utils";
-import { getHPathByID } from "@/api";
-import FlashcardSettings from "./FlashcardSettings.svelte";
-import FlashcardResults from "./FlashcardResults.svelte";
 import { FlashcardRendererCompat } from "@/flashcard/renderer-compat";
 import { FlashcardRuntime } from "@/flashcard/runtime";
-import { openDocumentFlow } from "@/flashcard/document-flow";
-import type { FlashcardBlockRow, FlashcardGroup, FlashcardReviewScope, FlashcardRoot, FlashcardSettings as FlashcardSettingsConfig } from "@/flashcard/types";
-import { priorityTag } from "@/flashcard/priority-tags";
-import { NativePriorityControls, type ReviewToolbarKey } from "@/flashcard/native-priority-controls";
-import { NativeReviewCounter, type ReviewPriorityBucket } from "@/flashcard/native-review-counter";
+import type { FlashcardGroup, FlashcardReviewScope } from "@/flashcard/types";
+import { NativeReviewCounter } from "@/flashcard/native-review-counter";
 import { NativeReviewTimer } from "@/flashcard/native-review-timer";
 import { readReviewCardStats } from "@/flashcard/review-stats";
 import type {
@@ -23,9 +17,7 @@ import type {
   FlashcardUnregisterScope,
   RiffCardRecord,
 } from "@/flashcard/siyuan-adapter";
-import { orderCardsByPriority } from "@/flashcard/priority-queue";
 import { FlashcardCategoryModule } from "@/flashcard/category-module";
-import { getFlashcardContributions, type FlashcardReviewStage } from "@/flashcard/contribution-registry";
 import { SiyuanMobileFlashcardSurfaceAdapter } from "@/flashcard/mobile-surface-adapter";
 import { FsrsOptimizerLocalService } from "@/flashcard/fsrs-optimizer-local-service";
 import {
@@ -40,12 +32,6 @@ import {
 } from "@/flashcard/fsrs-weight-history";
 import type { RiffReviewLogEntry } from "@/flashcard/review-log-export";
 import type { OpenFlashcardDocument } from "@/flashcard/open-documents";
-import { settings } from "@/settings";
-import {
-  DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
-  DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY,
-  normalizeDocumentPathHighlights,
-} from "@/libs/document-path-highlights";
 import {
   makeScope as buildFlashcardScope,
   scopeActionLabel as flashcardScopeActionLabel,
@@ -90,10 +76,42 @@ import {
   importSfpConfig as importFlashcardSfpConfig,
   optimizeReviewLog as optimizeFlashcardReviewLog,
 } from "./fsrs-flows";
+import {
+  currentReviewContext as readCurrentReviewContext,
+  documentPathHighlights as readDocumentPathHighlights,
+  listOpenDocuments as listOpenFlashcardDocuments,
+  saveDocumentPathHighlights as persistDocumentPathHighlights,
+} from "./review-context";
+import {
+  openRegistrationResultsDialog,
+  viewResultsDialog,
+  type RegistrationResultsOptions,
+} from "./results-dialogs";
+import {
+  batchPriorityFlow,
+  openFilteredFlow as openFilteredFlowCards,
+  openMakeScopeFlow,
+  openRawFlow as openRawSqlFlow,
+  openScopeRegistrationFlow,
+  reviewAllCards,
+  reviewContainerSelectionFlow,
+  reviewDocumentTreeFlow,
+  reviewGroupCards,
+  reviewScopeCardsFlow,
+} from "./scope-review-flows";
+import { createNativePriorityControls } from "./priority-toolbar";
+import { mountFlashcardSettings } from "./settings-surface";
+import {
+  orderCardsDataQueue,
+  orderCardsQueue,
+  updateCardsQueue,
+} from "./review-queue";
 
 const log = getLogger("lets-flashcard");
 const BREADCRUMB_BUTTON_ID = "damophus-flashcard";
 const BREADCRUMB_BUTTON_ICON = "iconRiffCard";
+
+type SettingsApp = ReturnType<typeof mountFlashcardSettings>;
 
 export default class FlashcardPlugin extends SubPluginBase {
   public readonly compat = new FlashcardRendererCompat();
@@ -101,7 +119,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     (key) => this.getSetting(key),
     (key, value) => this.setSetting(key, value),
   );
-  private readonly categories = new FlashcardCategoryModule({
+  public readonly categories = new FlashcardCategoryModule({
     load: async () => plugin.loadData("flashcard/categories.json"),
     save: async (value) => { await plugin.saveData("flashcard/categories.json", value); },
   });
@@ -109,12 +127,12 @@ export default class FlashcardPlugin extends SubPluginBase {
   private disposeCategoryToolbar?: () => void;
   private entry?: UnifiedEntryPoint;
   private tabRegistered = false;
-  private readonly mounted = new Map<HTMLElement, ReturnType<typeof mount>>();
-  private dockApp?: ReturnType<typeof mount>;
-  private mobileSettingsApp?: ReturnType<typeof mount>;
+  private readonly mounted = new Map<HTMLElement, SettingsApp>();
+  private dockApp?: SettingsApp;
+  private mobileSettingsApp?: SettingsApp;
   private readonly mobileSurface = new SiyuanMobileFlashcardSurfaceAdapter(Dialog);
-  private reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
-  private pendingExactReview?: DueCardsData;
+  public reviewScope?: { scope: FlashcardReviewScope; ids: Set<string> };
+  public pendingExactReview?: DueCardsData;
   public readonly reviewCards = new Map<string, RiffCardRecord>();
   public currentReviewCard: RiffCardRecord | undefined;
   private menuEventsBound = false;
@@ -127,7 +145,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     loadData: (storageName) => plugin.loadData(storageName),
     saveData: (storageName, content) => plugin.saveData(storageName, content),
   };
-  private readonly reviewTimer = new NativeReviewTimer({
+  public readonly reviewTimer = new NativeReviewTimer({
     getSettings: () => {
       const settings = this.runtime.getSettings();
       return {
@@ -138,77 +156,13 @@ export default class FlashcardPlugin extends SubPluginBase {
     },
     onChange: () => this.reviewCounter.refresh(),
   });
-  private readonly reviewCounter = new NativeReviewCounter({
+  public readonly reviewCounter = new NativeReviewCounter({
     documentRef: document,
     getStatsSettings: () => this.runtime.getSettings().reviewStats,
     getTimerDisplay: () => this.reviewTimer.getDisplay(),
     onReviewSurfaceClosed: () => this.reviewTimer.stopSession(),
   });
-  public readonly priorityControls = new NativePriorityControls({
-    documentRef: document,
-    getSettings: () => {
-      const settings = this.runtime.getSettings();
-      return {
-        enabled: settings.reviewToolbarEnabled,
-        locate: settings.reviewToolbarLocate,
-        unregister: settings.reviewToolbarUnregister,
-        priority: settings.reviewToolbarPriority,
-        workbench: settings.reviewToolbarWorkbench,
-        renderer: settings.reviewToolbarRenderer,
-        skipBetween: settings.reviewToolbarSkipBetween,
-        showExitFocus: settings.reviewToolbarShowExitFocus,
-        showBrand: settings.reviewToolbarShowBrand,
-        showFilter: settings.reviewToolbarShowFilter,
-        showFullscreen: settings.reviewToolbarShowFullscreen,
-        reviewToolbarActionOrder: settings.reviewToolbarActionOrder,
-        reviewToolbarCustomCss: settings.reviewToolbarCustomCss,
-        reviewToolbarStyle: settings.reviewToolbarStyle,
-      };
-    },
-    getCurrentCard: () => this.currentReviewCard,
-    resolveCard: async (blockId, root) => {
-      const cached = this.reviewCards.get(blockId);
-      if (cached) return cached;
-      const ids = [
-        blockId,
-        ...(root ? [...root.querySelectorAll<HTMLElement>("[data-node-id]")].map((node) => node.dataset.nodeId ?? "") : []),
-      ].filter(Boolean);
-      const cards = await this.runtime.adapter.getCardsByBlockIds(ids);
-      const card = cards.find((candidate) => ids.includes(candidate.blockID));
-      if (card) this.reviewCards.set(card.blockID, card);
-      return card;
-    },
-    setPriority: (card, priority) => this.runtime.adapter.setPriority([card], priority),
-    locate: (card) => this.locateCard(card),
-    unregister: (card) => this.unregisterCard(card),
-    openWorkbench: () => this.openSettings(),
-    isRendererOverrideEnabled: () => this.runtime.getSettings().rendererInterceptionEnabled,
-    toggleRendererOverride: () => this.toggleRendererOverride(),
-    getRendererVisibility: () => this.runtime.getSettings().rendererVisibility,
-    toggleRendererVisibility: async (key) => {
-      const settings = this.runtime.getSettings();
-      const rendererVisibility = { ...settings.rendererVisibility, [key]: !settings.rendererVisibility[key] };
-      await this.runtime.saveSettings({ ...settings, rendererVisibility });
-      this.compat.setVisibility(rendererVisibility);
-      this.priorityControls.refresh();
-      showMessage(`${key} 隐藏规则已${rendererVisibility[key] ? "启用" : "关闭"}`, 2500, "info");
-    },
-    toggleToolVisibility: async (key: ReviewToolbarKey) => {
-      const settings = this.runtime.getSettings();
-      const settingKeys: Record<ReviewToolbarKey, keyof FlashcardSettingsConfig> = {
-        locate: "reviewToolbarLocate",
-        unregister: "reviewToolbarUnregister",
-        priority: "reviewToolbarPriority",
-        renderer: "reviewToolbarRenderer",
-        workbench: "reviewToolbarWorkbench",
-        filter: "reviewToolbarShowFilter",
-        fullscreen: "reviewToolbarShowFullscreen",
-      };
-      const settingKey = settingKeys[key];
-      await this.runtime.saveSettings({ ...settings, [settingKey]: !Boolean(settings[settingKey]) });
-      this.priorityControls.refresh();
-    },
-  });
+  public readonly priorityControls = createNativePriorityControls(this);
 
   private readonly handleCardRender = (blockId: string): void => {
     const card = this.reviewCards.get(blockId);
@@ -348,7 +302,7 @@ export default class FlashcardPlugin extends SubPluginBase {
     this.syncBreadcrumbButton();
   }
 
-  private syncBreadcrumbButton(): void {
+  public syncBreadcrumbButton(): void {
     const api = plugin as unknown as {
       addBreadcrumbButton?: (options: {
         id: string;
@@ -502,100 +456,15 @@ export default class FlashcardPlugin extends SubPluginBase {
     unreviewedNewCardCount: number;
     unreviewedOldCardCount: number;
   }): Promise<typeof cardsData> {
-    const pendingExactReview = this.pendingExactReview;
-    if (pendingExactReview) {
-      this.pendingExactReview = undefined;
-      for (const card of pendingExactReview.cards) this.reviewCards.set(card.blockID, card);
-      this.reviewTimer?.ensureSession(pendingExactReview.cards[0]?.cardID);
-      return pendingExactReview;
-    }
-    for (const card of cardsData.cards ?? []) {
-      if (card?.blockID) this.reviewCards.set(card.blockID, card);
-    }
-    if (!Array.isArray(cardsData?.cards)) return cardsData;
-    const scope = this.reviewScope;
-    // Native Siyuan invokes updateCards again after a review round. The next
-    // round may contain only newly-due cards, so none of their IDs need to be
-    // present in the initial snapshot. Refresh the SQL boundary before
-    // deciding whether this is a continuation; an unrelated native review
-    // with no matching candidate releases the scope instead of showing blank.
-    try {
-      let cards = cardsData.cards;
-      if (scope) {
-        const rootIds = await this.runtime.provideScopeBlockIds(scope.scope, true);
-        const allowed = new Set(rootIds);
-        cards = cards.filter((card) => allowed.has(card.blockID));
-        const overlapsInitial = cardsData.cards.some((card) => scope.ids.has(card.blockID));
-        if (!overlapsInitial && cards.length === 0) {
-          this.reviewScope = undefined;
-          return this.orderCardsData(cardsData);
-        }
-      }
-      const ordered = await this.orderCards(cards);
-      // Native review can be opened from SiYuan's own menu, bypassing
-      // openNativeReview(). Start the timer from that callback as well, while
-      // keeping subsequent round refreshes on the same session.
-      this.reviewTimer?.ensureSession(ordered[0]?.cardID);
-      return {
-        cards: ordered,
-        unreviewedCount: ordered.length,
-        unreviewedNewCardCount: ordered.filter((card) => card.state === 0).length,
-        unreviewedOldCardCount: ordered.filter((card) => card.state !== 0).length,
-      };
-    } catch (error) {
-      if (!scope) {
-        log.warn("priority-ordering-failed", error);
-        return cardsData;
-      }
-      // A failed dynamic query must fail closed. Returning the native input
-      // here would silently widen a scoped review to the whole deck.
-      log.error("dynamic-review-query-failed", error);
-      return { cards: [], unreviewedCount: 0, unreviewedNewCardCount: 0, unreviewedOldCardCount: 0 };
-    }
+    return updateCardsQueue(this, cardsData);
   }
 
-  private async orderCardsData(cardsData: DueCardsData, limit?: number): Promise<DueCardsData> {
-    const cards = await this.orderCards(cardsData.cards, limit);
-    return {
-      ...cardsData,
-      cards,
-      unreviewedCount: cards.length,
-      unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
-      unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
-    };
+  public async orderCardsData(cardsData: DueCardsData, limit?: number): Promise<DueCardsData> {
+    return orderCardsDataQueue(this, cardsData, limit);
   }
 
-  private async orderCards(cards: readonly RiffCardRecord[], limit?: number): Promise<RiffCardRecord[]> {
-    const roots = await this.runtime.adapter.inspectRoots(cards.map((card) => card.blockID), this.runtime.getSettings());
-    this.compat.preloadMany(roots);
-    const stages = getFlashcardContributions("review-stage")
-      .map((item) => item.value as FlashcardReviewStage);
-    const categoryRanks = stages.length
-      ? new Map(roots.map((root) => [root.blockId, Math.min(...stages.map((stage) => stage.getRank(root.blockId, root)))]))
-      : undefined;
-    const ordered = orderCardsByPriority(cards, roots, {
-      randomInterleave: this.runtime.getSettings().randomInterleaveEnabled,
-      samePriorityShuffle: this.runtime.getSettings().samePriorityShuffleEnabled,
-      reviewMode: this.nativeReviewMode(),
-      categoryRanksByBlockId: categoryRanks,
-    });
-    const limited = limit === undefined ? ordered : ordered.slice(0, Math.max(1, limit));
-    const rootsById = new Map(roots.map((root) => [root.blockId, root]));
-    this.reviewCounter.setQueue(limited.map((card) => {
-      const root = rootsById.get(card.blockID);
-      const priority: ReviewPriorityBucket = root?.priority && !root.priorityConflict ? root.priority : "other";
-      return { cardID: card.cardID, priority, isNew: card.state === 0, stats: readReviewCardStats(card) };
-    }));
-    this.reviewTimer?.setQueue(limited.map((card) => card.cardID));
-    return limited;
-  }
-
-  private nativeReviewMode(): 0 | 1 | 2 {
-    const config = (window as Window & {
-      siyuan?: { config?: { flashcard?: { reviewMode?: unknown } } };
-    }).siyuan?.config?.flashcard?.reviewMode;
-    const mode = Number(config);
-    return mode === 1 || mode === 2 ? mode : 0;
+  public async orderCards(cards: readonly RiffCardRecord[], limit?: number): Promise<RiffCardRecord[]> {
+    return orderCardsQueue(this, cards, limit);
   }
 
   override onunload(): void {
@@ -737,44 +606,11 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   public async reviewContainerSelection(ids: readonly string[], label: string): Promise<void> {
-    try {
-      const blockIds = await this.runtime.adapter.getContainerBlockIds(ids);
-      const due = await this.runtime.adapter.buildDueCardsData(
-        this.runtime.getSettings().deckId,
-        blockIds,
-        this.runtime.getSettings().maxReviewCards,
-      );
-      if (due.cards.length === 0) {
-        showMessage(`${label}没有可复习的已登记闪卡`, 5000, "info");
-        return;
-      }
-      await this.openNativeReview(`复习：${label}`, due);
-    } catch (error) {
-      this.reportError("获取容器闪卡失败", error);
-    }
+    await reviewContainerSelectionFlow(this, ids, label);
   }
 
   public async reviewDocumentTree(ids: readonly string[], notebook: boolean, label: string): Promise<void> {
-    try {
-      const dueList = notebook
-        ? await Promise.all(ids.map((id) => this.runtime.adapter.getNotebookDueCards(id)))
-        : await Promise.all(ids.map((id) => this.runtime.adapter.getTreeDueCards(id)));
-      const cards = [...new Map(dueList.flatMap((due) => due.cards).map((card) => [card.blockID, card])).values()]
-        .slice(0, Math.max(1, this.runtime.getSettings().maxReviewCards));
-      if (cards.length === 0) {
-        showMessage(`${label}没有可复习的已登记闪卡`, 5000, "info");
-        return;
-      }
-      const due: DueCardsData = {
-        cards,
-        unreviewedCount: cards.length,
-        unreviewedNewCardCount: cards.filter((card) => card.state === 0).length,
-        unreviewedOldCardCount: cards.filter((card) => card.state !== 0).length,
-      };
-      await this.openNativeReview(`复习：${label}`, due);
-    } catch (error) {
-      this.reportError("获取文档范围闪卡失败", error);
-    }
+    await reviewDocumentTreeFlow(this, ids, notebook, label);
   }
 
   public makeScope(type: "document" | "notebook", targetId: string, targetName: string, group?: FlashcardGroup): FlashcardReviewScope {
@@ -782,132 +618,23 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   public currentReviewContext(protyle?: IProtyle): { documentId: string; documentName: string; notebookId?: string; notebookName?: string } | undefined {
-    const mobileEditor = window.siyuan?.mobile?.popEditor ?? window.siyuan?.mobile?.editor;
-    const mobileProtyle = mobileEditor?.protyle;
-    const mobileDocumentId = mobileProtyle?.block?.rootID;
-    const activeId = document.querySelector<HTMLElement>(
-      ".layout__wnd--active .protyle.fn__flex-1:not(.fn__none) .protyle-background",
-    )?.dataset.nodeId
-      ?? document.querySelector<HTMLElement>(
-        ".protyle.fn__flex-1:not(.fn__none) .protyle-background",
-      )?.dataset.nodeId;
-    // The published `siyuan` package only ships declarations; the host injects
-    // these helpers at runtime. Keep the fallback optional for tests and for
-    // mobile shells where the desktop tab helpers are absent.
-    const activeModel = (typeof getActiveTab === "function" ? getActiveTab()?.model : undefined) as { editor?: { protyle?: { block?: { rootID?: string } } } } | undefined;
-    const editors = typeof getAllEditor === "function" ? getAllEditor() : [];
-    const documentId = mobileDocumentId ?? protyle?.block?.rootID ?? activeId ?? activeModel?.editor?.protyle?.block?.rootID ?? editors[0]?.protyle.block.rootID;
-    if (!documentId) return undefined;
-    const documentName = document.querySelector<HTMLInputElement>(
-      `.protyle-background[data-node-id="${CSS.escape(documentId)}"] + .protyle-title input`,
-    )?.value || documentId;
-    const notebookId = mobileDocumentId
-      ? mobileProtyle?.notebookId
-      : protyle?.notebookId
-      ?? editors.find((editor) => editor.protyle.block.rootID === documentId)?.protyle.notebookId;
-    const notebook = window.siyuan?.notebooks?.find((item) => item.id === notebookId);
-    return { documentId, documentName, notebookId, notebookName: notebook?.name };
+    return readCurrentReviewContext(protyle);
   }
 
-  private async listOpenDocuments(): Promise<OpenFlashcardDocument[]> {
-    const activeContext = this.currentReviewContext();
-    if (isMobile && activeContext?.documentId) {
-      return [{
-        documentId: activeContext.documentId,
-        title: activeContext.documentName,
-        path: await getHPathByID(activeContext.documentId).catch(() => activeContext.documentName),
-        active: true,
-      }];
-    }
-    const activeDocumentId = activeContext?.documentId;
-    const seen = new Set<string>();
-    const candidates = getAllTabs().flatMap((tab) => {
-      const model = tab.model as unknown as { editor?: { protyle?: { block?: { rootID?: string } } } } | undefined;
-      let documentId = model?.editor?.protyle?.block?.rootID;
-      if (!documentId) {
-        try {
-          const initData = tab.headElement?.getAttribute("data-initdata");
-          const parsed = initData ? JSON.parse(initData) as { instance?: string; rootId?: string; rootID?: string } : undefined;
-          if (parsed?.instance === "Editor") documentId = parsed.rootId ?? parsed.rootID;
-        } catch {
-          // Restored tabs may contain malformed init data; skip their fallback ID.
-        }
-      }
-      if (!documentId || !/^\d{14}-[a-z0-9]{7}$/u.test(documentId) || seen.has(documentId)) return [];
-      seen.add(documentId);
-      return [{ documentId, title: tab.title || documentId }];
-    });
-    return Promise.all(candidates.map(async ({ documentId, title }) => ({
-      documentId,
-      title,
-      path: await getHPathByID(documentId).catch(() => title),
-      active: documentId === activeDocumentId,
-    })));
+  public async listOpenDocuments(): Promise<OpenFlashcardDocument[]> {
+    return listOpenFlashcardDocuments();
   }
 
-  private documentPathHighlights(): string[] {
-    return normalizeDocumentPathHighlights(
-      settings.getBySpace("questionBank", DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY) ?? DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
-    );
+  public documentPathHighlights(): string[] {
+    return readDocumentPathHighlights();
   }
 
-  private async saveDocumentPathHighlights(value: string[]): Promise<void> {
-    settings.setBySpace("questionBank", DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY, value.join("\n"));
-    await settings.save();
+  public async saveDocumentPathHighlights(value: string[]): Promise<void> {
+    await persistDocumentPathHighlights(value);
   }
 
-  private mountSettings(target: HTMLElement): ReturnType<typeof mount> {
-    target.classList.add("damophus-theme-root", "damophus-flashcard-settings-host", "h-full", "min-h-0");
-    return mount(FlashcardSettings, {
-      target,
-      props: {
-        runtime: this.runtime,
-        onReviewGroup: (group: FlashcardGroup) => void this.reviewGroup(group),
-        onMakeGroup: (group: FlashcardGroup) => void this.openMakeScope({
-          id: `group:${group.id}`,
-          type: "group",
-          targetName: group.name,
-          groupId: group.id,
-          groupName: group.name,
-        }),
-        onReviewAll: () => void this.reviewAll(),
-        onViewResults: (group: FlashcardGroup, filtered: boolean) => void this.viewResults(group, filtered),
-        onOpenRaw: (group: FlashcardGroup) => this.openRawFlow(group),
-        onOpenFiltered: (group: FlashcardGroup) => void this.openFilteredFlow(group),
-        onBatchPriority: (group: FlashcardGroup) => void this.batchPriority(group),
-        onImportSfp: () => this.importSfpConfig(),
-        onReviewScope: (scope: FlashcardReviewScope) => void this.reviewScopeCards(scope),
-        onMakeScope: (scope: FlashcardReviewScope) => void this.openMakeScope(scope),
-        onLoadOpenDocuments: () => this.listOpenDocuments(),
-        documentPathHighlights: this.documentPathHighlights(),
-        onDocumentPathHighlightsChange: (value: string[]) => { void this.saveDocumentPathHighlights(value); },
-        onLocateCard: (card: RiffCardRecord) => void this.locateCard(card),
-        onUnregisterCard: (card: RiffCardRecord) => void this.unregisterCard(card),
-        onSetCardPriority: (card: RiffCardRecord, priority: number) => void this.runtime.adapter.setPriority([card], priority),
-        onOptimizeReviewLog: (entries: RiffReviewLogEntry[]) => this.optimizeReviewLog(entries),
-        onApplyFsrsWeights: (weights: number[]) => this.confirmAndApplyFsrsWeights(weights),
-        onGetFsrsWeights: () => this.getFsrsWeightsFromSettings(),
-        onLoadFsrsHistory: () => this.loadFsrsHistoryFromSettings(),
-        onUndoFsrsWeights: (entry: FsrsWeightHistoryEntry) => this.undoFsrsWeightsFromSettings(entry),
-        categoryConfig: this.categories.getConfig(),
-        onSaveCategoryConfig: async (config) => {
-          await this.categories.save(config);
-          this.priorityControls.refresh();
-        },
-        onSettingsChanged: () => {
-          this.reviewTimer?.refresh();
-          this.priorityControls.refresh();
-          if (this.runtime.getSettings().rendererInterceptionEnabled) {
-            this.compat.setVisibility(this.runtime.getSettings().rendererVisibility);
-            const status = this.compat.install();
-            if (!status.installed) log.warn("renderer-compat-unavailable", status.reason);
-          } else {
-            this.compat.uninstall();
-          }
-          this.syncBreadcrumbButton();
-        },
-      },
-    });
+  private mountSettings(target: HTMLElement): SettingsApp {
+    return mountFlashcardSettings(this, target);
   }
 
   private async optimizeReviewLog(entries: readonly RiffReviewLogEntry[]): Promise<{
@@ -964,309 +691,46 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   public async reviewAll(): Promise<void> {
-    try {
-      const due = await this.runtime.buildAllDueCards();
-      await this.openNativeReview("到期：所有闪卡", due);
-    } catch (error) {
-      this.reportError("获取全部到期闪卡失败", error);
-    }
+    await reviewAllCards(this);
   }
 
   public async reviewGroup(group: FlashcardGroup): Promise<void> {
-    await this.reviewScopeCards({
-      id: `group:${group.id}`,
-      type: "group",
-      targetName: group.name,
-      groupId: group.id,
-      groupName: group.name,
-    });
+    await reviewGroupCards(this, group);
   }
 
   public async reviewScopeCards(scope: FlashcardReviewScope, retryAfterRegistration = false): Promise<void> {
-    try {
-      let due = await this.runtime.buildScopeDueCards(scope, true);
-      if (retryAfterRegistration && due.cards.length === 0 && (due.candidateCount ?? 0) > 0 && (due.registeredCount ?? 0) > 0) {
-        for (const delay of [120, 300, 700]) {
-          await new Promise<void>((resolve) => globalThis.setTimeout(resolve, delay));
-          due = await this.runtime.buildScopeDueCards(scope, true);
-          if (due.cards.length > 0) break;
-        }
-      }
-      const label = scope.groupName && scope.type !== "group"
-        ? `${scope.targetName} · ${scope.groupName}`
-        : scope.groupName ?? scope.targetName;
-      if (due.cards.length === 0 && (due.candidateCount ?? 0) > 0) {
-        const registered = due.registeredCount;
-        if (registered === 0) {
-          await this.openScopeRegistration(scope, label, due);
-          return;
-        }
-        showMessage(
-          registered === undefined
-            ? `范围“${label}”找到 ${due.candidateCount} 个闪卡根块，但无法确认 Riff 登记状态`
-            : registered === 0
-            ? `范围“${label}”找到 ${due.candidateCount} 个闪卡根块，但尚未登记到 Riff`
-            : `范围“${label}”已登记 ${registered} 张卡，但当前没有到期卡`,
-          7000,
-          "info",
-        );
-      }
-      if (due.cards.length === 0 && (due.candidateCount ?? 0) === 0) {
-        showMessage(`范围“${label}”未找到符合条件的到期闪卡`, 5000, "info");
-      }
-      if (due.cards.length === 0) return;
-      await this.runtime.recordScope(scope);
-      await this.openNativeReview(`复习：${label}`, due, scope);
-    } catch (error) {
-      this.reportError(`获取复习范围“${scope.targetName}”失败`, error);
-    }
+    await reviewScopeCardsFlow(this, scope, retryAfterRegistration);
   }
 
-  private async openScopeRegistration(scope: FlashcardReviewScope, label: string, due: DueCardsData): Promise<void> {
-    const ids = await this.runtime.provideScopeBlockIds(scope, true);
-    const roots = await this.runtime.adapter.inspectRoots(ids, this.runtime.getSettings());
-    const rows: FlashcardBlockRow[] = roots.map((root) => ({
-      id: root.blockId,
-      content: root.content,
-      type: root.renderer,
-      attributes: root.attributes,
-    }));
-    await this.openRegistrationResults({
-      title: `${label} · 待登记闪卡`,
-      rows,
-      roots,
-      due,
-      onRegistered: async () => {
-        await this.runtime.recordScope(scope);
-        await this.reviewScopeCards(scope, true);
-      },
-    });
+  public async openScopeRegistration(scope: FlashcardReviewScope, label: string, due: DueCardsData): Promise<void> {
+    await openScopeRegistrationFlow(this, scope, label, due);
   }
 
   public async openMakeScope(scope: FlashcardReviewScope): Promise<void> {
-    try {
-      const settings = this.runtime.getSettings();
-      const autoReviewAfterRegistration = settings.autoReviewAfterRegistration !== false;
-      const label = scope.groupName && scope.type !== "group"
-        ? `${scope.targetName} · ${scope.groupName}`
-        : scope.groupName ?? scope.targetName;
-      let rows: FlashcardBlockRow[];
-      let roots: FlashcardRoot[];
-      const group = scope.groupId
-        ? this.runtime.getGroups().find((candidate) => candidate.id === scope.groupId)
-        : undefined;
-      if (group) {
-        const inspection = await this.runtime.inspectGroupCandidates(group);
-        if (scope.type === "group") {
-          ({ rows, roots } = inspection);
-        } else {
-          const rootRows = await this.runtime.adapter.loadBlocks(inspection.roots.map((root) => root.blockId));
-          const allowed = new Set(rootRows.filter((row) => scope.type === "document"
-            ? row.id === scope.targetId || row.root_id === scope.targetId
-            : row.box === scope.targetId,
-          ).map((row) => row.id));
-          roots = inspection.roots.filter((root) => allowed.has(root.blockId));
-          rows = rootRows.filter((row) => allowed.has(row.id));
-        }
-      } else {
-        const ids = await this.runtime.provideScopeBlockIds(scope);
-        roots = await this.runtime.adapter.inspectRoots(ids, settings);
-        rows = roots.map((root) => ({
-          id: root.blockId,
-          content: root.content,
-          type: root.renderer,
-          attributes: root.attributes,
-        }));
-      }
-      if (roots.length === 0) {
-        showMessage(`范围“${label}”未找到符合条件的闪卡根块`, 5000, "info");
-        return;
-      }
-      await this.openRegistrationResults({
-        title: `${label} · 制卡检测`,
-        rows,
-        roots,
-        continueToReview: autoReviewAfterRegistration,
-        onRegistered: async () => {
-          await this.runtime.recordScope(scope);
-          if (autoReviewAfterRegistration) await this.reviewScopeCards(scope, true);
-        },
-      });
-    } catch (error) {
-      this.reportError(`检测制卡范围“${scope.targetName}”失败`, error);
-    }
+    await openMakeScopeFlow(this, scope);
   }
 
-  private async openRegistrationResults(options: {
-    title: string;
-    rows: FlashcardBlockRow[];
-    roots: FlashcardRoot[];
-    due?: DueCardsData;
-    continueToReview?: boolean;
-    onRegistered: () => void | Promise<void>;
-  }): Promise<void> {
-    let app: ReturnType<typeof mount> | undefined;
-    const dialog = new Dialog({
-      title: options.title,
-      content: '<div class="damophus-flashcard-results-host"></div>',
-      width: "min(1000px, 94vw)",
-      height: "min(760px, 84vh)",
-      destroyCallback: () => { if (app) void unmount(app); },
-    });
-    const target = dialog.element.querySelector<HTMLElement>(".damophus-flashcard-results-host");
-    if (!target) return;
-    app = mount(FlashcardResults, {
-      target,
-      props: {
-        title: options.title,
-        rows: options.rows,
-        roots: options.roots,
-        due: options.due,
-        filtered: true,
-        canReview: false,
-        onReview: () => undefined,
-        onRegister: async () => {
-          try {
-            const ids = options.roots.map((root) => root.blockId);
-            const continueToReview = options.continueToReview !== false;
-            if (this.runtime.getSettings().confirmBeforeAutoRegister) {
-              const approved = await new Promise<boolean>((resolve) => {
-                confirm(
-                  continueToReview ? "登记并开始复习" : "登记闪卡",
-                  continueToReview
-                    ? `预览包含 ${ids.length} 个卡片根块。登记并验证成功后将直接打开原生闪卡复习，确认继续？`
-                    : `预览包含 ${ids.length} 个卡片根块。确认调用 Riff 登记并保留已有调度状态？`,
-                  () => resolve(true),
-                  () => resolve(false),
-                );
-              });
-              if (!approved) return;
-            }
-            const result = await this.runtime.registerCards(ids);
-            const pending = result.filter((entry) => entry.status === "pending").length;
-            if (pending > 0) {
-              showMessage(`${pending} 张闪卡登记或验证失败，请保留此窗口后重试`, 6000, "error");
-              return;
-            }
-            showMessage(
-              continueToReview ? `已登记并验证 ${ids.length} 张闪卡，正在打开复习` : `已登记并验证 ${ids.length} 张闪卡`,
-              4000,
-              "info",
-            );
-            dialog.destroy();
-            await options.onRegistered();
-          } catch (error) {
-            this.reportError("登记闪卡并打开复习失败", error);
-          }
-        },
-      },
-    });
+  public async openRegistrationResults(options: RegistrationResultsOptions): Promise<void> {
+    await openRegistrationResultsDialog(this, options);
   }
 
-  private async viewResults(group: FlashcardGroup, filtered: boolean): Promise<void> {
-    try {
-      const rows = await this.runtime.adapter.paginatedSql(group.sqlQuery);
-      const roots = filtered
-        ? await this.runtime.adapter.inspectRows(rows, this.runtime.getSettings())
-        : [];
-      const due = filtered
-        ? await this.runtime.adapter.buildDueCardsData(
-          this.runtime.getSettings().deckId,
-          roots.map((root) => root.blockId),
-          this.runtime.getSettings().maxReviewCards,
-          this.runtime.getSettings().scopedReviewMode,
-        )
-        : undefined;
-      let app: ReturnType<typeof mount> | undefined;
-      const dialog = new Dialog({
-        title: `${group.name} · ${filtered ? "过滤结果" : "原始 SQL"}`,
-        content: '<div class="damophus-flashcard-results-host"></div>',
-        width: "min(1000px, 94vw)",
-        height: "min(760px, 84vh)",
-        destroyCallback: () => { if (app) void unmount(app); },
-      });
-      const target = dialog.element.querySelector<HTMLElement>(".damophus-flashcard-results-host");
-      if (!target) return;
-      app = mount(FlashcardResults, {
-        target,
-        props: {
-          title: `${group.name} · ${filtered ? "过滤结果" : "原始 SQL"}`,
-          rows,
-          roots,
-          due,
-          filtered,
-          onReview: () => {
-            dialog.destroy();
-            // Re-query after registration; the due snapshot was captured
-            // before the user clicked "一键制卡并登记".
-            void this.reviewGroup(group);
-          },
-          onRegister: async () => {
-            const ids = roots.map((root) => root.blockId);
-            const approved = await new Promise<boolean>((resolve) => {
-              confirm(
-                "登记闪卡",
-                `预览包含 ${ids.length} 个卡片根块。确认调用 Riff 登记并保留已有调度状态？`,
-                () => resolve(true),
-                () => resolve(false),
-              );
-            });
-            if (!approved) return;
-            const result = await this.runtime.registerCards(ids);
-            const pending = result.filter((entry) => entry.status === "pending").length;
-            showMessage(pending === 0 ? `已登记 ${ids.length} 张闪卡` : `${pending} 张闪卡待制卡`, 5000, pending === 0 ? "info" : "error");
-          },
-        },
-      });
-    } catch (error) {
-      this.reportError("查询闪卡结果失败", error);
-    }
+  public async viewResults(group: FlashcardGroup, filtered: boolean): Promise<void> {
+    await viewResultsDialog(this, group, filtered);
   }
 
-  private openRawFlow(group: FlashcardGroup): void {
-    openDocumentFlow("SQL", group.sqlQuery, `${group.name}-SQL查询`);
+  public openRawFlow(group: FlashcardGroup): void {
+    openRawSqlFlow(group);
   }
 
-  private async openFilteredFlow(group: FlashcardGroup): Promise<void> {
-    try {
-      const roots = await this.runtime.provideGroupBlockIds(group);
-      if (roots.length === 0) {
-        showMessage(`分组 "${group.name}" 未找到闪卡块`);
-        return;
-      }
-      openDocumentFlow("IdList", roots, `${group.name}-闪卡块查询`);
-    } catch (error) {
-      this.reportError("打开过滤结果失败", error);
-    }
+  public async openFilteredFlow(group: FlashcardGroup): Promise<void> {
+    await openFilteredFlowCards(this, group);
   }
 
-  private async batchPriority(group: FlashcardGroup): Promise<void> {
-    try {
-      const selected = window.prompt("输入优先级标签（P1、P2、P3 或 P4）", "P2")?.trim().toUpperCase();
-      const priority = ({ P1: 100, P2: 75, P3: 50, P4: 25 } as Record<string, number>)[selected ?? ""];
-      if (!priority) return;
-      const preview = await this.runtime.previewBatchPriority(group, priority);
-      if (preview.cards.length === 0) {
-        showMessage(`分组 "${group.name}" 未找到对应的闪卡`);
-        return;
-      }
-      const approved = await new Promise<boolean>((resolve) => {
-        confirm(
-          "批量设置优先级",
-          `将对 ${preview.cards.length} 张卡设置优先级 ${priorityTag(preview.priority)}（${preview.priority}），并同步 Markdown 标签。该操作可能影响已有调度，确认继续？`,
-          () => resolve(true),
-          () => resolve(false),
-        );
-      });
-      if (!approved) return;
-      const result = await this.runtime.applyBatchPriority(group, priority);
-      showMessage(`已处理 ${result.count} 张卡（${result.status === "pending" ? "待运行时同步" : "已提交"}）`, 5000, result.status === "pending" ? "error" : "info");
-    } catch (error) {
-      this.reportError("批量设置优先级失败", error);
-    }
+  public async batchPriority(group: FlashcardGroup): Promise<void> {
+    await batchPriorityFlow(this, group);
   }
 
-  private async openNativeReview(_title: string, due: DueCardsData, scope?: FlashcardReviewScope): Promise<void> {
+  public async openNativeReview(_title: string, due: DueCardsData, scope?: FlashcardReviewScope): Promise<void> {
     const settings = this.runtime.getSettings();
     const orderedDue = await this.orderCardsData(due, settings.maxReviewCards);
     this.reviewTimer?.startSession(orderedDue.cards[0]?.cardID);
