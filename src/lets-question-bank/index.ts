@@ -11,6 +11,7 @@ import {
   openMobileFileById,
   openTab,
   Protyle,
+  showMessage,
   type IEventBusMap,
   type Menu,
 } from "siyuan";
@@ -75,6 +76,14 @@ import {
   setQuestionProgressLoader,
   type QuestionProgress,
 } from "@/lets-topic-relations/topic-relations";
+import {
+  runQuestionIndexSync,
+} from "@/question-bank/application/projection";
+import {
+  listQuestionIndexTargets,
+  markQuestionIndexTarget,
+  unmarkQuestionIndexTarget,
+} from "@/question-bank/application/index-targets";
 
 type PracticeCommand = "previous" | "next" | "pause";
 const log = getLogger("lets-question-bank");
@@ -114,6 +123,41 @@ export default class QuestionBankPlugin extends SubPluginBase {
     event: CustomEvent<IEventBusMap["click-blockicon"]>,
   ): void => {
     this.addLaunchMenuItem(event.detail.menu, launchBlockIdFromElements(event.detail.blockElements));
+  };
+  private readonly handleDatabaseIndexMenu = (
+    event: CustomEvent<IEventBusMap["open-menu-av"]>,
+  ): void => {
+    const target = event.detail.element;
+    const avId = target?.dataset.avId;
+    const blockId = target?.dataset.nodeId;
+    if (!avId || !blockId) return;
+    event.detail.menu.addItem({
+      type: "submenu",
+      icon: "iconDatabase",
+      label: this.t("lets-question-bank.indexMenu"),
+      submenu: [
+        {
+          label: this.t("lets-question-bank.indexMenuSync"),
+          click: () => void this.syncIndexDatabase(blockId, avId),
+        },
+        {
+          label: this.t("lets-question-bank.indexMenuMark"),
+          click: () => {
+            void markQuestionIndexTarget(siyuanKernelClient, blockId, avId, this.projectionOptionsFromSettings())
+              .then(() => showMessage(this.t("lets-question-bank.indexMarkedToast"), 3000, "info"))
+              .catch((error: unknown) => showMessage(String(error), 5000, "error"));
+          },
+        },
+        {
+          label: this.t("lets-question-bank.indexMenuUnmark"),
+          click: () => {
+            void unmarkQuestionIndexTarget(siyuanKernelClient, blockId)
+              .then(() => showMessage(this.t("lets-question-bank.indexUnmarkedToast"), 3000, "info"))
+              .catch((error: unknown) => showMessage(String(error), 5000, "error"));
+          },
+        },
+      ],
+    });
   };
   private readonly handleDocumentTitleMenu = (
     event: CustomEvent<IEventBusMap["click-editortitleicon"]>,
@@ -191,6 +235,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.on("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.on("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.on("open-menu-doctree", this.handleDocumentTreeMenu);
+    plugin.eventBus.on("open-menu-av", this.handleDatabaseIndexMenu);
     plugin.eventBus.on("sync-end", this.handleSyncEnd);
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
     window.addEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, this.handleProgressReadViewUpdated);
@@ -349,6 +394,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     plugin.eventBus.off("click-blockicon", this.handleBlockMenu);
     plugin.eventBus.off("click-editortitleicon", this.handleDocumentTitleMenu);
     plugin.eventBus.off("open-menu-doctree", this.handleDocumentTreeMenu);
+    plugin.eventBus.off("open-menu-av", this.handleDatabaseIndexMenu);
     plugin.eventBus.off("sync-end", this.handleSyncEnd);
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     window.removeEventListener(TINYBASE_READ_VIEW_UPDATED_EVENT, this.handleProgressReadViewUpdated);
@@ -381,6 +427,11 @@ export default class QuestionBankPlugin extends SubPluginBase {
       hotkey: "",
       callback: () => this.dispatchPracticeCommand("pause"),
     });
+    plugin.addCommand({
+      langKey: "lets-question-bank.commandSyncIndex",
+      hotkey: "",
+      callback: () => void this.syncAllIndexDatabases(),
+    });
     this.practiceCommandsRegistered = true;
   }
 
@@ -390,11 +441,68 @@ export default class QuestionBankPlugin extends SubPluginBase {
       "lets-question-bank.commandPrevious",
       "lets-question-bank.commandNext",
       "lets-question-bank.commandPause",
+      "lets-question-bank.commandSyncIndex",
     ]);
     for (let index = plugin.commands.length - 1; index >= 0; index -= 1) {
       if (langKeys.has(plugin.commands[index].langKey)) plugin.commands.splice(index, 1);
     }
     this.practiceCommandsRegistered = false;
+  }
+
+  private projectionOptionsFromSettings(): { pruneStale: boolean; includeUnanswered: boolean } {
+    return {
+      pruneStale: this.getSetting("projectionPruneStaleRows") === true,
+      includeUnanswered: this.getSetting("projectionIncludeUnanswered") !== false,
+    };
+  }
+
+  private reviewThresholdFromSettings(): number {
+    return Number(this.getSetting("reviewThreshold")) || 2;
+  }
+
+  private async syncIndexDatabase(blockId: string, avId?: string): Promise<void> {
+    await this.runIndexSync([{ blockId, avId, label: avId || blockId }]);
+  }
+
+  private async syncAllIndexDatabases(): Promise<void> {
+    const targets: Array<{ blockId: string; avId?: string; label: string }> = [];
+    const settingsTarget = String(this.getSetting("questionIndexProjectionBlockId") ?? "").trim();
+    if (settingsTarget) targets.push({ blockId: settingsTarget, label: settingsTarget });
+    try {
+      const records = await listQuestionIndexTargets(siyuanKernelClient);
+      for (const record of records) {
+        if (targets.some((target) => target.blockId === record.blockId)) continue;
+        targets.push({ blockId: record.blockId, avId: record.mark.avId || undefined, label: record.mark.avId || record.blockId });
+      }
+    } catch (error) {
+      log.warn("question-bank.index-target-list-failed", error);
+    }
+    if (targets.length === 0) {
+      showMessage(this.t("lets-question-bank.indexSyncNoTargets"), 4000, "error");
+      return;
+    }
+    await this.runIndexSync(targets);
+  }
+
+  private async runIndexSync(targets: ReadonlyArray<{ blockId: string; avId?: string; label: string }>): Promise<void> {
+    const outcomes = await runQuestionIndexSync(
+      {
+        client: siyuanKernelClient,
+        loadCatalog: () => this.getTinyBaseCatalogRuntime().loadCatalog(),
+        loadAggregates: () => this.getTinyBaseRuntime().loadAggregates(),
+        reviewThreshold: this.reviewThresholdFromSettings(),
+      },
+      targets.map((target) => ({ ...target, options: this.projectionOptionsFromSettings() })),
+    );
+    const okOutcomes = outcomes.filter((outcome) => outcome.ok);
+    if (okOutcomes.length > 0) {
+      const summary = okOutcomes.map((outcome) => `${outcome.label}: ${outcome.message}`).join("；");
+      showMessage(summary, 6000, "info");
+    }
+    const failures = outcomes.filter((outcome) => !outcome.ok);
+    for (const failure of failures) {
+      showMessage(`${failure.label}: ${failure.message}`, 6000, "error");
+    }
   }
 
   private getTinyBaseRuntime(): TinyBaseRuntime {

@@ -80,6 +80,8 @@
   export let checkMappingTarget: any;
   export let syncMappingTarget: any;
   export let setMappingTarget: any;
+  export let markedIndexTargets: Array<{ blockId: string; avId?: string }> = [];
+  export let refreshMarkedIndexTargets: any = undefined;
   export let selectView: any;
   export let questionCatalog: any[];
   export let sourceDocuments: any[];
@@ -422,6 +424,8 @@
         checkTarget={checkMappingTarget}
         syncTarget={syncMappingTarget}
         onTargetInput={setMappingTarget}
+        {markedIndexTargets}
+        refreshTargets={refreshMarkedIndexTargets}
       />
     {:else if view === "statistics" && !currentQuestion && !practiceRuntime && !complete}
       <Statistics

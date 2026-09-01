@@ -131,4 +131,99 @@ describe("projectQuestionIndex", () => {
     expect(questionValues).toHaveLength(1);
     expect(questionValues[0].text?.content).toBe("q-answered");
   });
+
+  it("writes all cells of a row through the batch endpoint", async () => {
+    const kernel = new MockKernelClient();
+    await kernel.request("/api/av/renderAttributeView", {
+      id: avId, blockID: blockId, viewID: "", page: 1, pageSize: 1,
+      query: "", groupPaging: {}, createIfNotExist: true,
+    });
+
+    await projectQuestionIndex(kernel, { avId, blockId }, [question()], new Map());
+    expect(kernel.requests.some((r) => r.endpoint === "/api/av/batchSetAttributeViewBlockAttrs")).toBe(true);
+    expect(kernel.requests.filter((r) => r.endpoint === "/api/av/setAttributeViewBlockAttr")).toHaveLength(0);
+  });
+
+  it("reports rows without a primary-key value as orphans and rebuilds them", async () => {
+    const kernel = new MockKernelClient();
+    await kernel.request("/api/av/renderAttributeView", {
+      id: avId, blockID: blockId, viewID: "", page: 1, pageSize: 1,
+      query: "", groupPaging: {}, createIfNotExist: true,
+    });
+
+    const q = question();
+    await projectQuestionIndex(kernel, { avId, blockId }, [q], new Map());
+
+    // Simulate kernel-side corruption: the row keeps its Question ID value but loses its primary-key value.
+    const av = kernel.attributeViews.get(avId)!;
+    const primary = av.keyValues.find((kv) => kv.key.type === "block")!;
+    expect(primary.values).toHaveLength(1);
+    primary.values = [];
+
+    const second = await projectQuestionIndex(kernel, { avId, blockId }, [q], new Map());
+    expect(second.added).toBe(1);
+    expect(second.orphanRows).toBe(1);
+    const avAfter = await kernel.request<any>("/api/av/getAttributeView", { id: avId });
+    const primaryAfter = (avAfter.av?.keyValues ?? avAfter.keyValues).find((kv: any) => kv.key.type === "block");
+    expect(primaryAfter.values).toHaveLength(1);
+    const primaryRowId = primaryAfter.values[0].blockID;
+    const questionValues = (avAfter.av?.keyValues ?? avAfter.keyValues).find((kv: any) => kv.key.name === "Question ID")?.values;
+    const rebuilt = questionValues.find((value: any) => value.blockID === primaryRowId);
+    expect(rebuilt?.text?.content).toBe(q.questionId);
+  });
+
+  it("prunes orphan rows when pruneStale is enabled", async () => {
+    const kernel = new MockKernelClient();
+    await kernel.request("/api/av/renderAttributeView", {
+      id: avId, blockID: blockId, viewID: "", page: 1, pageSize: 1,
+      query: "", groupPaging: {}, createIfNotExist: true,
+    });
+
+    const q = question();
+    await projectQuestionIndex(kernel, { avId, blockId }, [q], new Map());
+    const av = kernel.attributeViews.get(avId)!;
+    const primary = av.keyValues.find((kv) => kv.key.type === "block")!;
+    const orphanRowId = primary.values[0].blockID;
+    primary.values = [];
+
+    const pruned = await projectQuestionIndex(kernel, { avId, blockId }, [q], new Map(), 2, { pruneStale: true });
+    expect(pruned.deleted).toBe(1);
+    expect(pruned.orphanRows).toBe(1);
+    const avAfter = await kernel.request<any>("/api/av/getAttributeView", { id: avId });
+    for (const keyValues of (avAfter.av?.keyValues ?? avAfter.keyValues)) {
+      for (const value of keyValues.values ?? []) {
+        expect(value.blockID).not.toBe(orphanRowId);
+      }
+    }
+  });
+
+  it("keeps syncing when one row fails to write and reports the failure", async () => {
+    const kernel = new MockKernelClient();
+    await kernel.request("/api/av/renderAttributeView", {
+      id: avId, blockID: blockId, viewID: "", page: 1, pageSize: 1,
+      query: "", groupPaging: {}, createIfNotExist: true,
+    });
+
+    const q1: QuestionCatalogEntry = { ...question(), questionId: "q-broken", blockId: "20260820120002-broken1", questionTitle: "创建失败的题目" };
+    const q2: QuestionCatalogEntry = { ...question(), questionId: "q-ok", blockId: "20260820120002-ok00001" };
+    const client: SiyuanKernelClient = {
+      async request<T>(endpoint: string, payload: any): Promise<T> {
+        if (endpoint === "/api/av/addAttributeViewBlocks") {
+          if (payload.srcs?.some((source: { content?: string }) => source.content === "创建失败的题目")) {
+            throw new Error("kernel rejected the row");
+          }
+        }
+        return kernel.request<T>(endpoint, payload);
+      },
+    };
+
+    const result = await projectQuestionIndex(client, { avId, blockId }, [q1, q2], new Map());
+    expect(result.added).toBe(1);
+    expect(result.failedRows).toBe(1);
+
+    const av = await kernel.request<any>("/api/av/getAttributeView", { id: avId });
+    const questionValues = (av.av?.keyValues ?? av.keyValues).find((kv: any) => kv.key.name === "Question ID")?.values;
+    expect(questionValues.map((value: any) => value.text?.content)).toContain("q-ok");
+    expect(questionValues.map((value: any) => value.text?.content)).not.toContain("q-broken");
+  });
 });

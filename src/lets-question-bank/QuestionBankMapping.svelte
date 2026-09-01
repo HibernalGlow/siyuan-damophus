@@ -14,17 +14,32 @@
   export let onPruneStaleChange: ((value: boolean) => void) | undefined = undefined;
   export let includeUnanswered = true;
   export let onIncludeUnansweredChange: ((value: boolean) => void) | undefined = undefined;
+  export let markedIndexTargets: Array<{ blockId: string; avId?: string }> = [];
+  export let refreshTargets: (() => void) | undefined = undefined;
 </script>
 
 <section class="mapping min-h-0 flex-1 overflow-y-auto" data-testid="question-bank-mapping">
   <header class="mapping-header">
     <div>
       <h2>{label("dataMapping", "数据映射")}</h2>
-      <p>{label("dataMappingDescription", "将题库统计单向投射到一个已有的思源属性视图。")}</p>
+      <p>{label("dataMappingDescription", "将题库统计单向投射到一个已有的思源属性视图。选中数据库块即可自动标记，也可在任意数据库块右键菜单中标记或同步，无需打开题库。")}</p>
     </div>
     <Database size={22} aria-hidden="true" />
   </header>
   <div class="mapping-panel">
+    {#if markedIndexTargets.length > 0}
+      <div class="mapping-marked">
+        <span class="mapping-marked-title">{label("markedIndexDatabases", "已标记的索引数据库")}</span>
+        <div class="mapping-marked-list">
+          {#each markedIndexTargets as target (target.blockId)}
+            <code class="mapping-marked-chip" title={target.blockId}>{target.avId || target.blockId}</code>
+          {/each}
+        </div>
+        {#if refreshTargets}
+          <Button variant="ghost" class="mapping-marked-refresh" onclick={refreshTargets}><RefreshCw size={13} aria-hidden="true" />{label("refreshMarkedList", "刷新")}</Button>
+        {/if}
+      </div>
+    {/if}
     <label for="question-index-target">{label("questionIndexTarget", "Question Index 目标")}</label>
     <div class="mapping-row">
       <input id="question-index-target" value={targetBlockId} placeholder="20260819123456-abcdefg" oninput={(event) => onTargetInput((event.currentTarget as HTMLInputElement).value)} />
@@ -67,6 +82,11 @@
   label { display: block; font-size: 12px; font-weight: 600; }
   input { min-width: 0; flex: 1; border: 1px solid var(--b3-border-color); background: var(--b3-theme-background); color: var(--b3-theme-on-background); padding: 8px 10px; }
   .mapping-row, .mapping-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .mapping-marked { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 12px; border: 1px dashed var(--b3-border-color); }
+  .mapping-marked-title { font-size: 12px; font-weight: 600; }
+  .mapping-marked-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mapping-marked-chip { font-size: 11px; padding: 2px 8px; border: 1px solid var(--b3-border-color); background: var(--b3-theme-background); color: var(--b3-theme-on-background); }
+  .mapping-marked-refresh { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 6px; }
   .mapping-options { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
   .mapping-option-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: normal; cursor: pointer; user-select: none; }
   .mapping-option-label input[type="checkbox"] { width: auto; flex: none; cursor: pointer; margin: 0; }

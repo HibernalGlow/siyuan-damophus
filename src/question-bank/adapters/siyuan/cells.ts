@@ -81,3 +81,20 @@ export async function setAttributeViewCell(
 ): Promise<void> {
   await client.request("/api/av/setAttributeViewBlockAttr", { avID, keyID, itemID, value });
 }
+
+export interface AttributeViewCellWrite {
+  keyId: string;
+  itemId: string;
+  value: AttributeViewCellInput;
+}
+
+export async function setAttributeViewCells(
+  client: SiyuanKernelClient,
+  avID: string,
+  cells: readonly AttributeViewCellWrite[],
+): Promise<void> {
+  await client.request("/api/av/batchSetAttributeViewBlockAttrs", {
+    avID,
+    values: cells.map(({ keyId, itemId, value }) => ({ keyID: keyId, itemID: itemId, value })),
+  });
+}

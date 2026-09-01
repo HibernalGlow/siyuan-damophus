@@ -1,6 +1,14 @@
 import type { AttemptAggregate } from "../core/types";
 import type { QuestionCatalogEntry } from "../assembly";
-import { numberCell, selectCell, setAttributeViewCell, textCell, dateCell } from "../adapters/siyuan/cells";
+import {
+  numberCell,
+  selectCell,
+  setAttributeViewCell,
+  setAttributeViewCells,
+  textCell,
+  dateCell,
+  type AttributeViewCellWrite,
+} from "../adapters/siyuan/cells";
 import { readAttributeView } from "../adapters/siyuan/binding";
 import type { SiyuanKernelClient, AttributeViewKeyType } from "../adapters/siyuan/types";
 
@@ -14,6 +22,10 @@ export interface QuestionIndexProjectionResult {
   updated: number;
   deleted: number;
   columns: number;
+  /** Rows whose cell writes failed; the sync kept going for the remaining rows. */
+  failedRows?: number;
+  /** Rows carrying a Question ID value but no primary-key value, so the kernel rejects any cell write ("item not found"). */
+  orphanRows?: number;
 }
 
 const columns = [
@@ -66,16 +78,20 @@ export async function projectQuestionIndex(
     addedColumns += 1;
   }
   const refreshed = await readAttributeView(client, target.avId);
-  const primaryValues = refreshed.keyValues.find((entry) => entry.key.type === "block")?.values ?? [];
-  const primaryValuesByItem = new Map(primaryValues.map((v) => [v.blockID, v]));
+  const blockKeyValues = refreshed.keyValues.find((entry) => entry.key.type === "block")?.values ?? [];
+  // The kernel refuses any cell write for a row without a primary-key value ("item not found"),
+  // so only rows present in the block key are writable; the rest are orphans to report or prune.
+  const writableItems = new Set(blockKeyValues.map((value) => value.blockID));
+  const primaryValuesByItem = new Map(blockKeyValues.map((value) => [value.blockID, value]));
   const questionValues = refreshed.keyValues.find((entry) => entry.key.id === keys.question_id.id)?.values ?? [];
   const validQuestionIds = new Set(targetQuestions.map((q) => q.questionId));
   const rowByQuestion = new Map<string, string>();
   const staleItemIds: string[] = [];
+  const orphanItemIds = new Set<string>();
 
   for (const value of questionValues) {
     const qId = valueText(value).trim();
-    if (qId && validQuestionIds.has(qId)) {
+    if (qId && validQuestionIds.has(qId) && writableItems.has(value.blockID)) {
       if (!rowByQuestion.has(qId)) {
         rowByQuestion.set(qId, value.blockID);
       } else {
@@ -83,6 +99,7 @@ export async function projectQuestionIndex(
       }
     } else {
       staleItemIds.push(value.blockID);
+      if (qId && validQuestionIds.has(qId)) orphanItemIds.add(value.blockID);
     }
   }
 
@@ -105,75 +122,234 @@ export async function projectQuestionIndex(
 
   let added = 0;
   let updated = 0;
+  let failedRows = 0;
+  const knownItemIds = new Set(blockKeyValues.map((value) => value.blockID));
   for (const question of targetQuestions) {
-    let itemId = rowByQuestion.get(question.questionId);
-    if (!itemId) {
-      if (question.blockId && /^\d{14}-[a-z0-9]{7}$/u.test(question.blockId)) {
-        try {
+    const isNewRow = !rowByQuestion.has(question.questionId);
+    try {
+      let itemId = rowByQuestion.get(question.questionId);
+      if (!itemId) {
+        if (question.blockId && /^\d{14}-[a-z0-9]{7}$/u.test(question.blockId)) {
+          try {
+            await client.request("/api/av/addAttributeViewBlocks", {
+              avID: target.avId, blockID: target.blockId, viewID: "", groupID: "", previousID: "",
+              srcs: [{ id: question.blockId, isDetached: false, content: question.questionTitle ?? question.questionId }],
+              ignoreDefaultFill: true,
+            });
+            const ids = await client.request<Record<string, string>>("/api/av/getAttributeViewItemIDsByBoundIDs", {
+              avID: target.avId, blockIDs: [question.blockId],
+            });
+            itemId = ids?.[question.blockId] || undefined;
+            if (itemId) knownItemIds.add(itemId);
+          } catch {
+            // Fall back to detached row
+          }
+        }
+        if (!itemId) {
+          itemId = id();
+          const detachedContent = question.questionTitle ?? question.questionId;
           await client.request("/api/av/addAttributeViewBlocks", {
             avID: target.avId, blockID: target.blockId, viewID: "", groupID: "", previousID: "",
-            srcs: [{ id: question.blockId, isDetached: false, content: question.questionTitle ?? question.questionId }],
+            srcs: [{ itemID: itemId, id: itemId, isDetached: true, content: detachedContent }],
             ignoreDefaultFill: true,
           });
-          const ids = await client.request<Record<string, string>>("/api/av/getAttributeViewItemIDsByBoundIDs", {
-            avID: target.avId, blockIDs: [question.blockId],
-          });
-          itemId = ids?.[question.blockId];
-        } catch {
-          // Fall back to detached row
+          itemId = await verifyDetachedRowId(client, target.avId, itemId, detachedContent, knownItemIds);
+        }
+      } else {
+        const primaryValue = primaryValuesByItem.get(itemId);
+        if (
+          question.blockId &&
+          /^\d{14}-[a-z0-9]{7}$/u.test(question.blockId) &&
+          primaryValue &&
+          (primaryValue.isDetached || !primaryValue.block?.id || primaryValue.block?.id !== question.blockId)
+        ) {
+          await client.request("/api/transactions", {
+            session: "siyuan-damophus",
+            app: "siyuan-damophus",
+            reqId: Date.now(),
+            transactions: [{
+              doOperations: [{
+                action: "replaceAttrViewBlock",
+                avID: target.avId,
+                previousID: itemId,
+                nextID: question.blockId,
+              }],
+              undoOperations: [],
+            }],
+          }).catch(() => undefined);
         }
       }
-      if (!itemId) {
-        itemId = id();
-        await client.request("/api/av/addAttributeViewBlocks", {
-          avID: target.avId, blockID: target.blockId, viewID: "", groupID: "", previousID: "",
-          srcs: [{ itemID: itemId, id: itemId, isDetached: true, content: question.questionTitle ?? question.questionId }],
-          ignoreDefaultFill: true,
-        });
+      const aggregate = aggregates.get(question.questionId);
+      const attempts = aggregate?.attempts ?? 0;
+      const correct = aggregate?.objectiveCorrect ?? 0;
+      const objectiveAttempts = aggregate?.objectiveAttempts ?? 0;
+      const accuracy = objectiveAttempts ? Math.round((correct / objectiveAttempts) * 1000) / 10 : 0;
+      const cells: AttributeViewCellWrite[] = [
+        { keyId: keys.question_id.id, itemId, value: textCell(question.questionId) },
+        { keyId: keys.title.id, itemId, value: textCell(question.questionTitle) },
+        { keyId: keys.status.id, itemId, value: selectCell(attempts ? "已作答" : "未作答") },
+        { keyId: keys.attempts.id, itemId, value: numberCell(attempts) },
+        { keyId: keys.correct.id, itemId, value: numberCell(correct) },
+        { keyId: keys.accuracy.id, itemId, value: numberCell(accuracy) },
+        { keyId: keys.needs_review.id, itemId, value: { type: "checkbox", checkbox: { checked: (aggregate?.consecutiveReviewCount ?? 0) >= reviewThreshold } } },
+        { keyId: keys.latest_rating.id, itemId, value: selectCell(aggregate?.latestRating) },
+        { keyId: keys.last_answered_at.id, itemId, value: dateCell(aggregate?.lastAnsweredAt ? Date.parse(aggregate.lastAnsweredAt) : undefined) },
+      ];
+      try {
+        await setAttributeViewCells(client, target.avId, cells);
+      } catch {
+        // Older kernels without the batch endpoint: fall back to per-cell writes.
+        await Promise.all(cells.map((cell) => setAttributeViewCell(client, target.avId, cell.keyId, cell.itemId, cell.value)));
       }
-      added += 1;
-    } else {
-      const primaryValue = primaryValuesByItem.get(itemId);
-      if (
-        question.blockId &&
-        /^\d{14}-[a-z0-9]{7}$/u.test(question.blockId) &&
-        primaryValue &&
-        (primaryValue.isDetached || !primaryValue.block?.id || primaryValue.block?.id !== question.blockId)
-      ) {
-        await client.request("/api/transactions", {
-          session: "siyuan-damophus",
-          app: "siyuan-damophus",
-          reqId: Date.now(),
-          transactions: [{
-            doOperations: [{
-              action: "replaceAttrViewBlock",
-              avID: target.avId,
-              previousID: itemId,
-              nextID: question.blockId,
-            }],
-            undoOperations: [],
-          }],
-        }).catch(() => undefined);
-      }
-      updated += 1;
+      if (isNewRow) added += 1;
+      else updated += 1;
+    } catch {
+      failedRows += 1;
     }
-    const aggregate = aggregates.get(question.questionId);
-    const attempts = aggregate?.attempts ?? 0;
-    const correct = aggregate?.objectiveCorrect ?? 0;
-    const objectiveAttempts = aggregate?.objectiveAttempts ?? 0;
-    const accuracy = objectiveAttempts ? Math.round((correct / objectiveAttempts) * 1000) / 10 : 0;
-    const values = [
-      [keys.question_id, textCell(question.questionId)],
-      [keys.title, textCell(question.questionTitle)],
-      [keys.status, selectCell(attempts ? "已作答" : "未作答")],
-      [keys.attempts, numberCell(attempts)],
-      [keys.correct, numberCell(correct)],
-      [keys.accuracy, numberCell(accuracy)],
-      [keys.needs_review, { type: "checkbox", checkbox: { checked: (aggregate?.consecutiveReviewCount ?? 0) >= reviewThreshold } }],
-      [keys.latest_rating, selectCell(aggregate?.latestRating)],
-      [keys.last_answered_at, dateCell(aggregate?.lastAnsweredAt ? Date.parse(aggregate.lastAnsweredAt) : undefined)],
-    ] as const;
-    await Promise.all(values.map(([key, value]) => setAttributeViewCell(client, target.avId, key.id, itemId, value)));
   }
-  return { added, updated, deleted, columns: addedColumns };
+  return {
+    added,
+    updated,
+    deleted,
+    columns: addedColumns,
+    failedRows: failedRows || undefined,
+    orphanRows: orphanItemIds.size || undefined,
+  };
+}
+
+async function verifyDetachedRowId(
+  client: SiyuanKernelClient,
+  avId: string,
+  preferredId: string,
+  expectedContent: string,
+  knownItemIds: Set<string>,
+): Promise<string> {
+  const av = await readAttributeView(client, avId);
+  const blockValues = av.keyValues.find((entry) => entry.key.type === "block")?.values ?? [];
+  if (blockValues.some((value) => value.blockID === preferredId)) {
+    knownItemIds.add(preferredId);
+    return preferredId;
+  }
+  // The kernel generated its own row ID: adopt the row with the expected content,
+  // or whatever appeared since the last read as a last resort.
+  const byContent = blockValues.find((value) => value.block?.content === expectedContent && !knownItemIds.has(value.blockID));
+  const adopted = byContent ?? blockValues.find((value) => !knownItemIds.has(value.blockID));
+  if (adopted) {
+    knownItemIds.add(adopted.blockID);
+    return adopted.blockID;
+  }
+  knownItemIds.add(preferredId);
+  return preferredId;
+}
+
+export interface QuestionIndexSyncDeps {
+  client: SiyuanKernelClient;
+  loadCatalog: () => Promise<QuestionCatalogEntry[]>;
+  loadAggregates: () => Promise<ReadonlyMap<string, AttemptAggregate>>;
+  reviewThreshold?: number;
+}
+
+export interface QuestionIndexSyncTarget {
+  blockId: string;
+  avId?: string;
+  label?: string;
+  options?: QuestionIndexProjectionOptions;
+}
+
+export interface QuestionIndexSyncOutcome {
+  label: string;
+  ok: boolean;
+  message: string;
+  result?: QuestionIndexProjectionResult;
+}
+
+export interface QuestionIndexSyncHooks {
+  onProgress?: (message: string) => void;
+  includeUnanswered?: boolean;
+  pruneStale?: boolean;
+}
+
+export function describeProjectionResult(result: QuestionIndexProjectionResult): string {
+  const parts = [`新增 ${result.added}`, `更新 ${result.updated}`];
+  if (result.deleted) parts.push(`删除失效 ${result.deleted}`);
+  if (result.columns) parts.push(`补充列 ${result.columns}`);
+  if (result.orphanRows) parts.push(`孤立行 ${result.orphanRows}（开启“删除失效数据行”可清理）`);
+  if (result.failedRows) parts.push(`失败 ${result.failedRows}`);
+  return parts.join("，");
+}
+
+export async function runQuestionIndexSync(
+  deps: QuestionIndexSyncDeps,
+  targets: readonly QuestionIndexSyncTarget[],
+  hooks: QuestionIndexSyncHooks = {},
+): Promise<QuestionIndexSyncOutcome[]> {
+  const outcomes: QuestionIndexSyncOutcome[] = [];
+  for (const target of targets) {
+    const label = target.label ?? target.blockId;
+    try {
+      if (!target.avId) {
+        const resolved = await resolveMappingTarget(deps.client, target.blockId);
+        target.avId = resolved.avId;
+        target.blockId = resolved.blockId;
+      }
+      hooks.onProgress?.(`正在同步 ${label}...`);
+      const [catalog, aggregates] = await Promise.all([deps.loadCatalog(), deps.loadAggregates()]);
+      const result = await projectQuestionIndex(
+        deps.client,
+        { avId: target.avId, blockId: target.blockId },
+        catalog,
+        aggregates,
+        deps.reviewThreshold ?? 2,
+        target.options ?? {
+          pruneStale: hooks.pruneStale,
+          includeUnanswered: hooks.includeUnanswered ?? true,
+        },
+      );
+      outcomes.push({ label, ok: true, message: describeProjectionResult(result), result });
+    } catch (error) {
+      outcomes.push({ label, ok: false, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return outcomes;
+}
+
+export async function resolveMappingTarget(
+  client: SiyuanKernelClient,
+  id: string,
+): Promise<{ avId: string; blockId: string; name?: string; resolvedId: string }> {
+  const escapedId = id.replace(/'/gu, "''");
+  const rows = await client.request<Array<{ id?: string; type?: string; content?: string }>>("/api/query/sql", {
+    stmt: `SELECT id, type, content FROM blocks WHERE id = '${escapedId}' LIMIT 1`,
+  });
+  const row = rows[0];
+  const attrs = row
+    ? await client.request<Record<string, string>>("/api/attr/getBlockAttrs", { id }).catch(() => ({}))
+    : {};
+  const candidates = [
+    id,
+    attrs["custom-sy-av-id"],
+    attrs["custom-sy-av-view"],
+    row?.content?.match(/(?:custom-sy-av-id|custom-sy-av-view)=["']([^"']+)["']/u)?.[1],
+  ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
+  let resolved: { id?: string; name?: string } | undefined;
+  let resolvedId = "";
+  for (const candidate of candidates) {
+    try {
+      const response = await client.request<{ av?: { id?: string; name?: string } }>("/api/av/getAttributeView", { id: candidate });
+      if (response?.av?.id) {
+        resolved = response.av;
+        resolvedId = candidate;
+        break;
+      }
+    } catch {
+      // Try the next interpretation: database ID, then containing block ID metadata.
+    }
+  }
+  if (!resolved?.id) throw new Error("未找到属性视图数据库；请输入数据库 ID 或数据库块 ID");
+  const escapedAvId = resolved.id.replace(/'/gu, "''");
+  const targetBlock = row?.id ?? (await client.request<Array<{ id?: string }>>("/api/query/sql", {
+    stmt: `SELECT id FROM blocks WHERE ial LIKE '%${escapedAvId}%' OR markdown LIKE '%${escapedAvId}%' LIMIT 1`,
+  }))[0]?.id;
+  if (!targetBlock) throw new Error("已找到数据库，但找不到对应的数据库块；请改填数据库块 ID");
+  return { avId: resolved.id, blockId: String(targetBlock), name: resolved.name, resolvedId };
 }

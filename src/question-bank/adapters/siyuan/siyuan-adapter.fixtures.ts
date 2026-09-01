@@ -260,6 +260,31 @@ export class MockKernelClient implements SiyuanKernelClient {
       }
       return { value } as T;
     }
+    if (endpoint === "/api/av/batchSetAttributeViewBlockAttrs") {
+      const av = this.requireAv(payload.avID);
+      const primary = av.keyValues.find((value) => value.key.type === "block")!;
+      for (const entry of payload.values) {
+        if (this.failNextCellWrite) {
+          this.failNextCellWrite = false;
+          throw new Error("cell write failed");
+        }
+        if (!primary.values.some((value) => value.blockID === entry.itemID)) {
+          throw new Error(`item not found`);
+        }
+        const keyValues = av.keyValues.find((value) => value.key.id === entry.keyID);
+        if (!keyValues) throw new Error(`Key not found: ${entry.keyID}`);
+        const value: AttributeViewValue = keyValues.values.find(
+          (item) => item.blockID === entry.itemID,
+        ) ?? {
+          keyID: entry.keyID,
+          blockID: entry.itemID,
+          type: entry.value.type,
+        };
+        Object.assign(value, entry.value);
+        if (!keyValues.values.includes(value)) keyValues.values.push(value);
+      }
+      return null as T;
+    }
     if (endpoint === "/api/av/removeAttributeViewBlocks") {
       const av = this.requireAv(payload.avID);
       for (const keyValues of av.keyValues) {

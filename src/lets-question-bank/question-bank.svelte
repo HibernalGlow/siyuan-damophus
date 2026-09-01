@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { sql, type BlockBreadcrumbItem } from "@/api";
+  import { type BlockBreadcrumbItem } from "@/api";
   import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
   import { normalizeBreadcrumbTextDisplay, type BreadcrumbTextDisplay, type BreadcrumbOverflowPriority } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
   import { getLogger } from "@/libs/logger";
@@ -21,7 +21,16 @@
     QuestionBookmark,
   } from "@/question-bank/core/types";
   import { buildStatistics, type StatisticsQuestion, type StatisticsRange, type StatisticsSnapshot, type StatisticsSort } from "@/question-bank/core/statistics";
-  import { projectQuestionIndex } from "@/question-bank/application/projection";
+  import {
+    describeProjectionResult,
+    resolveMappingTarget,
+    runQuestionIndexSync,
+    type QuestionIndexSyncTarget,
+  } from "@/question-bank/application/projection";
+  import {
+    listQuestionIndexTargets,
+    markQuestionIndexTarget,
+  } from "@/question-bank/application/index-targets";
   import {
     normalizeSubjectQuestionTotals,
     normalizeStatisticsLayout,
@@ -246,6 +255,7 @@
   let pruneStaleMappingRows = Boolean(controller.getSetting?.("projectionPruneStaleRows") ?? false);
   let includeUnansweredMappingRows = Boolean(controller.getSetting?.("projectionIncludeUnanswered") ?? true);
   let mappingTarget: { avId: string; blockId: string } | undefined;
+  let markedIndexTargets: Array<{ blockId: string; avId?: string }> = [];
 
   function setPruneStaleMappingRows(value: boolean): void {
     pruneStaleMappingRows = value;
@@ -262,12 +272,36 @@
     controller.setSetting?.("questionIndexProjectionBlockId", value.trim());
   }
 
-  function selectCurrentMappingTarget(): void {
+  async function refreshMarkedIndexTargets(): Promise<void> {
+    try {
+      const records = await listQuestionIndexTargets(siyuanKernelClient);
+      markedIndexTargets = records.map((record) => ({ blockId: record.blockId, avId: record.mark.avId || undefined }));
+    } catch {
+      markedIndexTargets = [];
+    }
+  }
+
+  function projectionOptions() {
+    return {
+      pruneStale: pruneStaleMappingRows,
+      includeUnanswered: includeUnansweredMappingRows,
+    };
+  }
+
+  async function selectCurrentMappingTarget(): Promise<void> {
     const selected = document.querySelector<HTMLElement>('.protyle-wysiwyg--select[data-node-id][data-type="NodeAttributeView"], .protyle-wysiwyg [data-node-id].protyle-wysiwyg--select[data-type="NodeAttributeView"]');
     if (!selected) { mappingStatus = "error"; mappingMessage = "未找到选中的属性视图块"; return; }
-    setMappingTarget(selected.dataset.nodeId ?? "");
+    const blockId = selected.dataset.nodeId ?? "";
+    setMappingTarget(blockId);
     mappingStatus = "idle";
-    mappingMessage = "已选择目标，点击检查连接";
+    try {
+      const resolved = await resolveMappingTarget(siyuanKernelClient, blockId);
+      await markQuestionIndexTarget(siyuanKernelClient, resolved.blockId, resolved.avId, projectionOptions());
+      mappingMessage = `已选择并标记为索引数据库：${resolved.name || resolved.avId}，后续可直接右键该数据库同步`;
+    } catch {
+      mappingMessage = "已选择目标，点击检查连接";
+    }
+    void refreshMarkedIndexTargets();
   }
 
   async function checkMappingTarget(): Promise<boolean> {
@@ -275,40 +309,10 @@
     if (!id) return false;
     mappingStatus = "checking";
     try {
-      const escapedId = id.replace(/'/gu, "''");
-      const rows = await sql(`SELECT id, type, content FROM blocks WHERE id = '${escapedId}' LIMIT 1`);
-      const row = rows[0] as { id?: string; type?: string; content?: string } | undefined;
-      const attrs = row
-        ? await siyuanKernelClient.request<Record<string, string>>("/api/attr/getBlockAttrs", { id })
-          .catch(() => ({}))
-        : {};
-      const candidates = [
-        id,
-        attrs["custom-sy-av-id"],
-        attrs["custom-sy-av-view"],
-        row?.content?.match(/(?:custom-sy-av-id|custom-sy-av-view)=["']([^"']+)["']/u)?.[1],
-      ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
-      let resolved: { id?: string; name?: string } | undefined;
-      let resolvedId = "";
-      for (const candidate of candidates) {
-        try {
-          const response = await siyuanKernelClient.request<{ av?: { id?: string; name?: string } }>("/api/av/getAttributeView", { id: candidate });
-          if (response?.av?.id) {
-            resolved = response.av;
-            resolvedId = candidate;
-            break;
-          }
-        } catch {
-          // Try the next interpretation: database ID, then containing block ID metadata.
-        }
-      }
-      if (!resolved?.id) throw new Error("未找到属性视图数据库；请输入数据库 ID 或数据库块 ID");
-      const escapedAvId = resolved.id.replace(/'/gu, "''");
-      const targetBlock = row?.id ?? (await sql(`SELECT id FROM blocks WHERE ial LIKE '%${escapedAvId}%' OR markdown LIKE '%${escapedAvId}%' LIMIT 1`))[0]?.id;
-      if (!targetBlock) throw new Error("已找到数据库，但找不到对应的数据库块；请改填数据库块 ID");
-      mappingTarget = { avId: resolved.id, blockId: String(targetBlock) };
+      const resolved = await resolveMappingTarget(siyuanKernelClient, id);
+      mappingTarget = { avId: resolved.avId, blockId: resolved.blockId };
       mappingStatus = "ready";
-      mappingMessage = `连接正常：${resolved.name || resolved.id}${row ? ` · 块 ${row.id}` : ` · ID ${resolvedId}`}`;
+      mappingMessage = `连接正常：${resolved.name || resolved.avId} · 块 ${resolved.blockId}`;
       return true;
     } catch (error) {
       mappingStatus = "error";
@@ -318,9 +322,9 @@
   }
 
   async function syncMappingTarget(): Promise<void> {
-    if (!questionIndexProjectionBlockId) {
+    if (!questionIndexProjectionBlockId && markedIndexTargets.length === 0) {
       mappingStatus = "error";
-      mappingMessage = "请先指定 Question Index 目标";
+      mappingMessage = "请先指定 Question Index 目标，或右键数据库块标记索引";
       return;
     }
 
@@ -338,27 +342,64 @@
     mappingStatus = "syncing";
     mappingMessage = "正在检查目标数据库连接...";
     try {
-      if (!await checkMappingTarget()) return;
-      if (!mappingTarget || !controller.loadQuestionCatalog) throw new Error("当前题库没有可执行的索引同步上下文");
-      mappingMessage = "正在读取题库与作答统计...";
-      const [catalog, aggregates] = await Promise.all([
-        controller.loadQuestionCatalog(),
-        controller.loadAggregates(),
-      ]);
-      const targetCount = includeUnansweredMappingRows
-        ? catalog.length
-        : catalog.filter((q) => (aggregates.get(q.questionId)?.attempts ?? 0) > 0).length;
-      mappingMessage = `正在向数据库投射数据（共 ${targetCount} 道题）...`;
-      const result = await projectQuestionIndex(siyuanKernelClient, mappingTarget, catalog, aggregates, reviewThreshold, {
-        pruneStale: pruneStaleMappingRows,
-        includeUnanswered: includeUnansweredMappingRows,
-      });
+      const targets: QuestionIndexSyncTarget[] = [];
+      if (questionIndexProjectionBlockId) {
+        if (!await checkMappingTarget()) return;
+        targets.push({
+          blockId: mappingTarget!.blockId,
+          avId: mappingTarget!.avId,
+          label: questionIndexProjectionBlockId,
+          options: projectionOptions(),
+        });
+      }
+      for (const marked of markedIndexTargets) {
+        if (questionIndexProjectionBlockId && marked.blockId === mappingTarget?.blockId) continue;
+        targets.push({ blockId: marked.blockId, avId: marked.avId, label: marked.avId || marked.blockId, options: projectionOptions() });
+      }
+      if (targets.length === 0) {
+        mappingStatus = "error";
+        mappingMessage = "没有可同步的目标数据库";
+        return;
+      }
+      const outcomes = await runQuestionIndexSync(
+        {
+          client: siyuanKernelClient,
+          loadCatalog: () => {
+            if (!controller.loadQuestionCatalog) throw new Error("当前题库没有可执行的索引同步上下文");
+            return controller.loadQuestionCatalog();
+          },
+          loadAggregates: () => controller.loadAggregates(),
+          reviewThreshold,
+        },
+        targets,
+        { onProgress: (message) => { mappingMessage = message; } },
+      );
+      const okOutcomes = outcomes.filter((outcome) => outcome.ok);
+      if (okOutcomes.length === 0) {
+        mappingStatus = "error";
+        mappingMessage = outcomes.map((outcome) => `${outcome.label}: ${outcome.message}`).join("；");
+        return;
+      }
+      const totals = okOutcomes.reduce((acc, outcome) => ({
+        added: acc.added + (outcome.result?.added ?? 0),
+        updated: acc.updated + (outcome.result?.updated ?? 0),
+        deleted: acc.deleted + (outcome.result?.deleted ?? 0),
+        columns: acc.columns + (outcome.result?.columns ?? 0),
+      }), { added: 0, updated: 0, deleted: 0, columns: 0 });
+      const detail = okOutcomes.length === 1
+        ? describeProjectionResult(okOutcomes[0].result!)
+        : targets.map((target, index) => `${target.label}: ${outcomes[index].message}`).join("；");
       mappingStatus = "success";
-      mappingMessage = `同步完成：新增 ${result.added}，更新 ${result.updated}${result.deleted ? `，删除失效 ${result.deleted}` : ""}，补充列 ${result.columns}`;
+      mappingMessage = `同步完成（${targets.length} 个库）：新增 ${totals.added}，更新 ${totals.updated}${totals.deleted ? `，删除失效 ${totals.deleted}` : ""} —— ${detail}`;
+      const failures = outcomes.filter((outcome) => !outcome.ok);
+      if (failures.length > 0) {
+        mappingMessage += `；失败: ${failures.map((outcome) => `${outcome.label}: ${outcome.message}`).join("；")}`;
+      }
     } catch (error) {
       mappingStatus = "error";
       mappingMessage = error instanceof Error ? error.message : String(error);
     }
+    void refreshMarkedIndexTargets();
   }
   let statisticsSnapshot: StatisticsSnapshot | undefined;
   let statisticsTopicDictionary: TopicDictionaryDocument | undefined;
@@ -705,6 +746,7 @@
       };
       await refreshStoredSessions();
     });
+    void refreshMarkedIndexTargets();
     scheduleAutoScan(250);
     return () => {
       host?.removeEventListener("damophus-practice-command", command);
@@ -1611,4 +1653,5 @@
   {completionShowDuration} {completionShowAnswer} {completionShowAnsweredAt} {resetPractice}
   {currentBookmark} onToggleBookmark={toggleBookmark} onSaveBookmarkDetails={saveBookmarkDetails} onRemoveBookmark={removeCurrentBookmark} {bookmarkedQuestions}
   {questionIndexProjectionBlockId} {includeUnansweredMappingRows} onIncludeUnansweredMappingRowsChange={setIncludeUnansweredMappingRows} {pruneStaleMappingRows} onPruneStaleMappingRowsChange={setPruneStaleMappingRows} {mappingStatus} {mappingMessage} {selectCurrentMappingTarget} {checkMappingTarget} {syncMappingTarget} {setMappingTarget}
+  {markedIndexTargets} {refreshMarkedIndexTargets}
 />
