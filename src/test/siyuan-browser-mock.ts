@@ -30,6 +30,7 @@ export function confirm(_title: string, _content: string, callback?: () => void)
   callback?.();
 }
 export async function openTab(): Promise<void> {}
+export function openEmoji(_options: { position: unknown; selectedCB?: (emoji: string) => void }): void {}
 export function expandDocTree(): void {}
 export function globalCommand(): void {}
 
