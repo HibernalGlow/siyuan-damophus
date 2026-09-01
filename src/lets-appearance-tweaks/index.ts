@@ -12,6 +12,8 @@ export default class AppearanceTweaksPlugin extends SubPluginBase {
     const settings: Partial<AppearanceTweaksSettings> = {
       browserMobileFontSize: this.getSetting("browserMobileFontSize"),
       browserMobileEditorFontSize: this.getSetting("browserMobileEditorFontSize"),
+      browserDesktopFontSize: this.getSetting("browserDesktopFontSize"),
+      browserDesktopEditorFontSize: this.getSetting("browserDesktopEditorFontSize"),
       workspace: this.getSetting("workspace"),
       hideDockSplit: this.getSetting("hideDockSplit"),
       tags: this.getSetting("tags"),

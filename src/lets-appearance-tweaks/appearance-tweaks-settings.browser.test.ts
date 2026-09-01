@@ -75,4 +75,44 @@ describe("appearance tweaks settings", () => {
     expect(preview.style.getPropertyValue("--preview-editor-font-size")).toBe("23px");
     expect(getComputedStyle(preview.querySelector<HTMLElement>(".preview-line")!).fontSize).toBe("23px");
   });
+
+  it("previews the independent online desktop editor font size", () => {
+    const settingItems = (pluginMetadata.settings as ISettingItem[]).map((item) => {
+      if (item.key === "browserDesktopFontSize") return { ...item, value: true };
+      if (item.key === "browserDesktopEditorFontSize") return { ...item, value: 21 };
+      return item;
+    });
+    const component = mount(AppearanceTweaksSettings, {
+      target: document.body,
+      props: { group: "appearanceTweaks", title: "Appearance", labels, settingItems },
+    });
+    mounted.push(component);
+
+    const preview = document.querySelector<HTMLElement>("[data-appearance-tweaks-preview]")!;
+    expect(preview.style.getPropertyValue("--preview-editor-font-size")).toBe("21px");
+    expect(getComputedStyle(preview.querySelector<HTMLElement>(".preview-line")!).fontSize).toBe("21px");
+  });
+
+  it("prefers the override matching the settings surface when both font sizes are enabled", async () => {
+    const settingItems = (pluginMetadata.settings as ISettingItem[]).map((item) => {
+      if (item.key === "browserMobileFontSize") return { ...item, value: true };
+      if (item.key === "browserMobileEditorFontSize") return { ...item, value: 23 };
+      if (item.key === "browserDesktopFontSize") return { ...item, value: true };
+      if (item.key === "browserDesktopEditorFontSize") return { ...item, value: 21 };
+      return item;
+    });
+    const mountPreview = async (mobile: boolean) => {
+      const component = mount(AppearanceTweaksSettings, {
+        target: document.body,
+        props: { group: "appearanceTweaks", title: "Appearance", labels, settingItems, mobile },
+      });
+      mounted.push(component);
+      return document.querySelector<HTMLElement>("[data-appearance-tweaks-preview]")!;
+    };
+
+    expect((await mountPreview(false)).style.getPropertyValue("--preview-editor-font-size")).toBe("21px");
+    for (const component of mounted.splice(0)) await unmount(component);
+    document.body.innerHTML = "";
+    expect((await mountPreview(true)).style.getPropertyValue("--preview-editor-font-size")).toBe("23px");
+  });
 });

@@ -10,6 +10,8 @@ const pluginMetadata: PluginMetadata = {
   settings: [
     { type: "checkbox", title: "lets-appearance-tweaks.browserMobileFontSizeTitle", description: "lets-appearance-tweaks.browserMobileFontSizeDescription", key: "browserMobileFontSize", value: false },
     { type: "slider", title: "lets-appearance-tweaks.browserMobileEditorFontSizeTitle", description: "lets-appearance-tweaks.browserMobileEditorFontSizeDescription", key: "browserMobileEditorFontSize", value: 18, slider: { min: 9, max: 72, step: 1 } },
+    { type: "checkbox", title: "lets-appearance-tweaks.browserDesktopFontSizeTitle", description: "lets-appearance-tweaks.browserDesktopFontSizeDescription", key: "browserDesktopFontSize", value: false },
+    { type: "slider", title: "lets-appearance-tweaks.browserDesktopEditorFontSizeTitle", description: "lets-appearance-tweaks.browserDesktopEditorFontSizeDescription", key: "browserDesktopEditorFontSize", value: 16, slider: { min: 9, max: 72, step: 1 } },
     { type: "checkbox", title: "lets-appearance-tweaks.workspaceTitle", description: "lets-appearance-tweaks.workspaceDescription", key: "workspace", value: true },
     { type: "checkbox", title: "lets-appearance-tweaks.hideDockSplitTitle", description: "lets-appearance-tweaks.hideDockSplitDescription", key: "hideDockSplit", value: true },
     { type: "checkbox", title: "lets-appearance-tweaks.tagsTitle", description: "lets-appearance-tweaks.tagsDescription", key: "tags", value: true },

@@ -15,7 +15,7 @@
   import SettingPanel from "@/libs/setting-panel.svelte";
   import LiveStylePreview from "@/components/live-style-preview.svelte";
   import { mergeLivePreviewValues, updateLivePreviewOverride } from "@/libs/live-style-preview";
-  import { resolveAppearanceTweaksSettings } from "./appearance-tweaks";
+  import { resolveAppearanceTweaksSettings, resolvePreviewEditorFontSize } from "./appearance-tweaks";
 
   export let group: string;
   export let title: string;
@@ -32,6 +32,7 @@
   }
 
   $: appearance = resolveAppearanceTweaksSettings(mergeLivePreviewValues(settingItems, previewOverrides));
+  $: previewEditorFontSize = resolvePreviewEditorFontSize(appearance, mobile);
   $: variables = [
     `--preview-tag-font-size:${appearance.tagFontSize}%`,
     `--preview-tag-radius:${appearance.tagRadius}px`,
@@ -42,7 +43,7 @@
     `--preview-reference-radius:${appearance.referenceRadius}px`,
     `--preview-reference-padding-x:${appearance.referencePaddingX}px`,
     `--preview-reference-padding-y:${appearance.referencePaddingY}px`,
-    `--preview-editor-font-size:${appearance.browserMobileFontSize ? appearance.browserMobileEditorFontSize : 16}px`,
+    `--preview-editor-font-size:${previewEditorFontSize}px`,
   ].join(";");
 </script>
 

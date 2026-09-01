@@ -3,6 +3,8 @@ export const APPEARANCE_TWEAKS_STYLE_ID = "damophus-appearance-tweaks-style";
 export interface AppearanceTweaksSettings {
   browserMobileFontSize: boolean;
   browserMobileEditorFontSize: number;
+  browserDesktopFontSize: boolean;
+  browserDesktopEditorFontSize: number;
   workspace: boolean;
   hideDockSplit: boolean;
   tags: boolean;
@@ -22,6 +24,8 @@ export interface AppearanceTweaksSettings {
 export const DEFAULT_APPEARANCE_TWEAKS_SETTINGS: AppearanceTweaksSettings = {
   browserMobileFontSize: false,
   browserMobileEditorFontSize: 18,
+  browserDesktopFontSize: false,
+  browserDesktopEditorFontSize: 16,
   workspace: true,
   hideDockSplit: true,
   tags: true,
@@ -47,6 +51,8 @@ export function resolveAppearanceTweaksSettings(input: Partial<Record<keyof Appe
   return {
     browserMobileFontSize: typeof input.browserMobileFontSize === "boolean" ? input.browserMobileFontSize : false,
     browserMobileEditorFontSize: numberSetting(input.browserMobileEditorFontSize, 18, 9, 72),
+    browserDesktopFontSize: typeof input.browserDesktopFontSize === "boolean" ? input.browserDesktopFontSize : false,
+    browserDesktopEditorFontSize: numberSetting(input.browserDesktopEditorFontSize, 16, 9, 72),
     workspace: typeof input.workspace === "boolean" ? input.workspace : true,
     hideDockSplit: typeof input.hideDockSplit === "boolean" ? input.hideDockSplit : true,
     tags: typeof input.tags === "boolean" ? input.tags : true,
@@ -71,11 +77,22 @@ export function createAppearanceTweaksCss(input: Partial<Record<keyof Appearance
     : "color: var(--b3-theme-background) !important; background-color: var(--b3-theme-on-background) !important;";
   return [
     settings.browserMobileFontSize && `html[data-frontend="browser-mobile"] { --b3-font-size-editor: ${settings.browserMobileEditorFontSize}px; }`,
+    settings.browserDesktopFontSize && `html[data-frontend="browser-desktop"] { --b3-font-size-editor: ${settings.browserDesktopEditorFontSize}px; }`,
     settings.workspace && `#toolbar #barWorkspace .toolbar__text { font-size: 0 !important; }\n#toolbar #barWorkspace { outline: 0 !important; }\n#toolbar #barWorkspace svg.toolbar__svg { display: none !important; }`,
     settings.hideDockSplit && `.dock__split { height: stretch; opacity: 0; }`,
     settings.tags && `.protyle-wysiwyg span[data-type="tag"] { font-size: ${settings.tagFontSize}% !important; border-radius: ${settings.tagRadius}px !important; padding: 0 ${settings.tagPaddingX}px ${settings.tagPaddingBottom}px !important; color: var(--b3-theme-on-background) !important; border-bottom: 0 !important; background-color: var(--b3-font-background${settings.tagColor}) !important; }\n.protyle-wysiwyg span[data-type="tag"]::before { content: "#" !important; }\n.export-img span[data-type="tag"]::before { content: "" !important; }`,
     settings.references && `.protyle-wysiwyg [data-node-id] span[data-type*="block-ref"][data-type*="sup"], .protyle-wysiwyg [data-node-id] span[data-type*="block-ref"][data-type*="sub"] { font-size: ${settings.referenceFontSize}% !important; ${referenceColor} border-radius: ${settings.referenceRadius}px !important; padding: ${settings.referencePaddingY}px ${settings.referencePaddingX}px !important; border-bottom: 0 !important; }\n.protyle-attr--refcount { background-color: var(--b3-theme-surface) !important; }`,
   ].filter(Boolean).join("\n");
+}
+
+export function resolvePreviewEditorFontSize(settings: AppearanceTweaksSettings, mobileUi: boolean): number {
+  const mobileCandidate: [boolean, number] = [settings.browserMobileFontSize, settings.browserMobileEditorFontSize];
+  const desktopCandidate: [boolean, number] = [settings.browserDesktopFontSize, settings.browserDesktopEditorFontSize];
+  const candidates = mobileUi ? [mobileCandidate, desktopCandidate] : [desktopCandidate, mobileCandidate];
+  for (const [enabled, size] of candidates) {
+    if (enabled) return size;
+  }
+  return 16;
 }
 
 export class AppearanceTweaksStyles {

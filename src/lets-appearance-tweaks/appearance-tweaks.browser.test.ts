@@ -25,10 +25,23 @@ describe("appearance tweaks", () => {
     expect(css).not.toContain('html[data-frontend="browser-desktop"]');
   });
 
+  it("scopes the separate desktop Web font size to the browser-desktop frontend", () => {
+    const css = createAppearanceTweaksCss({
+      browserDesktopFontSize: true,
+      browserDesktopEditorFontSize: 21,
+    });
+    expect(css).toContain('html[data-frontend="browser-desktop"] { --b3-font-size-editor: 21px; }');
+    expect(css).not.toContain('html[data-frontend="desktop"]');
+    expect(css).not.toContain('html[data-frontend="browser-mobile"]');
+  });
+
   it("keeps the separate editor font size opt-in and clamps its value", () => {
     expect(createAppearanceTweaksCss({ browserMobileEditorFontSize: 21 })).not.toContain("--b3-font-size-editor");
     expect(createAppearanceTweaksCss({ browserMobileFontSize: true, browserMobileEditorFontSize: 100 }))
       .toContain("--b3-font-size-editor: 72px");
+    expect(createAppearanceTweaksCss({ browserDesktopEditorFontSize: 21 })).not.toContain("--b3-font-size-editor");
+    expect(createAppearanceTweaksCss({ browserDesktopFontSize: true, browserDesktopEditorFontSize: 1 }))
+      .toContain("--b3-font-size-editor: 9px");
   });
 
   it("updates rendered styles and removes them on destroy", () => {
@@ -55,6 +68,17 @@ describe("appearance tweaks", () => {
     expect(getComputedStyle(document.querySelector<HTMLElement>(".protyle-wysiwyg")!).fontSize).toBe("22px");
 
     document.documentElement.dataset.frontend = "mobile";
+    expect(getComputedStyle(document.querySelector<HTMLElement>(".protyle-wysiwyg")!).fontSize).toBe("16px");
+  });
+
+  it("changes rendered editor text only in the browser-desktop frontend", () => {
+    document.documentElement.dataset.frontend = "browser-desktop";
+    document.body.innerHTML = '<div class="protyle-wysiwyg" style="font-size:var(--b3-font-size-editor, 16px)">online desktop</div>';
+    const styles = new AppearanceTweaksStyles(document);
+    styles.start({ browserDesktopFontSize: true, browserDesktopEditorFontSize: 20 });
+    expect(getComputedStyle(document.querySelector<HTMLElement>(".protyle-wysiwyg")!).fontSize).toBe("20px");
+
+    document.documentElement.dataset.frontend = "desktop";
     expect(getComputedStyle(document.querySelector<HTMLElement>(".protyle-wysiwyg")!).fontSize).toBe("16px");
   });
 });
