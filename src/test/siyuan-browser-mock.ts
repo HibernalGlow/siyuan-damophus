@@ -3,7 +3,14 @@ export async function fetchSyncPost(): Promise<{ code: number; data: unknown; ms
 }
 
 export class Dialog {}
-export class Menu {}
+export class Menu {
+  addItem(): Menu {
+    return this;
+  }
+
+  open(): void {}
+  close(): void {}
+}
 export class Plugin {}
 export class ProtyleMethod {
   static highlightRender(): void {}
