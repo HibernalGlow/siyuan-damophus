@@ -19,6 +19,8 @@
   export let coverBreadcrumb = false;
   export let coverDocumentMenu = false;
   export let confirmRemoveCover = true;
+  export let gachaMode = false;
+  export let gachaDrawCount = 6;
   export let onBasicChange: (key: string, value: unknown) => void;
 </script>
 
@@ -111,6 +113,10 @@
         <span class="switch-title">{label("lets-more-background.confirmRemoveCoverTitle", "移除题头图前确认")}</span>
         <Switch checked={confirmRemoveCover} onCheckedChange={(value) => onBasicChange("confirmRemoveCover", value)} />
       </div>
+      <div class="switch-row" title={label("lets-more-background.gachaModeDescription", "开启后使用任何模板都先抽出多张候选卡，弹窗选择一张设为题头图，其余可收藏进暂存区。")}>
+        <span class="switch-title">{label("lets-more-background.gachaMode", "抽卡模式（先抽多张再选）")}</span>
+        <Switch checked={gachaMode} onCheckedChange={(value) => onBasicChange("gachaMode", value)} />
+      </div>
       <div class="switch-row" title={label("lets-more-background.debugLoggingDescription", "在控制台输出运行日志，便于排查问题。")}>
         <span class="switch-title">{label("lets-more-background.debugLoggingTitle", "调试日志")}</span>
         <Switch checked={debugLogging} onCheckedChange={(value) => onBasicChange("debugLogging", value)} />
@@ -129,6 +135,29 @@
       </div>
     </div>
   </section>
+
+  {#if gachaMode}
+    <section class="mb-card">
+      <div class="mb-card-body">
+        <div class="field-grid">
+          <label class="slider-field" title={label("lets-more-background.gachaDrawCountDescription", "每次使用模板抽出的候选卡数量（2–12 张）。")}>
+            <span class="flex justify-between gap-2">
+              <span>{label("lets-more-background.gachaDrawCount", "一次抽卡数量")}</span>
+              <span class="mb-mono">{gachaDrawCount} 张</span>
+            </span>
+            <input
+              type="range"
+              min="2"
+              max="12"
+              step="1"
+              value={gachaDrawCount}
+              oninput={(event) => onBasicChange("gachaDrawCount", Number((event.currentTarget as HTMLInputElement).value))}
+            />
+          </label>
+        </div>
+      </div>
+    </section>
+  {/if}
 
   {#if toolbarPosition === "custom"}
     <section class="mb-card">

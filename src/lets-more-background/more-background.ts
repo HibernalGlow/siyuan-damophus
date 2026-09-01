@@ -15,7 +15,17 @@ import {
   sanitizeAssetsPath,
   type SiteCredential,
 } from "./sources";
-import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo, resolveManualBooruUrl, type BooruResolvedInfo } from "./booru";
+import { isBooruSource, proxyFetchImageBlob, resolveBooruImageInfo, resolveBooruImageCandidates, resolveManualBooruUrl, type BooruResolvedInfo } from "./booru";
+import {
+  addCoverStashEntry,
+  coverStashKey,
+  getCoverStashCountSync,
+  loadCoverStash,
+  openCoverGachaDialog,
+  removeCoverStashEntry,
+  type CoverStashEntry,
+  type GachaCardData,
+} from "./cover-gacha";
 import { settings } from "@/settings";
 import {
   cleanupLocalCoverCache,
@@ -25,6 +35,7 @@ import {
 } from "./local-cover-cache-maintenance";
 import {
   coverDedupIdentity,
+  booruPostDedupKey,
   collectCacheIndexCoverUrls,
   collectHistoryCoverUrls,
   collectUsedCoverUrls,
@@ -102,6 +113,10 @@ export interface MoreBackgroundOptions {
   autoAddCoverOnEmptyDoc?: boolean;
   autoRetryOnFailure?: boolean;
   deduplicateNewCovers?: boolean;
+  /** 抽卡模式：使用模板先抽出多张候选卡，弹窗选题头图；其余可收藏进暂存区。 */
+  gachaMode?: boolean;
+  /** 抽卡模式一次抽出的候选卡数量（2–12，默认 6）。 */
+  gachaDrawCount?: number;
   coverHistoryLimit?: number;
   coverSeenLimit?: number;
   blacklistedTags?: string;
@@ -196,6 +211,20 @@ async function assertAttrWriteSucceeded(response: Response): Promise<void> {
   }
 }
 
+async function readBlockAttrs(blockId: string): Promise<Record<string, string>> {
+  try {
+    const response = await fetch("/api/attr/getBlockAttrs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: blockId }),
+    });
+    const data = await response.json();
+    return (data?.data || {}) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
 export function applyCoverLayout(root: HTMLElement, options: Pick<MoreBackgroundOptions,
   "toolbarPosition" | "toolbarCustomX" | "toolbarCustomY" | "coverBreadcrumb" | "coverDocumentMenu"
 >): () => void {
@@ -285,6 +314,28 @@ function isRemoteImageUrl(value: string): boolean {
 export function inferCoverSourceFromImage(image: HTMLImageElement): string | null {
   const candidate = image.currentSrc || image.src || "";
   return isRemoteImageUrl(candidate) ? candidate.trim() : null;
+}
+
+/**
+ * Captures an already-loaded <img> as a Blob via canvas. Returns null when the
+ * element is unusable or the canvas is tainted by a cross-origin image without
+ * CORS headers; callers fall back to re-fetching the URL in that case.
+ */
+async function extractImageElementBlob(image: HTMLImageElement): Promise<Blob | null> {
+  try {
+    if (!image.naturalWidth || !image.naturalHeight) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.drawImage(image, 0, 0);
+    return await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), "image/webp", 0.92);
+    });
+  } catch {
+    return null;
+  }
 }
 
 export interface LocalCachePathContext {
@@ -909,6 +960,11 @@ export function clearSeenCovers(): void {
   persistCoverDedupStorage();
 }
 
+export function getGachaDrawCount(options: Pick<MoreBackgroundOptions, "gachaDrawCount">): number {
+  const parsed = Number(options.gachaDrawCount);
+  return Number.isFinite(parsed) && parsed >= 2 ? Math.min(12, Math.floor(parsed)) : 6;
+}
+
 export function checkAndAutoAddCover(root: HTMLElement, controller: MoreBackgroundController): void {
   const opts = controller.getOptions();
   if (opts.autoAddCoverOnEmptyDoc !== true) return;
@@ -934,7 +990,8 @@ export function checkAndAutoAddCover(root: HTMLElement, controller: MoreBackgrou
     setTimeout(() => {
       if (!root.isConnected) return;
       const currentBg = root.querySelector<HTMLElement>(".protyle-background") || root;
-      void controller.applyRandomSource(lastUsed, root, currentBg);
+      // 自动补图保持静默：即使抽卡模式开启也不弹选择窗口。
+      void controller.applyRandomSourceImmediate(lastUsed, root, currentBg);
     }, 200);
   }
 }
@@ -1426,7 +1483,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
             e.stopPropagation();
             const rect = menuBtn.getBoundingClientRect();
             const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-            this.showBackgroundMenu(rect, root, bg);
+            void this.showBackgroundMenu(rect, root, bg);
           });
         } else {
           // 标签风格
@@ -1470,7 +1527,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
             e.stopPropagation();
             const rect = spanMenu.getBoundingClientRect();
             const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-            this.showBackgroundMenu(rect, root, bg);
+            void this.showBackgroundMenu(rect, root, bg);
           });
         }
       });
@@ -1498,7 +1555,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
             e.stopImmediatePropagation();
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
             const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
-            this.showBackgroundMenu(rect, root, bg);
+            void this.showBackgroundMenu(rect, root, bg);
           });
 
           // 按钮 2: Tag 标签查看按钮
@@ -1649,6 +1706,17 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       root.querySelector<HTMLElement>(".protyle-title")?.getAttribute("data-node-id") ||
       root.querySelector<HTMLElement>("[data-node-id]")?.getAttribute("data-node-id") ||
       "";
+  }
+
+  /** 浮窗标题用：标明这张抽卡面板作用于哪个文档，多窗并开时不会认错。 */
+  private resolveDocTitle(root: HTMLElement, background: HTMLElement): string {
+    const protyle = background.closest(".protyle");
+    return (
+      protyle?.querySelector<HTMLElement>(".protyle-title__input")?.textContent?.trim() ||
+      protyle?.querySelector<HTMLElement>(".protyle-title")?.textContent?.trim() ||
+      root.querySelector<HTMLElement>(".protyle-title__input")?.textContent?.trim() ||
+      this.options.t("lets-more-background.currentDocument")
+    );
   }
 
   private async getCoverFavoriteInput(root: HTMLElement, background: HTMLElement): Promise<CoverFavoriteInput | null> {
@@ -1923,9 +1991,10 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     };
   }
 
-  private showBackgroundMenu(rect: DOMRect, root: HTMLElement, background: HTMLElement): void {
+  private async showBackgroundMenu(rect: DOMRect, root: HTMLElement, background: HTMLElement): Promise<void> {
     const menu = new Menu("DamophusMoreBackground");
     const sources = this.options.sources?.length ? this.options.sources : DEFAULT_COVER_SOURCES;
+    const stashCount = getCoverStashCountSync() || (await loadCoverStash()).length;
 
     const currentPostTags =
       background.getAttribute("data-damophus-post-tags") ||
@@ -1976,6 +2045,52 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
         icon: "iconImage",
         click: () => this.applyRandomSource(item, root, background),
       });
+    });
+
+    menu.addSeparator();
+
+    // 抽卡模式：开启后使用任何模板先抽出多张候选卡弹窗选择；星标可收藏进暂存区。
+    const isGacha = this.options.gachaMode === true;
+    menu.addItem({
+      label: `${isGacha ? "✓ " : ""}🎴 ${this.options.t("lets-more-background.gachaMode")}`,
+      icon: "iconImage",
+      click: () => {
+        const nextVal = !isGacha;
+        this.options.gachaMode = nextVal;
+        try {
+          settings.setBySpace("moreBackground", "gachaMode", nextVal);
+          void settings.save();
+        } catch {}
+        showMessage(this.options.t(nextVal
+          ? "lets-more-background.gachaModeEnabled"
+          : "lets-more-background.gachaModeDisabled"));
+      },
+    });
+
+    const gachaDrawCount = getGachaDrawCount(this.options);
+    menu.addItem({
+      label: `🎯 ${this.options.t("lets-more-background.gachaDrawCount")}: ${gachaDrawCount}`,
+      icon: "iconFilter",
+      submenu: [2, 3, 4, 6, 8, 9, 12].map((count) => ({
+        label: `${count === gachaDrawCount ? "✓ " : ""}${count}`,
+        click: () => {
+          this.options.gachaDrawCount = count;
+          try {
+            settings.setBySpace("moreBackground", "gachaDrawCount", count);
+            void settings.save();
+          } catch {}
+          showMessage(
+            this.options.t("lets-more-background.gachaDrawCountSet").replace("{count}", String(count)),
+          );
+        },
+      })),
+    });
+
+    // 暂存区浏览：全部暂存卡铺开，点选即应用并移出暂存区。
+    menu.addItem({
+      label: `🗂 ${this.options.t("lets-more-background.applyFromStash")}${stashCount > 0 ? ` (${stashCount})` : ""}`,
+      icon: "iconEye",
+      click: () => { void this.applyFromStash(root, background); },
     });
 
     menu.addSeparator();
@@ -2104,8 +2219,333 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const url = formatCoverUrl(item.url, this.options.width, this.options.height);
     if (!url) return;
 
+    if (this.options.gachaMode === true) {
+      await this.openGachaDraw(item, url, root, background);
+      return;
+    }
+    await this.applyRandomSourceImmediate(item, root, background);
+  }
+
+  /** 直接随机应用一张（不抽卡弹窗）；自动补图与抽卡关闭时走这里。 */
+  async applyRandomSourceImmediate(
+    item: CoverSourceItem,
+    root: HTMLElement,
+    background: HTMLElement,
+  ): Promise<void> {
+    setLastUsedSource(item);
+    const url = formatCoverUrl(item.url, this.options.width, this.options.height);
+    if (!url) return;
+
     triggerRandomIfNoImg(root);
     await this.fetchAndSetBackground(url, background);
+  }
+
+  /**
+   * 抽卡：先抽出 gachaDrawCount 张候选卡，弹窗让用户选一张设为题头图；
+   * 其余喜欢的卡可收藏进暂存区，之后可通过「从暂存区随机应用」取出。
+   */
+  private async openGachaDraw(
+    item: CoverSourceItem,
+    url: string,
+    root: HTMLElement,
+    background: HTMLElement,
+  ): Promise<void> {
+    const count = getGachaDrawCount(this.options);
+    const isBooru = isBooruSource(url);
+    // 累计排除集：初始为去重记忆，之后每批抽出的卡也会加入，保证「换一批」不重复。
+    const excluded = new Set<string>();
+    if (isBooru && this.options.deduplicateNewCovers !== false) {
+      try {
+        const loaded = await loadDedupCoverUrls(background, this.options.localCacheRoot);
+        for (const key of loaded) excluded.add(key);
+      } catch (error) {
+        dedupLog.warn("Failed to load used cover URLs before gacha draw:", error);
+      }
+    }
+
+    const rememberCard = (card: GachaCardData): void => {
+      const normalized = normalizeCoverUrl(card.imageUrl);
+      if (normalized) excluded.add(normalized);
+      const postKey = card.site && card.postId !== undefined
+        ? booruPostDedupKey(card.site, card.postId)
+        : null;
+      if (postKey) excluded.add(postKey);
+    };
+
+    const [stashEntries, favoriteEntries] = await Promise.all([loadCoverStash(), loadCoverFavorites()]);
+    const stashKeys = new Set(stashEntries.map((entry) => coverStashKey(entry)));
+    const favoriteKeys = new Set(favoriteEntries.map((entry) => coverFavoriteKey(entry)));
+    const cardKey = (card: Pick<GachaCardData, "imageUrl" | "postUrl" | "site" | "postId">): string =>
+      coverStashKey(card);
+
+    const drawCards = async (handlers: {
+      onCard: (card: GachaCardData) => void;
+      onProgress: (done: number, wanted: number) => void;
+    }): Promise<GachaCardData[]> => {
+      if (isBooru) {
+        // 词库池的随机语义是「每次解析随机一个画师」：逐卡补抽让每张卡各占
+        // 一次随机画师，避免整批卡挤在同一位画师的作品里。单画师被比例/评分
+        // 条件筛光时跳过继续抽下一张，直至抽满或超出尝试上限。
+        const cardsByKey = new Map<string, GachaCardData>();
+        const maxAttempts = Math.min(12, Math.max(count + 4, 8));
+        let attempts = 0;
+        while (cardsByKey.size < count && attempts < maxAttempts) {
+          attempts += 1;
+          const infos = await resolveBooruImageCandidates(
+            url,
+            this.options.siteCredentials,
+            this.options.blacklistedTags || DEFAULT_BLACKLISTED_TAGS,
+            excluded,
+            1,
+          );
+          for (const info of infos) {
+            const key = `${info.site || ""}:${info.postId ?? info.imageUrl}`;
+            if (cardsByKey.has(key)) continue;
+            const card: GachaCardData = {
+              key,
+              imageUrl: info.imageUrl,
+              previewUrl: info.previewUrl,
+              postUrl: info.postUrl,
+              site: info.site,
+              postId: info.postId,
+              tags: info.tags,
+              width: info.width,
+              height: info.height,
+              score: info.score,
+              info,
+            };
+            cardsByKey.set(key, card);
+            rememberCard(card);
+            // 抽到一张立即上屏，不必等整批完成。
+            handlers.onCard(card);
+          }
+          handlers.onProgress(cardsByKey.size, count);
+          log.info("Gacha draw attempt", {
+            attempt: attempts,
+            fetched: infos.length,
+            total: cardsByKey.size,
+            wanted: count,
+          });
+        }
+        return [...cardsByKey.values()];
+      }
+      // 非 booru 模板（Picsum/Unsplash 等随机端点）：每次 <img> 请求各自出图，
+      // 选中后优先用画布截取已加载的那一张，保证所见即所得。
+      const cards = Array.from({ length: count }, (_, index) => ({
+        key: `card-${Date.now()}-${index}`,
+        imageUrl: url,
+      }));
+      for (const card of cards) handlers.onCard(card);
+      handlers.onProgress(cards.length, count);
+      return cards;
+    };
+
+    openCoverGachaDialog({
+      title: `🎴 ${this.options.t("lets-more-background.gachaDialogTitle")} · ${this.resolveDocTitle(root, background)}`,
+      hint: this.options.t("lets-more-background.gachaDialogHint")
+        + (isMobile ? "" : ` ${this.options.t("lets-more-background.floatHint")}`),
+      drawing: this.options.t("lets-more-background.gachaDrawing"),
+      empty: this.options.t("lets-more-background.gachaEmpty"),
+      pickLabel: this.options.t("lets-more-background.gachaPick"),
+      stashLabel: this.options.t("lets-more-background.gachaStash"),
+      stashedLabel: this.options.t("lets-more-background.gachaStashed"),
+      rerollLabel: this.options.t("lets-more-background.gachaReroll"),
+      failedLabel: this.options.t("lets-more-background.previewLoadFailed"),
+      mobile: isMobile,
+      drawCards,
+      onPick: async (card) => {
+        triggerRandomIfNoImg(root);
+        if (card.info) {
+          this.applyPostMetadata(background, card.info);
+          await this.fetchAndSetBackground(card.info.imageUrl, background, 1, 1, undefined, card.info);
+        } else {
+          const blob = card.element ? await extractImageElementBlob(card.element) : null;
+          if (blob && blob.size > 0) {
+            await this.saveBlobAndSetBackground(blob, background);
+          } else {
+            // 画布被跨域污染时兜底重拉（随机端点可能换图，属于降级路径）。
+            await this.fetchAndSetBackground(card.imageUrl, background);
+          }
+        }
+      },
+      isFavorited: (card) => favoriteKeys.has(cardKey(card)),
+      onFavoriteToggle: (card) => this.toggleGachaFavorite(card, favoriteKeys, root, background),
+      isStashed: (card) => stashKeys.has(cardKey(card)),
+      onStashToggle: (card) => this.toggleGachaStash(card, stashKeys, item.label),
+    });
+  }
+
+  /**
+   * 浏览暂存区：全部暂存卡直接铺开（相当于抽完的状态），点选即应用并移出
+   * 暂存区；应用失败弹窗保持打开可重试，⚑ 仅移出暂存，「刷新」重读列表。
+   */
+  async applyFromStash(root: HTMLElement, background: HTMLElement): Promise<void> {
+    const total = (await loadCoverStash()).length;
+    if (total === 0) {
+      showMessage(this.options.t("lets-more-background.stashEmpty"));
+      return;
+    }
+    let stashKeys = new Set<string>();
+    let favoriteKeys = new Set<string>();
+    const toCard = (entry: CoverStashEntry): GachaCardData => ({
+      key: coverStashKey(entry),
+      stashEntryId: entry.id,
+      imageUrl: entry.imageUrl,
+      previewUrl: entry.previewUrl,
+      postUrl: entry.postUrl,
+      site: entry.site,
+      postId: entry.postId,
+      tags: entry.tags,
+      width: entry.width,
+      height: entry.height,
+      score: entry.score,
+    });
+    openCoverGachaDialog({
+      title: `🗂 ${this.options.t("lets-more-background.applyFromStash")} · ${this.resolveDocTitle(root, background)}`,
+      hint: this.options.t("lets-more-background.stashBrowserHint")
+        + (isMobile ? "" : ` ${this.options.t("lets-more-background.floatHint")}`),
+      drawing: this.options.t("lets-more-background.gachaDrawing"),
+      empty: this.options.t("lets-more-background.stashEmpty"),
+      pickLabel: this.options.t("lets-more-background.stashDrawApply"),
+      favoriteLabel: this.options.t("lets-more-background.gachaFavorite"),
+      favoritedLabel: this.options.t("lets-more-background.gachaFavorited"),
+      stashLabel: this.options.t("lets-more-background.gachaStash"),
+      stashedLabel: this.options.t("lets-more-background.gachaStashed"),
+      rerollLabel: this.options.t("lets-more-background.refreshFavorites"),
+      failedLabel: this.options.t("lets-more-background.previewLoadFailed"),
+      mobile: isMobile,
+      drawCards: async (handlers) => {
+        const [entries, favorites] = await Promise.all([loadCoverStash(), loadCoverFavorites()]);
+        stashKeys = new Set(entries.map((entry) => coverStashKey(entry)));
+        favoriteKeys = new Set(favorites.map((entry) => coverFavoriteKey(entry)));
+        const cards = entries.map(toCard);
+        for (const card of cards) handlers.onCard(card);
+        handlers.onProgress(cards.length, Math.max(cards.length, 1));
+        return cards;
+      },
+      onPick: (card) => this.applyStashEntry(root, background, {
+        id: card.stashEntryId || card.key,
+        imageUrl: card.imageUrl,
+        postUrl: card.postUrl,
+        site: card.site,
+        postId: card.postId,
+        tags: card.tags,
+        width: card.width,
+        height: card.height,
+        score: card.score,
+      }),
+      isFavorited: (card) => favoriteKeys.has(cardKey(card)),
+      onFavoriteToggle: (card) => this.toggleGachaFavorite(card, favoriteKeys, root, background),
+      isStashed: (card) => stashKeys.has(cardKey(card)),
+      onStashToggle: (card) => this.toggleGachaStash(card, stashKeys),
+    });
+  }
+
+  /** 应用一张暂存卡；应用成功（题头图属性确实变化）后才从暂存区删除。 */
+  private async applyStashEntry(
+    root: HTMLElement,
+    background: HTMLElement,
+    entry: { id: string; imageUrl: string; postUrl?: string; site?: string; postId?: string | number; tags?: string[]; width?: number | string; height?: number | string; score?: number | string },
+  ): Promise<void> {
+    const blockId = this.findCoverBlockId(root, background);
+    const previousTitleImg = blockId ? (await readBlockAttrs(blockId))["title-img"] || "" : "";
+    const postInfo: BooruResolvedInfo = {
+      imageUrl: entry.imageUrl,
+      postUrl: entry.postUrl,
+      site: entry.site,
+      postId: entry.postId,
+      tags: entry.tags,
+      width: entry.width === undefined ? undefined : Number(entry.width) || undefined,
+      height: entry.height === undefined ? undefined : Number(entry.height) || undefined,
+      score: entry.score === undefined ? undefined : Number(entry.score) || undefined,
+    };
+    triggerRandomIfNoImg(root);
+    this.applyPostMetadata(background, postInfo);
+    if (/^(?:https?:\/\/|data:)/i.test(entry.imageUrl)) {
+      await this.fetchAndSetBackground(entry.imageUrl, background, 1, 1, undefined, postInfo);
+    } else {
+      await this.setBlockBackgroundImage(background, entry.imageUrl, postInfo);
+    }
+    // fetchAndSetBackground 内部吞错，这里以题头图属性确实变化为成功判据，
+    // 失败时抛错让弹窗保持打开，卡片仍留在暂存区。
+    if (blockId) {
+      const nextTitleImg = (await readBlockAttrs(blockId))["title-img"] || "";
+      if (!nextTitleImg || nextTitleImg === previousTitleImg) {
+        showMessage(this.options.t("lets-more-background.stashApplyFailed"));
+        throw new Error(`Stashed cover failed to apply: ${entry.imageUrl}`);
+      }
+    }
+    // 成功才消费：把这张卡移出暂存区（收藏与暂存互相独立，不自动转收藏）。
+    await removeCoverStashEntry(entry.id);
+    const remaining = (await loadCoverStash()).length;
+    showMessage(
+      this.options.t("lets-more-background.stashApplied").replace("{count}", String(remaining)),
+    );
+    log.info("Applied random stashed cover", { id: entry.id, imageUrl: entry.imageUrl, remaining });
+  }
+
+  /** 抽卡/暂存浏览共用：★ 收藏到收藏夹（与暂存完全独立）。 */
+  private async toggleGachaFavorite(
+    card: Pick<GachaCardData, "imageUrl" | "postUrl" | "site" | "postId" | "tags" | "width" | "height" | "score">,
+    favoriteKeys: Set<string>,
+    root: HTMLElement,
+    background: HTMLElement,
+  ): Promise<boolean> {
+    const key = coverStashKey(card);
+    if (favoriteKeys.has(key)) {
+      const existing = (await loadCoverFavorites()).find((item) => coverFavoriteKey(item) === key);
+      if (existing) await removeCoverFavorite(existing.id);
+      favoriteKeys.delete(key);
+      showMessage(this.options.t("lets-more-background.gachaUnfavoriteMessage"));
+      return false;
+    }
+    const input = await this.ensureFavoriteCache({
+      imageUrl: card.imageUrl,
+      postUrl: card.postUrl,
+      site: card.site,
+      postId: card.postId,
+      tags: card.tags,
+      width: card.width,
+      height: card.height,
+      sourceScore: card.score,
+      documentId: this.findCoverBlockId(root, background) || undefined,
+      documentTitle: this.resolveDocTitle(root, background),
+    });
+    await upsertCoverFavorite(input);
+    favoriteKeys.add(key);
+    showMessage(this.options.t("lets-more-background.gachaFavoriteMessage"));
+    return true;
+  }
+
+  /** 抽卡/暂存浏览共用：⚑ 暂存到暂存区（与收藏完全独立）。 */
+  private async toggleGachaStash(
+    card: Pick<GachaCardData, "imageUrl" | "previewUrl" | "postUrl" | "site" | "postId" | "tags" | "width" | "height" | "score">,
+    stashKeys: Set<string>,
+    templateLabel?: string,
+  ): Promise<boolean> {
+    const key = coverStashKey(card);
+    if (stashKeys.has(key)) {
+      const existing = (await loadCoverStash()).find((entry) => coverStashKey(entry) === key);
+      if (existing) await removeCoverStashEntry(existing.id);
+      stashKeys.delete(key);
+      showMessage(this.options.t("lets-more-background.gachaUnstashMessage"));
+      return false;
+    }
+    await addCoverStashEntry({
+      imageUrl: card.imageUrl,
+      previewUrl: card.previewUrl,
+      postUrl: card.postUrl,
+      site: card.site,
+      postId: card.postId,
+      tags: card.tags,
+      width: card.width,
+      height: card.height,
+      score: card.score,
+      templateLabel,
+    });
+    stashKeys.add(key);
+    showMessage(this.options.t("lets-more-background.gachaStashMessage"));
+    return true;
   }
 
   private async applyManualCoverUrl(background: HTMLElement): Promise<void> {

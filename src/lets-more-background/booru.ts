@@ -204,6 +204,8 @@ export interface BooruResolveDiagnostic {
 export interface BooruResolvedInfo {
   imageUrl: string;
   previewBlobUrl?: string;
+  /** Small preview URL (site preview/sample variant) for grid thumbnails. */
+  previewUrl?: string;
   postUrl?: string;
   postId?: string | number;
   site?: string;
@@ -906,12 +908,18 @@ export async function testBooruSiteCredential(
   }
 }
 
-export async function resolveBooruImageInfo(
+/**
+ * Resolve every candidate post that passes the template conditions and map it
+ * to a ready-to-use info object. Single picks (resolveBooruImageInfo) and
+ * multi-draw gacha (resolveBooruImageCandidates) both consume this list, so
+ * dedup exclusions and condition filtering stay in one place.
+ */
+export async function collectBooruResolvedInfos(
   urlOrUri: string,
   siteCredentials?: SiteCredential[],
   globalBlacklist?: string[] | string,
   excludedImageUrls?: Iterable<string>,
-): Promise<BooruResolvedInfo | null> {
+): Promise<BooruResolvedInfo[]> {
   try {
     const excludedUrls = new Set(
       [...(excludedImageUrls || [])]
@@ -931,6 +939,16 @@ export async function resolveBooruImageInfo(
       const canonicalSite = resolveSite(site) || site;
       const key = booruPostDedupKey(canonicalSite, postId);
       return key ? excludedUrls.has(key) : false;
+    };
+    const infos: BooruResolvedInfo[] = [];
+    const diagnostic: BooruResolveDiagnostic = {
+      totalFetched: 0,
+      filteredCount: 0,
+      rejectedByBlacklist: 0,
+      rejectedByRatio: 0,
+      rejectedByScore: 0,
+      rejectedByTime: 0,
+      rejectedByDuplicate: 0,
     };
 
     if (urlOrUri.startsWith("booru:")) {
@@ -1040,41 +1058,42 @@ export async function resolveBooruImageInfo(
               rejectedByDuplicate,
               excludedUrlCount: excludedUrls.size,
             });
-            return null;
+            diagnostic.totalFetched = totalFetched;
+            return [];
           }
 
-          const picked = candidates[Math.floor(Math.random() * candidates.length)];
-          let imgUrl: string | undefined;
-          if (quality === "preview") {
-            imgUrl = picked?.preview_file_url || picked?.large_file_url || picked?.file_url;
-          } else if (quality === "sample") {
-            imgUrl = picked?.large_file_url || picked?.file_url || picked?.preview_file_url;
-          } else {
-            imgUrl = picked?.file_url || picked?.large_file_url || picked?.preview_file_url;
-          }
-
-          if (imgUrl) {
-            const postUrl = picked.id ? extractPostDetailUrl(site, picked.id) : undefined;
-            return {
+          for (const picked of candidates) {
+            let imgUrl: string | undefined;
+            if (quality === "preview") {
+              imgUrl = picked?.preview_file_url || picked?.large_file_url || picked?.file_url;
+            } else if (quality === "sample") {
+              imgUrl = picked?.large_file_url || picked?.file_url || picked?.preview_file_url;
+            } else {
+              imgUrl = picked?.file_url || picked?.large_file_url || picked?.preview_file_url;
+            }
+            if (!imgUrl) continue;
+            infos.push({
               imageUrl: imgUrl,
-              postUrl,
+              previewUrl: picked?.preview_file_url || picked?.large_file_url || undefined,
+              postUrl: picked.id ? extractPostDetailUrl(site, picked.id) : undefined,
               postId: picked.id,
               site,
               tags: typeof picked.tag_string === "string" ? picked.tag_string.split(" ") : undefined,
               width: picked.image_width || picked.width,
               height: picked.image_height || picked.height,
               score: picked.score,
-              diagnostic: {
-                totalFetched,
-                filteredCount: candidates.length,
-                rejectedByBlacklist,
-                rejectedByRatio,
-                rejectedByScore,
-                rejectedByTime,
-                rejectedByDuplicate,
-              },
-            };
+              diagnostic,
+            });
           }
+          diagnostic.totalFetched = totalFetched;
+          diagnostic.filteredCount = candidates.length;
+          diagnostic.rejectedByBlacklist = rejectedByBlacklist;
+          diagnostic.rejectedByRatio = rejectedByRatio;
+          diagnostic.rejectedByScore = rejectedByScore;
+          diagnostic.rejectedByTime = rejectedByTime;
+          diagnostic.rejectedByDuplicate = rejectedByDuplicate;
+          // Danbooru produced usable posts; skip the generic-site fallback.
+          if (infos.length > 0) return infos;
         }
       }
 
@@ -1185,54 +1204,94 @@ export async function resolveBooruImageInfo(
               rejectedByDuplicate,
               excludedUrlCount: excludedUrls.size,
             });
-            return null;
+            diagnostic.totalFetched = totalFetched;
+            return [];
           }
 
-          const picked = candidates[Math.floor(Math.random() * candidates.length)];
-          let imgUrl: string | null = null;
-          if (quality === "preview") {
-            imgUrl = picked.previewUrl || (picked as any).preview_url || picked.sampleUrl || picked.fileUrl || null;
-          } else if (quality === "sample") {
-            imgUrl = picked.sampleUrl || (picked as any).sample_url || picked.fileUrl || picked.previewUrl || null;
-          } else {
-            imgUrl = extractImageUrlFromPost(picked);
-          }
-
-          if (imgUrl) {
-            const postUrl = picked.id ? extractPostDetailUrl(resolvedDomain, picked.id) : undefined;
-            return {
+          for (const picked of candidates) {
+            let imgUrl: string | null = null;
+            if (quality === "preview") {
+              imgUrl = picked.previewUrl || (picked as any).preview_url || picked.sampleUrl || picked.fileUrl || null;
+            } else if (quality === "sample") {
+              imgUrl = picked.sampleUrl || (picked as any).sample_url || picked.fileUrl || picked.previewUrl || null;
+            } else {
+              imgUrl = extractImageUrlFromPost(picked);
+            }
+            if (!imgUrl) continue;
+            infos.push({
               imageUrl: imgUrl,
-              postUrl,
+              previewUrl: picked.previewUrl || (picked as any).preview_url || picked.sampleUrl || undefined,
+              postUrl: picked.id ? extractPostDetailUrl(resolvedDomain, picked.id) : undefined,
               postId: picked.id,
               site: resolvedDomain,
               tags: picked.tags,
               width: picked.width,
               height: picked.height,
               score: picked.score,
-              diagnostic: {
-                totalFetched,
-                filteredCount: candidates.length,
-                rejectedByBlacklist,
-                rejectedByRatio,
-                rejectedByScore,
-                rejectedByTime,
-                rejectedByDuplicate,
-              },
-            };
+              diagnostic,
+            });
           }
+          diagnostic.totalFetched = totalFetched;
+          diagnostic.filteredCount = candidates.length;
+          diagnostic.rejectedByBlacklist = rejectedByBlacklist;
+          diagnostic.rejectedByRatio = rejectedByRatio;
+          diagnostic.rejectedByScore = rejectedByScore;
+          diagnostic.rejectedByTime = rejectedByTime;
+          diagnostic.rejectedByDuplicate = rejectedByDuplicate;
+          if (infos.length > 0) return infos;
         }
       }
     }
 
     // Direct image URL fallback
     if (urlOrUri && (urlOrUri.startsWith("http://") || urlOrUri.startsWith("https://") || urlOrUri.startsWith("data:"))) {
-      return { imageUrl: urlOrUri };
+      return [{ imageUrl: urlOrUri }];
     }
-    return null;
+    return infos;
   } catch (e: any) {
     log.error("Failed to resolve booru image info:", e);
-    return null;
+    return [];
   }
+}
+
+/** Partial Fisher-Yates: `count` distinct random picks without reordering the source. */
+function pickRandomDistinct<T>(items: T[], count: number): T[] {
+  const pool = [...items];
+  if (pool.length === 0) return [];
+  const picks: T[] = [];
+  const wanted = Math.max(1, Math.min(count, pool.length));
+  for (let i = 0; i < wanted; i += 1) {
+    const index = Math.floor(Math.random() * pool.length);
+    picks.push(pool[index]);
+    pool.splice(index, 1);
+  }
+  return picks;
+}
+
+export async function resolveBooruImageInfo(
+  urlOrUri: string,
+  siteCredentials?: SiteCredential[],
+  globalBlacklist?: string[] | string,
+  excludedImageUrls?: Iterable<string>,
+): Promise<BooruResolvedInfo | null> {
+  const infos = await collectBooruResolvedInfos(urlOrUri, siteCredentials, globalBlacklist, excludedImageUrls);
+  if (infos.length === 0) return null;
+  return infos[Math.floor(Math.random() * infos.length)];
+}
+
+/**
+ * Gacha draw: resolve up to `count` distinct candidate covers for one template.
+ * Fewer entries are returned when the filtered pool is smaller than the request.
+ */
+export async function resolveBooruImageCandidates(
+  urlOrUri: string,
+  siteCredentials?: SiteCredential[],
+  globalBlacklist?: string[] | string,
+  excludedImageUrls?: Iterable<string>,
+  count = 1,
+): Promise<BooruResolvedInfo[]> {
+  const infos = await collectBooruResolvedInfos(urlOrUri, siteCredentials, globalBlacklist, excludedImageUrls);
+  return pickRandomDistinct(infos, count);
 }
 
 export async function resolveBooruImageUrl(

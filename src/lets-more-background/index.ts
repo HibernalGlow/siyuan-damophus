@@ -22,6 +22,7 @@ import {
   type CoverSourceItem,
 } from "./sources";
 import { resolveBooruImageUrl } from "./booru";
+import { loadCoverStash } from "./cover-gacha";
 import { getCachedTagPools, loadTagPoolsFromStorage } from "./tag-pool-storage";
 import MoreBackgroundSettings from "./MoreBackgroundSettings.svelte";
 import { moreBackgroundTabTarget, moreBackgroundTabType } from "./tab-contract";
@@ -108,10 +109,12 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
         toolbarCustomY: opts.toolbarCustomY ?? 15,
         coverBreadcrumb: opts.coverBreadcrumb === true,
         coverDocumentMenu: opts.coverDocumentMenu === true,
-        confirmRemoveCover: opts.confirmRemoveCover !== false,
-        coverHistoryLimit: opts.coverHistoryLimit ?? DEFAULT_COVER_HISTORY_LIMIT,
-        coverSeenLimit: opts.coverSeenLimit ?? DEFAULT_SEEN_COVERS_LIMIT,
-        onMaintenance: (detail) => this.handleMaintenance(detail),
+      confirmRemoveCover: opts.confirmRemoveCover !== false,
+      coverHistoryLimit: opts.coverHistoryLimit ?? DEFAULT_COVER_HISTORY_LIMIT,
+      coverSeenLimit: opts.coverSeenLimit ?? DEFAULT_SEEN_COVERS_LIMIT,
+      gachaMode: opts.gachaMode === true,
+      gachaDrawCount: opts.gachaDrawCount ?? 6,
+      onMaintenance: (detail) => this.handleMaintenance(detail),
       },
     });
 
@@ -263,7 +266,7 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
   onLayoutReady(): void {
     this.layoutReady = true;
     this.bindEvents();
-    void Promise.all([loadTagPoolsFromStorage(), initializeCoverDedupStorage()]).then(() => {
+    void Promise.all([loadTagPoolsFromStorage(), initializeCoverDedupStorage(), loadCoverStash()]).then(() => {
       this.startController();
     });
   }
@@ -347,6 +350,8 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
       autoAddCoverOnEmptyDoc: this.getSetting("autoAddCoverOnEmptyDoc") === true,
       autoRetryOnFailure: this.getSetting("autoRetryOnFailure") !== false,
       deduplicateNewCovers: this.getSetting("deduplicateNewCovers") !== false,
+      gachaMode: this.getSetting("gachaMode") === true,
+      gachaDrawCount: Number(this.getSetting("gachaDrawCount")) || 6,
       coverHistoryLimit: Number(this.getSetting("coverHistoryLimit")) || DEFAULT_COVER_HISTORY_LIMIT,
       coverSeenLimit: Number(this.getSetting("coverSeenLimit")) || DEFAULT_SEEN_COVERS_LIMIT,
       siteCredentials,

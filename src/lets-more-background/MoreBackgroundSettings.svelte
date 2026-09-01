@@ -12,6 +12,7 @@
     Layers,
     Loader2,
     SlidersHorizontal,
+    Sparkles,
     Star,
     X,
     XCircle,
@@ -26,6 +27,7 @@
   import CoverCacheTab from "./settings/CoverCacheTab.svelte";
   import CoverFavoritesTab from "./settings/CoverFavoritesTab.svelte";
   import CoverHistoryTab from "./settings/CoverHistoryTab.svelte";
+  import CoverStashTab from "./settings/CoverStashTab.svelte";
   import {
     DEFAULT_SITE_CREDENTIALS,
     DEFAULT_TAG_POOLS,
@@ -71,6 +73,8 @@
   export let confirmRemoveCover = true;
   export let coverHistoryLimit = 150;
   export let coverSeenLimit = 800;
+  export let gachaMode = false;
+  export let gachaDrawCount = 6;
   export let mobile = false;
   export let onMaintenance: ((detail: { action: "maintain" | "cleanup" | "resetMobilePosition"; documentLink?: string }) => void | Promise<void>) | undefined;
 
@@ -79,7 +83,7 @@
   type TopTab = "templates" | "pools" | "gallery" | "settings";
 
   let activeTab: TopTab = "templates";
-  let galleryView: "favorites" | "history" = "favorites";
+  let galleryView: "favorites" | "history" | "stash" = "favorites";
   let settingsView: "basic" | "cache" | "access" = "basic";
 
   function t(key: string, fallback?: string): string {
@@ -488,11 +492,22 @@
                 <History class="size-3.5 shrink-0" aria-hidden="true" />
                 <span>{label("lets-more-background.coverHistoryShort", "历史")}</span>
               </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={galleryView === "stash"}
+                onclick={() => (galleryView = "stash")}
+              >
+                <Sparkles class="size-3.5 shrink-0" aria-hidden="true" />
+                <span>{label("lets-more-background.stashTabShort", "暂存")}</span>
+              </button>
             </div>
           </div>
 
           {#if galleryView === "favorites"}
             <CoverFavoritesTab {label} siteCredentials={normalizedCredentials} />
+          {:else if galleryView === "stash"}
+            <CoverStashTab {label} />
           {:else}
             <CoverHistoryTab {label} />
           {/if}
@@ -538,6 +553,8 @@
               {height}
               {coverHistoryLimit}
               {coverSeenLimit}
+              {gachaMode}
+              {gachaDrawCount}
               {assetsLocation}
               {readFromAssets}
               {writeToAssets}
