@@ -1,6 +1,11 @@
 import type { Heading, List, ListItem, Paragraph, Root, RootContent } from "mdast";
 import { toString } from "mdast-util-to-string";
 import remarkGfm from "remark-gfm";
+// remark-math keeps $...$ content verbatim through the parse/stringify
+// round-trip: plain remark-parse treats LaTeX escapes like \% as CommonMark
+// escapes, so a formula $3\%$ came back as $3%$ and KaTeX rendered the bare
+// % as a comment (the tariff rate vanished inside rendered options).
+import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import remarkStringify from "remark-stringify";
 import { unified } from "unified";
@@ -63,8 +68,8 @@ export interface MarkdownQuestionScanReport extends QuestionScanReport {
   ialUpdates: MarkdownIalUpdate[];
 }
 
-const markdownParser = unified().use(remarkParse).use(remarkGfm);
-const markdownWriter = unified().use(remarkParse).use(remarkGfm).use(remarkStringify);
+const markdownParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath);
+const markdownWriter = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkStringify);
 const siyuanNodeId = /^\d{14}-[a-z0-9]{7}$/u;
 const stableTopicIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const questionTypes: readonly QuestionType[] = [

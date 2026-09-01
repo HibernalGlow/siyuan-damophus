@@ -53,6 +53,26 @@ describe("question Markdown scanner", () => {
     expect(question.metadata.collection).toBe("gold");
   });
 
+  it("preserves inline math LaTeX verbatim in options, stem, and solution", () => {
+    const report = scanQuestionMarkdown(`##### 8. 条约的冲突（多）
+{: custom-qb-id="treaty-math-8" custom-qb-type="multiple" custom-qb-answer="AB"}
+
+- 甲国对丙国机床征收 $5\\%$ 关税。下列说法正确的是？
+  - [ ] A. 甲国关税降至 $3\\%$
+  - [ ] B. 甲国关税降至 $3%$
+
+正确答案为 AB。解析见 $\\frac{\\Delta}{2}$ 公式。`);
+
+    expect(report.conflicts).toEqual([]);
+    expect(report.issues).toEqual([]);
+    const question = report.document.questions[0];
+    expect(question.options.map((option) => option.id)).toEqual(["A", "B"]);
+    expect(question.options[0].markdown).toBe("甲国关税降至 $3\\%$");
+    expect(question.options[1].markdown).toBe("甲国关税降至 $3%$");
+    expect(question.stemMarkdown).toContain("征收 $5\\%$ 关税");
+    expect(question.solutionMarkdown).toContain("$\\frac{\\Delta}{2}$");
+  });
+
   it("accepts a single correct option for an explicitly indefinite question", () => {
     const markdown = `##### 3. 不定项选择题
 {: custom-qb-id="civil-indefinite-3" custom-qb-type="indefinite" custom-qb-answer="A"}
