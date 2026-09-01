@@ -191,6 +191,93 @@ describe("TinyBase repositories", () => {
     expect(await deviceA.list()).toHaveLength(1);
   });
 
+  it("keeps an older unfinished session visible when a newer remote session was completed", async () => {
+    const store = createDamophusStore("sessions");
+    const question = {
+      id: "question-1", type: "single" as const, title: "Question", stemMarkdown: "Stem",
+      options: [{id: "A", markdown: "A"}, {id: "B", markdown: "B"}],
+      answer: {kind: "options" as const, optionIds: ["A"]}, solutionMarkdown: "Solution",
+      metadata: {topicPath: []},
+    };
+    const first = createPracticeSessionSnapshot({
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
+      queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
+    });
+    const deviceA = new TinyBasePracticeSessionRepository(store, "device-a");
+    const deviceB = new TinyBasePracticeSessionRepository(store, "device-b", {
+      now: () => new Date("2026-08-08T00:02:00.000Z"),
+    });
+    await deviceA.save(first);
+    await deviceB.save({...first, session_id: "session-2", updated_at: "2026-08-08T00:01:00.000Z"});
+    await deviceB.remove("doc-1", "session-2");
+
+    await expect(deviceA.load("doc-1")).resolves.toMatchObject({
+      status: "ok",
+      snapshot: {session_id: "session-1"},
+    });
+    await expect(deviceA.save({...first, revision: 1, updated_at: "2026-08-08T00:03:00.000Z"}, 0))
+      .resolves.toBeUndefined();
+    await expect(deviceA.save({
+      ...first,
+      session_id: "session-3",
+      updated_at: "2026-08-08T00:04:00.000Z",
+    })).resolves.toBeUndefined();
+    await expect(deviceA.load("doc-1")).resolves.toMatchObject({
+      status: "ok",
+      snapshot: {session_id: "session-3"},
+    });
+  });
+
+  it("never resurrects a session that any device has ended", async () => {
+    const store = createDamophusStore("sessions");
+    const question = {
+      id: "question-1", type: "single" as const, title: "Question", stemMarkdown: "Stem",
+      options: [{id: "A", markdown: "A"}, {id: "B", markdown: "B"}],
+      answer: {kind: "options" as const, optionIds: ["A"]}, solutionMarkdown: "Solution",
+      metadata: {topicPath: []},
+    };
+    const first = createPracticeSessionSnapshot({
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
+      queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
+    });
+    const deviceA = new TinyBasePracticeSessionRepository(store, "device-a");
+    const deviceB = new TinyBasePracticeSessionRepository(store, "device-b");
+    await deviceA.save(first);
+    await deviceB.remove("doc-1", "session-1");
+
+    await expect(deviceA.save({...first, revision: 1, updated_at: "2026-08-08T00:05:00.000Z"}))
+      .rejects.toThrow("changed in another window");
+    await expect(deviceA.load("doc-1")).resolves.toBeUndefined();
+  });
+
+  it("removes the requested session even when a newer one exists and ignores unknown ids", async () => {
+    const store = createDamophusStore("sessions");
+    const question = {
+      id: "question-1", type: "single" as const, title: "Question", stemMarkdown: "Stem",
+      options: [{id: "A", markdown: "A"}, {id: "B", markdown: "B"}],
+      answer: {kind: "options" as const, optionIds: ["A"]}, solutionMarkdown: "Solution",
+      metadata: {topicPath: []},
+    };
+    const first = createPracticeSessionSnapshot({
+      sessionId: "session-1", sourceKey: "doc-1", filter: "all", order: "sequential",
+      queue: [{question, optionOrder: ["A", "B"]}], now: new Date("2026-08-08T00:00:00.000Z"),
+    });
+    const deviceA = new TinyBasePracticeSessionRepository(store, "device-a");
+    const deviceB = new TinyBasePracticeSessionRepository(store, "device-b");
+    const deviceC = new TinyBasePracticeSessionRepository(store, "device-c");
+    await deviceA.save(first);
+    await deviceB.save({...first, session_id: "session-2", updated_at: "2026-08-08T00:01:00.000Z"});
+
+    await deviceC.remove("doc-1", "session-1");
+    await expect(deviceA.load("doc-1")).resolves.toMatchObject({
+      status: "ok",
+      snapshot: {session_id: "session-2"},
+    });
+    await expect(deviceA.save({...first, session_id: "session-2", revision: 1}, 0)).resolves.toBeUndefined();
+
+    await expect(deviceC.remove("doc-1", "session-999")).resolves.toBeUndefined();
+  });
+
   it("rebuilds aggregate cache exclusively from immutable events", async () => {
     const core = createDamophusStore("core");
     const events = [attempt(), attempt({attemptId: "attempt-2", objectiveCorrect: false, masteryRating: "again"})];

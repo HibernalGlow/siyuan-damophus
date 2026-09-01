@@ -323,6 +323,10 @@ function sessionRowId(logicalId: string, deviceId: string): string {
   return `${encodeURIComponent(logicalId)}~${encodeURIComponent(deviceId)}`;
 }
 
+function endedSessionIds(rows: Array<Record<string, Cell>>): Set<string> {
+  return new Set(rows.filter((row) => row.deleted === true).map((row) => String(row.session_id)));
+}
+
 interface TinyBasePracticeSessionRepositoryOptions {
   readView?: MergeableStore;
   now?: () => Date;
@@ -373,38 +377,30 @@ export class TinyBasePracticeSessionRepository implements PracticeSessionReposit
 
   async load(sourceKey: string): Promise<PracticeSessionSnapshotParseResult | undefined> {
     const matches = this.matching(sourceKey);
-    const row = matches[0];
-    return row && row.deleted !== true
-      ? parsePracticeSessionSnapshot(JSON.parse(String(row.snapshot_json)))
-      : undefined;
+    const ended = endedSessionIds(matches);
+    for (const row of matches) {
+      if (row.deleted === true) continue;
+      if (ended.has(String(row.session_id))) continue;
+      return parsePracticeSessionSnapshot(JSON.parse(String(row.snapshot_json)));
+    }
+    return undefined;
   }
 
   async save(snapshot: PracticeSessionSnapshot, expectedRevision?: number): Promise<void> {
     const parsed = PracticeSessionSnapshotSchema.parse(snapshot) as PracticeSessionSnapshot;
     const rowId = sessionRowId(parsed.source_key, this.deviceId);
-    const latestRow = this.matching(parsed.source_key)[0];
-    const current = latestRow && latestRow.deleted !== true
-      ? parsePracticeSessionSnapshot(JSON.parse(String(latestRow.snapshot_json)))
-      : undefined;
-    const localRow = this.sessions.hasRow(TABLE.practiceSessionVersions, rowId)
-      ? rowObject(this.sessions, TABLE.practiceSessionVersions, rowId)
-      : undefined;
-    const localCurrent = localRow && localRow.deleted !== true
-      ? parsePracticeSessionSnapshot(JSON.parse(String(localRow.snapshot_json)))
-      : undefined;
-    if (expectedRevision !== undefined && (
-      current?.status !== "ok"
-      || current.snapshot.revision !== expectedRevision
-      || current.snapshot.session_id !== parsed.session_id
-    )) {
+    const matches = this.matching(parsed.source_key);
+    if (endedSessionIds(matches).has(parsed.session_id)) {
       throw new Error("Practice session changed in another window");
     }
-    if (expectedRevision === undefined && latestRow?.deleted === true && latestRow.session_id === parsed.session_id) {
-      throw new Error("Practice session changed in another window");
+    if (expectedRevision !== undefined) {
+      const current = matches.find((row) => row.deleted !== true && row.session_id === parsed.session_id);
+      if (!current || Number(current.revision) !== expectedRevision) {
+        throw new Error("Practice session changed in another window");
+      }
     }
-    if (expectedRevision === undefined && localCurrent?.status === "ok" && localCurrent.snapshot.session_id !== parsed.session_id) {
-      throw new Error("Practice session changed in another window");
-    }
+    // Live-window concurrency is gated by the per-source practice lease, so a
+    // stale local row must never block creating a replacement session.
     this.sessions.setRow(TABLE.practiceSessionVersions, rowId, compactRow({
       source_key: parsed.source_key,
       device_id: this.deviceId,
@@ -417,21 +413,19 @@ export class TinyBasePracticeSessionRepository implements PracticeSessionReposit
   }
 
   async remove(sourceKey: string, sessionId?: string): Promise<void> {
-    const latest = this.matching(sourceKey)[0];
-    if (!latest) return;
-    if (latest.deleted === true) return;
-    if (sessionId && latest.session_id !== sessionId) {
-      throw new Error("Practice session changed in another window");
-    }
+    const target = this.matching(sourceKey).find((row) => (
+      row.deleted !== true && (!sessionId || String(row.session_id) === sessionId)
+    ));
+    if (!target) return;
     const rowId = sessionRowId(sourceKey, this.deviceId);
-    const latestUpdatedAt = Date.parse(String(latest.updated_at));
+    const targetUpdatedAt = Date.parse(String(target.updated_at));
     const now = this.now().getTime();
-    const deletedAt = new Date(Math.max(now, Number.isFinite(latestUpdatedAt) ? latestUpdatedAt + 1 : now));
+    const deletedAt = new Date(Math.max(now, Number.isFinite(targetUpdatedAt) ? targetUpdatedAt + 1 : now));
     this.sessions.setRow(TABLE.practiceSessionVersions, rowId, compactRow({
       source_key: sourceKey,
       device_id: this.deviceId,
-      session_id: String(latest.session_id),
-      revision: Number(latest.revision) + 1,
+      session_id: String(target.session_id),
+      revision: Number(target.revision) + 1,
       updated_at: deletedAt.toISOString(),
       deleted: true,
       snapshot_json: "",
