@@ -1,20 +1,28 @@
 export const TABLE_FIT_STYLE_ID = "damophus-table-fit-style";
 
+// Tables opted into the block-fullwidth module (custom-afwd, see
+// lets-block-fullwidth) keep their natural column sizing: table-layout fixed
+// would split columns evenly regardless of content, which looks broken on
+// two-column tables. Doc-level attributes (all / t) exclude every table of
+// the document; the block-level "on" attribute excludes a single table. The
+// html class is that module's "full width in all documents" toggle, which
+// excludes every table while it is on.
+const FIT_SCOPE =
+  'html:not(.damophus-afwd-global) .protyle-wysiwyg:not([custom-afwd="all"]):not([custom-afwd~="t"]) [data-type="NodeTable"].table:not([custom-afwd="on"])';
+
 export const TABLE_FIT_CSS = `
-.protyle-wysiwyg [data-type="NodeTable"].table {
+${FIT_SCOPE} {
   box-sizing: border-box !important;
   min-width: 0 !important;
   max-width: 100% !important;
 }
 
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child {
+${FIT_SCOPE} > div:first-child {
   box-sizing: border-box !important;
   max-width: 100% !important;
-  overflow-x: hidden !important;
-  overflow-x: clip !important;
 }
 
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table {
+${FIT_SCOPE} > div:first-child > table {
   box-sizing: border-box !important;
   display: table !important;
   width: 100% !important;
@@ -22,23 +30,23 @@ export const TABLE_FIT_CSS = `
   table-layout: fixed !important;
 }
 
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table > colgroup > col,
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table th,
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table td {
+${FIT_SCOPE} > div:first-child > table > colgroup > col,
+${FIT_SCOPE} > div:first-child > table th,
+${FIT_SCOPE} > div:first-child > table td {
   width: auto !important;
   min-width: 0 !important;
   max-width: none !important;
 }
 
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table th,
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table td {
+${FIT_SCOPE} > div:first-child > table th,
+${FIT_SCOPE} > div:first-child > table td {
   white-space: normal !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
 }
 
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table th > *,
-.protyle-wysiwyg [data-type="NodeTable"].table > div:first-child > table td > * {
+${FIT_SCOPE} > div:first-child > table th > *,
+${FIT_SCOPE} > div:first-child > table td > * {
   max-width: 100% !important;
 }
 

@@ -56,6 +56,10 @@ describe("table fit", () => {
     expect(container.scrollWidth).toBeLessThanOrEqual(container.clientWidth);
     expect(Math.round(table.getBoundingClientRect().width)).toBe(container.clientWidth);
     expect(getComputedStyle(table).tableLayout).toBe("fixed");
+    // SiYuan mobile touch handling relies on the wrapper keeping native overflow
+    // (it probes scrollWidth to decide between in-table scroll and page scroll);
+    // hijacking it to hidden/clip swallows touch pans over the table area.
+    expect(getComputedStyle(container).overflowX).toBe("auto");
     expect(longCell.scrollWidth).toBeLessThanOrEqual(longCell.clientWidth);
     expect(getComputedStyle(container.querySelector<HTMLElement>(".table__resize")!).display).toBe("none");
 
@@ -121,5 +125,67 @@ describe("table fit", () => {
       type: "checkbox",
       value: true,
     }));
+  });
+});
+
+describe("table fit fullwidth coordination", () => {
+  const renderTable = (editorAttrs: Record<string, string> = {}, tableAttrs: Record<string, string> = {}) => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    editor.style.width = "320px";
+    for (const [key, value] of Object.entries(editorAttrs)) editor.setAttribute(key, value);
+    const tableAttrsText = Object.entries(tableAttrs)
+      .map(([key, value]) => ` ${key}="${value}"`)
+      .join("");
+    editor.innerHTML = `
+      <div data-type="NodeTable" class="table"${tableAttrsText}>
+        <div><table><colgroup><col /><col /></colgroup><tbody><tr><td>A</td><td>B</td></tr></tbody></table></div>
+      </div>`;
+    document.body.append(editor);
+    return editor;
+  };
+
+  it("keeps natural column sizing for tables opted into full-width display", () => {
+    const editor = renderTable({}, { "custom-afwd": "on" });
+    const styles = new TableFitStyles(document);
+    styles.start();
+    expect(getComputedStyle(editor.querySelector("table")!).tableLayout).toBe("auto");
+    styles.destroy();
+  });
+
+  it("keeps natural column sizing when the document opts every table into full-width display", () => {
+    const editor = renderTable({ "custom-afwd": "all" });
+    const styles = new TableFitStyles(document);
+    styles.start();
+    expect(getComputedStyle(editor.querySelector("table")!).tableLayout).toBe("auto");
+    styles.destroy();
+  });
+
+  it("still fits tables without any full-width attribute", () => {
+    const editor = renderTable();
+    const styles = new TableFitStyles(document);
+    styles.start();
+    expect(getComputedStyle(editor.querySelector("table")!).tableLayout).toBe("fixed");
+    styles.destroy();
+  });
+});
+
+describe("table fit global full-width coordination", () => {
+  it("skips every table while the global full-width toggle is on", () => {
+    document.documentElement.classList.add("damophus-afwd-global");
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    editor.style.width = "320px";
+    editor.innerHTML = `
+      <div data-type="NodeTable" class="table">
+        <div><table><colgroup><col /><col /></colgroup><tbody><tr><td>A</td><td>B</td></tr></tbody></table></div>
+      </div>`;
+    document.body.append(editor);
+
+    const styles = new TableFitStyles(document);
+    styles.start();
+    expect(getComputedStyle(editor.querySelector("table")!).tableLayout).toBe("auto");
+    styles.destroy();
+    document.documentElement.classList.remove("damophus-afwd-global");
   });
 });
