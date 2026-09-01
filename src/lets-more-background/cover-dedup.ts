@@ -53,16 +53,24 @@ export function normalizeCoverUrl(value: string): string | null {
 /** Normalize local asset paths so a leading `/data/` does not hide a match. */
 export function normalizeCoverAssetPath(value: string): string | null {
   const source = extractUrl(String(value || ""));
-  if (!source || /^(?:https?:|data:|blob:)/i.test(source)) return null;
-  return source.replace(/^\/+/, "").replace(/^data\//i, "").replace(/\/+/g, "/");
+  if (!source || /^(?:data:|blob:)/i.test(source)) return null;
+
+  // SiYuan serves local assets through a loopback or dev-tunnel URL in some
+  // persisted attributes, while file listings return the relative
+  // `assets/...` path. Treat both forms as the same cover identity.
+  const loopbackAsset = source.match(
+    /^https?:\/\/(?:(?:localhost|127\.0\.0\.1)(?::\d+)?|(?:[a-z0-9-]+\.)+devtunnels\.ms(?::\d+)?)\/(?:data\/)?(assets\/.*)$/i,
+  );
+  const path = loopbackAsset?.[1] || source;
+  if (/^https?:\/\//i.test(path)) return null;
+  return path.replace(/^\/+/, "").replace(/^data\//i, "").replace(/\/+/g, "/");
 }
 
 /** Return a stable identity for both remote covers and local asset paths. */
 export function coverDedupIdentity(value: string): string | null {
-  const remote = normalizeCoverUrl(value);
-  if (remote) return remote;
   const asset = normalizeCoverAssetPath(value);
-  return asset ? `asset:${asset.toLowerCase()}` : null;
+  if (asset) return `asset:${asset.toLowerCase()}`;
+  return normalizeCoverUrl(value);
 }
 
 export function collectTitleImageRows(blocks: CoverBlockRow[]): CoverAttributeRow[] {
@@ -134,7 +142,7 @@ export function collectHistoryCoverUrls(entries: CoverHistoryUrlEntry[]): Set<st
   for (const entry of entries || []) {
     const identity = coverDedupIdentity(entry.imageUrl || "");
     if (identity) urls.add(identity);
-    const source = normalizeCoverUrl(entry.sourceUrl || "");
+    const source = coverDedupIdentity(entry.sourceUrl || "");
     if (source) urls.add(source);
     const key = booruPostDedupKey(entry.site, entry.postId);
     if (key) urls.add(key);

@@ -29,9 +29,23 @@ import {
   normalizeCoverPosition,
   serializeCoverPosition,
   selectCoverPositionFromAttrs,
+  buildNonBooruGachaCards,
 } from "./more-background";
 
 describe("more-background sources utilities", () => {
+  it("does not clone a fixed image into multiple gacha cards", () => {
+    const url = "https://example.com/covers/already-used.jpg";
+    expect(buildNonBooruGachaCards(url, 6)).toEqual([{ key: `cover-${url}`, imageUrl: url }]);
+    expect(buildNonBooruGachaCards(url, 6, new Set([url]))).toEqual([]);
+  });
+
+  it("uses distinct cache-busted requests for random endpoint cards", () => {
+    const cards = buildNonBooruGachaCards("https://picsum.photos/1920/1080", 6);
+    expect(cards).toHaveLength(6);
+    expect(new Set(cards.map((card) => card.imageUrl)).size).toBe(6);
+    expect(cards.every((card) => card.imageUrl.includes("__damophus_gacha="))).toBe(true);
+  });
+
   it("normalizes and serializes persisted cover positions", () => {
     expect(parseCoverPosition('background-image:url("cover.jpg");object-position:center 37.5%;')).toBe(37.5);
     expect(parseCoverPosition("center 13.92%")).toBe(13.92);

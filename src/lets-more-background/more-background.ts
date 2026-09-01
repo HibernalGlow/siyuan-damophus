@@ -965,6 +965,54 @@ export function getGachaDrawCount(options: Pick<MoreBackgroundOptions, "gachaDra
   return Number.isFinite(parsed) && parsed >= 2 ? Math.min(12, Math.floor(parsed)) : 6;
 }
 
+function isLikelyRandomCoverEndpoint(url: string): boolean {
+  const value = String(url || "").trim().toLowerCase();
+  if (!value) return false;
+  // A concrete image file is a single candidate, even when it has query
+  // parameters for resizing or authentication.
+  if (/\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(value)) return false;
+  return /(?:picsum\.photos|unsplash(?:\.it|\.com)|biturl\.top|xjh\.me|\/random(?:[_./?-]|$)|[?&](?:random|return=302)(?:[=&]|$))/i.test(value);
+}
+
+function addGachaCacheBust(url: string, index: number): string {
+  const token = `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    const parsed = new URL(url, typeof location !== "undefined" ? location.href : "http://localhost/");
+    parsed.searchParams.set("__damophus_gacha", token);
+    return parsed.href;
+  } catch {
+    return `${url}${url.includes("?") ? "&" : "?"}__damophus_gacha=${encodeURIComponent(token)}`;
+  }
+}
+
+/** Build non-Booru cards without cloning a fixed image into every slot. */
+export function buildNonBooruGachaCards(
+  url: string,
+  count: number,
+  excludedCoverIdentities: ReadonlySet<string> = new Set(),
+): GachaCardData[] {
+  const requested = Math.max(1, Math.floor(Number(count) || 1));
+  if (!isLikelyRandomCoverEndpoint(url)) {
+    const identity = coverDedupIdentity(url);
+    if (identity && excludedCoverIdentities.has(identity)) return [];
+    return [{ key: `cover-${identity || url}`, imageUrl: url }];
+  }
+
+  const cards: GachaCardData[] = [];
+  const batchIdentities = new Set<string>();
+  for (let index = 0; index < requested; index += 1) {
+    const imageUrl = addGachaCacheBust(url, index);
+    const identity = coverDedupIdentity(imageUrl);
+    if (identity && (excludedCoverIdentities.has(identity) || batchIdentities.has(identity))) continue;
+    if (identity) batchIdentities.add(identity);
+    cards.push({
+      key: `card-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+      imageUrl,
+    });
+  }
+  return cards;
+}
+
 export function checkAndAutoAddCover(root: HTMLElement, controller: MoreBackgroundController): void {
   const opts = controller.getOptions();
   if (opts.autoAddCoverOnEmptyDoc !== true) return;
@@ -2254,7 +2302,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     const isBooru = isBooruSource(url);
     // 累计排除集：初始为去重记忆，之后每批抽出的卡也会加入，保证「换一批」不重复。
     const excluded = new Set<string>();
-    if (isBooru && this.options.deduplicateNewCovers !== false) {
+    if (this.options.deduplicateNewCovers !== false) {
       try {
         const loaded = await loadDedupCoverUrls(background, this.options.localCacheRoot);
         for (const key of loaded) excluded.add(key);
@@ -2264,7 +2312,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     }
 
     const rememberCard = (card: GachaCardData): void => {
-      const normalized = normalizeCoverUrl(card.imageUrl);
+      const normalized = coverDedupIdentity(card.imageUrl);
       if (normalized) excluded.add(normalized);
       const postKey = card.site && card.postId !== undefined
         ? booruPostDedupKey(card.site, card.postId)
@@ -2331,11 +2379,11 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       }
       // 非 booru 模板（Picsum/Unsplash 等随机端点）：每次 <img> 请求各自出图，
       // 选中后优先用画布截取已加载的那一张，保证所见即所得。
-      const cards = Array.from({ length: count }, (_, index) => ({
-        key: `card-${Date.now()}-${index}`,
-        imageUrl: url,
-      }));
-      for (const card of cards) handlers.onCard(card);
+      const cards = buildNonBooruGachaCards(url, count, excluded);
+      for (const card of cards) {
+        rememberCard(card);
+        handlers.onCard(card);
+      }
       handlers.onProgress(cards.length, count);
       return cards;
     };

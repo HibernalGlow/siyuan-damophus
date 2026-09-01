@@ -10,6 +10,14 @@ describe("cover deduplication", () => {
     expect(normalizeCoverUrl("assets/cover.webp")).toBeNull();
     expect(normalizeCoverAssetPath('background-image:url("/data/storage/petal/covers/a.webp")'))
       .toBe("storage/petal/covers/a.webp");
+    expect(normalizeCoverAssetPath("http://127.0.0.1:6806/assets/covers/a.webp"))
+      .toBe("assets/covers/a.webp");
+    expect(normalizeCoverAssetPath("https://localhost:6806/data/assets/covers/a.webp"))
+      .toBe("assets/covers/a.webp");
+    expect(normalizeCoverAssetPath("https://0t5shl10-6806.jpe1.devtunnels.ms/assets/covers/a.webp"))
+      .toBe("assets/covers/a.webp");
+    expect(coverDedupIdentity("http://127.0.0.1:6806/assets/covers/a.webp"))
+      .toBe(coverDedupIdentity("assets/covers/a.webp"));
     expect(coverDedupIdentity('background-image:url("/data/assets/covers/A.webp")'))
       .toBe("asset:assets/covers/a.webp");
   });
@@ -79,6 +87,14 @@ describe("cover deduplication", () => {
       "https://safebooru.org/images/5/original.jpg",
       booruPostDedupKey("safebooru.org", "500"),
     ]));
+  });
+
+  it("normalizes loopback source URLs in history to local asset identities", () => {
+    const urls = collectHistoryCoverUrls([{
+      imageUrl: "assets/covers/a.webp",
+      sourceUrl: "http://127.0.0.1:6806/assets/covers/a.webp",
+    }]);
+    expect(urls).toEqual(new Set(["asset:assets/covers/a.webp"]));
   });
 
   it("includes persisted post metadata from locally stored current covers", () => {
