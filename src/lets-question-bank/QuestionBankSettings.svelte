@@ -58,7 +58,7 @@
       "autoCardHardThreshold",
       "autoCardAgainThreshold",
     ],
-    index: ["autoSyncIndex", "questionIndexProjectionBlockId", "maintainIndex", "migrateTopicRelations", "autoScanDocument", "includeSubdocuments", "syncTopicProgress"],
+    index: ["autoSyncIndex", "questionIndexProjectionBlockId", "maintainIndex", "migrateTopicRelations", "autoScanDocument", "syncTopicProgress"],
     display: [
       "autoPinTab",
       "replaceExistingTab",
