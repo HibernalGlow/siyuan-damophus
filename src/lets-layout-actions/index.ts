@@ -10,6 +10,7 @@ import {
   normalizeConfiguredActions,
   resolveActionTitle,
   type ConfiguredAction,
+  type ActionPlatformTarget,
 } from "./actions";
 import { PANEL_LAYOUT_ICON_SYMBOLS } from "./icons";
 import { createActionRuntime } from "./runtime";
@@ -50,7 +51,8 @@ export default class LayoutActionsPlugin extends SubPluginBase {
 
   addMenuItem(menu: Menu): void {
     if (!this.isEntryEnabled("menu")) return;
-    const actions = this.actionsFor("menu");
+    const platform: ActionPlatformTarget = isMobileEntryFrontend() ? "mobile" : "desktop";
+    const actions = this.actionsFor("menu", platform);
     if (actions.length === 0) return;
     menu.addItem({
       icon: "iconMenu",
@@ -88,7 +90,7 @@ export default class LayoutActionsPlugin extends SubPluginBase {
     this.dockEntries = [];
     if (isMobileEntryFrontend() || !this.isEntryEnabled("desktopDock")) return;
 
-    this.dockEntries = this.actionsFor("dock").map((action, index) => {
+    this.dockEntries = this.actionsFor("dock", "desktop").map((action, index) => {
       const entry = new UnifiedEntryPoint({
         id: `layout-actions.dock.${action.id}`,
         title: action.title,
@@ -121,8 +123,10 @@ export default class LayoutActionsPlugin extends SubPluginBase {
     }));
   }
 
-  private actionsFor(surface: "menu" | "dock"): ConfiguredAction[] {
-    return this.configuredActions().filter((action) => action.value && actionAppearsOn(action, surface));
+  private actionsFor(surface: "menu" | "dock", platform: ActionPlatformTarget): ConfiguredAction[] {
+    return this.configuredActions().filter((action) =>
+      action.value && actionAppearsOn(action, surface, platform)
+    );
   }
 
   private entryFor(action: ConfiguredAction): UnifiedEntryPoint {

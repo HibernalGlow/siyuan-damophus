@@ -10,6 +10,10 @@
     command: string;
     commandId: string;
     placement: string;
+    platform: string;
+    platformDesktop: string;
+    platformMobile: string;
+    platformBoth: string;
     system: string;
     plugin: string;
     editor: string;
@@ -215,6 +219,22 @@
           </label>
 
           <label class="grid gap-1 text-xs text-muted-foreground">
+            <span>{labels.platform}</span>
+            <Select.Root type="single" value={action.platform} onValueChange={(value) => updateAction(index, { platform: value as ConfiguredAction["platform"] })}>
+              <Select.Trigger class="w-full">{{
+                desktop: labels.platformDesktop,
+                mobile: labels.platformMobile,
+                both: labels.platformBoth,
+              }[action.platform]}</Select.Trigger>
+              <Select.Content>
+                <Select.Item value="desktop" label={labels.platformDesktop} />
+                <Select.Item value="mobile" label={labels.platformMobile} />
+                <Select.Item value="both" label={labels.platformBoth} />
+              </Select.Content>
+            </Select.Root>
+          </label>
+
+          <label class="grid gap-1 text-xs text-muted-foreground">
             <span>{labels.command}</span>
             <CommandSelect
               options={commandOptions(action.kind)}
@@ -229,7 +249,7 @@
             <Input value={action.value} onchange={(event) => updateAction(index, { value: event.currentTarget.value })} />
           </label>
 
-          <div class="grid gap-1 text-xs text-muted-foreground sm:col-span-2">
+          <div class="grid gap-1 text-xs text-muted-foreground">
             <span>{labels.icon}</span>
             <div class="flex items-center gap-2">
               <span

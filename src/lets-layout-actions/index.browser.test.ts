@@ -90,4 +90,45 @@ describe("layout action Dock registration", () => {
 
     module.onunload();
   });
+
+  it("skips mobile-only actions when registering desktop Docks", () => {
+    type RegisteredDock = { type: string };
+    const addDock = vi.fn((_dock: RegisteredDock) => ({ config: {} as never, model: {} as never }));
+    setPlugin({
+      name: "siyuan-damophus",
+      app: {},
+      commands: [],
+      docks: {},
+      addCommand: vi.fn(),
+      addDock,
+      addIcons: vi.fn(),
+    });
+
+    const settings = new Map<string, unknown>([
+      ["entryCommand", false],
+      ["entryDesktopDock", true],
+      ["dockPosition", "LeftTop"],
+      ["actions", [
+        {
+          id: "mobile-only",
+          title: "Mobile only",
+          icon: "iconPhone",
+          kind: "system",
+          value: "syncNow",
+          placement: "dock",
+          platform: "mobile",
+          enabled: true,
+        },
+      ]],
+    ]);
+    const module = new LayoutActionsPlugin();
+    module.enabled = true;
+    module.getSetting = (key) => settings.get(key);
+    module.t = (key) => key;
+
+    module.onload();
+
+    expect(addDock).not.toHaveBeenCalled();
+    module.onunload();
+  });
 });

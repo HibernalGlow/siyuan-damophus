@@ -3,6 +3,8 @@ import { PANEL_LAYOUT_ICONS } from "./icons";
 
 export type ActionKind = "system" | "plugin" | "editor";
 export type ActionPlacement = "menu" | "dock" | "both";
+export type ActionPlatform = "desktop" | "mobile" | "both";
+export type ActionPlatformTarget = "desktop" | "mobile";
 
 export interface ConfiguredAction {
   id: string;
@@ -11,6 +13,7 @@ export interface ConfiguredAction {
   kind: ActionKind;
   value: string;
   placement: ActionPlacement;
+  platform: ActionPlatform;
   enabled: boolean;
 }
 
@@ -29,6 +32,7 @@ export const DEFAULT_ACTIONS: ConfiguredAction[] = [
     kind: "system",
     value: "switchLeftDock",
     placement: "menu",
+    platform: "both",
     enabled: true,
   },
   {
@@ -38,6 +42,7 @@ export const DEFAULT_ACTIONS: ConfiguredAction[] = [
     kind: "system",
     value: "switchRightDock",
     placement: "menu",
+    platform: "both",
     enabled: true,
   },
   {
@@ -47,12 +52,14 @@ export const DEFAULT_ACTIONS: ConfiguredAction[] = [
     kind: "system",
     value: "switchBottomDock",
     placement: "menu",
+    platform: "both",
     enabled: true,
   },
 ];
 
 const ACTION_KINDS = new Set<ActionKind>(["system", "plugin", "editor"]);
 const ACTION_PLACEMENTS = new Set<ActionPlacement>(["menu", "dock", "both"]);
+const ACTION_PLATFORMS = new Set<ActionPlatform>(["desktop", "mobile", "both"]);
 
 export function normalizeConfiguredActions(value: unknown): ConfiguredAction[] {
   if (!Array.isArray(value)) return DEFAULT_ACTIONS.map((action) => ({ ...action }));
@@ -63,6 +70,10 @@ export function normalizeConfiguredActions(value: unknown): ConfiguredAction[] {
     const placement = ACTION_PLACEMENTS.has(candidate.placement as ActionPlacement)
       ? candidate.placement as ActionPlacement
       : "menu";
+    // Actions saved before the platform switch existed showed up on every frontend.
+    const platform = ACTION_PLATFORMS.has(candidate.platform as ActionPlatform)
+      ? candidate.platform as ActionPlatform
+      : "both";
     const title = typeof candidate.title === "string" ? candidate.title.trim() : "";
     const command = typeof candidate.value === "string" ? candidate.value.trim() : "";
     return [{
@@ -74,6 +85,7 @@ export function normalizeConfiguredActions(value: unknown): ConfiguredAction[] {
       kind,
       value: command,
       placement,
+      platform,
       enabled: candidate.enabled !== false,
     }];
   });
@@ -89,8 +101,18 @@ function normalizeBuiltInIcon(candidate: Partial<ConfiguredAction>, icon: string
   return migration && candidate.value === migration.value && icon === migration.from ? migration.to : icon;
 }
 
-export function actionAppearsOn(action: ConfiguredAction, surface: "menu" | "dock"): boolean {
-  return action.enabled && (action.placement === surface || action.placement === "both");
+/**
+ * Decides whether an action is offered on one surface of one frontend. Docks
+ * only exist on desktop, so callers pass the platform they are rendering for.
+ */
+export function actionAppearsOn(
+  action: ConfiguredAction,
+  surface: "menu" | "dock",
+  platform: ActionPlatformTarget,
+): boolean {
+  if (!action.enabled) return false;
+  if (action.platform !== "both" && action.platform !== platform) return false;
+  return action.placement === surface || action.placement === "both";
 }
 
 export function normalizeIcon(icon: unknown): string {

@@ -29,8 +29,9 @@ describe("configured actions", () => {
       "switchRightDock",
       "switchBottomDock",
     ]);
-    expect(actions.every((action) => actionAppearsOn(action, "menu"))).toBe(true);
-    expect(actions.some((action) => actionAppearsOn(action, "dock"))).toBe(false);
+    expect(actions.every((action) => actionAppearsOn(action, "menu", "desktop"))).toBe(true);
+    expect(actions.every((action) => actionAppearsOn(action, "menu", "mobile"))).toBe(true);
+    expect(actions.some((action) => actionAppearsOn(action, "dock", "desktop"))).toBe(false);
   });
 
   it("normalizes custom values and removes invalid entries", () => {
@@ -44,8 +45,35 @@ describe("configured actions", () => {
       icon: "iconSearch",
       kind: "system",
       placement: "both",
+      platform: "both",
       enabled: true,
     }]);
+  });
+
+  it("offers actions only on the configured platform", () => {
+    const base = {
+      id: "a",
+      title: "Action",
+      icon: "iconMenu",
+      kind: "system" as const,
+      value: "syncNow",
+      enabled: true,
+    };
+    const desktopOnly = { ...base, placement: "both" as const, platform: "desktop" as const };
+    const mobileOnly = { ...base, placement: "both" as const, platform: "mobile" as const };
+    const everywhere = { ...base, placement: "both" as const, platform: "both" as const };
+
+    expect(actionAppearsOn(desktopOnly, "menu", "desktop")).toBe(true);
+    expect(actionAppearsOn(desktopOnly, "menu", "mobile")).toBe(false);
+    expect(actionAppearsOn(desktopOnly, "dock", "desktop")).toBe(true);
+
+    expect(actionAppearsOn(mobileOnly, "menu", "mobile")).toBe(true);
+    expect(actionAppearsOn(mobileOnly, "menu", "desktop")).toBe(false);
+    expect(actionAppearsOn(mobileOnly, "dock", "desktop")).toBe(false);
+
+    expect(actionAppearsOn(everywhere, "menu", "desktop")).toBe(true);
+    expect(actionAppearsOn(everywhere, "menu", "mobile")).toBe(true);
+    expect(actionAppearsOn({ ...everywhere, enabled: false }, "menu", "desktop")).toBe(false);
   });
 
   it("migrates the original arrow icons to panel-collapse icons", () => {
@@ -60,7 +88,7 @@ describe("configured actions", () => {
 
   it("executes system, plugin, and editor commands through one runtime interface", () => {
     const host = runtime();
-    const base = { id: "a", title: "Action", icon: "iconMenu", placement: "menu" as const, enabled: true };
+    const base = { id: "a", title: "Action", icon: "iconMenu", placement: "menu" as const, platform: "both" as const, enabled: true };
 
     expect(executeConfiguredAction({ ...base, kind: "system", value: "syncNow" }, host)).toBe(true);
     expect(executeConfiguredAction({ ...base, kind: "plugin", value: "plugin::example::open" }, host)).toBe(true);

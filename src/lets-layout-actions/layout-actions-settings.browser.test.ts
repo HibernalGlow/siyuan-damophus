@@ -23,6 +23,10 @@ const labels = {
   command: "命令",
   commandId: "命令 ID",
   placement: "显示位置",
+  platform: "显示端",
+  platformDesktop: "PC 端",
+  platformMobile: "移动端",
+  platformBoth: "两端都显示",
   system: "思源系统命令",
   plugin: "插件命令",
   editor: "编辑器命令",
@@ -93,6 +97,9 @@ describe("layout actions settings", () => {
       (input) => input.value === "切换左侧面板布局",
     )).toBe(true);
     expect(target.querySelectorAll("article")).toHaveLength(3);
+    expect([...target.querySelectorAll("button")].filter(
+      (button) => button.textContent?.includes(labels.platformBoth),
+    )).toHaveLength(3);
   });
 
   it("adds disabled actions without overflowing a mobile viewport", async () => {
