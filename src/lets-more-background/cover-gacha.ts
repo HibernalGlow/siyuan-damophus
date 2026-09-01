@@ -258,6 +258,8 @@ const GACHA_STYLE = `
  * 八向缩放（边缘）、位置+尺寸记忆全部交给思源原生 moveResize——调用方传
  * positionId 并设置同名 data-key 后，由思源持久化、跨重启生效。
  */
+const FLOAT_CASCADE_STEP = 36;
+
 function makeFloating(dialog: Dialog, positionKey: string): void {
   dialog.element.setAttribute("data-key", positionKey);
   const wrapper = dialog.element.querySelector<HTMLElement>(".b3-dialog");
@@ -267,6 +269,32 @@ function makeFloating(dialog: Dialog, positionKey: string): void {
   if (container) {
     container.style.pointerEvents = "auto";
     container.classList.add("damophus-cover-gacha-float");
+    cascadeFloatingPosition(container);
+  }
+}
+
+/**
+ * 多窗级联：同屏已开着其他题头图浮窗时，新窗向右下错开若干级，避免完全
+ * 重叠挡住彼此。position:relative 语义下两种状态都表现为「相对当前位置的
+ * 偏移」：positionId 恢复的窗 inline left/top 是绝对坐标（直接累加），flex
+ * 居中的窗无 inline 值（从 0 偏移）；越界时按溢出量回拉。
+ */
+function cascadeFloatingPosition(container: HTMLElement): void {
+  const openCount = document.querySelectorAll(
+    ".b3-dialog__container.damophus-cover-gacha-float",
+  ).length;
+  const shift = (openCount - 1) * FLOAT_CASCADE_STEP;
+  if (shift <= 0) return;
+  const baseLeft = Number.parseFloat(container.style.left) || 0;
+  const baseTop = Number.parseFloat(container.style.top) || 0;
+  container.style.left = `${baseLeft + shift}px`;
+  container.style.top = `${baseTop + shift}px`;
+  const rect = container.getBoundingClientRect();
+  const overflowX = Math.max(0, rect.right + 8 - window.innerWidth);
+  const overflowY = Math.max(0, rect.bottom + 8 - window.innerHeight);
+  if (overflowX > 0 || overflowY > 0) {
+    container.style.left = `${Math.max(0, baseLeft + shift - overflowX)}px`;
+    container.style.top = `${Math.max(0, baseTop + shift - overflowY)}px`;
   }
 }
 

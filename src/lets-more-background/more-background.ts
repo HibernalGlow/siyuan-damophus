@@ -2347,6 +2347,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
       drawing: this.options.t("lets-more-background.gachaDrawing"),
       empty: this.options.t("lets-more-background.gachaEmpty"),
       pickLabel: this.options.t("lets-more-background.gachaPick"),
+      favoriteLabel: this.options.t("lets-more-background.gachaFavorite"),
+      favoritedLabel: this.options.t("lets-more-background.gachaFavorited"),
       stashLabel: this.options.t("lets-more-background.gachaStash"),
       stashedLabel: this.options.t("lets-more-background.gachaStashed"),
       rerollLabel: this.options.t("lets-more-background.gachaReroll"),
@@ -2387,6 +2389,8 @@ export class MoreBackgroundController implements MoreBackgroundHandle {
     }
     let stashKeys = new Set<string>();
     let favoriteKeys = new Set<string>();
+    const cardKey = (card: Pick<GachaCardData, "imageUrl" | "postUrl" | "site" | "postId">): string =>
+      coverStashKey(card);
     const toCard = (entry: CoverStashEntry): GachaCardData => ({
       key: coverStashKey(entry),
       stashEntryId: entry.id,
