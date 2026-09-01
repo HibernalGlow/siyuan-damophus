@@ -407,7 +407,6 @@ function buildCard(
  * (换一批) simply calls drawCards again inside the same dialog.
  */
 const GACHA_FLOAT_KEY = "damophus-cover-gacha";
-const STASH_FLOAT_KEY = "damophus-cover-stash";
 
 export function openCoverGachaDialog(config: CoverGachaDialogConfig): void {
   let disposeGestureIsolation: (() => void) | undefined;
