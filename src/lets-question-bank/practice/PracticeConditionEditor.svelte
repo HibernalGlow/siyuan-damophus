@@ -22,13 +22,19 @@
   // [条件图形视图-暂停维护] import ConditionGraph from "@/components/condition-graph/ConditionGraph.svelte";
   import type { PracticeFilterPreset } from "./practice-preferences";
   // [条件图形视图-暂停维护] import type { PracticeFilter, PracticeFilterField, PracticeFilterGroup, PracticeFilterRule, PracticeFilterOperator, PracticeFilterValue } from "@/question-bank/core/scope";
-  import type { PracticeFilter, PracticeFilterField } from "@/question-bank/core/scope";
+  import type { PracticeFilter } from "@/question-bank/core/scope";
   import {
     practiceFilterToQuery,
     queryToPracticeFilter,
     type PracticeQueryGroup,
   } from "./practice-querybuilder-adapter";
   // [条件图形视图-暂停维护] import { practiceFilterToGraph } from "./practice-condition-graph";
+  import {
+    buildFields,
+    buildOperators,
+    buildCombinators,
+    buildTranslations,
+  } from "./practice-condition-catalog";
 
   export let label: (key: string, fallback: string) => string;
   export let filter: PracticeFilter = "all";
@@ -49,89 +55,6 @@
   let hostElement: HTMLElement;
   let dockCompact = false;
   let dockDialogStyle = "";
-  // [条件图形视图-暂停维护] 图形视图相关状态与函数整体注释，恢复时连同模板与组件一起还原。
-  // let viewMode: "list" | "graph" = "list";
-  // let selectedGraphPath: number[] | undefined;
-  // let selectedGraphRule: PracticeFilterRule | undefined;
-  //
-  // function graphRuleAt(path: readonly number[] | undefined): PracticeFilterRule | undefined {
-  //   if (!path) return undefined;
-  //   let group: PracticeFilterGroup = queryToPracticeFilter(editorQuery);
-  //   for (let index = 0; index < path.length; index += 1) {
-  //     const entry = group.rules[path[index]];
-  //     if (!entry) return undefined;
-  //     if (index === path.length - 1) return "rules" in entry ? undefined : entry;
-  //     if (!("rules" in entry)) return undefined;
-  //     group = entry;
-  //   }
-  //   return undefined;
-  // }
-  //
-  // function updateGraphRule(next: Partial<PracticeFilterRule>): void {
-  //   if (!selectedGraphPath) return;
-  //   const current = queryToPracticeFilter(editorQuery);
-  //   const updateGroup = (group: PracticeFilterGroup, depth: number): PracticeFilterGroup => {
-  //     const index = selectedGraphPath![depth];
-  //     return {
-  //       ...group,
-  //       rules: group.rules.map((entry, entryIndex) => {
-  //         if (entryIndex !== index) return entry;
-  //         if (depth === selectedGraphPath!.length - 1 && !('rules' in entry)) return { ...entry, ...next };
-  //         if ('rules' in entry) return updateGroup(entry, depth + 1);
-  //         return entry;
-  //       }),
-  //     };
-  //   };
-  //   editorQuery = practiceFilterToQuery(updateGroup(current, 0));
-  // }
-  //
-  // function graphNodeActivate(id: string): void {
-  //   const node = graphModel.nodes.find((candidate) => candidate.id === id);
-  //   const path = node?.meta?.rulePath;
-  //   if (Array.isArray(path) && path.every((item) => typeof item === "number")) {
-  //     selectedGraphPath = path as number[];
-  //   } else {
-  //     selectedGraphPath = undefined;
-  //     viewMode = "list";
-  //   }
-  // }
-  //
-  // $: selectedGraphRule = graphRuleAt(selectedGraphPath);
-  //
-  // $: graphModel = practiceFilterToGraph(queryToPracticeFilter(editorQuery), {
-  //   field: {
-  //     attempted: label("attemptedStatus", "Attempt status"),
-  //     wrong: label("wrongStatus", "Wrong-answer status"),
-  //     review: label("reviewStatus", "Review status"),
-  //     due: label("dueStatus", "Due status"),
-  //     bookmarked: label("bookmarkedStatus", "Bookmark status"),
-  //   },
-  //   operator: {
-  //     equal: label("conditionEqual", "equals"),
-  //     notEqual: label("conditionNotEqual", "does not equal"),
-  //   },
-  //   value: {
-  //     ...Object.fromEntries(([
-  //       ["attempted", "attemptedStatus"],
-  //       ["wrong", "wrongStatus"],
-  //       ["review", "reviewStatus"],
-  //       ["due", "dueStatus"],
-  //       ["bookmarked", "bookmarkedStatus"],
-  //     ] as const).flatMap(([field]) => [
-  //       [`${field}:yes`, optionLabel(field, "yes")],
-  //       [`${field}:no`, optionLabel(field, "no")],
-  //     ])),
-  //     yes: label("yes", "Yes"),
-  //     no: label("no", "No"),
-  //     any: label("allQuestions", "All questions"),
-  //   },
-  //   and: label("conditionAnd", "AND"),
-  //   or: label("conditionOr", "OR"),
-  //   not: label("conditionNot", "NOT"),
-  //   result: label("conditionGraphResult", "Questions"),
-  //   empty: label("conditionGraphEmpty", "All questions"),
-  // });
-
   function updateDockLayout(): void {
     if (!hostElement) return;
     const rect = hostElement.getBoundingClientRect();
@@ -172,82 +95,14 @@
     };
   });
 
-  function optionLabel(field: PracticeFilterField, value: unknown): string {
-    const yes = value === "yes";
-    const labels: Record<PracticeFilterField, [string, string]> = {
-      attempted: [label("attemptedStatusYes", "Attempted"), label("attemptedStatusNo", "Unattempted")],
-      wrong: [label("wrongStatusYes", "Wrong"), label("wrongStatusNo", "Not wrong")],
-      review: [label("reviewStatusYes", "Needs review"), label("reviewStatusNo", "Does not need review")],
-      due: [label("dueStatusYes", "Due"), label("dueStatusNo", "Not due")],
-      bookmarked: [label("bookmarkedStatusYes", "Bookmarked"), label("bookmarkedStatusNo", "Not bookmarked")],
-    };
-    return labels[field][yes ? 0 : 1];
-  }
+  $: fields = buildFields(label);
 
-  function fieldDefinition(name: PracticeFilterField, fieldLabel: string): Field {
-    return {
-      name,
-      label: fieldLabel,
-      valueEditorType: "select",
-      values: [
-        { name: "any", label: label("allQuestions", "全部题") },
-        { name: "yes", label: optionLabel(name, "yes") },
-        { name: "no", label: optionLabel(name, "no") },
-      ],
-      defaultOperator: "equal",
-      defaultValue: "yes",
-    };
-  }
+  $: operators = buildOperators(label);
 
-  $: fields = [
-    fieldDefinition("attempted", label("attemptedStatus", "Attempt status")),
-    fieldDefinition("wrong", label("wrongStatus", "Wrong-answer status")),
-    fieldDefinition("review", label("reviewStatus", "Review status")),
-    fieldDefinition("due", label("dueStatus", "Due status")),
-    fieldDefinition("bookmarked", label("bookmarkedStatus", "Bookmark status")),
-  ];
+  $: combinators = buildCombinators(label);
 
-  $: operators = [
-    { name: "equal", value: "equal", label: label("conditionEqual", "equals") },
-    { name: "notEqual", value: "notEqual", label: label("conditionNotEqual", "does not equal") },
-  ];
+  $: translations = buildTranslations(label);
 
-  $: combinators = [
-    { name: "and", value: "and", label: label("conditionAnd", "and") },
-    { name: "or", value: "or", label: label("conditionOr", "or") },
-  ];
-
-  $: translations = {
-    fields: { title: label("filter", "Field") },
-    operators: { title: label("conditionEqual", "Operator") },
-    values: { title: label("selectConditionValue", "Value") },
-    value: { title: label("selectConditionValue", "Value") },
-    combinators: { title: label("conditionAnd", "Combinator") },
-    addRule: {
-      label: label("addCondition", "Add condition"),
-      title: label("addCondition", "Add condition"),
-    },
-    addGroup: {
-      label: label("addConditionGroup", "Add group"),
-      title: label("addConditionGroup", "Add group"),
-    },
-    removeRule: {
-      label: label("deleteCondition", "Delete"),
-      title: label("deleteCondition", "Delete condition"),
-    },
-    removeGroup: {
-      label: label("deleteCondition", "Delete"),
-      title: label("deleteCondition", "Delete group"),
-    },
-    cloneRule: { label: label("cloneCondition", "Clone"), title: label("cloneCondition", "Clone condition") },
-    cloneRuleGroup: { label: label("cloneConditionGroup", "Clone"), title: label("cloneConditionGroup", "Clone group") },
-    lockRule: { label: label("lockCondition", "Lock"), title: label("lockCondition", "Lock condition") },
-    lockGroup: { label: label("lockConditionGroup", "Lock"), title: label("lockConditionGroup", "Lock group") },
-    lockRuleDisabled: { label: label("unlockCondition", "Unlock"), title: label("unlockCondition", "Unlock condition") },
-    lockGroupDisabled: { label: label("unlockConditionGroup", "Unlock"), title: label("unlockConditionGroup", "Unlock group") },
-    shiftActions: { shiftUp: label("moveConditionUp", "Move up"), shiftDown: label("moveConditionDown", "Move down") },
-    undoRedoActions: { undo: label("undoCondition", "Undo"), redo: label("redoCondition", "Redo") },
-  };
 
   $: if (filter !== sourceFilter) {
     sourceFilter = filter;
