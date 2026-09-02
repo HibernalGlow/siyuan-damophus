@@ -141,3 +141,47 @@ tag through the SiYuan API.
 A removable capability contribution owned by a module. Contributions can add a
 stable review-order stage, toolbar action, filter, or batch operation without
 owning the host flashcard lifecycle or the existing P1-P4 stage.
+
+# Question Bank Binding Terms
+
+**System document**:
+The dedicated `/Damophus` document that anchors the Question Index, Topic Index, and Attempt Log databases.
+_Avoid_: config document, dashboard page
+
+**Binding manifest**:
+The JSON manifest persisted as a block attribute of the system document, describing the three databases, their block/AV ids, and managed keys.
+_Avoid_: settings blob, database schema
+
+**Managed key**:
+A column in one of the three databases that Damophus owns, verifies, and repairs.
+_Avoid_: plugin column, custom field
+
+**Managed key repair**:
+A single, previewable fix to one managed key (add, change type, normalize values, rebind primary, configure relation/rollup, create database, convert duration unit). Repairs follow a preview-confirm two-phase flow.
+_Avoid_: auto fix, migration
+
+# Question Scanner Terms
+
+**Solution boundary**:
+The marker that splits a question's stem from its solution — an explicit `custom-qb-section: solution` IAL or a safely inferred answer/explanation label.
+_Avoid_: answer split, readmore
+
+**Machine answer**:
+The persisted objective answer (`custom-qb-answer`) that must agree with the visible solution unless manually corrected.
+_Avoid_: correct flag, answer key
+
+**Stable question ID**:
+The portable `custom-qb-id` used to index a question; question-like headings without one are reported, not indexed.
+_Avoid_: block id, auto id
+
+# Cover Gacha Terms
+
+These terms extend the cover domain for the multi-draw picking flow.
+
+**Cover gacha**:
+A multi-draw mode that resolves several candidate cover images from one booru template for the user to pick from.
+_Avoid_: random wallpaper, shuffle
+
+**Cover stash**:
+A persistent holding area for gacha candidates that were liked but not applied; applying consumes an entry.
+_Avoid_: favorites (favorites are independent), recycle bin
