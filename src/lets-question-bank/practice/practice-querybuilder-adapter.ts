@@ -7,16 +7,28 @@ import {
   type PracticeFilterField,
   type PracticeFilterGroup,
   type PracticeFilterOperator,
+  type PracticeFilterRule,
   type PracticeFilterValue,
 } from "@/question-bank/core/scope";
 
 export type PracticeQueryOperator = PracticeFilterOperator;
-export type PracticeQueryRule = RuleType<PracticeFilterField, PracticeQueryOperator, PracticeFilterValue> & { disabled?: boolean };
+/** Builder-side value: the core's yes/no plus the explicit 全部题 (no restriction) option. */
+export type PracticeQueryValue = PracticeFilterValue | "any";
+export type PracticeQueryRule = RuleType<PracticeFilterField, PracticeQueryOperator, PracticeQueryValue> & { disabled?: boolean };
 export type PracticeQueryGroup = RuleGroupTypeIC<PracticeQueryRule, PracticeFilterCombinator> & { glue?: PracticeFilterCombinator; id?: string; name?: string; not?: boolean; disabled?: boolean };
 type QueryEntry = PracticeQueryRule | PracticeQueryGroup | PracticeFilterCombinator;
 
 function isGroup(value: QueryEntry | PracticeFilterGroup["rules"][number]): value is PracticeQueryGroup | PracticeFilterGroup {
   return typeof value === "object" && value !== null && "rules" in value;
+}
+
+// A value-less rule restricts nothing in the core evaluator; the builder surfaces
+// that state as the explicit 全部题 option so it survives save/re-open. The legacy
+// includes form maps back to a single token when it carries one.
+function queryValue(rule: PracticeFilterRule): PracticeQueryValue {
+  if (rule.value) return rule.value;
+  if (rule.includes?.length === 1) return rule.includes[0];
+  return "any";
 }
 
 function toQueryGroup(group: PracticeFilterGroup): PracticeQueryGroup {
@@ -27,7 +39,7 @@ function toQueryGroup(group: PracticeFilterGroup): PracticeQueryGroup {
   group.rules.forEach((rule, index) => {
     if (index > 0) rules.push(connectors[index - 1]);
     if (isGroup(rule)) rules.push(toQueryGroup(rule));
-    else rules.push({ field: rule.field, operator: rule.filter ?? "equal", value: rule.value ?? "yes", ...(rule.disabled ? { disabled: true } : {}) });
+    else rules.push({ field: rule.field, operator: rule.filter ?? "equal", value: queryValue(rule), ...(rule.disabled ? { disabled: true } : {}) });
   });
   return {
     glue: group.glue,
@@ -58,11 +70,15 @@ function fromQueryGroup(group: PracticeQueryGroup): PracticeFilterGroup {
     if (entry === "and" || entry === "or") { connectors.push(entry); continue; }
     if (isGroup(entry)) { rules.push(fromQueryGroup(entry as PracticeQueryGroup)); continue; }
     if (!isPracticeField(entry.field)) continue;
-    // An empty value (or the explicit "any" option) means "no restriction on this
-    // dimension" — the core evaluator treats value-less rules as match-all — so the
-    // rule is dropped instead of being silently coerced to "yes" (attempted).
-    if (!isPracticeValue(entry.value)) continue;
-    rules.push({ field: entry.field, type: "tuple", filter: isPracticeOperator(entry.operator) ? entry.operator : "equal", value: entry.value, ...(entry.disabled ? { disabled: true } : {}) });
+    const filter = isPracticeOperator(entry.operator) ? entry.operator : "equal";
+    if (isPracticeValue(entry.value)) {
+      rules.push({ field: entry.field, type: "tuple", filter, value: entry.value, ...(entry.disabled ? { disabled: true } : {}) });
+      continue;
+    }
+    // The explicit 全部题 option (or a cleared value) means "no restriction on this
+    // dimension": keep the rule value-less — the core evaluator treats that as
+    // match-all — so it survives save/re-open instead of silently disappearing.
+    rules.push({ field: entry.field, type: "tuple", filter, ...(entry.disabled ? { disabled: true } : {}) });
   }
   const glue = group.glue === "or" ? "or" : "and";
   const normalizedConnectors = connectors.length === Math.max(0, rules.length - 1) ? connectors : [];

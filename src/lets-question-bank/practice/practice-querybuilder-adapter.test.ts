@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PracticeFilterValue } from "@/question-bank/core/scope";
-import { practiceFilterToQuery, queryToPracticeFilter } from "./practice-querybuilder-adapter";
+import { practiceFilterToQuery, queryToPracticeFilter, type PracticeQueryGroup, type PracticeQueryValue } from "./practice-querybuilder-adapter";
 
 describe("practice query builder adapter", () => {
   it("maps named nested groups without changing filter semantics", () => {
@@ -43,21 +42,35 @@ describe("practice query builder adapter", () => {
     });
   });
 
-  it("drops rules without a valid value so they restrict nothing", () => {
-    // Blank (cleared) values and the explicit 全部题 option must not be coerced to
-    // "yes": a value-less tuple rule matches all questions in the core evaluator.
+  it("keeps 全部题/cleared rules value-less so they restrict nothing but stay editable", () => {
+    // 全部题 (or a cleared value) must not be coerced to "yes" nor dropped: the
+    // rule persists without a value — the core evaluator treats that as match-all.
     const filter = queryToPracticeFilter({
       glue: "and",
       rules: [
-        { field: "attempted", operator: "equal", value: "" as PracticeFilterValue },
+        { field: "attempted", operator: "equal", value: "" as PracticeQueryValue },
         "and",
-        { field: "wrong", operator: "equal", value: "any" as PracticeFilterValue },
+        { field: "wrong", operator: "equal", value: "any" },
         "and",
         { field: "bookmarked", operator: "equal", value: "yes" },
       ],
     });
     expect(filter.rules).toEqual([
+      { field: "attempted", type: "tuple", filter: "equal" },
+      { field: "wrong", type: "tuple", filter: "equal" },
       { field: "bookmarked", type: "tuple", filter: "equal", value: "yes" },
+    ]);
+  });
+
+  it("round-trips the 全部题 option through a value-less rule", () => {
+    const query: PracticeQueryGroup = {
+      glue: "and",
+      rules: [{ field: "attempted", operator: "equal", value: "any" }],
+    };
+    const filter = queryToPracticeFilter(query);
+    expect(filter.rules).toEqual([{ field: "attempted", type: "tuple", filter: "equal" }]);
+    expect(practiceFilterToQuery(filter).rules).toEqual([
+      { field: "attempted", operator: "equal", value: "any" },
     ]);
   });
 

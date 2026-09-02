@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import type { PracticeFilter } from "@/question-bank/core/scope";
 import { en } from "@/translations/parts/lets-question-bank";
 import PracticeConditionEditor from "./practice/PracticeConditionEditor.svelte";
@@ -128,6 +128,35 @@ describe("practice condition editor", () => {
     openEditorProgrammatically();
     await tick();
     expect(document.querySelector<HTMLButtonElement>(".rule-value")?.textContent).toContain("Bookmarked");
+  });
+
+  it("keeps the 全部题 value across apply and reopen", async () => {
+    await render({
+      glue: "and",
+      rules: [{ field: "attempted", type: "tuple", filter: "equal", value: "no" }],
+    });
+
+    openEditorProgrammatically();
+    await tick();
+    const valueSelect = document.querySelector<HTMLButtonElement>(".rule-value")!;
+    expect(valueSelect.textContent).toContain("Unattempted");
+    await userEvent.click(valueSelect);
+    await expect.poll(() => document.querySelectorAll<HTMLElement>('[data-slot="select-item"]').length).toBeGreaterThan(0);
+    await userEvent.click(
+      [...document.querySelectorAll<HTMLElement>('[data-slot="select-item"]')]
+        .find((item) => item.textContent?.includes("All questions")) as HTMLElement,
+    );
+    await expect.poll(() => valueSelect.textContent).toContain("All questions");
+
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Apply"))
+      ?.click();
+    await tick();
+
+    openEditorProgrammatically();
+    await tick();
+    // 全部题 saves as a value-less rule; it must not vanish or revert on reopen.
+    expect(document.querySelector<HTMLButtonElement>(".rule-value")?.textContent).toContain("All questions");
   });
 
   it("adds a nested group and keeps it available for naming", async () => {
