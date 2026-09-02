@@ -1,7 +1,7 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { UnifiedEntryPoint } from "@/libs/unified-entry-point";
 import { isMobile, plugin } from "@/utils";
-import { appendBlock, deleteBlock, getBlockBreadcrumb, getChildBlocks, getHPathByID, setBlockAttrs, sql } from "@/api";
+import { getHPathByID } from "@/api";
 import { settings } from "@/settings";
 import {
   Dialog,
@@ -16,9 +16,6 @@ import {
   type Menu,
 } from "siyuan";
 import { mount, unmount } from "svelte";
-import pluginManifest from "../../plugin.json";
-import QuestionBank from "./question-bank.svelte";
-import { QuestionBankController } from "./controller";
 import { getLogger } from "@/libs/logger";
 import { siyuanKernelClient } from "@/question-bank/adapters/siyuan/client";
 import { launchBlockIdFromElements, validLaunchBlockId } from "./launch-target";
@@ -28,50 +25,23 @@ import { replaceQuestionBankTabs } from "./tab-replacement";
 import { loadSourceBlockIdentity } from "./source/source-identity";
 import { questionSourceOpenTarget } from "./source/source-navigation";
 import { createQuestionBankMenuItem, focusWindow, oppositeWindow, type QuestionBankOpenAction } from "./open-actions";
-import { normalizeDurationComparisonPosition } from "./statistics/duration-comparison-position";
 import {
   ANSWER_MASK_STYLES,
   DEFAULT_ANSWER_MASK_STYLE,
   installSourceAnswerMask,
 } from "./source/source-answer-mask";
-import {
-  normalizeBreadcrumbPriority,
-  normalizeBreadcrumbTextDisplay,
-} from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
 import { isolateMobileDialogGestures } from "./workspace/mobile-dialog-scroll";
 import { PersistentMobileDockPortal } from "./workspace/mobile-dock-portal";
 import { isolateFloatingOutlinesFromMobileDock } from "./workspace/mobile-dock-outline-isolation";
-import {
-  EMPTY_SOURCE_EMBED_SQL,
-  loadSourceEmbedRows,
-  sourceEmbedBlockIds,
-  sourceEmbedSubtreeIds,
-  sourceEmbedSql,
-  type SourceEmbedBlockRow,
-  type SourceEmbedSection,
-} from "./source/source-embed-query";
-import {
-  defocusProtyleEditor,
-  enforceSourceBlockReadOnly,
-  observeFocusedBlock,
-  sourceBlockEditorMode,
-  sourceBlockProtyleActions,
-  sourceEmbedBlockAttributes,
-} from "./source/source-embed-presentation";
-import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyuan-file-io";
-import { TopicDictionaryStore } from "@/question-bank/adapters/siyuan/topic-dictionary";
+import { mountQuestionBank } from "./workspace/question-bank-mount";
 import { TinyBaseWarehouse } from "@/question-bank/adapters/tinybase/warehouse";
+import { SiyuanPluginStoreFileIO } from "@/question-bank/adapters/tinybase/siyuan-file-io";
 import { TinyBaseRuntime } from "./tinybase-runtime";
 import { StoreSyncCoordinator, TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { TinyBaseSiyuanCatalogRuntime } from "./tinybase-catalog-runtime";
 import { bindMenuIdentity } from "@/libs/menu-identity";
 import { openStatisticsCardPreview, type StatisticsCardPreviewRequest } from "./statistics/statistics-preview";
 import type { OpenDocumentTab } from "@/libs/open-document-tabs";
-import {
-  DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY,
-  DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
-  normalizeDocumentPathHighlights,
-} from "@/libs/document-path-highlights";
 import {
   questionProgressFromAggregate,
   setQuestionProgressLoader,
@@ -111,14 +81,14 @@ export default class QuestionBankPlugin extends SubPluginBase {
   private removeDockGestureIsolation?: () => void;
   private stopMobileDockOutlineIsolation?: () => void;
   private readonly mountedTabs = new Map<HTMLElement, ReturnType<typeof mount>>();
-  private readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
+  readonly sessionLeases = new BroadcastPracticeSessionLeaseCoordinator();
   private tinybaseRuntime?: TinyBaseRuntime;
   private tinybaseCatalogRuntime?: TinyBaseSiyuanCatalogRuntime;
   private questionProgressCache = new Map<string, QuestionProgress | null>();
   private questionProgressLoad?: Promise<void>;
   private questionProgressThreshold?: number;
   private progressReadViewReady = false;
-  private storeSyncCoordinator?: StoreSyncCoordinator;
+  storeSyncCoordinator?: StoreSyncCoordinator;
   private fallbackLute?: ReturnType<typeof window.Lute.New>;
   private stopSourceAnswerMask?: () => void;
   private readonly handleBlockMenu = (
@@ -514,7 +484,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
   }
 
-  private getTinyBaseRuntime(): TinyBaseRuntime {
+  getTinyBaseRuntime(): TinyBaseRuntime {
     this.tinybaseRuntime ??= new TinyBaseRuntime(new TinyBaseWarehouse(
       new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
       currentDeviceId(),
@@ -522,7 +492,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     return this.tinybaseRuntime;
   }
 
-  private getTinyBaseCatalogRuntime(): TinyBaseSiyuanCatalogRuntime {
+  getTinyBaseCatalogRuntime(): TinyBaseSiyuanCatalogRuntime {
     this.tinybaseCatalogRuntime ??= new TinyBaseSiyuanCatalogRuntime(
       this.getTinyBaseRuntime(),
       siyuanKernelClient,
@@ -595,14 +565,14 @@ export default class QuestionBankPlugin extends SubPluginBase {
     void this.open(blockId);
   }
 
-  private currentDocumentId(): string | undefined {
+  currentDocumentId(): string | undefined {
     const activeId = document.querySelector<HTMLElement>(
       ".layout__wnd--active .protyle.fn__flex-1:not(.fn__none) .protyle-background",
     )?.dataset.nodeId;
     return activeId ?? getAllEditor()[0]?.protyle?.block?.rootID;
   }
 
-  private async openDocumentTabs(): Promise<OpenDocumentTab[]> {
+  async openDocumentTabs(): Promise<OpenDocumentTab[]> {
     if (isMobile) return [];
     const seen = new Set<string>();
     const candidates = getAllTabs().flatMap((tab) => {
@@ -668,7 +638,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
   }
 
-  private openStatisticsCardPreview(request: StatisticsCardPreviewRequest): void {
+  openStatisticsCardPreview(request: StatisticsCardPreviewRequest): void {
     openStatisticsCardPreview(request, Dialog, isMobile);
   }
 
@@ -700,7 +670,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     }
   }
 
-  private async openQuestionSource(blockId: string): Promise<void> {
+  async openQuestionSource(blockId: string): Promise<void> {
     const navigationMode = this.getSetting("sourceNavigationMode");
     if (isMobile) {
       const target = questionSourceOpenTarget(blockId, undefined, undefined, navigationMode);
@@ -719,7 +689,7 @@ export default class QuestionBankPlugin extends SubPluginBase {
     });
   }
 
-  private questionRenderer(markdown: string, inheritSourceStyles: boolean): string | undefined {
+  questionRenderer(markdown: string, inheritSourceStyles: boolean): string | undefined {
     const lute = getAllEditor().find((editor) => editor.protyle.lute)?.protyle.lute
       ?? this.getFallbackLute();
     if (!lute) return undefined;
@@ -753,247 +723,13 @@ export default class QuestionBankPlugin extends SubPluginBase {
     return lute;
   }
 
+
   private mountQuestionBank(
     target: HTMLElement,
     documentId?: string,
     beforeOpenQuestionSource?: () => void,
     onClose?: () => void,
   ): ReturnType<typeof mount> {
-    target.classList.add(
-      "damophus-question-bank-host",
-      "flex",
-      "h-full",
-      "min-h-0",
-      "flex-col",
-      "overflow-hidden",
-    );
-    const controller = new QuestionBankController({
-      getSetting: (key) => this.getSetting(key),
-      setSetting: (key, value) => this.setSetting(key, value),
-      pluginVersion: pluginManifest.version,
-      sessionLeases: this.sessionLeases,
-      tinybaseRuntime: this.getTinyBaseRuntime(),
-      tinybaseCatalogRuntime: this.getTinyBaseCatalogRuntime(),
-    });
-    const topicDictionaryStore = new TopicDictionaryStore(
-      new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient),
-      siyuanKernelClient,
-    );
-    const sourceRowsCache = new Map<string, Promise<SourceEmbedBlockRow[]>>();
-    const sourceQueryCache = new Map<string, Promise<string>>();
-    const loadRowsByIds = async (blockIds: readonly string[]): Promise<SourceEmbedBlockRow[]> => {
-      const rows: SourceEmbedBlockRow[] = [];
-      for (let offset = 0; offset < blockIds.length; offset += 48) {
-        const chunk = blockIds.slice(offset, offset + 48);
-        const quotedIds = chunk.map((id) => `'${id.replace(/'/gu, "''")}'`).join(", ");
-        rows.push(...await sql(
-          `SELECT id, root_id, parent_id, sort, path, type, subtype, content, markdown, ial FROM blocks WHERE id IN (${quotedIds}) LIMIT ${chunk.length}`,
-        ) as SourceEmbedBlockRow[]);
-      }
-      return rows;
-    };
-    const loadSourceRows = (blockId: string): Promise<SourceEmbedBlockRow[]> => {
-      const cached = sourceRowsCache.get(blockId);
-      if (cached) return cached;
-      const loading = loadSourceEmbedRows(blockId, {
-        loadChildren: (id) => getChildBlocks(id),
-        loadRows: loadRowsByIds,
-      }).catch((error) => {
-        sourceRowsCache.delete(blockId);
-        throw error;
-      });
-      sourceRowsCache.set(blockId, loading);
-      return loading;
-    };
-    const loadSourceQuery = (blockId: string, section: SourceEmbedSection): Promise<string> => {
-      const key = `${blockId}:${section}`;
-      const cached = sourceQueryCache.get(key);
-      if (cached) return cached;
-      const loading = loadSourceRows(blockId)
-        .then((rows) => sourceEmbedSql(rows, blockId, section, {
-          hideEmptySolutionBlocks: section === "solution" && this.getSetting("hideEmptyAnswerBlocks") !== false,
-        }))
-        .catch((error) => {
-          sourceQueryCache.delete(key);
-          throw error;
-        });
-      sourceQueryCache.set(key, loading);
-      return loading;
-    };
-    const app = mount(QuestionBank, {
-      target,
-      props: {
-        controller,
-        initialDocumentId: documentId,
-        getCurrentDocumentId: () => this.currentDocumentId(),
-        getOpenDocumentTabs: () => this.openDocumentTabs(),
-        documentPathHighlights: normalizeDocumentPathHighlights(
-          this.getSetting(DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY) ?? DEFAULT_DOCUMENT_PATH_HIGHLIGHTS,
-        ),
-        translations: plugin.i18n,
-        loadTopicDictionary: () => topicDictionaryStore.load(),
-        loadSubjectQuestionTotals: async () => {
-          const raw = await new SiyuanPluginStoreFileIO(plugin, siyuanKernelClient)
-            .read("/data/storage/petal/siyuan-damophus/subject-question-totals.json");
-          if (!raw) return undefined;
-          try { return JSON.parse(raw); } catch { return undefined; }
-        },
-        reviewThreshold: Number(this.getSetting("reviewThreshold")) || 2,
-        inheritSourceStyles: this.getSetting("inheritSourceStyles") !== false,
-        questionRenderMode: this.getSetting("questionRenderMode") ?? "native",
-        durationComparisonPosition: normalizeDurationComparisonPosition(this.getSetting("durationComparisonPosition")),
-        autoSyncIndex: this.getSetting("autoSyncIndex") === true,
-        autoScanDocument: this.getSetting("autoScanDocument") === true,
-        showPracticeTitle: this.getSetting("showPracticeTitle") === true,
-        showPracticeBreadcrumb: this.getSetting("showPracticeBreadcrumb") !== false,
-        indefinitePracticeMode: this.getSetting("indefinitePracticeMode") === true,
-        timingEnabled: this.getSetting("timingEnabled") !== false,
-        pauseOnAnswerReveal: this.getSetting("pauseOnAnswerReveal") !== false,
-        pauseOnBlur: this.getSetting("pauseOnBlur") === true,
-        revealActionBelowOptions:
-          this.getSetting("revealActionBelowOptions") === true
-          || this.getSetting("revealActionBelowOptions") === "belowOptions",
-        completionShowCorrectness: this.getSetting("completionShowCorrectness") !== false,
-        completionShowRating: this.getSetting("completionShowRating") !== false,
-        completionShowDuration: this.getSetting("completionShowDuration") !== false,
-        completionShowAnswer: this.getSetting("completionShowAnswer") !== false,
-        completionShowAnsweredAt: this.getSetting("completionShowAnsweredAt") === true,
-        mobileBreadcrumb: isMobile,
-        breadcrumbPriority: normalizeBreadcrumbPriority(
-          settings.getBySpace("mobileBreadcrumb", "overflowPriority"),
-        ),
-        breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay(
-          settings.getBySpace("mobileBreadcrumb", "textDisplayMode"),
-          settings.getBySpace("mobileBreadcrumb", "maxCharacters"),
-          settings.getBySpace("mobileBreadcrumb", "maxTextWidth"),
-        ),
-        loadBreadcrumb: (blockId: string) => getBlockBreadcrumb(blockId),
-        onClose,
-        openStatisticsCardPreview: (request: StatisticsCardPreviewRequest) => this.openStatisticsCardPreview(request),
-        renderQuestionMarkdown: (markdown: string, inheritSourceStyles: boolean) => (
-          this.questionRenderer(markdown, inheritSourceStyles)
-        ),
-        prepareSourceBlock: async (blockId: string) => {
-          await Promise.all([
-            loadSourceRows(blockId),
-            loadSourceQuery(blockId, "stem"),
-            loadSourceQuery(blockId, "solution"),
-          ]);
-        },
-        mountSourceBlock: async (
-          target: HTMLElement,
-          blockId: string,
-          editable: boolean,
-          section: SourceEmbedSection = "stem",
-          renderMode: "native" | "embed" = "embed",
-        ) => {
-          const binding = controller.getBinding();
-          let temporaryEmbedId: string | undefined;
-          if (renderMode === "embed" && binding?.systemDocumentId) {
-            let embedQuery = `SELECT * FROM blocks WHERE id = '${blockId.replace(/'/gu, "''")}'`;
-            try {
-              embedQuery = await loadSourceQuery(blockId, section);
-            } catch (error) {
-              console.warn("[Damophus] failed to resolve question embed range", error);
-              embedQuery = EMPTY_SOURCE_EMBED_SQL;
-            }
-            if (embedQuery !== EMPTY_SOURCE_EMBED_SQL) {
-              const operations = await appendBlock(
-                "markdown",
-                `{{${embedQuery}}}`,
-                binding.systemDocumentId,
-              );
-              temporaryEmbedId = operations[0]?.doOperations?.[0]?.id;
-            }
-            if (temporaryEmbedId) {
-              await setBlockAttrs(temporaryEmbedId, sourceEmbedBlockAttributes({
-                breadcrumb: this.getSetting("embedBreadcrumb") === true,
-                headingMode: this.getSetting("embedHeadingMode"),
-              }));
-            }
-          }
-          const sourceRows = renderMode === "native" ? await loadSourceRows(blockId) : undefined;
-          const mountedBlockIds = sourceRows
-            ? sourceEmbedBlockIds(sourceRows, blockId, section, {
-                hideEmptySolutionBlocks: section === "solution" && this.getSetting("hideEmptyAnswerBlocks") !== false,
-              })
-            : temporaryEmbedId ? [temporaryEmbedId] : [];
-          const editors = await Promise.all(mountedBlockIds.map(async (mountedBlockId) => {
-            const host = document.createElement("div");
-            host.className = "damophus-native-source-block";
-            target.append(host);
-            let stopBlockIsolation = () => {};
-            let stopReadOnlyEnforcement = () => {};
-            let defocusTimer: ReturnType<typeof setTimeout> | undefined;
-            const editor = new Protyle(plugin.app, host, {
-              mode: sourceBlockEditorMode,
-              action: [...sourceBlockProtyleActions],
-              blockId: mountedBlockId,
-              after: (mountedEditor) => {
-                stopReadOnlyEnforcement();
-                if (!editable) {
-                  mountedEditor.disable();
-                  stopReadOnlyEnforcement = enforceSourceBlockReadOnly(
-                    mountedEditor.protyle.wysiwyg.element,
-                  );
-                }
-                stopBlockIsolation();
-                stopBlockIsolation = observeFocusedBlock(
-                  mountedEditor.protyle.wysiwyg.element,
-                  mountedBlockId,
-                  sourceRows ? sourceEmbedSubtreeIds(sourceRows, mountedBlockId) : [mountedBlockId],
-                );
-                if (isMobile) {
-                  defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element);
-                  defocusTimer = setTimeout(
-                    () => defocusProtyleEditor(mountedEditor.protyle.wysiwyg.element),
-                    0,
-                  );
-                }
-              },
-              render: {
-                background: false,
-                title: false,
-                gutter: true,
-                scroll: false,
-                breadcrumb: false,
-              },
-            });
-            if (binding?.notebookId) editor.protyle.notebookId = binding.notebookId;
-            return {
-              editor,
-              stopBlockIsolation: () => stopBlockIsolation(),
-              stopReadOnlyEnforcement: () => stopReadOnlyEnforcement(),
-              cancelDefocus: () => {
-                if (defocusTimer !== undefined) clearTimeout(defocusTimer);
-              },
-            };
-          }));
-          return async () => {
-            for (const mounted of editors) {
-              mounted.cancelDefocus();
-              mounted.stopBlockIsolation();
-              mounted.stopReadOnlyEnforcement();
-              mounted.editor.destroy();
-            }
-            target.replaceChildren();
-            if (temporaryEmbedId) await deleteBlock(temporaryEmbedId);
-          };
-        },
-        onAutoSyncIndexChange: (value: boolean) => this.setSetting("autoSyncIndex", value),
-        onAutoScanDocumentChange: (value: boolean) => this.setSetting("autoScanDocument", value),
-        onIndefinitePracticeModeChange: (value: boolean) => this.setSetting("indefinitePracticeMode", value),
-        onPauseOnBlurChange: (value: boolean) => this.setSetting("pauseOnBlur", value),
-        onDocumentPathHighlightsChange: (value: string[]) => {
-          void this.setSetting(DOCUMENT_PATH_HIGHLIGHTS_SETTING_KEY, value.join("\n"));
-        },
-        openQuestionSource: (blockId: string) => {
-          beforeOpenQuestionSource?.();
-          void this.openQuestionSource(blockId);
-        },
-      },
-    });
-    void this.storeSyncCoordinator?.request();
-    return app;
+    return mountQuestionBank(this, target, documentId, beforeOpenQuestionSource, onClose);
   }
 }
