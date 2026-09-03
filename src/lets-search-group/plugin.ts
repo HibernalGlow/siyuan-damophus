@@ -44,6 +44,13 @@ const pluginMetadata: PluginMetadata = {
       value: true,
     },
     {
+      type: "checkbox",
+      title: "lets-search-group.tabReuseTitle",
+      description: "lets-search-group.tabReuseDescription",
+      key: "reuseSearchTab",
+      value: true,
+    },
+    {
       type: "select",
       title: "lets-search-group.tabPositionTitle",
       description: "lets-search-group.tabPositionDescription",

@@ -1,13 +1,20 @@
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { isMobileEntryFrontend } from "@/libs/plugin-entry-settings";
 import { plugin } from "@/utils";
-import { openTab } from "siyuan";
+import { getAllModels, openTab } from "siyuan";
 import type { IEventBusMap } from "siyuan";
 
 type SearchInputEvent = IEventBusMap["input-search"];
 type SearchConfig = SearchInputEvent["config"];
 /** Configs lifted out of a Ctrl+F dialog carry this flag so grouping rules keep applying inside the tab. */
 type TaggedSearchConfig = SearchConfig & { damophusDocSearch?: true };
+
+/** The siyuan package types getAllModels().search as an empty tuple, so duck-type the Search model. */
+type SearchModelLike = {
+  config?: { idPath?: string[]; k?: string };
+  parent?: { headElement?: HTMLElement; parent?: WndLike };
+  updateSearch?: (text: string, replace: boolean) => void;
+};
 
 type SearchDialogInstance = {
   element: HTMLElement;
@@ -27,6 +34,13 @@ const DOCUMENT_SEARCH_DIALOG = "dialog-search";
 const GLOBAL_SEARCH_DIALOG = "dialog-globalsearch";
 const DOCUMENT_SEARCH_SOURCE = "damophusDocSearch";
 const SEARCH_DIALOG_SELECTOR = `[data-key="${DOCUMENT_SEARCH_DIALOG}"],[data-key="${GLOBAL_SEARCH_DIALOG}"]`;
+
+/** Document-scoped searches carry exactly one path ending in .sy; notebook/global scopes have no document to match on. */
+const isDocumentScope = (idPath?: string[]): idPath is string[] =>
+  Array.isArray(idPath) && idPath.length === 1 && idPath[0].endsWith(".sy");
+
+const sameDocumentScope = (a?: string[], b?: string[]): boolean =>
+  isDocumentScope(a) && isDocumentScope(b) && a[0] === b[0];
 
 export default class SearchGroupPlugin extends SubPluginBase {
   private listening = false;
@@ -120,6 +134,12 @@ export default class SearchGroupPlugin extends SubPluginBase {
   }
 
   private openSearchTab(config: TaggedSearchConfig): void {
+    if (this.getSetting("reuseSearchTab") !== false) {
+      const target = this.findSameDocumentSearchTab(config);
+      if (target && this.activateSearchTab(target, config)) {
+        return;
+      }
+    }
     if (this.getSetting("searchTabPosition") !== "opposite") {
       void openTab({ app: plugin.app, search: config });
       return;
@@ -153,6 +173,30 @@ export default class SearchGroupPlugin extends SubPluginBase {
       mirror.switchTab(focused.headElement);
     }
     void openTab({ app: plugin.app, search: config });
+  }
+
+  // Native openFile only reuses a search tab when the whole config is deep-equal; the
+  // reuse switch loosens that to "same document", so re-triggering a search in a
+  // document returns to its tab instead of stacking duplicates.
+  private findSameDocumentSearchTab(config: SearchConfig): SearchModelLike | undefined {
+    const models = (getAllModels() as unknown as { search?: SearchModelLike[] }).search ?? [];
+    return models.find((model) => sameDocumentScope(model.config?.idPath, config.idPath));
+  }
+
+  private activateSearchTab(model: SearchModelLike, config: SearchConfig): boolean {
+    const tab = model.parent;
+    const wnd = tab?.parent;
+    if (!tab?.headElement || typeof wnd?.switchTab !== "function") {
+      return false;
+    }
+    wnd.switchTab(tab.headElement);
+    // Same semantics as the native dialog reuse: carry the new query over, otherwise
+    // the tab would keep showing results for whatever was searched when it was created.
+    const k = config.k;
+    if (typeof k === "string" && k !== "" && model.config?.k !== k && typeof model.updateSearch === "function") {
+      model.updateSearch(k, true);
+    }
+    return true;
   }
 
   private collectWnds(node: unknown, acc: WndLike[]): void {

@@ -11,10 +11,12 @@ const eventBus = vi.hoisted(() => {
 
 const openTabMock = vi.hoisted(() => vi.fn());
 
+const getAllModelsMock = vi.hoisted(() => vi.fn(() => ({ search: [] })));
+
 vi.mock("@/utils", () => ({
   plugin: { app: { appId: "test-app" }, eventBus: { on: eventBus.on, off: eventBus.off } },
 }));
-vi.mock("siyuan", () => ({ openTab: openTabMock }));
+vi.mock("siyuan", () => ({ openTab: openTabMock, getAllModels: getAllModelsMock }));
 
 import SearchGroupPlugin from "./index";
 
@@ -36,12 +38,26 @@ const makeWnd = (left: number) => {
   };
 };
 
+const makeSearchModel = (idPath: string[], k = "existing") => {
+  const switchTab = vi.fn();
+  const headElement = {} as unknown as HTMLElement;
+  const updateSearch = vi.fn();
+  const model = {
+    config: { idPath, k },
+    parent: { headElement, parent: { switchTab } },
+    updateSearch,
+  };
+  return { model, switchTab, headElement, updateSearch };
+};
+
 describe("search document grouping", () => {
   beforeEach(() => {
     eventBus.handlers.clear();
     eventBus.on.mockClear();
     eventBus.off.mockClear();
     openTabMock.mockClear();
+    getAllModelsMock.mockReset();
+    getAllModelsMock.mockImplementation(() => ({ search: [] }));
     vi.unstubAllGlobals();
   });
 
@@ -246,5 +262,58 @@ describe("search document grouping", () => {
     });
     search["openSearchTab"](config);
     expect(openTabMock).toHaveBeenCalledWith({ app: { appId: "test-app" }, search: config });
+  });
+
+  it("jumps to an existing tab searching the same document and syncs the query", () => {
+    const search = new SearchGroupPlugin();
+    search.getSetting = (key) => (key === "openSearchAsTab" ? true : undefined);
+    const { model, switchTab, headElement, updateSearch } = makeSearchModel(["20240101/doc.sy"], "old query");
+    getAllModelsMock.mockReturnValue({ search: [model] });
+
+    search["openSearchTab"]({ idPath: ["20240101/doc.sy"], k: "new query", group: 1 });
+
+    expect(switchTab).toHaveBeenCalledWith(headElement);
+    expect(updateSearch).toHaveBeenCalledWith("new query", true);
+    expect(openTabMock).not.toHaveBeenCalled();
+
+    openTabMock.mockClear();
+    search["openSearchTab"]({ idPath: ["20240101/doc.sy"], k: "old query", group: 1 });
+    expect(updateSearch).toHaveBeenCalledTimes(1);
+    expect(openTabMock).not.toHaveBeenCalled();
+  });
+
+  it("opens a new tab for non-document scopes, other documents, or when reuse is off", () => {
+    const existing = makeSearchModel(["20240101/doc.sy"]);
+
+    const globalSearch = new SearchGroupPlugin();
+    globalSearch.getSetting = (key) => (key === "openSearchAsTab" ? true : undefined);
+    getAllModelsMock.mockReturnValue({ search: [existing.model] });
+    globalSearch["openSearchTab"]({ idPath: [], k: "query", group: 1 });
+    expect(existing.switchTab).not.toHaveBeenCalled();
+    expect(openTabMock).toHaveBeenCalledTimes(1);
+
+    const otherDocument = new SearchGroupPlugin();
+    otherDocument.getSetting = (key) => (key === "openSearchAsTab" ? true : undefined);
+    otherDocument["openSearchTab"]({ idPath: ["20240202/other.sy"], k: "query", group: 1 });
+    expect(existing.switchTab).not.toHaveBeenCalled();
+    expect(openTabMock).toHaveBeenCalledTimes(2);
+
+    const reuseOff = new SearchGroupPlugin();
+    reuseOff.getSetting = (key) => (key === "reuseSearchTab" ? false : key === "openSearchAsTab");
+    reuseOff["openSearchTab"]({ idPath: ["20240101/doc.sy"], k: "query", group: 1 });
+    expect(existing.switchTab).not.toHaveBeenCalled();
+    expect(openTabMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("treats notebook-scoped searches as having no document to reuse", () => {
+    const search = new SearchGroupPlugin();
+    search.getSetting = (key) => (key === "openSearchAsTab" ? true : undefined);
+    const { model, switchTab } = makeSearchModel(["20230822135958-notebook"]);
+    getAllModelsMock.mockReturnValue({ search: [model] });
+
+    search["openSearchTab"]({ idPath: ["20230822135958-notebook"], k: "query", group: 1 });
+
+    expect(switchTab).not.toHaveBeenCalled();
+    expect(openTabMock).toHaveBeenCalledTimes(1);
   });
 });
