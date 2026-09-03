@@ -10,6 +10,7 @@ import {
   COVER_SOURCE_ATTRIBUTE,
   loadLocalCacheDedupUrls,
 } from "./cover-local-cache";
+import { loadCoverBlacklistKeys } from "./cover-blacklist";
 
 const dedupLog = getLogger("lets-more-background:dedup");
 
@@ -24,12 +25,15 @@ export async function loadDedupCoverUrls(background?: HTMLElement, localCacheRoo
   const historyUrls = collectHistoryCoverUrls(getCoverHistory());
   const seenUrls = collectHistoryCoverUrls(getSeenCovers());
   const cacheIndexUrls = await loadLocalCacheDedupUrls(localCacheRoot);
-  const urls = new Set<string>([...databaseUrls, ...historyUrls, ...seenUrls, ...cacheIndexUrls]);
+  // ⛔ 黑名单独立于去重开关：被拉黑的图永远不进入候选。
+  const blacklistUrls = await loadCoverBlacklistKeys();
+  const urls = new Set<string>([...databaseUrls, ...historyUrls, ...seenUrls, ...cacheIndexUrls, ...blacklistUrls]);
   dedupLog.info("Loaded cover deduplication set", {
     database: databaseUrls.size,
     history: historyUrls.size,
     seen: seenUrls.size,
     cacheIndex: cacheIndexUrls.size,
+    blacklist: blacklistUrls.size,
     total: urls.size,
   });
   dedupLog.debug("Deduplication set entries", [...urls].slice(0, 80));

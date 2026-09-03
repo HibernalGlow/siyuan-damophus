@@ -8,18 +8,32 @@ import {
   removeCoverFavorite,
   upsertCoverFavorite,
 } from "./cover-favorites";
-import { booruPostDedupKey, coverDedupIdentity } from "./cover-dedup";
+import { booruPostDedupKey, coverDedupIdentity, normalizeCoverUrl } from "./cover-dedup";
 import { loadDedupCoverUrls } from "./cover-dedup-set";
 import {
+  COVER_CACHE_ATTRIBUTE,
+  COVER_SOURCE_ATTRIBUTE,
+  convertToWebp,
+  displayLocalCache,
+  ensureSyncIgnore,
   extractImageElementBlob,
+  localCachePath,
   triggerRandomIfNoImg,
+  updateLocalCacheIndex,
+  uploadLocalCacheBlob,
+  type CoverCacheMaxEdge,
 } from "./cover-local-cache";
 import { readBlockAttrs } from "./cover-attrs";
 import {
   isBooruSource,
+  proxyFetchImageBlob,
   resolveBooruImageCandidates,
   type BooruResolvedInfo,
 } from "./booru";
+import {
+  addCoverBlacklistEntry,
+  loadCoverBlacklistKeys,
+} from "./cover-blacklist";
 import { DEFAULT_BLACKLISTED_TAGS, type CoverSourceItem } from "./sources";
 import type { MoreBackgroundOptions } from "./more-background";
 import type { CoverApplyService } from "./cover-service";
@@ -216,6 +230,8 @@ export interface GachaCardData {
   element?: HTMLImageElement | null;
   /** 浏览暂存区时：该卡对应的暂存条目 id，应用成功后据此移出暂存区。 */
   stashEntryId?: string;
+  /** 抽卡来源模板名（暂存条目/黑名单记录元数据用）。 */
+  templateLabel?: string;
 }
 
 export interface CoverGachaDialogConfig {
@@ -230,6 +246,8 @@ export interface CoverGachaDialogConfig {
   stashedLabel: string;
   rerollLabel: string;
   failedLabel: string;
+  zoomLabel: string;
+  blacklistLabel: string;
   mobile: boolean;
   /** 流式抽卡：每解析出一张立即经 onCard 上屏，不等整批完成；onProgress 驱动进度文案。 */
   drawCards: (handlers: {
@@ -243,6 +261,8 @@ export interface CoverGachaDialogConfig {
   /** 暂存 → 暂存区（stash，待用卡）；与收藏完全独立。 */
   isStashed: (card: GachaCardData) => boolean;
   onStashToggle: (card: GachaCardData) => Promise<boolean>;
+  /** ⛔ 拉黑：这张图今后永远不再出现在抽卡里（成功后卡片从网格移除）。 */
+  onBlacklist: (card: GachaCardData) => Promise<void>;
 }
 
 const GACHA_STYLE = `
@@ -256,7 +276,16 @@ const GACHA_STYLE = `
 .damophus-cover-gacha__status { padding: 40px 12px; text-align: center; color: var(--b3-theme-on-surface-light); font-size: 13px; }
 .damophus-gacha-card { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--b3-border-color); border-radius: 10px; background: var(--b3-theme-surface); }
 .damophus-gacha-card__thumb { position: relative; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 7px; background: var(--b3-theme-surface-lighter); cursor: pointer; }
+.damophus-gacha-card__thumb { position: relative; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 7px; background: var(--b3-theme-surface-lighter); cursor: pointer; -webkit-user-select: none; user-select: none; touch-action: pan-y; }
 .damophus-gacha-card__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.damophus-gacha-card__thumb-zoom { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--b3-border-color); border-radius: 6px; background: color-mix(in srgb, var(--b3-theme-background) 82%, transparent); color: var(--b3-theme-on-surface); font-size: 12px; line-height: 1; cursor: zoom-in; }
+.damophus-cover-lightbox { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: color-mix(in srgb, var(--b3-theme-background) 94%, transparent); }
+.damophus-cover-lightbox__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; font-size: 12px; color: var(--b3-theme-on-surface-light); border-bottom: 1px solid var(--b3-border-color); }
+.damophus-cover-lightbox__stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 10px 14px; }
+.damophus-cover-lightbox__stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.damophus-cover-lightbox__meta { padding: 0 14px 6px; font-size: 11px; color: var(--b3-theme-on-surface-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.damophus-cover-lightbox__actions { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; padding: 8px 14px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid var(--b3-border-color); }
+.damophus-cover-lightbox__nav { min-width: 38px; }
 .damophus-gacha-card__thumb--broken { display: flex; align-items: center; justify-content: center; color: var(--b3-theme-on-surface-light); font-size: 11px; }
 .damophus-gacha-card__meta { font-size: 11px; color: var(--b3-theme-on-surface-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .damophus-gacha-card__tags { font-size: 10px; color: var(--b3-theme-on-surface-light); opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -317,13 +346,19 @@ function cascadeFloatingPosition(container: HTMLElement): void {
   }
 }
 
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_MOVE_TOLERANCE = 8;
+
 function buildCard(
   card: GachaCardData,
   config: CoverGachaDialogConfig,
   dialog: Dialog,
+  openLightbox: (card: GachaCardData) => void,
+  syncs: Map<string, () => void>,
 ): HTMLElement {
   const item = document.createElement("article");
   item.className = "damophus-gacha-card";
+  item.dataset.gachaKey = card.key;
 
   const thumb = document.createElement("div");
   thumb.className = "damophus-gacha-card__thumb";
@@ -339,6 +374,55 @@ function buildCard(
   thumb.appendChild(image);
   item.appendChild(thumb);
   card.element = image;
+
+  // ⤢ 大图入口（常驻角标）；长按缩略图同样进入大图循环流。
+  const zoom = document.createElement("button");
+  zoom.className = "damophus-gacha-card__thumb-zoom";
+  zoom.textContent = "⤢";
+  zoom.title = config.zoomLabel;
+  zoom.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openLightbox(card);
+  });
+  thumb.appendChild(zoom);
+  // 移动端长按会唤出系统菜单，直接禁掉。
+  thumb.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  let suppressNextClick = false;
+  let pressTimer: ReturnType<typeof setTimeout> | null = null;
+  const cancelPress = () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  };
+  thumb.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const onMove = (moveEvent: PointerEvent) => {
+      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > LONG_PRESS_MOVE_TOLERANCE) {
+        cancelPress();
+      }
+    };
+    const onUp = () => cancelPress();
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      suppressNextClick = true;
+      openLightbox(card);
+    }, LONG_PRESS_MS);
+  });
+  thumb.addEventListener("click", () => {
+    if (suppressNextClick) {
+      // 长按结束后的那次 click 不能触发「设为题头图」。
+      suppressNextClick = false;
+      return;
+    }
+    void applyPick();
+  });
 
   const meta = document.createElement("div");
   meta.className = "damophus-gacha-card__meta";
@@ -376,7 +460,6 @@ function buildCard(
     }
   };
   pick.addEventListener("click", () => { void applyPick(); });
-  thumb.addEventListener("click", () => { void applyPick(); });
   actions.appendChild(pick);
 
   // 收藏（★ → 收藏夹）与暂存（⚑ → 暂存区待用）是两个独立动作、两个独立存储。
@@ -400,21 +483,46 @@ function buildCard(
         button.disabled = false;
       }
     });
-    return button;
+    return { button, sync };
   };
 
-  actions.appendChild(buildMark(
+  const favoriteMark = buildMark(
     () => (config.isFavorited(card) ? "★" : "☆"),
     () => config.isFavorited(card),
     () => (config.isFavorited(card) ? config.favoritedLabel : config.favoriteLabel),
     config.onFavoriteToggle,
-  ));
-  actions.appendChild(buildMark(
+  );
+  const stashMark = buildMark(
     () => "⚑",
     () => config.isStashed(card),
     () => (config.isStashed(card) ? config.stashedLabel : config.stashLabel),
     config.onStashToggle,
-  ));
+  );
+  actions.appendChild(favoriteMark.button);
+  actions.appendChild(stashMark.button);
+
+  // ⛔ 拉黑：加入黑名单后这张图永远不再被抽到，卡片随之移出网格。
+  const ban = document.createElement("button");
+  ban.className = "damophus-gacha-card__mark";
+  ban.textContent = "⛔";
+  ban.title = config.blacklistLabel;
+  ban.addEventListener("click", async () => {
+    ban.disabled = true;
+    try {
+      await config.onBlacklist(card);
+      item.remove();
+    } catch (error) {
+      log.warn("Failed to blacklist cover:", error);
+      ban.disabled = false;
+    }
+  });
+  actions.appendChild(ban);
+
+  // 大图层里的 ★/⚑ 操作完成后刷新网格卡的按钮状态。
+  syncs.set(card.key, () => {
+    favoriteMark.sync();
+    stashMark.sync();
+  });
 
   item.appendChild(actions);
   return item;
@@ -455,11 +563,186 @@ export function openCoverGachaDialog(config: CoverGachaDialogConfig): void {
   const body = dialog.element.querySelector<HTMLElement>(".damophus-cover-gacha__body");
   const grid = dialog.element.querySelector<HTMLElement>(".damophus-cover-gacha__grid");
   const footer = dialog.element.querySelector<HTMLElement>(".damophus-cover-gacha__footer");
+  const container = dialog.element.querySelector<HTMLElement>(".b3-dialog__container");
   if (!hint || !body || !grid || !footer) {
     dialog.destroy();
     return;
   }
   hint.textContent = config.hint;
+
+  // 网格卡按钮状态注册表：大图层里的 ★/⚑ 操作后据此刷新对应网格卡。
+  const syncs = new Map<string, () => void>();
+  let currentBatch: GachaCardData[] = [];
+
+  let lightbox: HTMLElement | null = null;
+  let lightboxKeys: ((event: KeyboardEvent) => void) | null = null;
+  const closeLightbox = (): void => {
+    if (lightboxKeys) {
+      window.removeEventListener("keydown", lightboxKeys);
+      lightboxKeys = null;
+    }
+    lightbox?.remove();
+    lightbox = null;
+  };
+
+  /** 循环流大图：◀ ▶（或 ←/→ 键）在本批卡片间循环，可直接应用/收藏/暂存/拉黑。 */
+  const openLightbox = (card: GachaCardData): void => {
+    closeLightbox();
+    let index = currentBatch.findIndex((item) => item.key === card.key);
+    if (index < 0) return;
+    if (!container) return;
+    const overlay = document.createElement("div");
+    overlay.className = "damophus-cover-lightbox";
+
+    const head = document.createElement("div");
+    head.className = "damophus-cover-lightbox__head";
+    const counter = document.createElement("span");
+    const close = document.createElement("button");
+    close.className = "b3-button b3-button--cancel";
+    close.textContent = "✕";
+    close.addEventListener("click", () => closeLightbox());
+    head.appendChild(counter);
+    head.appendChild(close);
+    overlay.appendChild(head);
+
+    const stage = document.createElement("div");
+    stage.className = "damophus-cover-lightbox__stage";
+    const image = document.createElement("img");
+    image.referrerPolicy = "no-referrer";
+    image.alt = card.imageUrl;
+    stage.appendChild(image);
+    stage.addEventListener("click", (event) => {
+      if (event.target === stage) closeLightbox();
+    });
+    overlay.appendChild(stage);
+
+    const meta = document.createElement("div");
+    meta.className = "damophus-cover-lightbox__meta";
+    overlay.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "damophus-cover-lightbox__actions";
+
+    const navButton = (glyph: string, onClick: () => void) => {
+      const button = document.createElement("button");
+      button.className = "b3-button b3-button--outline damophus-gacha-card__mark damophus-cover-lightbox__nav";
+      button.textContent = glyph;
+      button.addEventListener("click", onClick);
+      return button;
+    };
+
+    const apply = document.createElement("button");
+    apply.className = "b3-button b3-button--outline";
+    apply.textContent = config.pickLabel;
+    apply.addEventListener("click", async () => {
+      apply.disabled = true;
+      try {
+        await config.onPick(currentBatch[index]);
+        dialog.destroy();
+        return;
+      } catch (error) {
+        log.warn("Failed to apply picked card from lightbox:", error);
+      }
+      apply.disabled = false;
+    });
+    const favorite = document.createElement("button");
+    favorite.className = "damophus-gacha-card__mark";
+    const stash = document.createElement("button");
+    stash.className = "damophus-gacha-card__mark";
+    const ban = document.createElement("button");
+    ban.className = "damophus-gacha-card__mark";
+    ban.textContent = "⛔";
+    ban.title = config.blacklistLabel;
+    ban.addEventListener("click", async () => {
+      const target = currentBatch[index];
+      if (!target) return;
+      ban.disabled = true;
+      try {
+        await config.onBlacklist(target);
+        grid.querySelector(`[data-gacha-key="${CSS.escape(target.key)}"]`)?.remove();
+        currentBatch.splice(index, 1);
+        if (currentBatch.length === 0) {
+          closeLightbox();
+          return;
+        }
+        index = Math.min(index, currentBatch.length - 1);
+        renderLightbox();
+      } catch (error) {
+        log.warn("Failed to blacklist cover from lightbox:", error);
+      }
+      ban.disabled = false;
+    });
+    actions.appendChild(navButton("◀", () => { index = (index - 1 + currentBatch.length) % currentBatch.length; renderLightbox(); }));
+    actions.appendChild(apply);
+    actions.appendChild(favorite);
+    actions.appendChild(stash);
+    actions.appendChild(ban);
+    actions.appendChild(navButton("▶", () => { index = (index + 1) % currentBatch.length; renderLightbox(); }));
+    overlay.appendChild(actions);
+    container.appendChild(overlay);
+    lightbox = overlay;
+
+    function renderLightbox(): void {
+      const current = currentBatch[index];
+      if (!current) {
+        closeLightbox();
+        return;
+      }
+      counter.textContent = `${index + 1} / ${currentBatch.length}`;
+      image.src = current.imageUrl;
+      image.alt = current.site ? `${current.site} #${current.postId ?? ""}` : current.imageUrl;
+      meta.textContent = [
+        current.site || "",
+        current.postId !== undefined && current.postId !== "" ? `#${current.postId}` : "",
+        current.score !== undefined && current.score !== "" ? `★ ${current.score}` : "",
+        current.width && current.height ? `${current.width}×${current.height}` : "",
+        current.postUrl || "",
+      ].filter(Boolean).join(" · ") || current.imageUrl;
+      favorite.textContent = config.isFavorited(current) ? "★" : "☆";
+      favorite.setAttribute("data-active", config.isFavorited(current) ? "true" : "false");
+      favorite.title = config.isFavorited(current) ? config.favoritedLabel : config.favoriteLabel;
+      stash.textContent = "⚑";
+      stash.setAttribute("data-active", config.isStashed(current) ? "true" : "false");
+      stash.title = config.isStashed(current) ? config.stashedLabel : config.stashLabel;
+    }
+
+    favorite.addEventListener("click", async () => {
+      const current = currentBatch[index];
+      if (!current) return;
+      favorite.disabled = true;
+      try {
+        await config.onFavoriteToggle(current);
+      } catch (error) {
+        log.warn("Failed to toggle favorite from lightbox:", error);
+      } finally {
+        favorite.disabled = false;
+      }
+      renderLightbox();
+      syncs.get(current.key)?.();
+    });
+    stash.addEventListener("click", async () => {
+      const current = currentBatch[index];
+      if (!current) return;
+      stash.disabled = true;
+      try {
+        await config.onStashToggle(current);
+      } catch (error) {
+        log.warn("Failed to toggle stash from lightbox:", error);
+      } finally {
+        stash.disabled = false;
+      }
+      renderLightbox();
+      syncs.get(current.key)?.();
+    });
+
+    lightboxKeys = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") { index = (index - 1 + currentBatch.length) % currentBatch.length; renderLightbox(); }
+      else if (event.key === "ArrowRight") { index = (index + 1) % currentBatch.length; renderLightbox(); }
+      else if (event.key === "Escape") closeLightbox();
+    };
+    window.addEventListener("keydown", lightboxKeys);
+    renderLightbox();
+  };
 
   const reroll = document.createElement("button");
   reroll.className = "b3-button b3-button--outline";
@@ -467,26 +750,29 @@ export function openCoverGachaDialog(config: CoverGachaDialogConfig): void {
   reroll.addEventListener("click", () => { void render(); });
   footer.appendChild(reroll);
 
-  const close = document.createElement("button");
-  close.className = "b3-button b3-button--cancel";
-  close.textContent = "✕";
-  close.addEventListener("click", () => dialog.destroy());
-  footer.appendChild(close);
+  const closeButton = document.createElement("button");
+  closeButton.className = "b3-button b3-button--cancel";
+  closeButton.textContent = "✕";
+  closeButton.addEventListener("click", () => dialog.destroy());
+  footer.appendChild(closeButton);
 
   async function render(): Promise<void> {
     reroll.disabled = true;
     grid.replaceChildren();
+    closeLightbox();
+    const cards: GachaCardData[] = [];
+    currentBatch = cards;
+    syncs.clear();
     const status = document.createElement("div");
     status.className = "damophus-cover-gacha__status";
     status.textContent = config.drawing;
     body.replaceChildren(status, grid);
-    const cards: GachaCardData[] = [];
     try {
       await config.drawCards({
         // 抽到一张立即上屏，前面的卡先可见、可操作，不必等整批抽完。
         onCard: (card) => {
           cards.push(card);
-          grid.appendChild(buildCard(card, config, dialog));
+          grid.appendChild(buildCard(card, config, dialog, openLightbox, syncs));
         },
         onProgress: (done, wanted) => {
           status.textContent = `${config.drawing} (${done}/${wanted})`;
@@ -588,6 +874,69 @@ const flowLog = getLogger("lets-more-background");
 const dedupLog = getLogger("lets-more-background:dedup");
 
 /**
+ * 后台补本机 WebP 缓存：秒上屏只写远程 URL，下载 + WebP 转码 + 上传缓存在
+ * 这里异步完成，成功后补写缓存属性并把显示源换成本地 blob。文档已换图时放弃。
+ */
+async function upgradeCoverCacheInBackground(
+  deps: GachaFlowDeps,
+  root: HTMLElement,
+  background: HTMLElement,
+  info: BooruResolvedInfo,
+): Promise<void> {
+  const { options } = deps;
+  if (options.localCache !== true) return;
+  try {
+    let blob = await proxyFetchImageBlob(info.imageUrl);
+    if (!blob || blob.size === 0) {
+      const response = await fetch(info.imageUrl, { referrerPolicy: "no-referrer" });
+      if (response.ok) blob = await response.blob();
+    }
+    if (!blob || blob.size === 0) return;
+    const processed = await convertToWebp(blob, options.localCacheMaxEdge as CoverCacheMaxEdge);
+    const cachePath = localCachePath(options.localCacheRoot, options.localCachePathTemplate, {
+      sourceUrl: info.imageUrl,
+      maxEdge: options.localCacheMaxEdge as CoverCacheMaxEdge,
+      site: info.site,
+      postId: info.postId,
+    });
+    await ensureSyncIgnore(options.localCacheRoot);
+    if (!await uploadLocalCacheBlob(processed, cachePath)) return;
+    await updateLocalCacheIndex(options.localCacheRoot, {
+      path: cachePath,
+      sourceUrl: info.imageUrl,
+      createdAt: new Date().toISOString(),
+      maxEdge: options.localCacheMaxEdge as CoverCacheMaxEdge,
+      quality: 75,
+      site: info.site,
+      postId: info.postId,
+      width: info.width,
+      height: info.height,
+      size: processed.size,
+    });
+    // 文档已被换成别的图时放弃补写，避免脏缓存属性。
+    const blockId = deps.findCoverBlockId(root, background);
+    const attrs = blockId ? await readBlockAttrs(blockId) : {};
+    if (blockId) {
+      const currentSource = normalizeCoverUrl(attrs[COVER_SOURCE_ATTRIBUTE] || "");
+      if (currentSource && currentSource !== normalizeCoverUrl(info.imageUrl)) {
+        flowLog.info("Skip background cache upgrade: cover already replaced", { imageUrl: info.imageUrl });
+        return;
+      }
+      await fetch("/api/attr/setBlockAttrs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: blockId, attrs: { [COVER_CACHE_ATTRIBUTE]: cachePath } }),
+      });
+    }
+    const image = background.querySelector<HTMLImageElement>(".protyle-background__img img");
+    if (image && image.isConnected) displayLocalCache(image, processed);
+    flowLog.info("Background cover cache upgraded", { imageUrl: info.imageUrl, cachePath });
+  } catch (error) {
+    flowLog.warn("Background cover cache upgrade failed:", error);
+  }
+}
+
+/**
  * 抽卡编排：先抽出 gachaDrawCount 张候选卡，弹窗让用户选一张设为题头图；
  * 其余喜欢的卡可收藏进暂存区，之后可通过「从暂存区随机应用」取出。
  */
@@ -611,6 +960,13 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
       } catch (error) {
         dedupLog.warn("Failed to load used cover URLs before gacha draw:", error);
       }
+    }
+    // ⛔ 黑名单与去重开关无关：被拉黑的图永远不再出现。
+    try {
+      const blacklisted = await loadCoverBlacklistKeys();
+      for (const key of blacklisted) excluded.add(key);
+    } catch (error) {
+      flowLog.warn("Failed to load cover blacklist before gacha draw:", error);
     }
 
     const rememberCard = (card: GachaCardData): void => {
@@ -693,6 +1049,7 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
     openCoverGachaDialog({
       title: `🎴 ${options.t("lets-more-background.gachaDialogTitle")} · ${deps.resolveDocTitle(root, background)}`,
       hint: options.t("lets-more-background.gachaDialogHint")
+        + ` ${options.t("lets-more-background.gachaZoomHint")}`
         + (isMobile ? "" : ` ${options.t("lets-more-background.floatHint")}`),
       drawing: options.t("lets-more-background.gachaDrawing"),
       empty: options.t("lets-more-background.gachaEmpty"),
@@ -703,13 +1060,18 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
       stashedLabel: options.t("lets-more-background.gachaStashed"),
       rerollLabel: options.t("lets-more-background.gachaReroll"),
       failedLabel: options.t("lets-more-background.previewLoadFailed"),
+      zoomLabel: options.t("lets-more-background.gachaZoom"),
+      blacklistLabel: options.t("lets-more-background.gachaBlacklist"),
       mobile: isMobile,
       drawCards,
       onPick: async (card) => {
         triggerRandomIfNoImg(root);
         if (card.info) {
+          // 秒上屏：直接以远程 URL 写题头图（浏览器直载），本机 WebP 缓存转
+          // 后台补齐，不再等「代理下载 + WebP 转码」完成。
           service.applyPostMetadata(background, card.info);
-          await service.fetchAndSetBackground(card.info.imageUrl, background, 1, 1, undefined, card.info);
+          await service.setBlockBackgroundImage(background, card.info.imageUrl, card.info);
+          void upgradeCoverCacheInBackground(deps, root, background, card.info);
         } else {
           const blob = card.element ? await extractImageElementBlob(card.element) : null;
           if (blob && blob.size > 0) {
@@ -724,6 +1086,19 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
       onFavoriteToggle: (card) => toggleGachaFavorite(card, favoriteKeys, root, background),
       isStashed: (card) => stashKeys.has(cardKey(card)),
       onStashToggle: (card) => toggleGachaStash(card, stashKeys, item.label),
+      onBlacklist: async (card) => {
+        await addCoverBlacklistEntry({
+          imageUrl: card.imageUrl,
+          postUrl: card.postUrl,
+          site: card.site,
+          postId: card.postId,
+          tags: card.tags,
+          templateLabel: item.label,
+        });
+        // 立即进入本批排除集：还没关闭的弹窗里「换一批」也不会再抽到它。
+        rememberCard(card);
+        showMessage(options.t("lets-more-background.gachaBlacklistMessage"));
+      },
     });
   }
 
@@ -744,6 +1119,7 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
     const toCard = (entry: CoverStashEntry): GachaCardData => ({
       key: coverStashKey(entry),
       stashEntryId: entry.id,
+      templateLabel: entry.templateLabel,
       imageUrl: entry.imageUrl,
       previewUrl: entry.previewUrl,
       postUrl: entry.postUrl,
@@ -757,6 +1133,7 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
     openCoverGachaDialog({
       title: `🗂 ${options.t("lets-more-background.applyFromStash")} · ${deps.resolveDocTitle(root, background)}`,
       hint: options.t("lets-more-background.stashBrowserHint")
+        + ` ${options.t("lets-more-background.gachaZoomHint")}`
         + (isMobile ? "" : ` ${options.t("lets-more-background.floatHint")}`),
       drawing: options.t("lets-more-background.gachaDrawing"),
       empty: options.t("lets-more-background.stashEmpty"),
@@ -767,6 +1144,8 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
       stashedLabel: options.t("lets-more-background.gachaStashed"),
       rerollLabel: options.t("lets-more-background.refreshFavorites"),
       failedLabel: options.t("lets-more-background.previewLoadFailed"),
+      zoomLabel: options.t("lets-more-background.gachaZoom"),
+      blacklistLabel: options.t("lets-more-background.gachaBlacklist"),
       mobile: isMobile,
       drawCards: async (handlers) => {
         const [entries, favorites] = await Promise.all([loadCoverStash(), loadCoverFavorites()]);
@@ -792,6 +1171,18 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
       onFavoriteToggle: (card) => toggleGachaFavorite(card, favoriteKeys, root, background),
       isStashed: (card) => stashKeys.has(cardKey(card)),
       onStashToggle: (card) => toggleGachaStash(card, stashKeys),
+      onBlacklist: async (card) => {
+        await addCoverBlacklistEntry({
+          imageUrl: card.imageUrl,
+          postUrl: card.postUrl,
+          site: card.site,
+          postId: card.postId,
+          tags: card.tags,
+          templateLabel: card.templateLabel,
+        });
+        stashKeys.delete(cardKey(card));
+        showMessage(options.t("lets-more-background.gachaBlacklistMessage"));
+      },
     });
   }
 
@@ -815,12 +1206,12 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
     };
     triggerRandomIfNoImg(root);
     service.applyPostMetadata(background, postInfo);
-    if (/^(?:https?:\/\/|data:)/i.test(entry.imageUrl)) {
-      await service.fetchAndSetBackground(entry.imageUrl, background, 1, 1, undefined, postInfo);
-    } else {
-      await service.setBlockBackgroundImage(background, entry.imageUrl, postInfo);
+    await service.setBlockBackgroundImage(background, entry.imageUrl, postInfo);
+    // 远程图转后台补本机 WebP 缓存，「应用」保持在数百毫秒级。
+    if (/^https?:\/\//i.test(entry.imageUrl)) {
+      void upgradeCoverCacheInBackground(deps, root, background, postInfo);
     }
-    // fetchAndSetBackground 内部吞错，这里以题头图属性确实变化为成功判据，
+    // setBlockBackgroundImage 内部吞错，这里以题头图属性确实变化为成功判据，
     // 失败时抛错让弹窗保持打开，卡片仍留在暂存区。
     if (blockId) {
       const nextTitleImg = (await readBlockAttrs(blockId))["title-img"] || "";
