@@ -138,7 +138,7 @@
           <span class="submitted-copy"> · {completedCount} {label("submitted", "submitted")}</span>
         </span>
         {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
-          <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--inline">
+          <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge">
             {questionTypeLabel(currentQuestion.type)}
           </Badge>
         {/if}
@@ -163,11 +163,6 @@
         {/if}
         {#if durationComparisonPosition === "header" && durationComparisons.length > 0}
           <PracticeDurationComparison comparisons={durationComparisons} {label} {formatDuration} />
-        {/if}
-        {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
-          <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--row">
-            {questionTypeLabel(currentQuestion.type)}
-          </Badge>
         {/if}
       </div>
       <div class="practice-controls">

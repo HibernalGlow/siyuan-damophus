@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import { mount, tick, unmount } from "svelte";
 import type { Question } from "@/question-bank/core/types";
 import { normalizeBreadcrumbTextDisplay } from "@/lets-mobile-breadcrumb/breadcrumb-scroll";
 import PracticeHeader from "./practice/PracticeHeader.svelte";
 import QuestionBankPractice from "./practice/QuestionBankPractice.svelte";
+import "./question-bank.css";
 
 const question: Question = {
   id: "q-duration-placement",
@@ -30,6 +32,7 @@ afterEach(async () => {
   if (mounted) await unmount(mounted);
   mounted = undefined;
   document.body.innerHTML = "";
+  void page.viewport(1024, 768);
 });
 
 const label = (_key: string, fallback: string) => fallback;
@@ -156,5 +159,67 @@ describe("duration comparison placement", () => {
     expect(document.querySelectorAll(".action-bar")).toHaveLength(1);
     expect(document.querySelector(".rating-bar")).toBeNull();
     expect(document.querySelector(".options")).not.toBeNull();
+  });
+
+  it("shows the question-type tag in the bottom bar only on narrow screens", async () => {
+    const baseProps = {
+      label,
+      currentQuestion: question,
+      currentGroup: undefined,
+      currentQuestionBlockId: undefined,
+      displayedOptions: [],
+      selectedOptionIds: [],
+      revealed: false,
+      readOnlyQuestion: false,
+      objectiveCorrect: null,
+      subjectiveScore: undefined,
+      currentAttempt: undefined,
+      durationComparisons: [],
+      durationComparisonPosition: "rating" as const,
+      renderedQuestionContent: (markdown: string) => markdown,
+      questionTypeLabel: () => "Single choice",
+      optionMarkdown: () => "",
+      formatDuration,
+      toggleOption: vi.fn(),
+      changeSubjectiveScore: vi.fn(),
+      mountSourceBlock: undefined,
+      suggestedRating: undefined,
+      resetQuestionTimer: vi.fn(),
+      confirmEndPractice: vi.fn(),
+      retryPracticeSave: vi.fn(),
+      goToQuestion: vi.fn(),
+      revealAnswer: vi.fn(),
+      retry: vi.fn(),
+      submitRating: vi.fn(),
+    };
+
+    const mountInContainer = async (width: number) => {
+      if (mounted) {
+        await unmount(mounted);
+        mounted = undefined;
+      }
+      document.body.innerHTML = "";
+      await page.viewport(width, 800);
+      const target = document.createElement("div");
+      target.className = "question-bank";
+      target.style.height = "100vh";
+      document.body.appendChild(target);
+      mounted = mount(QuestionBankPractice, { target, props: baseProps });
+      await tick();
+    };
+
+    await mountInContainer(1024);
+    const desktopBadge = document.querySelector<HTMLElement>(".action-bar [data-question-type]");
+    expect(desktopBadge && getComputedStyle(desktopBadge).display).toBe("none");
+
+    await mountInContainer(390);
+    const mobileBadge = document.querySelector<HTMLElement>(".action-bar [data-question-type]");
+    expect(mobileBadge?.textContent?.trim()).toBe("Single choice");
+    expect(mobileBadge?.closest(".practice-bottom-lead")).not.toBeNull();
+    await vi.waitFor(() => {
+      const container = document.querySelector<HTMLElement>(".question-bank")!;
+      expect(container.clientWidth).toBeLessThanOrEqual(960);
+      expect(mobileBadge && getComputedStyle(mobileBadge).display).not.toBe("none");
+    });
   });
 });

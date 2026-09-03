@@ -582,6 +582,7 @@
       {sourceEditingLocked}
       {renderedQuestionContent}
       {mountSourceBlock}
+      {questionTypeLabel}
       {optionMarkdown}
       {formatDuration}
       {toggleOption}

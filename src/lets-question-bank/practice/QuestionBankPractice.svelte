@@ -1,6 +1,7 @@
 <script lang="ts">
   import { RotateCcw } from "lucide-svelte";
   import * as Alert from "@/components/ui/alert";
+  import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import * as ScrollArea from "@/components/ui/scroll-area";
   import PracticeQuestionContent from "./PracticeQuestionContent.svelte";
@@ -37,6 +38,7 @@
   export let indefinitePracticeMode = false;
   export let renderedQuestionContent: (markdown: string, sourceStyles: boolean) => string;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined;
+  export let questionTypeLabel: (type: Question["type"]) => string | undefined = undefined;
   export let optionMarkdown: (option: ShuffledOption) => string;
   export let formatDuration: (milliseconds: number) => string;
   export let toggleOption: (optionId: string) => void;
@@ -158,12 +160,19 @@
       />
       {#if !readOnlyQuestion && !revealed && revealActionBelowOptions}
       <div class="action-bar action-bar--inline" class:timer-enabled={timingEnabled}>
-        {#if timingEnabled}
-          <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
-          <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
-            <RotateCcw size={16} aria-hidden="true" />
-          </Button>
-        {/if}
+        <span class="practice-bottom-lead">
+          {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
+            <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--bottom">
+              {questionTypeLabel(currentQuestion.type)}
+            </Badge>
+          {/if}
+          {#if timingEnabled}
+            <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
+            <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
+              <RotateCcw size={16} aria-hidden="true" />
+            </Button>
+          {/if}
+        </span>
         <Button onclick={revealAnswer}>
           <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>
           {label("reveal", "Reveal answer")}
@@ -175,7 +184,14 @@
 
   {#if readOnlyQuestion}
     <div class="rating-bar rating-bar--review" aria-label={label("adjustRating", "Adjust difficulty rating")}>
-      {#if timingEnabled}<span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>{/if}
+      <span class="practice-bottom-lead">
+        {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
+          <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--bottom">
+            {questionTypeLabel(currentQuestion.type)}
+          </Badge>
+        {/if}
+        {#if timingEnabled}<span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>{/if}
+      </span>
       {#each ["again", "hard", "good", "easy"] as rating}
         <Button
           variant={currentAttempt?.mastery_rating === rating ? "secondary" : "outline"}
@@ -189,12 +205,19 @@
   {:else if !revealed}
     {#if !revealActionBelowOptions}
       <div class="action-bar" class:timer-enabled={timingEnabled}>
-        {#if timingEnabled}
-          <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
-          <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
-            <RotateCcw size={16} aria-hidden="true" />
-          </Button>
-        {/if}
+        <span class="practice-bottom-lead">
+          {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
+            <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--bottom">
+              {questionTypeLabel(currentQuestion.type)}
+            </Badge>
+          {/if}
+          {#if timingEnabled}
+            <span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>
+            <Button variant="ghost" size="icon" title={label("resetQuestionTimer", "Reset question timer")} aria-label={label("resetQuestionTimer", "Reset question timer")} onclick={resetQuestionTimer}>
+              <RotateCcw size={16} aria-hidden="true" />
+            </Button>
+          {/if}
+        </span>
         <Button onclick={revealAnswer}>
           <svg data-icon="inline-start" aria-hidden="true"><use href="#iconEye"></use></svg>
           {label("reveal", "Reveal answer")}
@@ -208,7 +231,14 @@
       </div>
     {/if}
     <div class="rating-bar">
-      {#if timingEnabled}<span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>{/if}
+      <span class="practice-bottom-lead">
+        {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
+          <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--bottom">
+            {questionTypeLabel(currentQuestion.type)}
+          </Badge>
+        {/if}
+        {#if timingEnabled}<span class="session-timer" title={label("sessionElapsed", "Session elapsed time")}>{formatDuration(sessionElapsedMs)}</span>{/if}
+      </span>
       <Button variant="outline" size="icon" class="mr-1" title={label("retry", "Undo and retry")} aria-label={label("retry", "Undo and retry")} disabled={submitting} onclick={retry}>
         <svg aria-hidden="true"><use href="#iconUndo"></use></svg>
       </Button>

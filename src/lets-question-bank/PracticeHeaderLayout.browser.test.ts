@@ -74,9 +74,8 @@ describe("PracticeHeader question-type tag", () => {
 
     const badge = document.querySelector<HTMLElement>("[data-question-type='multiple']");
     expect(badge?.textContent?.trim()).toBe("Multiple choice");
-    expect(badge?.classList.contains("practice-question-type-badge--inline")).toBe(true);
+    expect(badge?.closest(".practice-status")).not.toBeNull();
     expect(badge && getComputedStyle(badge).display).not.toBe("none");
-    expect(document.querySelector(".practice-heading-details [data-question-type]")).not.toBeNull();
     await unmount(mounted);
     mounted = undefined;
     document.body.innerHTML = "";
@@ -91,7 +90,7 @@ describe("PracticeHeader question-type tag", () => {
     expect(document.querySelector("[data-question-type]")).toBeNull();
   });
 
-  it("moves the tag to the breadcrumb row inside a narrow container", async () => {
+  it("drops the top-bar tag inside a narrow container; the bottom bar takes over", async () => {
     const target = document.createElement("div");
     target.className = "question-bank";
     target.style.height = "100vh";
@@ -100,9 +99,7 @@ describe("PracticeHeader question-type tag", () => {
     mounted = mount(PracticeHeader, { target, props: props(withTypeLabel) });
     await tick();
 
-    const inline = document.querySelector<HTMLElement>(".practice-status [data-question-type]");
-    const row = document.querySelector<HTMLElement>(".practice-heading-details [data-question-type]");
-    expect(inline && getComputedStyle(inline).display).toBe("none");
-    expect(row && getComputedStyle(row).display).not.toBe("none");
+    const badge = document.querySelector<HTMLElement>(".practice-status [data-question-type]");
+    expect(badge && getComputedStyle(badge).display).toBe("none");
   });
 });
