@@ -176,7 +176,7 @@
       {/key}
     </div>
     {#if displayedOptions.length > 0}
-      <div class="options native-options">
+      <div class="options native-options" class:stem-styles-hidden={!showStemStyles}>
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
@@ -206,7 +206,7 @@
       {/key}
     </div>
     {#if displayedOptions.length > 0}
-      <div class="options embedded-options">
+      <div class="options embedded-options" class:stem-styles-hidden={!showStemStyles}>
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}
@@ -237,7 +237,7 @@
     {/if}
     <div class="markdown native-content protyle-wysiwyg stem" class:stem-styles-hidden={!showStemStyles} contenteditable="false" use:staticContentRender>{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
     {#if displayedOptions.length > 0}
-      <div class="options">
+      <div class="options" class:stem-styles-hidden={!showStemStyles}>
         {#each displayedOptions as option (option.originalId)}
           <Button
             variant={selectedOptionIds.includes(option.originalId) ? "secondary" : "outline"}

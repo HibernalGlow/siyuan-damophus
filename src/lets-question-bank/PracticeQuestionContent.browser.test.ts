@@ -156,6 +156,10 @@ describe("PracticeQuestionContent", () => {
     expect(getComputedStyle(strong).fontWeight).toBe(getComputedStyle(stem).fontWeight);
     expect(getComputedStyle(strong).fontSize).toBe("30px");
     expect(getComputedStyle(strong).color).toBe(getComputedStyle(stem).color);
+    const options = document.querySelector<HTMLElement>(".options")!;
+    const optionStrong = options.querySelector<HTMLElement>("strong")!;
+    expect(options.classList).toContain("stem-styles-hidden");
+    expect(getComputedStyle(optionStrong).color).toBe(getComputedStyle(optionStrong.parentElement!).color);
 
     await unmount(mounted!);
     mounted = undefined;
@@ -172,6 +176,9 @@ describe("PracticeQuestionContent", () => {
     expect(styledStem.classList).not.toContain("stem-styles-hidden");
     expect(getComputedStyle(styledStrong).fontSize).toBe("30px");
     expect(getComputedStyle(styledStrong).color).toBe("rgb(255, 0, 0)");
+    const styledOptions = document.querySelector<HTMLElement>(".options")!;
+    expect(styledOptions.classList).not.toContain("stem-styles-hidden");
+    expect(getComputedStyle(styledOptions.querySelector<HTMLElement>("strong")!).color).toBe("rgb(255, 0, 0)");
   });
 
   it("applies stem style masking to mounted native source content", async () => {
@@ -187,6 +194,7 @@ describe("PracticeQuestionContent", () => {
     expect(source.classList).toContain("stem-styles-hidden");
     expect(getComputedStyle(strong).fontWeight).toBe(getComputedStyle(source).fontWeight);
     expect(getComputedStyle(strong).color).toBe(getComputedStyle(source).color);
+    expect(document.querySelector<HTMLElement>(".native-options")!.classList).toContain("stem-styles-hidden");
   });
 
   it("aligns the HTML stem and options without a narrow centered column", async () => {

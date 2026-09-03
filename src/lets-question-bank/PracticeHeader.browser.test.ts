@@ -130,7 +130,7 @@ describe("practice header answer correction", () => {
     const stemStyles = menu?.querySelector<HTMLButtonElement>("[data-toggle-stem-styles]");
     expect(stemStyles?.getAttribute("role")).toBe("menuitemcheckbox");
     expect(stemStyles?.getAttribute("aria-checked")).toBe("false");
-    expect(stemStyles?.textContent).toContain("Show question stem styles");
+    expect(stemStyles?.textContent).toContain("Show question styles");
     const pauseOnBlurItem = menu?.querySelector<HTMLButtonElement>("[data-toggle-pause-on-blur]");
     expect(pauseOnBlurItem?.getAttribute("role")).toBe("menuitemcheckbox");
     expect(pauseOnBlurItem?.getAttribute("aria-checked")).toBe("false");

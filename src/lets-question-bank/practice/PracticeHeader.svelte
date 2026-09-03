@@ -294,7 +294,7 @@
               onclick={() => runOverflowAction(toggleStemStyles)}
             >
               <Type size={16} aria-hidden="true" />
-              {label("showStemStyles", "Show question stem styles")}
+              {label("showStemStyles", "Show question styles")}
               {#if showStemStyles}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
             </Button>
             <Button
