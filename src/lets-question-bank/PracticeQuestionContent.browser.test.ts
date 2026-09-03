@@ -45,7 +45,6 @@ function render(props: Record<string, unknown> = {}): void {
       displayedOptions,
       selectedOptionIds: [],
       renderQuestionContent: (markdown: string) => markdown,
-      questionTypeLabel: () => "Multiple choice",
       optionMarkdown: (option: ShuffledOption) => option.markdown,
       formatDuration: (milliseconds: number) => `${milliseconds} ms`,
       toggleOption: vi.fn(),
@@ -76,29 +75,26 @@ describe("PracticeQuestionContent", () => {
     expect(document.querySelector("h2")?.textContent).toBe("2015-3-82");
   });
 
-  it("shows the question type badge above the mounted source stem and hides it in indefinite mode", async () => {
+  it("keeps the question body free of the type tag, which now lives in the top bar", async () => {
     const mountSourceBlock = vi.fn((target: HTMLElement) => {
       target.innerHTML = "<div>source</div>";
       return () => {};
     });
     render({ questionRenderMode: "native", mountSourceBlock });
     await flush();
-
-    const badge = document.querySelector<HTMLElement>(".native-question [data-question-type]");
-    expect(badge?.getAttribute("data-question-type")).toBe("multiple");
-    expect(badge?.textContent?.trim()).toBe("Multiple choice");
+    expect(document.querySelector("[data-question-type]")).toBeNull();
 
     if (mounted) await unmount(mounted);
     mounted = undefined;
     document.body.innerHTML = "";
     render({ questionRenderMode: "embed", mountSourceBlock });
     await flush();
-    expect(document.querySelector(".embedded-question [data-question-type]")).not.toBeNull();
+    expect(document.querySelector("[data-question-type]")).toBeNull();
 
     if (mounted) await unmount(mounted);
     mounted = undefined;
     document.body.innerHTML = "";
-    render({ questionRenderMode: "native", mountSourceBlock, indefinitePracticeMode: true });
+    render({ questionRenderMode: "html" });
     await flush();
     expect(document.querySelector("[data-question-type]")).toBeNull();
   });

@@ -37,7 +37,6 @@
   export let indefinitePracticeMode = false;
   export let renderedQuestionContent: (markdown: string, sourceStyles: boolean) => string;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined;
-  export let questionTypeLabel: (type: Question["type"]) => string;
   export let optionMarkdown: (option: ShuffledOption) => string;
   export let formatDuration: (milliseconds: number) => string;
   export let toggleOption: (optionId: string) => void;
@@ -151,7 +150,6 @@
       {indefinitePracticeMode}
       renderQuestionContent={renderedQuestionContent}
       {mountSourceBlock}
-      {questionTypeLabel}
       {optionMarkdown}
       {formatDuration}
       {toggleOption}

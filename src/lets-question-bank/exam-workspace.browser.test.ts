@@ -104,7 +104,7 @@ describe("exam workspace", () => {
     expect(document.querySelector(".exam-score")?.textContent).toContain("100.0%");
   });
 
-  it("shows the current question type as a localized tag in the exam toolbar", async () => {
+  it("shows the current question type as a localized tag in the exam heading", async () => {
     const { controller } = mockController();
     component = mount(ExamWorkspace, {
       target: document.body,
@@ -115,8 +115,9 @@ describe("exam workspace", () => {
       .find((button) => button.textContent?.includes("Start exam"))?.click();
     await tick();
 
-    const badge = document.querySelector<HTMLElement>(".exam-question-toolbar [data-question-type]");
+    const badge = document.querySelector<HTMLElement>(".exam-heading [data-question-type]");
     expect(badge).not.toBeNull();
+    expect(document.querySelector(".exam-question-toolbar [data-question-type]")).toBeNull();
     const type = badge!.getAttribute("data-question-type");
     expect(["single", "multiple"]).toContain(type);
     expect(badge!.textContent?.trim()).toBe(type === "single" ? "Single choice" : "Multiple choice");

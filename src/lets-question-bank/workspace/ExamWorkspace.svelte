@@ -424,7 +424,7 @@
 {:else if phase === "active" && snapshot && currentQuestion && currentDraft}
   <section class="exam-workspace exam-runner">
     <header class="exam-heading">
-      <div><strong>{snapshot.blueprint.title}</strong><span>{questionIndex + 1} / {snapshot.queue_question_ids.length}</span></div>
+      <div><strong>{snapshot.blueprint.title}</strong><span class="exam-heading-meta">{questionIndex + 1} / {snapshot.queue_question_ids.length}<Badge variant="secondary" data-question-type={currentQuestion.type}>{questionTypeLabel(currentQuestion.type, label)}</Badge></span></div>
       <div class:overdue><Clock3 size={16} />{remainingMs === undefined ? label("untimed", "Untimed") : remainingMs <= 0 ? label("overdue", "Overdue") : `${Math.ceil(remainingMs / 60000)} min`}</div>
       <Button variant="ghost" size="icon" onclick={exit} title={label("exitExam", "Exit and keep running")}><X /></Button>
     </header>
@@ -434,7 +434,7 @@
       {/each}
     </nav>
     <article class="exam-question">
-      <div class="exam-question-toolbar"><Badge variant="secondary" data-question-type={currentQuestion.type}>{questionTypeLabel(currentQuestion.type, label)}</Badge><Button variant="ghost" size="icon" title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class={currentDraft.marked ? "active" : ""} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></Button></div>
+      <div class="exam-question-toolbar"><Button variant="ghost" size="icon" title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class={currentDraft.marked ? "active" : ""} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></Button></div>
       <div class="exam-stem" use:staticContentRender>{@html rendered(currentQuestion.stemMarkdown)}</div>
       {#if currentQuestion.type === "subjective"}
         <Textarea value={currentDraft.answer_text ?? ""} oninput={(event) => answerText(event.currentTarget.value)} placeholder={label("subjectiveAnswer", "Write your answer")} />

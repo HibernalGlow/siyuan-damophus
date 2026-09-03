@@ -1123,6 +1123,18 @@ html[data-frontend="browser-mobile"][data-damophus-mobile-toolbar-actions="false
   flex-direction: column;
 }
 
+.exam-heading > div:first-child strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exam-heading-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .exam-heading span,
 .exam-result-grid span {
   color: var(--b3-theme-on-surface-light);
@@ -1309,7 +1321,7 @@ html[data-frontend="browser-mobile"][data-damophus-mobile-toolbar-actions="false
 .exam-question-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 12px;
 }
 

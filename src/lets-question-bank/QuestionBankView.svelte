@@ -294,6 +294,7 @@
 >
   <PracticeHeader
     currentQuestion={currentQuestion}
+    {questionTypeLabel}
     {currentBookmark}
     {onToggleBookmark}
     {onSaveBookmarkDetails}
@@ -581,7 +582,6 @@
       {sourceEditingLocked}
       {renderedQuestionContent}
       {mountSourceBlock}
-      {questionTypeLabel}
       {optionMarkdown}
       {formatDuration}
       {toggleOption}

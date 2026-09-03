@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, ListChecks, LocateFixed, LockKeyhole, Pause, Pencil, Play, Star, Timer, Type, UnlockKeyhole, X } from "lucide-svelte";
   import type { BlockBreadcrumbItem } from "@/api";
+  import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import {
     createPracticeBreadcrumbAction,
@@ -18,6 +19,7 @@
   export let buildRevision: string;
   export let showPracticeTitle = false;
   export let showPracticeBreadcrumb = true;
+  export let questionTypeLabel: (type: Question["type"]) => string | undefined = undefined;
   export let label: Label;
   export let translations: Record<string, string> = {};
   export let onClose: (() => void) | undefined = undefined;
@@ -135,6 +137,11 @@
           {questionIndex + 1} / {queueLength}
           <span class="submitted-copy"> · {completedCount} {label("submitted", "submitted")}</span>
         </span>
+        {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
+          <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--inline">
+            {questionTypeLabel(currentQuestion.type)}
+          </Badge>
+        {/if}
         {#if timingEnabled}
           <span class="timer" title={label("questionElapsed", "Question elapsed time")}>
             <svg aria-hidden="true"><use href="#iconClock"></use></svg>
@@ -156,6 +163,11 @@
         {/if}
         {#if durationComparisonPosition === "header" && durationComparisons.length > 0}
           <PracticeDurationComparison comparisons={durationComparisons} {label} {formatDuration} />
+        {/if}
+        {#if currentQuestion && questionTypeLabel && !indefinitePracticeMode}
+          <Badge variant="secondary" data-question-type={currentQuestion.type} class="practice-question-type-badge practice-question-type-badge--row">
+            {questionTypeLabel(currentQuestion.type)}
+          </Badge>
         {/if}
       </div>
       <div class="practice-controls">

@@ -125,6 +125,9 @@
   .practice-content [data-slot="scroll-area-viewport"] { min-width: 0; min-height: 0; }
   .practice-scroll-content { min-width: 0; }
   .practice-status { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+  /* Question-type tag: inline next to the progress on desktop; on narrow containers the
+     status row has no spare width, so the row variant takes the breadcrumb line instead. */
+  .practice-question-type-badge--row { display: none; }
   .timer { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .timer svg { width: 14px; height: 14px; fill: currentColor; }
   .practice-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
@@ -200,6 +203,8 @@
       row-gap: 2px;
     }
     .practice-status { grid-area: status; display: flex; align-items: center; gap: 8px; }
+    .practice-question-type-badge--inline { display: none; }
+    .practice-question-type-badge--row { display: inline-flex; margin-left: auto; }
     .progress-copy { font-variant-numeric: tabular-nums; }
     .progress-label, .submitted-copy { display: none; }
     .practice-heading-details { grid-area: topic; justify-content: flex-start; }
