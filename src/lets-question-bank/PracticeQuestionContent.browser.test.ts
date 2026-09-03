@@ -76,6 +76,33 @@ describe("PracticeQuestionContent", () => {
     expect(document.querySelector("h2")?.textContent).toBe("2015-3-82");
   });
 
+  it("shows the question type badge above the mounted source stem and hides it in indefinite mode", async () => {
+    const mountSourceBlock = vi.fn((target: HTMLElement) => {
+      target.innerHTML = "<div>source</div>";
+      return () => {};
+    });
+    render({ questionRenderMode: "native", mountSourceBlock });
+    await flush();
+
+    const badge = document.querySelector<HTMLElement>(".native-question [data-question-type]");
+    expect(badge?.getAttribute("data-question-type")).toBe("multiple");
+    expect(badge?.textContent?.trim()).toBe("Multiple choice");
+
+    if (mounted) await unmount(mounted);
+    mounted = undefined;
+    document.body.innerHTML = "";
+    render({ questionRenderMode: "embed", mountSourceBlock });
+    await flush();
+    expect(document.querySelector(".embedded-question [data-question-type]")).not.toBeNull();
+
+    if (mounted) await unmount(mounted);
+    mounted = undefined;
+    document.body.innerHTML = "";
+    render({ questionRenderMode: "native", mountSourceBlock, indefinitePracticeMode: true });
+    await flush();
+    expect(document.querySelector("[data-question-type]")).toBeNull();
+  });
+
   it("mounts the editable embed as the question body before reveal", async () => {
     const cleanup = vi.fn();
     const toggleOption = vi.fn();

@@ -74,7 +74,8 @@ describe("exam workspace", () => {
       },
     });
     await tick();
-    document.querySelector<HTMLButtonElement>(".exam-actions button")?.click();
+    [...document.querySelectorAll<HTMLButtonElement>(".exam-actions button")]
+      .find((button) => button.textContent?.includes("Start exam"))?.click();
     await tick();
     [...document.querySelectorAll<HTMLButtonElement>(".exam-options button")]
       .find((button) => button.textContent?.includes("Alpha"))?.click();
@@ -103,6 +104,24 @@ describe("exam workspace", () => {
     expect(document.querySelector(".exam-score")?.textContent).toContain("100.0%");
   });
 
+  it("shows the current question type as a localized tag in the exam toolbar", async () => {
+    const { controller } = mockController();
+    component = mount(ExamWorkspace, {
+      target: document.body,
+      props: { controller, questions, sourceKey: "doc-1", uuid: () => "exam-4", random: () => 0.5 },
+    });
+    await tick();
+    [...document.querySelectorAll<HTMLButtonElement>(".exam-actions button")]
+      .find((button) => button.textContent?.includes("Start exam"))?.click();
+    await tick();
+
+    const badge = document.querySelector<HTMLElement>(".exam-question-toolbar [data-question-type]");
+    expect(badge).not.toBeNull();
+    const type = badge!.getAttribute("data-question-type");
+    expect(["single", "multiple"]).toContain(type);
+    expect(badge!.textContent?.trim()).toBe(type === "single" ? "Single choice" : "Multiple choice");
+  });
+
   it("marks a revealed answer as assisted and awards zero", async () => {
     const { controller, submittedEvents } = mockController();
     component = mount(ExamWorkspace, {
@@ -110,8 +129,9 @@ describe("exam workspace", () => {
       props: { controller, questions: [questions[0]], sourceKey: "doc-1", uuid: () => "exam-2" },
     });
     await tick();
-    document.querySelectorAll<HTMLInputElement>('.exam-check input[type="checkbox"]')[0]?.click();
-    document.querySelector<HTMLButtonElement>(".exam-actions button")?.click();
+    document.querySelector<HTMLButtonElement>('.exam-check button[data-slot="checkbox"]')?.click();
+    [...document.querySelectorAll<HTMLButtonElement>(".exam-actions button")]
+      .find((button) => button.textContent?.includes("Start exam"))?.click();
     await tick();
     [...document.querySelectorAll<HTMLButtonElement>(".exam-options button")]
       .find((button) => button.textContent?.includes("Alpha"))?.click();
@@ -185,7 +205,7 @@ describe("exam workspace", () => {
     });
     await tick();
     [...document.querySelectorAll<HTMLButtonElement>("button")]
-      .find((button) => button.textContent?.includes("跨文档组卷"))?.click();
+      .find((button) => button.textContent?.includes("选择试卷"))?.click();
     await vi.waitFor(() => expect(document.querySelector(".question-set-composer")).not.toBeNull());
     await page.getByRole("checkbox").click();
     await page.getByRole("button", { name: "检查并入库" }).click();

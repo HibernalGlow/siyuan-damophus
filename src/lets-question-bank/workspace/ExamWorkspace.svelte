@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { AlertTriangle, ArrowLeft, Check, ChevronLeft, ChevronRight, Clock3, Flag, Layers3, Send, X } from "lucide-svelte";
+  import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Checkbox } from "@/components/ui/checkbox";
@@ -8,6 +9,7 @@
   import * as Select from "@/components/ui/select";
   import { Textarea } from "@/components/ui/textarea";
   import type { Question } from "@/question-bank/core/types";
+  import { questionTypeLabel } from "../question-bank-display";
   import type { FrozenQuestionSet, QuestionCatalogEntry, QuestionSetBlueprint } from "@/question-bank/assembly";
   import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
   import type { QuestionIndexBatchPreview } from "@/question-bank/application";
@@ -432,7 +434,7 @@
       {/each}
     </nav>
     <article class="exam-question">
-      <div class="exam-question-toolbar"><span>{currentQuestion.type}</span><Button variant="ghost" size="icon" title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class={currentDraft.marked ? "active" : ""} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></Button></div>
+      <div class="exam-question-toolbar"><Badge variant="secondary" data-question-type={currentQuestion.type}>{questionTypeLabel(currentQuestion.type, label)}</Badge><Button variant="ghost" size="icon" title={label("mark", "Mark for review")} aria-label={label("mark", "Mark for review")} class={currentDraft.marked ? "active" : ""} onclick={() => send({ type: "TOGGLE_MARK", questionId: currentQuestion.id, now: Date.now() })}><Flag size={16} /></Button></div>
       <div class="exam-stem" use:staticContentRender>{@html rendered(currentQuestion.stemMarkdown)}</div>
       {#if currentQuestion.type === "subjective"}
         <Textarea value={currentDraft.answer_text ?? ""} oninput={(event) => answerText(event.currentTarget.value)} placeholder={label("subjectiveAnswer", "Write your answer")} />

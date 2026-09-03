@@ -165,6 +165,11 @@
 
 {#if questionRenderMode === "native" && currentQuestionBlockId && mountSourceBlock}
   <article class="question native-question" data-render-mode="native">
+    {#if !indefinitePracticeMode}
+      <div class="question-type-row">
+        <Badge variant="secondary" data-question-type={currentQuestion.type}>{questionTypeLabel(currentQuestion.type)}</Badge>
+      </div>
+    {/if}
     {#if currentGroup}
       <div class="group-material">
         <strong>{label("sharedMaterial", "Shared material")}</strong>
@@ -195,6 +200,11 @@
   </article>
 {:else if questionRenderMode === "embed" && currentQuestionBlockId && mountSourceBlock}
   <article class="question embedded-question" data-render-mode="embed">
+    {#if !indefinitePracticeMode}
+      <div class="question-type-row">
+        <Badge variant="secondary" data-question-type={currentQuestion.type}>{questionTypeLabel(currentQuestion.type)}</Badge>
+      </div>
+    {/if}
     {#if currentGroup}
       <div class="group-material">
         <strong>{label("sharedMaterial", "Shared material")}</strong>
@@ -337,6 +347,7 @@
 
 <style>
   .question { width: 100%; margin: 0 auto; padding: 16px 14px 8px; }
+  .question-type-row { display: flex; margin-bottom: 8px; }
   .question-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
   .question-title { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .question-heading h2 { min-width: 0; overflow-wrap: anywhere; }
