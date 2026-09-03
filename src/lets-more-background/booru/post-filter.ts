@@ -149,16 +149,86 @@ export function isPostBlacklisted(post: any, blacklistedTags?: string[] | string
   return false;
 }
 
+/**
+ * Inverse (NOT) constraints compiled from the condition tree. All checks are
+ * fail-open: a post is only rejected when it provably violates the negated
+ * condition (unknown score/ratio/time/rating keeps the post).
+ */
+export interface BooruNegations {
+  maxScore?: number;
+  notTimeRange?: string;
+  notRatio?: AspectRatioFilter;
+  notRating?: string;
+}
+
+// Booru rating letters/words differ per site; the query layer treats safe and
+// general as one bucket (danbooru pushes rating:general for safe), so both
+// normalize to "safe" here.
+const RATING_ALIASES: Record<string, string> = {
+  s: "safe", safe: "safe", general: "safe", g: "safe",
+  q: "questionable", questionable: "questionable",
+  e: "explicit", explicit: "explicit",
+};
+
+export function matchesNegations(post: Post | any, negations?: BooruNegations): boolean {
+  if (!post || !negations) return true;
+
+  if (negations.maxScore !== undefined) {
+    const rawScore = typeof post.score === "number" ? post.score : parseInt(post.score, 10);
+    if (!isNaN(rawScore) && rawScore > negations.maxScore) return false;
+  }
+
+  if (negations.notRatio && negations.notRatio !== "any") {
+    const width = post.image_width || post.width || post.imageWidth || post.preview_width || post.previewWidth || 0;
+    const height = post.image_height || post.height || post.imageHeight || post.preview_height || post.previewHeight || 0;
+    const ratio = width > 0 && height > 0 ? width / height : post.aspectRatio || 0;
+    if (ratio > 0) {
+      if (negations.notRatio === "landscape" && ratio >= 1.0) return false;
+      if (negations.notRatio === "wide" && ratio >= 1.33) return false;
+      if (negations.notRatio === "portrait" && ratio < 1.0) return false;
+    }
+  }
+
+  if (negations.notRating) {
+    const postRating = String(post.rating ?? "").toLowerCase();
+    if (postRating) {
+      const normalized = RATING_ALIASES[postRating] ?? postRating;
+      const negated = RATING_ALIASES[negations.notRating.toLowerCase()] ?? negations.notRating.toLowerCase();
+      if (normalized === negated) return false;
+    }
+  }
+
+  if (negations.notTimeRange && negations.notTimeRange !== "any" && negations.notTimeRange !== "all") {
+    const { minTimestamp, maxTimestamp } = parseTimeFilter(negations.notTimeRange);
+    if (minTimestamp !== undefined || maxTimestamp !== undefined) {
+      const postTime = extractPostTimestamp(post);
+      if (postTime) {
+        const beforeMin = minTimestamp !== undefined && postTime < minTimestamp;
+        const afterMax = maxTimestamp !== undefined && postTime > maxTimestamp;
+        // Inside the negated window → reject; outside → keep.
+        if (!beforeMin && !afterMax) return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 export function matchesCondition(
   post: Post | any,
   aspectRatio: AspectRatioFilter = "any",
   minScore?: number,
   timeRange: TimeRangeFilter = "any",
   blacklist?: string[] | string,
+  negations?: BooruNegations,
 ): boolean {
   if (!post) return false;
 
   if (blacklist && isPostBlacklisted(post, blacklist)) {
+    return false;
+  }
+
+  if (negations && !matchesNegations(post, negations)) {
     return false;
   }
 

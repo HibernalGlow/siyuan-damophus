@@ -9,6 +9,8 @@ export type SourceType = "booru" | "preset_api" | "custom_url";
 export interface CoverSourceItem {
   label: string;
   url: string;
+  /** OR-branch variants of `url` (OR-capable condition trees compile to several fetch queries). */
+  urls?: string[];
 }
 
 export interface TagEntry {
@@ -41,7 +43,8 @@ export interface FilterRule {
 /**
  * v2 condition model (schema 2): the rule tree is stored exactly in the shape the
  * shared query builder edits, so the condition editor needs no conversion adapter.
- * Semantics are AND-only: groups organize rules, every leaf contributes parameters.
+ * `combinator: "or"` splits fetch variants and `not` negates a subtree — both are
+ * compiled by cover-condition-compile; legacy trees without them stay AND-only.
  */
 export interface CoverConditionRule {
   id?: string;
@@ -54,6 +57,11 @@ export interface CoverConditionRule {
 export interface CoverConditionGroup {
   combinator: "and" | "or";
   rules: (CoverConditionRule | CoverConditionGroup)[];
+  /** Query-builder Not toggle: negates this subtree (De Morgan on compile). */
+  not?: boolean;
+  /** Optional group label from the editor's named groups; informational only. */
+  name?: string;
+  disabled?: boolean;
 }
 
 export const COVER_CONDITION_SCHEMA_VERSION = 2;
@@ -114,6 +122,7 @@ export interface CoverHistoryEntry {
 export const DEFAULT_BLACKLISTED_TAGS = "grayscale, gay, two_males, bara, yaoi, guro, gore";
 
 import allArtistsData from "./all_artists.json";
+import { templateToUrlVariants } from "./cover-condition-compile";
 
 export const DEFAULT_TAG_POOLS: TagPool[] = [
   {
@@ -321,151 +330,28 @@ export const DEFAULT_TEMPLATES: CoverTemplateItem[] = [
   },
 ];
 
+// Single-URL view of the condition tree: first fetch variant (AND-only trees
+// have exactly one). OR-capable trees use templateToUrlVariants instead.
 export function templateToUrl(template: CoverTemplateItem, tagPools: TagPool[] = DEFAULT_TAG_POOLS): string {
-  if (template.type === "preset_api" || template.type === "custom_url") {
-    return template.url || "";
-  }
-
-  const params = new URLSearchParams();
-
-  // 显式条件树为绝对基准；旧版扁平 rules 在读取时原位迁移（语义不变）。
-  const condition = template.condition
-    ?? (template.rules && template.rules.length > 0 ? migrateLegacyCoverRules(template.rules) : undefined);
-
-  if (condition) {
-    let site = template.site || "safebooru.org";
-    let poolId: string | undefined;
-    let explicitTags = "";
-
-    const applyRule = (r: CoverConditionRule) => {
-      if (r.field === "site" && r.value) {
-        site = r.value;
-      } else if (r.field === "aspectRatio" && r.value && r.value !== "any") {
-        params.set("ratio", r.value);
-      } else if (r.field === "rating" && r.value && r.value !== "all") {
-        params.set("rating", r.value);
-      } else if (r.field === "tags" && r.value) {
-        explicitTags = r.value;
-      } else if (r.field === "minScore" && Number(r.value) > 0) {
-        params.set("min_score", String(r.value));
-      } else if (r.field === "timeRange" && r.value && r.value !== "any") {
-        params.set("time_range", r.value);
-      } else if (r.field === "imageQuality" && r.value && r.value !== "original") {
-        params.set("quality", r.value);
-      } else if (r.field === "tagPool" && r.value) {
-        poolId = r.value;
-      } else if (r.field === "excludeTagPool" && r.value) {
-        const matchedExcludePool = tagPools.find((p) => p.id === r.value);
-        if (matchedExcludePool && matchedExcludePool.items?.length > 0) {
-          const excludeItems = matchedExcludePool.items
-            .map((it) => (typeof it === "string" ? it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_") : it.tag || ""))
-            .filter(Boolean);
-          if (excludeItems.length > 0) {
-            const currentBl = params.get("blacklist");
-            params.set("blacklist", currentBl ? `${currentBl},${excludeItems.join(",")}` : excludeItems.join(","));
-          }
-        }
-      } else if (r.field === "blacklist" && r.value) {
-        const currentBl = params.get("blacklist");
-        params.set("blacklist", currentBl ? `${currentBl},${r.value}` : String(r.value));
-      }
-    };
-    const walk = (group: CoverConditionGroup) => {
-      group.rules.forEach((entry) => {
-        if ("rules" in entry) walk(entry);
-        else applyRule(entry);
-      });
-    };
-    walk(condition);
-
-    if (template.blacklist) {
-      const currentBl = params.get("blacklist");
-      params.set("blacklist", currentBl ? `${currentBl},${template.blacklist}` : template.blacklist);
-    }
-
-    params.set("site", site);
-    if (explicitTags) {
-      params.set("tags", explicitTags);
-    }
-
-    let candidateItems: string[] = [];
-    if (poolId) {
-      const matchedPool = tagPools.find((p) => p.id === poolId);
-      if (matchedPool && matchedPool.items?.length > 0) {
-        candidateItems = matchedPool.items
-          .map((it) => (typeof it === "string" ? it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_") : it.tag || ""))
-          .filter(Boolean);
-      }
-    }
-    if (candidateItems.length === 0 && template.pool && template.pool.length > 0) {
-      candidateItems = template.pool.map((it) => (typeof it === "string" ? it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_") : (it as any).tag || "")).filter(Boolean);
-    }
-    if (candidateItems.length > 0) {
-      params.set("pool", candidateItems.join(","));
-    }
-
-    return `booru:${site}?${params.toString()}`;
-  }
-
-  const site = template.site || "safebooru.org";
-  params.set("site", site);
-
-  if (template.aspectRatio && template.aspectRatio !== "any") {
-    params.set("ratio", template.aspectRatio);
-  }
-  if (template.rating && template.rating !== "all") {
-    params.set("rating", template.rating);
-  }
-  if (template.tags) {
-    params.set("tags", template.tags);
-  }
-  if (template.minScore !== undefined && template.minScore > 0) {
-    params.set("min_score", String(template.minScore));
-  }
-  if (template.timeRange && template.timeRange !== "any") {
-    params.set("time_range", template.timeRange);
-  }
-  if (template.imageQuality && template.imageQuality !== "original") {
-    params.set("quality", template.imageQuality);
-  }
-
-  // Resolve pool: prefer poolId from tagPools, fallback to inline pool
-  let candidateItems: string[] = [];
-  if (template.poolId) {
-    const matchedPool = tagPools.find((p) => p.id === template.poolId);
-    if (matchedPool && matchedPool.items?.length > 0) {
-      candidateItems = matchedPool.items.map((it) => {
-        if (typeof it === "string") {
-          return it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_");
-        }
-        return it.tag || "";
-      }).filter(Boolean);
-    }
-  }
-  if (candidateItems.length === 0 && template.pool && template.pool.length > 0) {
-    candidateItems = template.pool.map((it) => {
-      if (typeof it === "string") {
-        return it.split(/[#,:]/)[0].trim().replace(/\s+/g, "_");
-      }
-      return (it as any).tag || "";
-    }).filter(Boolean);
-  }
-
-  if (template.blacklist) {
-    params.set("blacklist", template.blacklist);
-  }
-
-  if (candidateItems.length > 0) {
-    params.set("pool", candidateItems.join(","));
-  }
-
-  return `booru:${site}?${params.toString()}`;
+  return templateToUrlVariants(template, tagPools)[0] ?? "";
 }
 
-export const DEFAULT_COVER_SOURCES: CoverSourceItem[] = DEFAULT_TEMPLATES.map((tpl) => ({
-  label: tpl.name,
-  url: templateToUrl(tpl, DEFAULT_TAG_POOLS),
-}));
+export const DEFAULT_COVER_SOURCES: CoverSourceItem[] = DEFAULT_TEMPLATES.map((tpl) => {
+  const urls = templateToUrlVariants(tpl, DEFAULT_TAG_POOLS);
+  return { label: tpl.name, url: urls[0] ?? "", urls: urls.length > 1 ? urls : undefined };
+});
+
+/**
+ * One fetch query for this source: a random OR variant when the condition tree
+ * has any, otherwise the single URL. Picking per fetch (not per template) is
+ * what makes an OR tree sample the union of its branches.
+ */
+export function pickCoverSourceUrl(item: CoverSourceItem): string {
+  if (item.urls && item.urls.length > 0) {
+    return item.urls[Math.floor(Math.random() * item.urls.length)];
+  }
+  return item.url;
+}
 
 export function urlToTemplate(label: string, url: string, id?: string): CoverTemplateItem {
   const generatedId = id || `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;

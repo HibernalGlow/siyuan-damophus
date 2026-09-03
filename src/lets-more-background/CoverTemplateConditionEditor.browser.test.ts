@@ -84,6 +84,53 @@ describe("cover template condition editor", () => {
     expect("rules" in applied.rules[1]).toBe(true);
   });
 
+  it("toggles Not on the root group and applies it to the template", async () => {
+    const onApply = await render(migrateLegacyCoverRules([
+      { id: "score", field: "minScore", operator: "gte", value: 10 },
+    ]));
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    const notInput = document.querySelector<HTMLInputElement>(".ruleGroup input[type=\"checkbox\"]")!;
+    expect(notInput.checked).toBe(false);
+    notInput.click();
+    await tick();
+
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Apply"))
+      ?.click();
+    await tick();
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0][0]).toMatchObject({ combinator: "and", not: true });
+  });
+
+  it("keeps an or/not tree intact when editing and re-applying", async () => {
+    const onApply = await render({
+      combinator: "or",
+      not: true,
+      rules: [
+        { field: "minScore", operator: "gte", value: 10 },
+        { field: "rating", operator: "equals", value: "safe" },
+      ],
+    });
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    // The saved 与/或/非 structure round-trips through the shared builder.
+    expect(document.querySelector(".ruleGroup-combinators")?.textContent).toContain("or");
+    expect(document.querySelector<HTMLInputElement>(".ruleGroup input[type=\"checkbox\"]")!.checked).toBe(true);
+
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Apply"))
+      ?.click();
+    await tick();
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const applied = onApply.mock.calls[0][0] as CoverConditionGroup;
+    expect(applied.combinator).toBe("or");
+    expect(applied.not).toBe(true);
+    expect(applied.rules).toHaveLength(2);
+  });
+
   // [条件图形视图-暂停维护] it("shows the condition graph view with a result node", async () => {
   //   await render(migrateLegacyCoverRules([
   //     { id: "ratio", field: "aspectRatio", operator: "equals", value: "landscape" },

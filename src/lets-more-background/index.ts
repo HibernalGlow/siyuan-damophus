@@ -20,9 +20,9 @@ import {
   DEFAULT_SITE_CREDENTIALS,
   DEFAULT_TAG_POOLS,
   DEFAULT_TEMPLATES,
-  templateToUrl,
   type CoverSourceItem,
 } from "./sources";
+import { templateToUrlVariants } from "./cover-condition-compile";
 import { resolveBooruImageUrl } from "./booru";
 import { loadCoverStash } from "./cover-gacha";
 import { getCachedTagPools, loadTagPoolsFromStorage } from "./tag-pool-storage";
@@ -315,10 +315,10 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
     let sources: CoverSourceItem[] = [];
 
     if (Array.isArray(rawTemplates) && rawTemplates.length > 0) {
-      sources = rawTemplates.map((tpl) => ({
-        label: tpl.name || "Template",
-        url: templateToUrl(tpl, tagPools),
-      }));
+      sources = rawTemplates.map((tpl) => {
+        const urls = templateToUrlVariants(tpl, tagPools);
+        return { label: tpl.name || "Template", url: urls[0] ?? "", urls: urls.length > 1 ? urls : undefined };
+      });
     } else {
       const rawSources = this.getSetting("sources");
       sources =

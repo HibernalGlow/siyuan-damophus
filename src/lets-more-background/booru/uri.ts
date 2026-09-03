@@ -15,6 +15,11 @@ export interface BooruQueryOptions {
   aspectRatio?: AspectRatioFilter;
   minScore?: number;
   timeRange?: TimeRangeFilter;
+  /** Inverse (NOT) constraints compiled from the condition tree; see post-filter. */
+  maxScore?: number;
+  notTimeRange?: string;
+  notRatio?: AspectRatioFilter;
+  notRating?: string;
   pool?: string[];
   quality?: "original" | "sample" | "preview";
   blacklist?: string[] | string;
@@ -80,6 +85,15 @@ export function parseBooruUri(uri: string): BooruQueryOptions {
 
   const timeRange = params.get("time_range") || params.get("timeRange") || params.get("time") || "any";
 
+  const maxScore = params.has("max_score") ? parseInt(params.get("max_score")!, 10) : undefined;
+  const notTimeRange = params.get("not_time_range") || undefined;
+  const rawNotRatio = (params.get("not_ratio") || "").toLowerCase();
+  const notRatio: AspectRatioFilter | undefined =
+    rawNotRatio === "landscape" || rawNotRatio === "wide" || rawNotRatio === "portrait"
+      ? (rawNotRatio as AspectRatioFilter)
+      : undefined;
+  const notRating = params.get("not_rating") || undefined;
+
   const rawQuality = params.get("quality") || params.get("imageQuality");
   let quality: "original" | "sample" | "preview" = "original";
   if (rawQuality === "preview" || params.get("preview") === "true" || params.get("thumb") === "true") {
@@ -117,6 +131,10 @@ export function parseBooruUri(uri: string): BooruQueryOptions {
     aspectRatio,
     minScore,
     timeRange,
+    maxScore,
+    notTimeRange,
+    notRatio,
+    notRating,
     pool,
     quality,
     blacklist,

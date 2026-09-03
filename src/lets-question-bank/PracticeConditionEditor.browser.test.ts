@@ -169,16 +169,16 @@ describe("practice condition editor", () => {
 
     expect(document.querySelectorAll(".ruleGroup")).toHaveLength(2);
     // Unnamed groups show a ghost tag instead of reserving a name row.
-    expect(document.querySelectorAll(".practice-rule-group .rule-group-name-add")).toHaveLength(2);
+    expect(document.querySelectorAll(".condition-editor-rule-group .rule-group-name-add")).toHaveLength(2);
     const addRuleButtons = document.querySelectorAll<HTMLButtonElement>(".ruleGroup-addRule");
     addRuleButtons[1].click();
     await tick();
     expect(document.querySelectorAll(".rule")).toHaveLength(1);
 
     // Tapping the ghost tag grows it into the group name input.
-    document.querySelector<HTMLButtonElement>(".practice-rule-group .rule-group-name-add")!.click();
+    document.querySelector<HTMLButtonElement>(".condition-editor-rule-group .rule-group-name-add")!.click();
     await tick();
-    expect(document.querySelector<HTMLInputElement>(".practice-rule-group input.rule-group-name")).not.toBeNull();
+    expect(document.querySelector<HTMLInputElement>(".condition-editor-rule-group input.rule-group-name")).not.toBeNull();
   });
 
   it("renames a condition group and keeps the name across reopen", async () => {
@@ -189,9 +189,9 @@ describe("practice condition editor", () => {
 
     openEditorProgrammatically();
     await tick();
-    document.querySelector<HTMLButtonElement>(".practice-rule-group .rule-group-name-add")!.click();
+    document.querySelector<HTMLButtonElement>(".condition-editor-rule-group .rule-group-name-add")!.click();
     await tick();
-    const nameInput = document.querySelector<HTMLInputElement>(".practice-rule-group input.rule-group-name")!;
+    const nameInput = document.querySelector<HTMLInputElement>(".condition-editor-rule-group input.rule-group-name")!;
     nameInput.value = "Saved favorites";
     nameInput.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
@@ -202,7 +202,7 @@ describe("practice condition editor", () => {
 
     openEditorProgrammatically();
     await tick();
-    const savedNameInput = document.querySelector<HTMLInputElement>(".practice-rule-group input.rule-group-name")!;
+    const savedNameInput = document.querySelector<HTMLInputElement>(".condition-editor-rule-group input.rule-group-name")!;
     expect(savedNameInput.value).toBe("Saved favorites");
     savedNameInput.value = "";
     savedNameInput.dispatchEvent(new Event("input", { bubbles: true }));
@@ -215,8 +215,8 @@ describe("practice condition editor", () => {
     openEditorProgrammatically();
     await tick();
     // Clearing the name collapses the tag back to the ghost button.
-    expect(document.querySelector(".practice-rule-group input.rule-group-name")).toBeNull();
-    expect(document.querySelector(".practice-rule-group .rule-group-name-add")).not.toBeNull();
+    expect(document.querySelector(".condition-editor-rule-group input.rule-group-name")).toBeNull();
+    expect(document.querySelector(".condition-editor-rule-group .rule-group-name-add")).not.toBeNull();
   });
 
   it("renders the demo editing controls for independent combinators", async () => {

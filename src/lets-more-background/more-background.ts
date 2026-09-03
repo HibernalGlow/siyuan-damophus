@@ -5,6 +5,7 @@ import {
   formatCoverUrl,
   sanitizeAssetsPath,
   DEFAULT_COVER_SOURCES,
+  pickCoverSourceUrl,
   type CoverSourceItem,
   type SiteCredential,
 } from "./sources";
@@ -327,7 +328,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle, CoverSurf
     background: HTMLElement,
   ): Promise<void> {
     setLastUsedSource(item);
-    const url = formatCoverUrl(item.url, this.options.width, this.options.height);
+    const url = formatCoverUrl(pickCoverSourceUrl(item), this.options.width, this.options.height);
     if (!url) return;
 
     if (this.options.gachaMode === true) {
@@ -344,7 +345,7 @@ export class MoreBackgroundController implements MoreBackgroundHandle, CoverSurf
     background: HTMLElement,
   ): Promise<void> {
     setLastUsedSource(item);
-    const url = formatCoverUrl(item.url, this.options.width, this.options.height);
+    const url = formatCoverUrl(pickCoverSourceUrl(item), this.options.width, this.options.height);
     if (!url) return;
 
     triggerRandomIfNoImg(root);

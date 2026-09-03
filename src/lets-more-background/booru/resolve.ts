@@ -5,7 +5,7 @@ import type { SiteCredential } from "../sources";
 import type { AspectRatioFilter, TimeRangeFilter } from "./uri";
 import { extractImageUrlFromPost, extractPostDetailUrl, parseBooruUri } from "./uri";
 import type { BooruResolveDiagnostic, BooruResolvedInfo } from "./image-fetch";
-import { extractPostTimestamp, findSiteCredential, isPostBlacklisted, matchesCondition, parseTimeFilter } from "./post-filter";
+import { extractPostTimestamp, findSiteCredential, isPostBlacklisted, matchesCondition, matchesNegations, parseTimeFilter, type BooruNegations } from "./post-filter";
 import { fetchDanbooruPosts, fetchGenericBooruPosts } from "./site-clients";
 
 const log = getLogger("lets-more-background:booru");
@@ -54,8 +54,9 @@ export async function collectBooruResolvedInfos(
     };
 
     if (urlOrUri.startsWith("booru:")) {
-      const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, timeRange, pool, quality, blacklist } =
+      const { site, tags, rating, random, login, apiKey, aspectRatio, minScore, timeRange, maxScore, notTimeRange, notRatio, notRating, pool, quality, blacklist } =
         parseBooruUri(urlOrUri);
+      const negations: BooruNegations = { maxScore, notTimeRange, notRatio, notRating };
 
       const matchedCred = findSiteCredential(site, siteCredentials);
       const effectiveLogin = login || matchedCred?.login;
@@ -101,6 +102,7 @@ export async function collectBooruResolvedInfos(
           let rejectedByScore = 0;
           let rejectedByTime = 0;
           let rejectedByDuplicate = 0;
+          let rejectedByNegation = 0;
 
           const candidates = res.posts.filter((p) => {
             if (isExcluded(p.file_url, p.large_file_url, p.preview_file_url) || isExcludedPost(site, p.id)) {
@@ -147,6 +149,10 @@ export async function collectBooruResolvedInfos(
                 }
               }
             }
+            if (!matchesNegations(p, negations)) {
+              rejectedByNegation++;
+              return false;
+            }
             return true;
           });
 
@@ -158,6 +164,7 @@ export async function collectBooruResolvedInfos(
               rejectedByScore,
               rejectedByTime,
               rejectedByDuplicate,
+              rejectedByNegation,
               excludedUrlCount: excludedUrls.size,
             });
             diagnostic.totalFetched = totalFetched;
@@ -194,6 +201,7 @@ export async function collectBooruResolvedInfos(
           diagnostic.rejectedByScore = rejectedByScore;
           diagnostic.rejectedByTime = rejectedByTime;
           diagnostic.rejectedByDuplicate = rejectedByDuplicate;
+          diagnostic.rejectedByNegation = rejectedByNegation;
           // Danbooru produced usable posts; skip the generic-site fallback.
           if (infos.length > 0) return infos;
         }
@@ -238,6 +246,7 @@ export async function collectBooruResolvedInfos(
           let rejectedByScore = 0;
           let rejectedByTime = 0;
           let rejectedByDuplicate = 0;
+          let rejectedByNegation = 0;
 
           const candidates = results.filter((p) => {
             if (isExcluded(
@@ -293,6 +302,10 @@ export async function collectBooruResolvedInfos(
                 }
               }
             }
+            if (!matchesNegations(p, negations)) {
+              rejectedByNegation++;
+              return false;
+            }
             return true;
           });
 
@@ -304,6 +317,7 @@ export async function collectBooruResolvedInfos(
               rejectedByScore,
               rejectedByTime,
               rejectedByDuplicate,
+              rejectedByNegation,
               excludedUrlCount: excludedUrls.size,
             });
             diagnostic.totalFetched = totalFetched;
@@ -340,6 +354,7 @@ export async function collectBooruResolvedInfos(
           diagnostic.rejectedByScore = rejectedByScore;
           diagnostic.rejectedByTime = rejectedByTime;
           diagnostic.rejectedByDuplicate = rejectedByDuplicate;
+          diagnostic.rejectedByNegation = rejectedByNegation;
           if (infos.length > 0) return infos;
         }
       }
@@ -412,6 +427,7 @@ export function extractBooruImageUrl(
   minScore?: number,
   timeRange: TimeRangeFilter = "any",
   blacklist?: string[] | string,
+  negations?: BooruNegations,
 ): string | null {
   if (!data) return null;
 
@@ -440,8 +456,8 @@ export function extractBooruImageUrl(
         (p.directory !== undefined && p.image !== undefined)),
   );
 
-  if (aspectRatio !== "any" || minScore !== undefined || (timeRange && timeRange !== "any") || blacklist) {
-    validPosts = validPosts.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange, blacklist));
+  if (aspectRatio !== "any" || minScore !== undefined || (timeRange && timeRange !== "any") || blacklist || negations) {
+    validPosts = validPosts.filter((p) => matchesCondition(p, aspectRatio, minScore, timeRange, blacklist, negations));
   }
 
   if (validPosts.length === 0) return null;

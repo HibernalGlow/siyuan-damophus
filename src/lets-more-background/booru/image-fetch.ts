@@ -10,6 +10,8 @@ export interface BooruResolveDiagnostic {
   rejectedByBlacklist?: number;
   rejectedByTime?: number;
   rejectedByDuplicate?: number;
+  /** Rejected by a NOT (inverse) condition from the rule tree. */
+  rejectedByNegation?: number;
   errorMessage?: string;
 }
 

@@ -41,7 +41,7 @@
   };
 </script>
 
-<div class="practice-rule-group" class:named={Boolean(groupName) || naming} data-level={props.path.length}>
+<div class="condition-editor-rule-group" class:named={Boolean(groupName) || naming} data-level={props.path.length}>
   {#if groupName || naming}
     <input
       class="rule-group-name"
@@ -69,7 +69,7 @@
 </div>
 
 <style>
-  .practice-rule-group {
+  .condition-editor-rule-group {
     position: relative;
     min-width: 0;
   }

@@ -34,7 +34,7 @@ import {
   addCoverBlacklistEntry,
   loadCoverBlacklistKeys,
 } from "./cover-blacklist";
-import { DEFAULT_BLACKLISTED_TAGS, type CoverSourceItem } from "./sources";
+import { DEFAULT_BLACKLISTED_TAGS, pickCoverSourceUrl, type CoverSourceItem } from "./sources";
 import type { MoreBackgroundOptions } from "./more-background";
 import type { CoverApplyService } from "./cover-service";
 
@@ -998,7 +998,8 @@ export function createGachaFlow(deps: GachaFlowDeps): CoverGachaFlow {
         while (cardsByKey.size < count && attempts < maxAttempts) {
           attempts += 1;
           const infos = await resolveBooruImageCandidates(
-            url,
+            // OR 变体按卡独立抽取：每张卡各命中一个分支，整体近似各分支的并集。
+            pickCoverSourceUrl(item),
             options.siteCredentials,
             options.blacklistedTags || DEFAULT_BLACKLISTED_TAGS,
             excluded,
