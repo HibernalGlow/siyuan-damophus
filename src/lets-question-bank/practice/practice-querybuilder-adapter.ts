@@ -14,8 +14,8 @@ import {
 export type PracticeQueryOperator = PracticeFilterOperator;
 /** Builder-side value: the core's yes/no plus the explicit 全部题 (no restriction) option. */
 export type PracticeQueryValue = PracticeFilterValue | "any";
-export type PracticeQueryRule = RuleType<PracticeFilterField, PracticeQueryOperator, PracticeQueryValue> & { disabled?: boolean };
-export type PracticeQueryGroup = RuleGroupTypeIC<PracticeQueryRule, PracticeFilterCombinator> & { glue?: PracticeFilterCombinator; id?: string; name?: string; not?: boolean; disabled?: boolean };
+export type PracticeQueryRule = RuleType<PracticeFilterField, PracticeQueryOperator, PracticeQueryValue> & { disabled?: boolean; bypassed?: boolean };
+export type PracticeQueryGroup = RuleGroupTypeIC<PracticeQueryRule, PracticeFilterCombinator> & { glue?: PracticeFilterCombinator; id?: string; name?: string; not?: boolean; disabled?: boolean; bypassed?: boolean };
 type QueryEntry = PracticeQueryRule | PracticeQueryGroup | PracticeFilterCombinator;
 
 function isGroup(value: QueryEntry | PracticeFilterGroup["rules"][number]): value is PracticeQueryGroup | PracticeFilterGroup {
@@ -39,13 +39,14 @@ function toQueryGroup(group: PracticeFilterGroup): PracticeQueryGroup {
   group.rules.forEach((rule, index) => {
     if (index > 0) rules.push(connectors[index - 1]);
     if (isGroup(rule)) rules.push(toQueryGroup(rule));
-    else rules.push({ field: rule.field, operator: rule.filter ?? "equal", value: queryValue(rule), ...(rule.disabled ? { disabled: true } : {}) });
+    else rules.push({ field: rule.field, operator: rule.filter ?? "equal", value: queryValue(rule), ...(rule.disabled ? { disabled: true } : {}), ...(rule.bypassed ? { bypassed: true } : {}) });
   });
   return {
     glue: group.glue,
     ...(group.name ? { name: group.name } : {}),
     ...(group.not ? { not: true } : {}),
     ...(group.disabled ? { disabled: true } : {}),
+    ...(group.bypassed ? { bypassed: true } : {}),
     rules: rules as PracticeQueryGroup["rules"],
   };
 }
@@ -72,13 +73,13 @@ function fromQueryGroup(group: PracticeQueryGroup): PracticeFilterGroup {
     if (!isPracticeField(entry.field)) continue;
     const filter = isPracticeOperator(entry.operator) ? entry.operator : "equal";
     if (isPracticeValue(entry.value)) {
-      rules.push({ field: entry.field, type: "tuple", filter, value: entry.value, ...(entry.disabled ? { disabled: true } : {}) });
+      rules.push({ field: entry.field, type: "tuple", filter, value: entry.value, ...(entry.disabled ? { disabled: true } : {}), ...(entry.bypassed ? { bypassed: true } : {}) });
       continue;
     }
     // The explicit 全部题 option (or a cleared value) means "no restriction on this
     // dimension": keep the rule value-less — the core evaluator treats that as
     // match-all — so it survives save/re-open instead of silently disappearing.
-    rules.push({ field: entry.field, type: "tuple", filter, ...(entry.disabled ? { disabled: true } : {}) });
+    rules.push({ field: entry.field, type: "tuple", filter, ...(entry.disabled ? { disabled: true } : {}), ...(entry.bypassed ? { bypassed: true } : {}) });
   }
   const glue = group.glue === "or" ? "or" : "and";
   const normalizedConnectors = connectors.length === Math.max(0, rules.length - 1) ? connectors : [];
@@ -89,6 +90,7 @@ function fromQueryGroup(group: PracticeQueryGroup): PracticeFilterGroup {
     ...(name ? { name } : {}),
     ...(group.not ? { not: true } : {}),
     ...(group.disabled ? { disabled: true } : {}),
+    ...(group.bypassed ? { bypassed: true } : {}),
     rules,
   };
 }

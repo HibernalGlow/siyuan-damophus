@@ -13,6 +13,7 @@ const PracticeFilterRuleSchema = z.object({
   value: z.enum(["yes", "no"]).optional(),
   includes: z.array(z.enum(["yes", "no"])).optional(),
   disabled: z.boolean().optional(),
+  bypassed: z.boolean().optional(),
 });
 const PracticeFilterGroupSchema: z.ZodType<PracticeFilterGroup> = z.lazy(() => z.object({
   glue: z.enum(["and", "or"]),
@@ -20,6 +21,7 @@ const PracticeFilterGroupSchema: z.ZodType<PracticeFilterGroup> = z.lazy(() => z
   name: z.string().optional(),
   not: z.boolean().optional(),
   disabled: z.boolean().optional(),
+  bypassed: z.boolean().optional(),
   rules: z.array(z.union([PracticeFilterRuleSchema, PracticeFilterGroupSchema])),
 }));
 export const PracticeFilterSchema: z.ZodType<PracticeFilter> = z.union([

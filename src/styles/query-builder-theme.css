@@ -87,12 +87,12 @@
 /* Optional per-group name, floating on the group's top border like a fieldset
    legend; unnamed groups show a ghost tag button in the same spot, so naming
    never costs a layout row. */
-.query-builder-theme .practice-rule-group .ruleGroup-header {
+.query-builder-theme .condition-editor-rule-group .ruleGroup-header {
   padding-top: 14px;
 }
 
-.query-builder-theme .practice-rule-group .rule-group-name,
-.query-builder-theme .practice-rule-group .rule-group-name-add {
+.query-builder-theme .condition-editor-rule-group .rule-group-name,
+.query-builder-theme .condition-editor-rule-group .rule-group-name-add {
   position: absolute;
   top: -9px;
   left: 10px;
@@ -110,7 +110,7 @@
   line-height: 1;
 }
 
-.query-builder-theme .practice-rule-group input.rule-group-name {
+.query-builder-theme .condition-editor-rule-group input.rule-group-name {
   width: auto;
   min-width: 40px;
   field-sizing: content;
@@ -127,7 +127,7 @@
   outline-offset: 1px;
 }
 
-.query-builder-theme .practice-rule-group .rule-group-name-add {
+.query-builder-theme .condition-editor-rule-group .rule-group-name-add {
   display: grid;
   place-items: center;
   border-style: dashed;
@@ -136,9 +136,54 @@
   opacity: 0.65;
 }
 
-.query-builder-theme .practice-rule-group .rule-group-name-add:hover {
+.query-builder-theme .condition-editor-rule-group .rule-group-name-add:hover {
   opacity: 1;
   color: var(--b3-theme-primary);
+}
+
+/* Per-entry bypass switch: an ignored rule/group stays editable but drops out
+   of evaluation. On rules it sits at the row start; on groups it floats on the
+   border, mirroring the name tag. */
+.query-builder-theme .condition-editor-rule .rule {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.query-builder-theme .condition-editor-rule[data-bypassed="true"] > .rule,
+.query-builder-theme .condition-editor-rule-group[data-bypassed="true"] > .ruleGroup {
+  opacity: 0.55;
+}
+
+.query-builder-theme .rule-bypass-toggle {
+  flex: 0 0 auto;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 999px;
+  background: var(--b3-theme-surface);
+  color: var(--b3-theme-on-surface);
+  cursor: pointer;
+  font: inherit;
+}
+
+.query-builder-theme .rule-bypass-toggle:hover {
+  color: var(--b3-theme-primary);
+  background: var(--b3-list-hover);
+}
+
+.query-builder-theme .rule-bypass-toggle[data-bypassed="true"] {
+  border-color: color-mix(in srgb, var(--b3-theme-error, #d23f31) 55%, var(--b3-border-color));
+  color: var(--b3-theme-error, #d23f31);
+}
+
+.query-builder-theme .condition-editor-rule-group .rule-group-bypass {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  z-index: 1;
 }
 
 .query-builder-theme [data-slot="select-trigger"],

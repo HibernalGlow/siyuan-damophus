@@ -125,6 +125,31 @@ describe("portable question core", () => {
     }).map((item) => item.id)).toEqual(["q1"]);
   });
 
+  it("ignores bypassed rules and groups while keeping them in the tree", () => {
+    const questions = [question("q1"), question("q2")];
+    const aggregates = new Map([
+      ["q1", { questionId: "q1", attempts: 1, objectiveAttempts: 1, objectiveCorrect: 0, objectiveIncorrect: 1, consecutiveReviewCount: 0, consecutiveAgainCount: 0, consecutiveHardCount: 0 }],
+    ]);
+    const filter = {
+      glue: "and" as const,
+      rules: [
+        { field: "wrong" as const, value: "yes" as const, bypassed: true },
+        { field: "wrong" as const, value: "no" as const },
+      ],
+    };
+    // The bypassed wrong=yes rule drops out: only wrong=no remains.
+    expect(filterQuestions({ questions, topics: [], filter, aggregates }).map((item) => item.id)).toEqual(["q2"]);
+    // A bypassed group is skipped wholesale, so every question matches.
+    const groupBypassed = {
+      glue: "and" as const,
+      bypassed: true,
+      rules: [{ field: "wrong" as const, value: "yes" as const }],
+    };
+    expect(filterQuestions({ questions, topics: [], filter: groupBypassed, aggregates }).map((item) => item.id)).toEqual(["q1", "q2"]);
+    // Normalization keeps the flag so it survives save/re-open.
+    expect(normalizePracticeFilter(filter)).toMatchObject({ rules: [{ bypassed: true }, {}] });
+  });
+
   it("preserves optional condition-group names without changing matching", () => {
     const filter = normalizePracticeFilter({
       glue: "and",

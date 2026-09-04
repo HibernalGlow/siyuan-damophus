@@ -33,6 +33,11 @@
     editorQuery = renameGroupInQuery(editorQuery, path, name);
   }
 
+  const bypassLabels = {
+    ignore: label("bypassCondition", "Ignore this condition"),
+    restore: label("restoreCondition", "Restore this condition"),
+  };
+
   function openEditor(): void { editorQuery = cloneCondition(condition); dialogOpen = true; }
   function cancelEditor(): void { editorQuery = cloneCondition(condition); dialogOpen = false; }
   function applyEditor(): void {
@@ -66,6 +71,7 @@
       context={{
         renameGroupAt,
         groupNamePlaceholder: label("conditionGroupNamePlaceholder", "Name this group"),
+        bypassLabels,
       }}
       defaultField="aspectRatio"
       defaultOperator={(field: string) => (fields.find((item) => item.name === field)?.defaultOperator as string)}

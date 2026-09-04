@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { practiceFilterToQuery, queryToPracticeFilter, type PracticeQueryGroup, type PracticeQueryValue } from "./practice-querybuilder-adapter";
 
 describe("practice query builder adapter", () => {
+  it("carries the manual bypass flag through both directions", () => {
+    const query: PracticeQueryGroup = {
+      glue: "and",
+      bypassed: true,
+      rules: [{ field: "attempted", operator: "equal", value: "yes", bypassed: true }],
+    };
+    const filter = queryToPracticeFilter(query);
+    expect(filter).toMatchObject({ bypassed: true, rules: [{ bypassed: true }] });
+    expect(practiceFilterToQuery(filter)).toMatchObject({ bypassed: true, rules: [{ bypassed: true }] });
+  });
   it("maps named nested groups without changing filter semantics", () => {
     const filter = {
       glue: "and" as const,

@@ -38,6 +38,8 @@ export interface PracticeFilterRule {
   includes?: PracticeFilterValue[];
   /** Query-builder lock state. It does not remove the rule from evaluation. */
   disabled?: boolean;
+  /** Manual bypass: the rule stays editable but is ignored during evaluation. */
+  bypassed?: boolean;
 }
 
 export interface PracticeFilterGroup {
@@ -48,6 +50,8 @@ export interface PracticeFilterGroup {
   not?: boolean;
   /** Query-builder lock state. It does not remove the group from evaluation. */
   disabled?: boolean;
+  /** Manual bypass: the group stays editable but is ignored during evaluation. */
+  bypassed?: boolean;
   rules: Array<PracticeFilterRule | PracticeFilterGroup>;
 }
 
@@ -120,6 +124,7 @@ function normalizePracticeFilterRule(value: unknown): PracticeFilterRule | Pract
       ...(name ? { name } : {}),
       ...(candidate.not === true ? { not: true } : {}),
       ...(candidate.disabled === true ? { disabled: true } : {}),
+      ...(candidate.bypassed === true ? { bypassed: true } : {}),
       rules,
     };
   }
@@ -134,6 +139,7 @@ function normalizePracticeFilterRule(value: unknown): PracticeFilterRule | Pract
     rule.includes = [...new Set(candidate.includes.filter(isPracticeFilterValue))];
   }
   if (candidate.disabled === true) rule.disabled = true;
+  if (candidate.bypassed === true) rule.bypassed = true;
   return rule;
 }
 
@@ -176,6 +182,7 @@ function matchesPracticeFilterRule(
   rule: PracticeFilterRule | PracticeFilterGroup,
   states: QuestionPracticeStates,
 ): boolean {
+  if (rule.bypassed === true) return true;
   if ("rules" in rule) {
     if (rule.rules.length === 0) return rule.not !== true;
     const results = rule.rules.map((child) => matchesPracticeFilterRule(child, states));
@@ -217,6 +224,7 @@ export function practiceFilterTargetsDueCards(filter: PracticeFilter): boolean {
   if (filter === "due") return true;
   if (typeof filter === "string") return false;
   return filter.rules.some((rule) => {
+    if (rule.bypassed === true) return false;
     if ("rules" in rule) return practiceFilterTargetsDueCards(rule);
     if (rule.field !== "due") return false;
     if (rule.includes?.length) return rule.includes.includes("yes");

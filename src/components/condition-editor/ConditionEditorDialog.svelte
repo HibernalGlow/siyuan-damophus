@@ -13,6 +13,7 @@
   import "@/styles/query-builder-theme.css";
   import { Button } from "@/components/ui/button";
   import ConditionEditorAction from "./ConditionEditorAction.svelte";
+  import ConditionEditorRule from "./ConditionEditorRule.svelte";
   import ConditionEditorRuleGroup from "./ConditionEditorRuleGroup.svelte";
   import ConditionEditorShiftActions from "./ConditionEditorShiftActions.svelte";
   import ConditionEditorUndoRedo from "./ConditionEditorUndoRedo.svelte";
@@ -109,6 +110,7 @@
     combinatorSelector: ConditionEditorValueSelector,
     fieldSelector: ConditionEditorValueSelector,
     operatorSelector: ConditionEditorValueSelector,
+    rule: ConditionEditorRule,
     ruleGroup: ConditionEditorRuleGroup,
     shiftActions: ConditionEditorShiftActions,
     undoRedoActions: ConditionEditorUndoRedo,

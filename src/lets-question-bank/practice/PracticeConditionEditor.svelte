@@ -185,6 +185,11 @@
     editorQuery = renameGroupInQuery(editorQuery, path, name);
   }
 
+  const bypassLabels = {
+    ignore: label("bypassCondition", "忽略此条件"),
+    restore: label("restoreCondition", "恢复此条件"),
+  };
+
   $: activePresetName = presets.find((preset) => preset.id === activePresetId)?.name;
 </script>
 
@@ -202,6 +207,7 @@
       context={{
         renameGroupAt,
         groupNamePlaceholder: label("conditionGroupNamePlaceholder", "为这组条件命名"),
+        bypassLabels,
       }}
       defaultField="attempted"
       defaultOperator="equal"

@@ -4,10 +4,12 @@
   legend, so naming a group costs no vertical space. Unnamed groups show a
   tiny ghost tag button that grows into the input when tapped. Nested groups
   keep rendering through the builder's controlElements, so this wrapper
-  applies at every depth. The rename callback arrives via `context`.
+  applies at every depth. The rename callback arrives via `context`, as does
+  the bypass toggle: a bypassed group stays editable but drops out of
+  evaluation (`bypassed` flag, independent of the builder's lock).
 -->
 <script lang="ts">
-  import { Tag } from "lucide-svelte";
+  import { EyeOff, Tag } from "lucide-svelte";
   import { RuleGroup, type RuleGroupProps } from "svelte-querybuilder";
 
   const props: RuleGroupProps = $props();
@@ -15,10 +17,19 @@
   interface PracticeGroupContext {
     renameGroupAt?: (path: readonly number[], name: string) => void;
     groupNamePlaceholder?: string;
+    bypassLabels?: { ignore: string; restore: string };
   }
 
   const groupContext = $derived((props.context ?? {}) as PracticeGroupContext);
   const groupName = $derived((props.ruleGroup as { name?: string }).name ?? "");
+  const bypassed = $derived((props.ruleGroup as { bypassed?: boolean }).bypassed === true);
+
+  // Same channel as the lock toggle: mutations go through the builder's own
+  // actions so the internal query state stays the source of truth.
+  function toggleBypass(): void {
+    (props.actions as unknown as { onPropChange: (prop: string, value: unknown, path: readonly number[]) => void })
+      .onPropChange("bypassed", !bypassed, props.path);
+  }
 
   let naming = $state(false);
 
@@ -41,7 +52,18 @@
   };
 </script>
 
-<div class="condition-editor-rule-group" class:named={Boolean(groupName) || naming} data-level={props.path.length}>
+<div class="condition-editor-rule-group" class:named={Boolean(groupName) || naming} data-bypassed={bypassed} data-level={props.path.length}>
+  <button
+    type="button"
+    class="rule-bypass-toggle rule-group-bypass"
+    data-bypassed={bypassed}
+    title={bypassed ? (groupContext.bypassLabels?.restore ?? "Restore") : (groupContext.bypassLabels?.ignore ?? "Ignore")}
+    aria-label={bypassed ? (groupContext.bypassLabels?.restore ?? "Restore") : (groupContext.bypassLabels?.ignore ?? "Ignore")}
+    aria-pressed={bypassed}
+    onclick={toggleBypass}
+  >
+    <EyeOff size={12} aria-hidden="true" />
+  </button>
   {#if groupName || naming}
     <input
       class="rule-group-name"

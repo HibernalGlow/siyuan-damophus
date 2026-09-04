@@ -162,7 +162,7 @@ function compileLeafNegated(rule: CoverConditionRule, tagPools: TagPool[]): Cove
 
 function compileEntry(entry: CoverEntry, negated: boolean, tagPools: TagPool[]): CoverQueryVariant[] {
   if (isGroupEntry(entry)) return compileGroup(entry, negated, tagPools);
-  if (entry.disabled) return [];
+  if (entry.disabled || entry.bypassed) return [];
   if (negated) return compileLeafNegated(entry, tagPools);
   const variant = emptyVariant();
   applyRule(variant, entry, tagPools);
@@ -170,7 +170,7 @@ function compileEntry(entry: CoverEntry, negated: boolean, tagPools: TagPool[]):
 }
 
 function compileGroup(group: CoverConditionGroup, negated: boolean, tagPools: TagPool[]): CoverQueryVariant[] {
-  if (group.disabled) return [];
+  if (group.disabled || group.bypassed) return [];
   // Double negation cancels; NOT flips the group's own combinator (De Morgan).
   const effectiveNot = Boolean(group.not) !== negated;
   const combinator = effectiveNot ? (group.combinator === "and" ? "or" : "and") : group.combinator;

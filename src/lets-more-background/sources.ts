@@ -52,6 +52,8 @@ export interface CoverConditionRule {
   operator: FilterRule["operator"];
   value: any;
   disabled?: boolean;
+  /** Manual bypass: the rule stays editable but drops out of compilation. */
+  bypassed?: boolean;
 }
 
 export interface CoverConditionGroup {
@@ -62,6 +64,8 @@ export interface CoverConditionGroup {
   /** Optional group label from the editor's named groups; informational only. */
   name?: string;
   disabled?: boolean;
+  /** Manual bypass: the group stays editable but drops out of compilation. */
+  bypassed?: boolean;
 }
 
 export const COVER_CONDITION_SCHEMA_VERSION = 2;

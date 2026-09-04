@@ -127,6 +127,33 @@ describe("cover condition variant compiler", () => {
     expect(variants[0].ratio).toBe("portrait");
   });
 
+  it("drops bypassed rules and subtrees from compilation", () => {
+    const variants = conditionToVariants({
+      combinator: "and",
+      rules: [
+        { field: "minScore", operator: "gte", value: 30, bypassed: true },
+        { combinator: "and", bypassed: true, rules: [{ field: "tags", operator: "contains", value: "wallpaper" }] },
+        { field: "aspectRatio", operator: "equals", value: "portrait" },
+      ],
+    });
+    expect(variants).toHaveLength(1);
+    expect(variants[0].minScore).toBeUndefined();
+    expect(variants[0].tags).toBeUndefined();
+    expect(variants[0].ratio).toBe("portrait");
+  });
+
+  it("ignores a bypassed NOT group without touching the remaining tree", () => {
+    const variants = conditionToVariants({
+      combinator: "and",
+      rules: [
+        { field: "minScore", operator: "gte", value: 30 },
+        { combinator: "and", not: true, bypassed: true, rules: [{ field: "site", operator: "equals", value: "danbooru.donmai.us" }] },
+      ],
+    });
+    expect(variants).toHaveLength(1);
+    expect(variants[0].minScore).toBe("30");
+  });
+
   it("truncates OR branches past the variant cap", async () => {
     const { COVER_CONDITION_MAX_VARIANTS } = await import("./cover-condition-compile");
     const variants = conditionToVariants({

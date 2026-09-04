@@ -131,6 +131,32 @@ describe("cover template condition editor", () => {
     expect(applied.rules).toHaveLength(2);
   });
 
+  it("bypasses a rule via the row switch and applies the flag to the template", async () => {
+    const onApply = await render(migrateLegacyCoverRules([
+      { id: "ratio", field: "aspectRatio", operator: "equals", value: "landscape" },
+      { id: "score", field: "minScore", operator: "gte", value: 10 },
+    ]));
+    document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
+    await tick();
+
+    const toggle = document.querySelector<HTMLButtonElement>(".condition-editor-rule .rule-bypass-toggle")!;
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    toggle.click();
+    await tick();
+    expect(document.querySelector(".condition-editor-rule")!.getAttribute("data-bypassed")).toBe("true");
+
+    [...document.querySelectorAll<HTMLButtonElement>(".condition-dialog-footer button")]
+      .find((button) => button.textContent?.includes("Apply"))
+      ?.click();
+    await tick();
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const applied = onApply.mock.calls[0][0] as CoverConditionGroup;
+    const ratioRule = applied.rules.find((rule) => !("rules" in rule) && rule.field === "aspectRatio") as { bypassed?: boolean };
+    const scoreRule = applied.rules.find((rule) => !("rules" in rule) && rule.field === "minScore") as { bypassed?: boolean };
+    expect(ratioRule.bypassed).toBe(true);
+    expect(scoreRule.bypassed).toBeUndefined();
+  });
+
   // [条件图形视图-暂停维护] it("shows the condition graph view with a result node", async () => {
   //   await render(migrateLegacyCoverRules([
   //     { id: "ratio", field: "aspectRatio", operator: "equals", value: "landscape" },
