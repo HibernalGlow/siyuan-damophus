@@ -142,8 +142,16 @@
 }
 
 /* Per-entry bypass switch: an ignored rule/group stays editable but drops out
-   of evaluation. On rules it sits at the row start; on groups it floats on the
-   border, mirroring the name tag. */
+   of evaluation. On rules it shares the rule's line (no extra row); on groups
+   it floats on the border, mirroring the name tag. */
+.query-builder-theme .ruleGroup .condition-editor-rule {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rqb-spacing);
+  align-items: center;
+}
+
 .query-builder-theme .condition-editor-rule .rule {
   flex: 1 1 auto;
   min-width: 0;

@@ -139,7 +139,10 @@ describe("cover template condition editor", () => {
     document.querySelector<HTMLButtonElement>(".condition-summary-trigger")!.click();
     await tick();
 
-    const toggle = document.querySelector<HTMLButtonElement>(".condition-editor-rule .rule-bypass-toggle")!;
+    const row = document.querySelector<HTMLElement>(".condition-editor-rule")!;
+    // The switch shares the rule's line instead of eating a row of its own.
+    expect(getComputedStyle(row).display).toBe("flex");
+    const toggle = row.querySelector<HTMLButtonElement>(".rule-bypass-toggle")!;
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
     toggle.click();
     await tick();
