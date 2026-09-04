@@ -251,7 +251,9 @@
 
   function applyConditionToTemplate(tplIndex: number, condition: CoverConditionGroup) {
     const patch: Partial<CoverTemplateItem> = { condition, conditionSchema: COVER_CONDITION_SCHEMA_VERSION, rules: undefined };
+    const present = new Set<string>();
     const backfill = (rule: CoverConditionRule) => {
+      present.add(rule.field);
       if (rule.field === "aspectRatio") patch.aspectRatio = rule.value;
       if (rule.field === "site") patch.site = rule.value;
       if (rule.field === "rating") patch.rating = rule.value;
@@ -269,6 +271,16 @@
       });
     };
     walk(condition);
+    // 镜像字段全量重建：树里已删除的条件必须显式清空镜像，否则旧值残留
+    // （如删掉画师库条件后模板仍带旧 poolId/pool，抽卡继续按删除前的词库挑图）。
+    if (!present.has("aspectRatio")) patch.aspectRatio = undefined;
+    if (!present.has("rating")) patch.rating = undefined;
+    if (!present.has("tags")) patch.tags = undefined;
+    if (!present.has("minScore")) patch.minScore = undefined;
+    if (!present.has("timeRange")) patch.timeRange = undefined;
+    if (!present.has("imageQuality")) patch.imageQuality = undefined;
+    if (!present.has("tagPool")) patch.poolId = undefined;
+    if (!present.has("blacklist")) patch.blacklist = undefined;
     updateTemplate(tplIndex, patch);
   }
 

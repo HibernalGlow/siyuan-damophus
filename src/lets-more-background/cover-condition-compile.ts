@@ -218,22 +218,23 @@ function serializeVariant(variant: CoverQueryVariant, template: CoverTemplateIte
   if (variant.notRating) params.set("not_rating", variant.notRating);
   if (variant.quality && variant.quality !== "original") params.set("quality", variant.quality);
 
+  // 条件树是唯一事实源：不合并 template.blacklist / template.pool 等旧版镜像
+  // 字段——否则在编辑器里删除对应条件后，陈旧镜像仍会注入查询参数。
   const blacklist = [...variant.blacklist];
-  if (template.blacklist) blacklist.push(template.blacklist);
   if (blacklist.length > 0) params.set("blacklist", blacklist.join(","));
 
   params.set("site", site);
   if (variant.tags) params.set("tags", variant.tags);
 
-  let candidateItems: string[] = [];
+  // pool 只来自条件树里的 tagPool 规则（variant.poolId）；树里没有就彻底不设
+  // pool——模板对象上的旧版行内镜像（template.pool / template.poolId）不回退。
   if (variant.poolId) {
     const matchedPool = tagPools.find((pool) => pool.id === variant.poolId);
-    if (matchedPool && matchedPool.items?.length > 0) candidateItems = poolItemsToTags(matchedPool.items);
+    const candidateItems = matchedPool && matchedPool.items?.length > 0
+      ? poolItemsToTags(matchedPool.items)
+      : [];
+    if (candidateItems.length > 0) params.set("pool", candidateItems.join(","));
   }
-  if (candidateItems.length === 0 && template.pool && template.pool.length > 0) {
-    candidateItems = poolItemsToTags(template.pool);
-  }
-  if (candidateItems.length > 0) params.set("pool", candidateItems.join(","));
 
   return `booru:${site}?${params.toString()}`;
 }
