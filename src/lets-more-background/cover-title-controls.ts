@@ -1,5 +1,5 @@
 import { confirm } from "siyuan";
-import { getLastUsedSource } from "./cover-last-used";
+import { resolveFreshLastUsedSource } from "./cover-last-used";
 import { openTagViewerForBackground } from "./tag-viewer";
 import { DEFAULT_COVER_SOURCES } from "./sources";
 import type { CoverSurfaceActions } from "./cover-actions";
@@ -28,7 +28,7 @@ export function initTitleCoverControls(root: HTMLElement, actions: CoverSurfaceA
     if (!root.isConnected) return;
     const currentOptions = actions.getOptions();
     const sources = currentOptions.sources?.length ? currentOptions.sources : DEFAULT_COVER_SOURCES;
-    const lastUsed = getLastUsedSource() || sources[0];
+    const lastUsed = resolveFreshLastUsedSource(sources);
 
     // 1. 未添加题头图时：在 .protyle-background__action / .protyle-background__tags 注入按钮
     const actionContainers = root.querySelectorAll<HTMLElement>(
@@ -77,7 +77,8 @@ export function initTitleCoverControls(root: HTMLElement, actions: CoverSurfaceA
           e.preventDefault();
           e.stopPropagation();
           const currentSources = actions.getOptions().sources?.length ? actions.getOptions().sources : DEFAULT_COVER_SOURCES;
-          const currentLast = getLastUsedSource() || currentSources![0];
+          // 模板条件可能已编辑：按模板名取实时序列化结果，而不是 localStorage 冻结快照。
+          const currentLast = resolveFreshLastUsedSource(currentSources ?? []);
           if (currentLast) {
             const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
             void actions.applyRandomSource(currentLast, root, bg);
@@ -121,7 +122,8 @@ export function initTitleCoverControls(root: HTMLElement, actions: CoverSurfaceA
           e.preventDefault();
           e.stopPropagation();
           const currentSources = actions.getOptions().sources?.length ? actions.getOptions().sources : DEFAULT_COVER_SOURCES;
-          const currentLast = getLastUsedSource() || currentSources![0];
+          // 模板条件可能已编辑：按模板名取实时序列化结果，而不是 localStorage 冻结快照。
+          const currentLast = resolveFreshLastUsedSource(currentSources ?? []);
           if (currentLast) {
             const bg = root.querySelector<HTMLElement>(".protyle-background") || root;
             void actions.applyRandomSource(currentLast, root, bg);

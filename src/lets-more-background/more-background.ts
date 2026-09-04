@@ -30,7 +30,7 @@ import {
 import { loadDedupCoverUrls, filterUnusedCoverAssets } from "./cover-dedup-set";
 import { normalizeCoverUrl } from "./cover-dedup";
 import { readBlockAttrs } from "./cover-attrs";
-import { getLastUsedSource, setLastUsedSource } from "./cover-last-used";
+import { resolveFreshLastUsedSource, setLastUsedSource } from "./cover-last-used";
 import {
   coverFavoriteKey,
   loadCoverFavorites,
@@ -474,7 +474,7 @@ export function checkAndAutoAddCover(root: HTMLElement, controller: MoreBackgrou
   root.setAttribute("data-damophus-auto-cover-attempted", "true");
 
   const sources = opts.sources?.length ? opts.sources : DEFAULT_COVER_SOURCES;
-  const lastUsed = getLastUsedSource() || sources[0];
+  const lastUsed = resolveFreshLastUsedSource(sources);
   if (lastUsed) {
     setTimeout(() => {
       if (!root.isConnected) return;
