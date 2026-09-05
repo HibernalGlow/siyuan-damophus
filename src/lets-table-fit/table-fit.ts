@@ -4,11 +4,19 @@ export const TABLE_FIT_STYLE_ID = "damophus-table-fit-style";
 // lets-block-fullwidth) keep their natural column sizing: table-layout fixed
 // would split columns evenly regardless of content, which looks broken on
 // two-column tables. Doc-level attributes (all / t) exclude every table of
-// the document; the block-level "on" attribute excludes a single table. The
-// html class is that module's "full width in all documents" toggle, which
-// excludes every table while it is on.
-const FIT_SCOPE =
-  'html:not(.damophus-afwd-global) .protyle-wysiwyg:not([custom-afwd="all"]):not([custom-afwd~="t"]) [data-type="NodeTable"].table:not([custom-afwd="on"])';
+// the document; the block-level "on" attribute excludes a single table.
+const FIT_BASE_SCOPE =
+  '.protyle-wysiwyg:not([custom-afwd="all"]):not([custom-afwd~="t"]) [data-type="NodeTable"].table:not([custom-afwd="on"])';
+
+// The module's "full width in all documents" toggle (html class, see
+// lets-block-fullwidth) must not disable fitting: while it is on, the
+// fullwidth breakout stylesheet widens the scroll container and the fit
+// rules below simply size the table into that widened container. Only the
+// container clamp has to stand aside, because the breakout widens that very
+// container via negative margins; clamping it back to 100% would visibly
+// misalign the breakout.
+const FIT_SCOPE = FIT_BASE_SCOPE;
+const FIT_CONTAINER_SCOPE = `html:not(.damophus-afwd-global) ${FIT_BASE_SCOPE}`;
 
 export const TABLE_FIT_CSS = `
 ${FIT_SCOPE} {
@@ -17,7 +25,7 @@ ${FIT_SCOPE} {
   max-width: 100% !important;
 }
 
-${FIT_SCOPE} > div:first-child {
+${FIT_CONTAINER_SCOPE} > div:first-child {
   box-sizing: border-box !important;
   max-width: 100% !important;
 }

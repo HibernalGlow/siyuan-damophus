@@ -171,8 +171,7 @@ describe("table fit fullwidth coordination", () => {
 });
 
 describe("table fit global full-width coordination", () => {
-  it("skips every table while the global full-width toggle is on", () => {
-    document.documentElement.classList.add("damophus-afwd-global");
+  const renderPlainTable = () => {
     const editor = document.createElement("div");
     editor.className = "protyle-wysiwyg";
     editor.style.width = "320px";
@@ -181,11 +180,28 @@ describe("table fit global full-width coordination", () => {
         <div><table><colgroup><col /><col /></colgroup><tbody><tr><td>A</td><td>B</td></tr></tbody></table></div>
       </div>`;
     document.body.append(editor);
+    return editor;
+  };
 
+  it("keeps fitting tables while the global full-width toggle is on", () => {
+    document.documentElement.classList.add("damophus-afwd-global");
+    const editor = renderPlainTable();
     const styles = new TableFitStyles(document);
     styles.start();
-    expect(getComputedStyle(editor.querySelector("table")!).tableLayout).toBe("auto");
+    expect(getComputedStyle(editor.querySelector("table")!).tableLayout).toBe("fixed");
+    // The fullwidth breakout widens the scroll container via negative
+    // margins; the fit clamp (max-width: 100%) must stay out of its way.
+    expect(getComputedStyle(editor.querySelector<HTMLElement>(".table > div")!).maxWidth).toBe("none");
     styles.destroy();
     document.documentElement.classList.remove("damophus-afwd-global");
+  });
+
+  it("clamps the scroll container while the global full-width toggle is off", () => {
+    const editor = renderPlainTable();
+    const styles = new TableFitStyles(document);
+    styles.start();
+    expect(getComputedStyle(editor.querySelector("table")!).tableLayout).toBe("fixed");
+    expect(getComputedStyle(editor.querySelector<HTMLElement>(".table > div")!).maxWidth).toBe("100%");
+    styles.destroy();
   });
 });
