@@ -107,6 +107,15 @@ export async function scanSiyuanDocument(
   const suggested: Array<{ line: number; blockId: string; questionId: string }> = [];
   if (missing.length > 0) {
     const lines = kramdown.split(/\r?\n/u);
+    interface PendingStableId {
+      headingLine: number;
+      ialLine: number;
+      blockId: string | undefined;
+      attributes: IalAttributes;
+      temporaryId: string;
+      visibleNumber: string | undefined;
+    }
+    const pending: PendingStableId[] = [];
     for (const [index, issue] of missing.entries()) {
       if (!issue.line) continue;
       const headingLine = issue.line;
@@ -116,21 +125,44 @@ export async function scanSiyuanDocument(
       if (!parsed || parsed.errors.length > 0) continue;
       const temporaryId = `__damophus_pending_${index}`;
       lines[ialLine] = serializeIal({ ...parsed.attributes, "custom-qb-id": temporaryId });
+      pending.push({
+        headingLine,
+        ialLine,
+        blockId: parsed.attributes.id,
+        attributes: parsed.attributes,
+        temporaryId,
+        visibleNumber: issue.title?.match(/^(\d+)/u)?.[1],
+      });
+    }
+    if (pending.length > 0) {
+      // One re-parse with every pending marker present. Rescanning the full
+      // document per question made first-time indexing quadratic in size.
       const temporaryReport = scanQuestionMarkdown(lines.join("\n"));
-      const question = temporaryReport.document.questions.find((candidate) => candidate.id === temporaryId);
-      const blockId = parsed.attributes.id;
-      if (!question || !blockId || !nodeIdPattern.test(blockId)) continue;
-      const visibleNumber = issue.title?.match(/^(\d+)/u)?.[1];
-      const { id: _temporaryId, ...questionWithoutId } = question;
-      const questionId = await suggestStableQuestionId({ question: questionWithoutId, visibleNumber });
-      lines[ialLine] = serializeIal({ ...parsed.attributes, "custom-qb-id": questionId });
-      suggested.push({ line: headingLine, blockId, questionId });
+      const resolved = await Promise.all(pending.map(async (item) => {
+        const question = temporaryReport.document.questions.find(
+          (candidate) => candidate.id === item.temporaryId,
+        );
+        if (!question || !item.blockId || !nodeIdPattern.test(item.blockId)) {
+          lines[item.ialLine] = serializeIal(item.attributes);
+          return undefined;
+        }
+        const { id: _temporaryId, ...questionWithoutId } = question;
+        const questionId = await suggestStableQuestionId({
+          question: questionWithoutId,
+          visibleNumber: item.visibleNumber,
+        });
+        lines[item.ialLine] = serializeIal({ ...item.attributes, "custom-qb-id": questionId });
+        return { line: item.headingLine, blockId: item.blockId, questionId };
+      }));
+      suggested.push(...resolved.filter((item): item is { line: number; blockId: string; questionId: string } => (
+        Boolean(item)
+      )));
       kramdown = lines.join("\n");
     }
   }
   const headings = headingIals(kramdown);
   const bindings = questionBlockIds(headings);
-  const report = scanQuestionMarkdown(kramdown);
+  const report = suggested.length > 0 ? scanQuestionMarkdown(kramdown) : initialReport;
   for (const update of suggested) {
     report.ialUpdates.push({
       blockId: update.blockId,

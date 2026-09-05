@@ -156,11 +156,59 @@ function topicIds(question: Question): string[] {
   ))];
 }
 
+/** Auto-discovery of qb-id documents runs a full-table IAL LIKE scan; throttle it. */
+const CATALOG_DISCOVERY_INTERVAL_MS = 60_000;
+let catalogDiscoveryAt = 0;
+
 export class TinyBaseSiyuanCatalogRuntime {
+  private static readonly SCAN_CACHE_LIMIT = 32;
+  private readonly scanCache = new Map<string, { updated?: string; scan: SiyuanDocumentScan }>();
+  private readonly writeQueue: Array<() => void> = [];
+  private activeWrites = 0;
+
   constructor(
     private readonly runtime: TinyBaseRuntime,
     private readonly client: SiyuanKernelClient,
   ) {}
+
+  /**
+   * Reuses a document scan while the kernel `updated` timestamp is unchanged,
+   * so preview, confirm and hydrate do not re-download and re-parse the same
+   * kramdown. Entries are dropped whenever a document is rescanned or when IAL
+   * writes mutate the source, so a stale cache can never outlive its document.
+   */
+  private async cachedScan(documentId: string, updated?: string): Promise<SiyuanDocumentScan> {
+    const cached = this.scanCache.get(documentId);
+    if (cached && updated !== undefined && cached.updated === updated) return cached.scan;
+    const scan = await scanSiyuanDocument(this.client, documentId);
+    this.scanCache.delete(documentId);
+    this.scanCache.set(documentId, { updated, scan });
+    if (this.scanCache.size > TinyBaseSiyuanCatalogRuntime.SCAN_CACHE_LIMIT) {
+      const oldest = this.scanCache.keys().next().value;
+      if (oldest !== undefined) this.scanCache.delete(oldest);
+    }
+    return scan;
+  }
+
+  /** Bounds concurrent kernel writes; first-time indexing fires one IAL write per question. */
+  private scheduleWrite<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.activeWrites >= 8) {
+      return new Promise<void>((resolve) => {
+        this.writeQueue.push(() => resolve());
+      }).then(() => this.runWrite(operation));
+    }
+    return this.runWrite(operation);
+  }
+
+  private async runWrite<T>(operation: () => Promise<T>): Promise<T> {
+    this.activeWrites += 1;
+    try {
+      return await operation();
+    } finally {
+      this.activeWrites -= 1;
+      this.writeQueue.shift()?.();
+    }
+  }
 
   private async documentRow(documentId: string): Promise<DocumentRow | undefined> {
     const rows = await this.client.request<DocumentRow[]>("/api/query/sql", {
@@ -212,15 +260,14 @@ export class TinyBaseSiyuanCatalogRuntime {
 
   async previewDocument(documentId: string, sourceOverride?: DocumentRow): Promise<QuestionIndexPreview> {
     await this.runtime.ensureReady();
-    const [scan, source] = await Promise.all([
-      scanSiyuanDocument(this.client, documentId),
-      sourceOverride ? Promise.resolve(sourceOverride) : this.documentRow(documentId),
-    ]);
+    const source = sourceOverride ?? await this.documentRow(documentId);
     if (!source?.box) throw new Error(`Question source document '${documentId}' is unavailable`);
+    const scan = await this.cachedScan(documentId, source.updated);
     const core = this.runtime.warehouse.getReadView().core;
     const byId = new Map(core.getRowIds("questions").flatMap((questionId) => {
+      if (core.getCell("questions", questionId, "document_id") !== documentId) return [];
       const parsed = QuestionCatalogRecordSchema.safeParse(core.getRow("questions", questionId));
-      return parsed.success && parsed.data.document_id === documentId
+      return parsed.success
         ? [[questionId, parsed.data as QuestionCatalogRecord] as const]
         : [];
     }));
@@ -287,9 +334,9 @@ export class TinyBaseSiyuanCatalogRuntime {
         ...action.attributes,
       });
     }
-    for (const [id, attrs] of byBlockId) {
-      await this.client.request("/api/attr/setBlockAttrs", {id, attrs});
-    }
+    await Promise.all([...byBlockId].map(([id, attrs]) => (
+      this.scheduleWrite(() => this.client.request("/api/attr/setBlockAttrs", {id, attrs}))
+    )));
   }
 
   private async replaceDocumentCatalog(
@@ -297,7 +344,12 @@ export class TinyBaseSiyuanCatalogRuntime {
     source: DocumentRow,
     writeIal: boolean,
   ): Promise<void> {
-    if (writeIal) await this.writeInferredIal(scan);
+    if (writeIal) {
+      await this.writeInferredIal(scan);
+      // The written IAL (notably custom-qb-id) changes future scans of this
+      // document even when the kernel `updated` timestamp does not move.
+      this.scanCache.delete(scan.documentId);
+    }
     const repository = this.repositories().local;
     await repository.markDocumentUnavailable(scan.documentId);
     const indexedAt = new Date().toISOString();
@@ -356,14 +408,14 @@ export class TinyBaseSiyuanCatalogRuntime {
     this.runtime.warehouse.getLocalContribution().core.setValue("last_catalog_scan_at", indexedAt);
   }
 
-  private async confirmPreview(preview: QuestionIndexPreview): Promise<QuestionIndexPreview> {
+  private async confirmPreview(preview: QuestionIndexPreview, persist = true): Promise<QuestionIndexPreview> {
     if (preview.blockers.length > 0) {
       throw new Error(`Question catalog sync is blocked: ${preview.blockers.map((item) => item.message).join("; ")}`);
     }
     const source = await this.documentRow(preview.documentId);
     if (!source?.box) throw new Error(`Question source document '${preview.documentId}' is unavailable`);
     await this.replaceDocumentCatalog(preview.scan, source, true);
-    await this.runtime.persistCore();
+    if (persist) await this.runtime.persistCore();
     return {
       ...preview,
       actions: [],
@@ -433,10 +485,11 @@ export class TinyBaseSiyuanCatalogRuntime {
     if (preview.blockers.length > 0 || preview.documents.some((document) => document.blockers.length > 0)) {
       throw new Error("Question catalog batch sync is blocked");
     }
-    const documents: QuestionIndexPreview[] = [];
-    for (const document of preview.documents) {
-      documents.push(await this.confirmPreview(document));
-    }
+    // Documents are independent; confirming them in parallel keeps multi-document
+    // trees from paying serial IAL-write latency per document.
+    const documents = await Promise.all(preview.documents.map((document) => (
+      this.confirmPreview(document, false)
+    )));
     await this.runtime.persistCore();
     return {...preview, documents};
   }
@@ -448,12 +501,18 @@ export class TinyBaseSiyuanCatalogRuntime {
     const needsMetadataRefresh = this.runtime.warehouse.getLocalContribution().core.getValue("catalog_metadata_revision") !== metadataRevision;
     const known = await repository.listDocuments();
     let candidates: Array<{root_id?: string}>;
-    try {
-      candidates = await this.client.request<Array<{root_id?: string}>>("/api/query/sql", {
-        stmt: "SELECT DISTINCT root_id FROM blocks WHERE ial LIKE '%custom-qb-id=%' ORDER BY root_id",
-      });
-    } catch {
-      return;
+    const now = Date.now();
+    if (now - catalogDiscoveryAt < CATALOG_DISCOVERY_INTERVAL_MS) {
+      candidates = [];
+    } else {
+      try {
+        candidates = await this.client.request<Array<{root_id?: string}>>("/api/query/sql", {
+          stmt: "SELECT DISTINCT root_id FROM blocks WHERE ial LIKE '%custom-qb-id=%' ORDER BY root_id",
+        });
+        catalogDiscoveryAt = now;
+      } catch {
+        return;
+      }
     }
     const documentIds = new Set([
       ...known.map((document) => document.documentId),
@@ -483,7 +542,7 @@ export class TinyBaseSiyuanCatalogRuntime {
       const previous = known.find((document) => document.documentId === documentId);
       if (!needsMetadataRefresh && previous?.source_updated_at && previous.source_updated_at === source.updated) continue;
       try {
-        const scan = await scanSiyuanDocument(this.client, documentId);
+        const scan = await this.cachedScan(documentId, source.updated);
         if (scan.report.conflicts.length > 0 || scan.sourceIssues.length > 0) continue;
         await this.replaceDocumentCatalog(scan, source, false);
         changed = true;
@@ -573,7 +632,15 @@ export class TinyBaseSiyuanCatalogRuntime {
     const requested = questionIds ? new Set(questionIds) : undefined;
     const selected = catalog.filter((entry) => !requested || requested.has(entry.questionId));
     const documentIds = [...new Set(selected.map((entry) => entry.documentId))];
-    const scans = await Promise.all(documentIds.map((documentId) => scanSiyuanDocument(this.client, documentId)));
+    // Fetch row metadata first so cached scans can be validated against the
+    // kernel `updated` timestamp instead of re-downloading every document.
+    const rows = await Promise.all(documentIds.map((documentId) => this.documentRow(documentId)));
+    const updatedById = new Map(rows.flatMap((row) => (
+      row?.id ? [[row.id, row.updated] as const] : []
+    )));
+    const scans = await Promise.all(documentIds.map((documentId) => (
+      this.cachedScan(documentId, updatedById.get(documentId))
+    )));
     const questionsById = new Map(scans.flatMap((scan) => scan.report.document.questions.map(
       (question) => [question.id, question] as const,
     )));
