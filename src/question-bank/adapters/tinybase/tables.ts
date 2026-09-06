@@ -45,6 +45,7 @@ export const DAMOPHUS_TABLES_SCHEMA: TablesSchema = {
     total_duration_ms: numberCell, objective_attempts: numberCell, objective_correct: numberCell,
     objective_incorrect: numberCell, consecutive_review_count: numberCell,
     consecutive_again_count: numberCell, consecutive_hard_count: numberCell,
+    latest_objective_correct: booleanCell,
     latest_rating: stringCell, last_answered_at: stringCell, previous_duration_ms: numberCell,
     last_duration_ms: numberCell, last_attempt_id: stringCell,
   },

@@ -530,6 +530,7 @@ export class TinyBaseAggregateRepository implements AggregateRepository {
         consecutive_review_count: aggregate.consecutiveReviewCount,
         consecutive_again_count: aggregate.consecutiveAgainCount,
         consecutive_hard_count: aggregate.consecutiveHardCount,
+        latest_objective_correct: aggregate.latestObjectiveCorrect,
         latest_rating: aggregate.latestRating,
         last_answered_at: aggregate.lastAnsweredAt,
         previous_duration_ms: aggregate.previousDurationMs,

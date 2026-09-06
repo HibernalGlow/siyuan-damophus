@@ -60,6 +60,7 @@ export function aggregateAttemptEvents(events: readonly AttemptEvent[]): Map<str
       aggregate.objectiveAttempts += 1;
       if (event.objective_correct) aggregate.objectiveCorrect += 1;
       else aggregate.objectiveIncorrect += 1;
+      aggregate.latestObjectiveCorrect = event.objective_correct;
     }
     aggregate.consecutiveReviewCount = ["again", "hard"].includes(event.mastery_rating)
       ? aggregate.consecutiveReviewCount + 1

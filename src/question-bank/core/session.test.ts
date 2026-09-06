@@ -81,6 +81,20 @@ describe("practice session snapshot", () => {
         ],
       },
     }).status).toBe("ok");
+    expect(parsePracticeSessionSnapshot({
+      ...value,
+      filter: {
+        glue: "and",
+        rules: [
+          { field: "wrong", type: "tuple", filter: "equal", value: "yes" },
+          { field: "latest_rating", type: "tuple", filter: "equal", includes: ["again", "hard"] },
+          { field: "last_result", type: "tuple", filter: "notEqual", value: "unattempted" },
+          { field: "wrong_count", type: "tuple", filter: "greaterOrEqual", value: 2 },
+          { field: "attempt_count", type: "tuple", filter: "lessOrEqual", value: 1 },
+          { field: "last_answered_days", type: "tuple", filter: "greaterOrEqual", value: 7 },
+        ],
+      },
+    }).status).toBe("ok");
     expect(parsePracticeSessionSnapshot({ ...value, schema_version: 2 })).toEqual({
       status: "unsupported",
       schemaVersion: 2,

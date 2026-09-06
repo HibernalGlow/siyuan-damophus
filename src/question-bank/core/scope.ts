@@ -1,4 +1,4 @@
-import type { AttemptAggregate, Question, TopicNode } from "./types";
+import type { AttemptAggregate, MasteryRating, Question, TopicNode } from "./types";
 
 export const LEGACY_PRACTICE_FILTERS = [
   "all",
@@ -15,11 +15,28 @@ export const PRACTICE_FILTER_FIELDS = [
   "review",
   "due",
   "bookmarked",
+  "latest_rating",
+  "last_result",
+  "wrong_count",
+  "attempt_count",
+  "last_answered_days",
+] as const;
+
+export const PRACTICE_BOOLEAN_FILTER_FIELDS = [
+  "attempted",
+  "wrong",
+  "review",
+  "due",
+  "bookmarked",
 ] as const;
 
 export type LegacyPracticeFilter = typeof LEGACY_PRACTICE_FILTERS[number];
 export type PracticeFilterField = typeof PRACTICE_FILTER_FIELDS[number];
+export type PracticeBooleanFilterField = typeof PRACTICE_BOOLEAN_FILTER_FIELDS[number];
 export type PracticeFilterValue = "yes" | "no";
+export type PracticeLastResult = "correct" | "wrong" | "unattempted";
+/** Widen the rule payload beyond the yes/no tokens: single last-result value, single rating, or a count/day threshold. */
+export type PracticeFilterRuleValue = PracticeFilterValue | PracticeLastResult | MasteryRating | number;
 export type PracticeFilterOperator =
   | "greater"
   | "less"
@@ -34,8 +51,8 @@ export interface PracticeFilterRule {
   field: PracticeFilterField;
   type?: "tuple";
   filter?: PracticeFilterOperator;
-  value?: PracticeFilterValue;
-  includes?: PracticeFilterValue[];
+  value?: PracticeFilterRuleValue;
+  includes?: Array<PracticeFilterValue | MasteryRating>;
   /** Query-builder lock state. It does not remove the rule from evaluation. */
   disabled?: boolean;
   /** Manual bypass: the rule stays editable but is ignored during evaluation. */
@@ -66,6 +83,8 @@ export interface QuestionFilterInput {
   dueQuestionIds?: ReadonlySet<string>;
   bookmarkedQuestionIds?: ReadonlySet<string>;
   reviewThreshold?: number;
+  /** Reference clock for the relative "days since last attempt" comparisons. */
+  now?: number;
 }
 
 function descendantTopicIds(topics: readonly TopicNode[], rootTopicId: string): Set<string> {
@@ -97,8 +116,24 @@ function isPracticeFilterValue(value: unknown): value is PracticeFilterValue {
   return value === "yes" || value === "no";
 }
 
+function isPracticeLastResult(value: unknown): value is PracticeLastResult {
+  return value === "correct" || value === "wrong" || value === "unattempted";
+}
+
+function isMasteryRating(value: unknown): value is MasteryRating {
+  return value === "again" || value === "hard" || value === "good" || value === "easy";
+}
+
 function isPracticeFilterOperator(value: unknown): value is PracticeFilterOperator {
   return ["greater", "less", "greaterOrEqual", "lessOrEqual", "equal", "notEqual"].includes(String(value));
+}
+
+/** Accepts the widened rule payloads: yes/no tokens, last-result tokens, and finite numbers (numeric strings coerce). */
+function isPracticeFilterRuleValue(value: unknown): value is PracticeFilterRuleValue {
+  if (isPracticeFilterValue(value) || isPracticeLastResult(value)) return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "string" && value.trim() !== "") return Number.isFinite(Number(value));
+  return false;
 }
 
 function normalizePracticeFilterRule(value: unknown): PracticeFilterRule | PracticeFilterGroup | undefined {
@@ -134,9 +169,15 @@ function normalizePracticeFilterRule(value: unknown): PracticeFilterRule | Pract
     type: "tuple",
     filter: isPracticeFilterOperator(candidate.filter) ? candidate.filter : "equal",
   };
-  if (isPracticeFilterValue(candidate.value)) rule.value = candidate.value;
+  if (isPracticeFilterRuleValue(candidate.value)) {
+    rule.value = typeof candidate.value === "string" && !isPracticeFilterValue(candidate.value) && !isPracticeLastResult(candidate.value)
+      ? Number(candidate.value)
+      : candidate.value;
+  }
   if (Array.isArray(candidate.includes)) {
-    rule.includes = [...new Set(candidate.includes.filter(isPracticeFilterValue))];
+    rule.includes = [...new Set(candidate.includes.filter(
+      (item): item is PracticeFilterValue | MasteryRating => isPracticeFilterValue(item) || isMasteryRating(item),
+    ))];
   }
   if (candidate.disabled === true) rule.disabled = true;
   if (candidate.bypassed === true) rule.bypassed = true;
@@ -170,22 +211,45 @@ export function practiceFilterToCondition(filter: PracticeFilter): PracticeFilte
   };
 }
 
-interface QuestionPracticeStates {
+/** Per-question facts the filter rules evaluate against. */
+export interface QuestionFilterFacts {
   attempted: boolean;
   wrong: boolean;
   review: boolean;
   due: boolean;
   bookmarked: boolean;
+  latestRating?: MasteryRating;
+  lastResult: PracticeLastResult;
+  wrongCount: number;
+  attemptCount: number;
+  daysSinceLastAnswered?: number;
+}
+
+function isBooleanFilterField(field: PracticeFilterField): field is PracticeBooleanFilterField {
+  return (PRACTICE_BOOLEAN_FILTER_FIELDS as readonly string[]).includes(field);
+}
+
+function compareFilterNumber(actual: number, rule: PracticeFilterRule): boolean {
+  const expected = typeof rule.value === "number" ? rule.value : Number(rule.value);
+  if (!Number.isFinite(expected)) return true;
+  switch (rule.filter ?? "equal") {
+    case "notEqual": return actual !== expected;
+    case "greater": return actual > expected;
+    case "less": return actual < expected;
+    case "greaterOrEqual": return actual >= expected;
+    case "lessOrEqual": return actual <= expected;
+    default: return actual === expected;
+  }
 }
 
 function matchesPracticeFilterRule(
   rule: PracticeFilterRule | PracticeFilterGroup,
-  states: QuestionPracticeStates,
+  facts: QuestionFilterFacts,
 ): boolean {
   if (rule.bypassed === true) return true;
   if ("rules" in rule) {
     if (rule.rules.length === 0) return rule.not !== true;
-    const results = rule.rules.map((child) => matchesPracticeFilterRule(child, states));
+    const results = rule.rules.map((child) => matchesPracticeFilterRule(child, facts));
     const combinators = rule.rules.length > 1
       ? rule.rules.slice(0, -1).map((_, index) => rule.combinators?.[index] ?? rule.glue)
       : [];
@@ -205,18 +269,52 @@ function matchesPracticeFilterRule(
     return rule.not === true ? !value : value;
   }
 
-  const actual = states[rule.field] ? "yes" : "no";
-  if (rule.includes?.length) return rule.includes.includes(actual);
-  if (!rule.value) return true;
-  const actualNumber = actual === "yes" ? 1 : 0;
-  const expectedNumber = rule.value === "yes" ? 1 : 0;
-  switch (rule.filter ?? "equal") {
-    case "notEqual": return actual !== rule.value;
-    case "greater": return actualNumber > expectedNumber;
-    case "less": return actualNumber < expectedNumber;
-    case "greaterOrEqual": return actualNumber >= expectedNumber;
-    case "lessOrEqual": return actualNumber <= expectedNumber;
-    default: return actual === rule.value;
+  if (isBooleanFilterField(rule.field)) {
+    const actual = facts[rule.field] ? "yes" : "no";
+    if (rule.includes?.length) return rule.includes.includes(actual as PracticeFilterValue);
+    if (!rule.value) return true;
+    const actualNumber = actual === "yes" ? 1 : 0;
+    const expectedNumber = rule.value === "yes" ? 1 : 0;
+    switch (rule.filter ?? "equal") {
+      case "notEqual": return actual !== rule.value;
+      case "greater": return actualNumber > expectedNumber;
+      case "less": return actualNumber < expectedNumber;
+      case "greaterOrEqual": return actualNumber >= expectedNumber;
+      case "lessOrEqual": return actualNumber <= expectedNumber;
+      default: return actual === rule.value;
+    }
+  }
+
+  switch (rule.field) {
+    case "latest_rating": {
+      const ratings = [
+        ...(rule.includes ?? []).filter(isMasteryRating),
+        ...(isMasteryRating(rule.value) ? [rule.value] : []),
+      ];
+      if (!ratings.length) return true;
+      // Unrated questions have no rating to compare against either side.
+      if (facts.latestRating === undefined) return false;
+      const contained = ratings.includes(facts.latestRating);
+      return rule.filter === "notEqual" ? !contained : contained;
+    }
+    case "last_result": {
+      if (!isPracticeLastResult(rule.value)) return true;
+      const equal = facts.lastResult === rule.value;
+      return rule.filter === "notEqual" ? !equal : equal;
+    }
+    case "wrong_count":
+      return compareFilterNumber(facts.wrongCount, rule);
+    case "attempt_count":
+      return compareFilterNumber(facts.attemptCount, rule);
+    case "last_answered_days": {
+      const expected = typeof rule.value === "number" ? rule.value : Number(rule.value);
+      if (!Number.isFinite(expected)) return true;
+      // "Answered more than N days ago" presumes a previous attempt; never-attempted questions match neither side.
+      if (facts.daysSinceLastAnswered === undefined) return false;
+      return compareFilterNumber(facts.daysSinceLastAnswered, rule);
+    }
+    default:
+      return true;
   }
 }
 
@@ -235,6 +333,9 @@ export function practiceFilterTargetsDueCards(filter: PracticeFilter): boolean {
       review: false,
       due: true,
       bookmarked: false,
+      lastResult: "unattempted",
+      wrongCount: 0,
+      attemptCount: 0,
     });
   });
 }
@@ -244,18 +345,29 @@ export function filterQuestions(input: QuestionFilterInput): Question[] {
   const topicIds = input.rootTopicId
     ? descendantTopicIds(input.topics, input.rootTopicId)
     : undefined;
+  const nowMs = input.now ?? Date.now();
   return input.questions.filter((question) => {
     if (question.type === "group") return false;
     const questionScopeId = question.metadata.scopeTopicId ?? question.metadata.topicId;
     if (topicIds && (!questionScopeId || !topicIds.has(questionScopeId))) return false;
     const aggregate = input.aggregates?.get(question.id);
-    const states: QuestionPracticeStates = {
+    const answeredAtMs = aggregate?.lastAnsweredAt ? Date.parse(aggregate.lastAnsweredAt) : undefined;
+    const facts: QuestionFilterFacts = {
       attempted: (aggregate?.attempts ?? 0) > 0,
       wrong: (aggregate?.objectiveIncorrect ?? 0) > 0,
       review: (aggregate?.consecutiveReviewCount ?? 0) >= (input.reviewThreshold ?? 2),
       due: input.dueQuestionIds?.has(question.id) ?? false,
       bookmarked: input.bookmarkedQuestionIds?.has(question.id) ?? false,
+      latestRating: aggregate?.latestRating,
+      lastResult: aggregate?.latestObjectiveCorrect === undefined
+        ? "unattempted"
+        : aggregate.latestObjectiveCorrect ? "correct" : "wrong",
+      wrongCount: aggregate?.objectiveIncorrect ?? 0,
+      attemptCount: aggregate?.attempts ?? 0,
+      daysSinceLastAnswered: answeredAtMs !== undefined && Number.isFinite(answeredAtMs)
+        ? Math.max(0, (nowMs - answeredAtMs) / 86400000)
+        : undefined,
     };
-    return matchesPracticeFilterRule(practiceFilterToCondition(filter), states);
+    return matchesPracticeFilterRule(practiceFilterToCondition(filter), facts);
   });
 }

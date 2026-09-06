@@ -138,6 +138,8 @@ export interface AttemptAggregate {
   consecutiveReviewCount: number;
   consecutiveAgainCount: number;
   consecutiveHardCount: number;
+  /** Objective result of the most recent attempt that had one; undefined when never answered objectively. */
+  latestObjectiveCorrect?: boolean;
   latestRating?: MasteryRating;
   lastAnsweredAt?: string;
   lastAttemptId?: string;

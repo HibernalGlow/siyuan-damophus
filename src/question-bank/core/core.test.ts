@@ -125,6 +125,151 @@ describe("portable question core", () => {
     }).map((item) => item.id)).toEqual(["q1"]);
   });
 
+  it("filters by latest rating, last result, counts, and days since last attempt", () => {
+    const now = Date.parse("2026-09-06T00:00:00Z");
+    const aggregateFor = (questionId: string, overrides: Record<string, unknown>) => ({
+      questionId,
+      attempts: 0,
+      objectiveAttempts: 0,
+      objectiveCorrect: 0,
+      objectiveIncorrect: 0,
+      consecutiveReviewCount: 0,
+      consecutiveAgainCount: 0,
+      consecutiveHardCount: 0,
+      ...overrides,
+    });
+    // mastered: was wrong once, latest attempt correct and rated good, 10 days ago.
+    // stubborn: wrong twice, latest attempt wrong and rated again, 1 day ago.
+    // fresh: never attempted.
+    const questions = [question("mastered"), question("stubborn"), question("fresh")];
+    const aggregates = new Map([
+      ["mastered", aggregateFor("mastered", {
+        attempts: 2,
+        objectiveAttempts: 2,
+        objectiveCorrect: 1,
+        objectiveIncorrect: 1,
+        latestObjectiveCorrect: true,
+        latestRating: "good",
+        lastAnsweredAt: "2026-08-27T00:00:00Z",
+      })],
+      ["stubborn", aggregateFor("stubborn", {
+        attempts: 3,
+        objectiveAttempts: 3,
+        objectiveCorrect: 1,
+        objectiveIncorrect: 2,
+        latestObjectiveCorrect: false,
+        latestRating: "again",
+        lastAnsweredAt: "2026-09-05T00:00:00Z",
+      })],
+    ]);
+
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "latest_rating", type: "tuple", filter: "equal", includes: ["again", "hard"] }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["stubborn"]);
+    // Unrated questions match neither side of a rating comparison.
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "latest_rating", type: "tuple", filter: "notEqual", includes: ["good"] }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["stubborn"]);
+    // The 二刷 main queue: wrong questions that still rate again/hard.
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: {
+        glue: "and",
+        rules: [
+          { field: "wrong", type: "tuple", filter: "equal", value: "yes" },
+          { field: "latest_rating", type: "tuple", filter: "equal", includes: ["again", "hard"] },
+        ],
+      },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["stubborn"]);
+
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "last_result", type: "tuple", filter: "equal", value: "wrong" }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["stubborn"]);
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "last_result", type: "tuple", filter: "equal", value: "unattempted" }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["fresh"]);
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "last_result", type: "tuple", filter: "notEqual", value: "unattempted" }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["mastered", "stubborn"]);
+
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "wrong_count", type: "tuple", filter: "greaterOrEqual", value: 2 }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["stubborn"]);
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "attempt_count", type: "tuple", filter: "lessOrEqual", value: 1 }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["fresh"]);
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "attempt_count", type: "tuple", filter: "equal", value: 2 }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["mastered"]);
+
+    // "Within N days" and "before N days" exclude never-attempted questions.
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "last_answered_days", type: "tuple", filter: "lessOrEqual", value: 7 }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["stubborn"]);
+    expect(filterQuestions({
+      questions,
+      topics: [],
+      filter: { glue: "and", rules: [{ field: "last_answered_days", type: "tuple", filter: "greaterOrEqual", value: 7 }] },
+      aggregates,
+      now,
+    }).map((item) => item.id)).toEqual(["mastered"]);
+  });
+
+  it("coerces numeric-string rule values from persisted filters", () => {
+    const now = Date.parse("2026-09-06T00:00:00Z");
+    const questions = [question("q1"), question("q2")];
+    const aggregates = new Map([
+      ["q1", {
+        questionId: "q1", attempts: 1, objectiveAttempts: 1, objectiveCorrect: 0, objectiveIncorrect: 1,
+        consecutiveReviewCount: 0, consecutiveAgainCount: 0, consecutiveHardCount: 0,
+      }],
+    ]);
+    const filter = normalizePracticeFilter({
+      glue: "and",
+      rules: [{ field: "wrong_count", type: "tuple", filter: "greaterOrEqual", value: "1" }],
+    });
+    expect(filterQuestions({ questions, topics: [], filter, aggregates, now }).map((item) => item.id)).toEqual(["q1"]);
+  });
+
   it("ignores bypassed rules and groups while keeping them in the tree", () => {
     const questions = [question("q1"), question("q2")];
     const aggregates = new Map([

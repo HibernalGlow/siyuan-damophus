@@ -7,7 +7,7 @@
   import ConditionEditorDialog from "@/components/condition-editor/ConditionEditorDialog.svelte";
   import { renameGroupInQuery } from "@/components/condition-editor/rename-group";
   import type { PracticeFilterPreset } from "./practice-preferences";
-  import type { PracticeFilter } from "@/question-bank/core/scope";
+  import type { PracticeFilter, PracticeFilterField } from "@/question-bank/core/scope";
   import {
     practiceFilterToQuery,
     queryToPracticeFilter,
@@ -18,6 +18,7 @@
     buildOperators,
     buildCombinators,
     buildTranslations,
+    defaultRuleValue,
   } from "./practice-condition-catalog";
 
   export let label: (key: string, fallback: string) => string;
@@ -211,7 +212,8 @@
       }}
       defaultField="attempted"
       defaultOperator="equal"
-      defaultValue={() => "yes"}
+      defaultValue={(rule) => defaultRuleValue(rule.field as PracticeFilterField)}
+      listsAsArrays
       showNotToggle
       showLockButtons
       showCombinatorsBetweenRules={false}

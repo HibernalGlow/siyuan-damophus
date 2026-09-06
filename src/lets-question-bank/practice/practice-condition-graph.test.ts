@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { practiceFilterToGraph } from "./practice-condition-graph";
 
 const labels = {
-  field: { attempted: "Attempt", wrong: "Wrong", review: "Review", due: "Due", bookmarked: "Bookmark" },
-  operator: { equal: "=", notEqual: "≠" },
-  value: { yes: "Yes", no: "No", any: "Any" },
+  field: { attempted: "Attempt", wrong: "Wrong", review: "Review", due: "Due", bookmarked: "Bookmark", latest_rating: "Latest rating", last_result: "Last result", wrong_count: "Wrong count", attempt_count: "Attempt count", last_answered_days: "Days since last attempt" },
+  operator: { equal: "=", notEqual: "≠", greaterOrEqual: "≥", lessOrEqual: "≤" },
+  value: { yes: "Yes", no: "No", any: "Any", correct: "Correct", wrong: "Wrong answer", unattempted: "Unattempted", "latest_rating:again": "Again", "latest_rating:hard": "Hard", "latest_rating:good": "Good" },
   and: "AND",
   or: "OR",
   not: "NOT",
@@ -15,7 +15,7 @@ const labels = {
 describe("practiceFilterToGraph", () => {
   it("always ends at a result node and renders empty filters", () => {
     const graph = practiceFilterToGraph("all", labels);
-    expect(graph.nodes).toEqual([{ id: "result", kind: "result", label: "Questions", detail: "All questions" }]);
+    expect(graph.nodes).toEqual([{ id: "result", kind: "result", label: "Questions", detail: "All questions", icon: expect.any(Function) }]);
     expect(graph.edges).toHaveLength(0);
   });
 
@@ -52,5 +52,24 @@ describe("practiceFilterToGraph", () => {
   it("preserves disabled rule state", () => {
     const graph = practiceFilterToGraph({ glue: "and", rules: [{ field: "due", value: "yes", disabled: true }] }, labels);
     expect(graph.nodes.find((node) => node.kind === "rule")?.disabled).toBe(true);
+  });
+
+  it("renders rating selections, last results, and numeric thresholds", () => {
+    const graph = practiceFilterToGraph({
+      glue: "and",
+      rules: [
+        { field: "latest_rating", type: "tuple", filter: "equal", includes: ["again", "hard"] },
+        { field: "last_result", type: "tuple", filter: "notEqual", value: "unattempted" },
+        { field: "wrong_count", type: "tuple", filter: "greaterOrEqual", value: 2 },
+        { field: "last_answered_days", type: "tuple", filter: "lessOrEqual", value: 7 },
+      ],
+    }, labels);
+    const ruleNodes = graph.nodes.filter((node) => node.kind === "rule");
+    expect(ruleNodes.map((node) => node.detail)).toEqual([
+      "= Again/Hard",
+      "≠ Unattempted",
+      "≥ 2",
+      "≤ 7",
+    ]);
   });
 });

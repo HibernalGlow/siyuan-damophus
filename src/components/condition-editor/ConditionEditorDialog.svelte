@@ -36,6 +36,8 @@
   export let showNotToggle = false;
   export let showLockButtons = false;
   export let showCombinatorsBetweenRules = true;
+  /** Emit multi-select values as arrays instead of comma-joined strings. */
+  export let listsAsArrays = false;
   /** Optional saved-conditions section rendered between header and body. */
   export let library: Snippet | undefined = undefined;
   /** "host" docks into the nearest positioned ancestor (dock panels); "fixed" floats centered in the viewport. */
@@ -146,6 +148,7 @@
             maxLevels={4}
             resetOnFieldChange
             {showCombinatorsBetweenRules}
+            {listsAsArrays}
             showCloneButtons
             showShiftActions
             showUndoRedo

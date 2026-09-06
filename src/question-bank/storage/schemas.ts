@@ -74,6 +74,7 @@ export const QuestionAggregateRecordSchema = z.object({
   consecutive_review_count: z.number().int().nonnegative(),
   consecutive_again_count: z.number().int().nonnegative(),
   consecutive_hard_count: z.number().int().nonnegative(),
+  latest_objective_correct: z.boolean().optional(),
   latest_rating: z.string().optional(),
   last_answered_at: z.string().optional(),
   previous_duration_ms: z.number().int().nonnegative().optional(),

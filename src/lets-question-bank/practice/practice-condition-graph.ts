@@ -1,6 +1,6 @@
 import type { ConditionGraphEdge, ConditionGraphModel, ConditionGraphNode } from "@/components/condition-graph/types";
 import { practiceFilterToCondition, type PracticeFilter, type PracticeFilterGroup, type PracticeFilterRule } from "@/question-bank/core/scope";
-import { Bookmark, CheckCircle2, Clock3, GitBranch, ListFilter, RefreshCw, XCircle } from "lucide-svelte";
+import { Bookmark, CalendarClock, CheckCircle2, Clock3, GitBranch, History, ListFilter, RefreshCw, Repeat, Star, TrendingDown, XCircle } from "lucide-svelte";
 
 export interface PracticeConditionGraphLabels {
   field: Record<string, string>;
@@ -20,6 +20,11 @@ const FIELD_ICONS: Record<string, typeof ListFilter> = {
   review: RefreshCw,
   due: Clock3,
   bookmarked: Bookmark,
+  latest_rating: Star,
+  last_result: History,
+  wrong_count: TrendingDown,
+  attempt_count: Repeat,
+  last_answered_days: CalendarClock,
 };
 
 type Expression =
@@ -34,6 +39,15 @@ function gate(id: string, operator: string, detail: string | undefined, children
   return { kind: "gate", id, node: { id, kind: "logic", label: operator, detail, icon: GitBranch }, children };
 }
 
+/** Operator label plus the rule's value part; multi-select selections join with slashes. */
+function ruleDetail(rule: PracticeFilterRule, labels: PracticeConditionGraphLabels): string {
+  const operator = labels.operator[rule.filter ?? "equal"] ?? rule.filter ?? "equal";
+  const valuePart = rule.includes?.length
+    ? rule.includes.map((item) => labels.value[`${rule.field}:${item}`] ?? labels.value[item] ?? String(item)).join("/")
+    : labels.value[`${rule.field}:${rule.value ?? ""}`] ?? labels.value[rule.value === undefined ? "" : String(rule.value)] ?? (rule.value === undefined ? "" : String(rule.value));
+  return `${operator} ${valuePart}`.trim();
+}
+
 function groupExpression(group: PracticeFilterGroup, path: string, labels: PracticeConditionGraphLabels, rulePath: number[] = []): Expression | undefined {
   if (!group.rules.length) return undefined;
   const expressions = group.rules
@@ -46,7 +60,7 @@ function groupExpression(group: PracticeFilterGroup, path: string, labels: Pract
             id: `${path}-rule-${index}`,
             kind: "rule" as const,
             label: labels.field[rule.field] ?? rule.field,
-            detail: `${labels.operator[rule.filter ?? "equal"] ?? rule.filter ?? "equal"} ${labels.value[`${rule.field}:${rule.value ?? ""}`] ?? labels.value[rule.value ?? ""] ?? rule.value ?? ""}`,
+            detail: ruleDetail(rule, labels),
             disabled: rule.disabled,
             icon: FIELD_ICONS[rule.field] ?? ListFilter,
             meta: { rulePath: [...rulePath, index] },

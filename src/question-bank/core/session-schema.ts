@@ -7,11 +7,25 @@ export const PRACTICE_SESSION_SCHEMA_VERSION = 1 as const;
 
 const LegacyPracticeFilterSchema = z.enum(["all", "unattempted", "wrong", "review", "due", "bookmarked"]);
 const PracticeFilterRuleSchema = z.object({
-  field: z.enum(["attempted", "wrong", "review", "due", "bookmarked"]),
+  field: z.enum([
+    "attempted",
+    "wrong",
+    "review",
+    "due",
+    "bookmarked",
+    "latest_rating",
+    "last_result",
+    "wrong_count",
+    "attempt_count",
+    "last_answered_days",
+  ]),
   type: z.literal("tuple").optional(),
   filter: z.enum(["greater", "less", "greaterOrEqual", "lessOrEqual", "equal", "notEqual"]).optional(),
-  value: z.enum(["yes", "no"]).optional(),
-  includes: z.array(z.enum(["yes", "no"])).optional(),
+  value: z.union([
+    z.enum(["yes", "no", "correct", "wrong", "unattempted", "again", "hard", "good", "easy"]),
+    z.number(),
+  ]).optional(),
+  includes: z.array(z.enum(["yes", "no", "again", "hard", "good", "easy"])).optional(),
   disabled: z.boolean().optional(),
   bypassed: z.boolean().optional(),
 });
