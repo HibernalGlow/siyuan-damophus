@@ -15,6 +15,13 @@ export const pluginMetadata: PluginMetadata = {
       key: "fitEnabled",
       value: true,
     },
+    {
+      type: "checkbox",
+      title: "lets-table-fit.wideScrollTitle",
+      description: "lets-table-fit.wideScrollDescription",
+      key: "wideScroll",
+      value: false,
+    },
   ],
 };
 

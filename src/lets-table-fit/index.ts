@@ -30,17 +30,20 @@ export default class TableFitPlugin extends SubPluginBase {
     return this.getSetting("fitEnabled") !== false;
   }
 
+  private isWideScroll(): boolean {
+    return this.getSetting("wideScroll") === true;
+  }
+
   private setFitEnabled(enabled: boolean): void {
     this.setSetting("fitEnabled", enabled);
-    this.applyEnabled(enabled);
+    this.applySetting();
   }
 
   private applySetting(): void {
-    this.applyEnabled(this.isFitEnabled());
-  }
-
-  private applyEnabled(enabled: boolean): void {
-    if (enabled) this.styles.start();
-    else this.styles.destroy();
+    if (!this.isFitEnabled()) {
+      this.styles.destroy();
+      return;
+    }
+    this.styles.start({ wideScroll: this.isWideScroll() });
   }
 }

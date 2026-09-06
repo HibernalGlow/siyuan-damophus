@@ -5,6 +5,7 @@ import pluginMetadata from "./plugin";
 import {
   TABLE_FIT_CSS,
   TABLE_FIT_STYLE_ID,
+  TABLE_SCROLL_CSS,
   TableFitStyles,
 } from "./table-fit";
 
@@ -90,7 +91,7 @@ describe("table fit", () => {
       if (key === "fitEnabled") fitEnabled = value;
     });
     const plugin = new TableFitPlugin();
-    plugin.getSetting = () => fitEnabled;
+    plugin.getSetting = (key: string) => (key === "wideScroll" ? false : fitEnabled);
     plugin.setSetting = setSetting;
     plugin.t = () => "Responsive Tables";
     plugin.onload();
@@ -125,6 +126,126 @@ describe("table fit", () => {
       type: "checkbox",
       value: true,
     }));
+  });
+
+  it("declares the wide scroll toggle as disabled by default", () => {
+    expect(pluginMetadata.settings).toContainEqual(expect.objectContaining({
+      key: "wideScroll",
+      type: "checkbox",
+      value: false,
+    }));
+  });
+
+  it("mounts the wide scroll stylesheet while that setting is on", () => {
+    const plugin = new TableFitPlugin();
+    // fitEnabled stays on its default (missing setting means enabled).
+    plugin.getSetting = (key: string) => (key === "wideScroll" ? true : undefined);
+    plugin.t = () => "Responsive Tables";
+    plugin.onload();
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)?.textContent).toBe(TABLE_SCROLL_CSS);
+    plugin.onunload();
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)).toBeNull();
+  });
+});
+
+describe("table fit wide scroll", () => {
+  // Faithful stand-in for SiYuan's native table CSS (typography rules): the
+  // wrapper scrolls, the table keeps natural width, and the per-cell max-width
+  // cap keeps long text wrapped. ".table" must be re-declared as a block
+  // because it collides with the Tailwind display utility in this environment.
+  const mountNativeHostStyle = () => {
+    const hostStyle = document.createElement("style");
+    hostStyle.textContent = `
+      .protyle-wysiwyg .table { display: block; }
+      .protyle-wysiwyg .table > div:first-child { overflow-x: auto; overflow-y: hidden; }
+      .protyle-wysiwyg .table table { display: inline-table; width: max-content; border-collapse: separate; border-spacing: 0; }
+      .protyle-wysiwyg .table td, .protyle-wysiwyg .table th {
+        padding: 4px 8px; box-sizing: border-box; max-width: 620px; word-wrap: break-word;
+      }
+    `;
+    document.head.append(hostStyle);
+    return hostStyle;
+  };
+
+  const renderTableWithCols = (colgroup: string, cells: string) => {
+    const editor = document.createElement("div");
+    editor.className = "protyle-wysiwyg";
+    editor.style.width = "320px";
+    editor.innerHTML = `
+      <div data-type="NodeTable" class="table">
+        <div>
+          <table>${colgroup}<tbody><tr>${cells}</tr></tbody></table>
+          <div class="protyle-action__table"><div class="table__resize"></div></div>
+        </div>
+      </div>`;
+    document.body.append(editor);
+    return {
+      editor,
+      container: editor.querySelector<HTMLElement>(".table > div")!,
+      table: editor.querySelector<HTMLTableElement>("table")!,
+      resize: editor.querySelector<HTMLElement>(".table__resize")!,
+    };
+  };
+
+  it("keeps over-wide tables at natural width with a horizontal scrollbar", async () => {
+    await page.viewport(390, 700);
+    const hostStyle = mountNativeHostStyle();
+    const { container, table, resize } = renderTableWithCols(
+      `<colgroup><col style="min-width:240px"><col style="width:360px"><col style="width:480px"></colgroup>`,
+      `<td>Short</td><td>civil-procedure-jurisdiction-rule-without-spaces</td><td>Long explanation</td>`,
+    );
+
+    const styles = new TableFitStyles(document);
+    styles.start({ wideScroll: true });
+
+    // Natural sizing: authored column widths survive and the table overflows
+    // the editor into SiYuan's native wrapper scrollbar.
+    expect(getComputedStyle(table).tableLayout).toBe("auto");
+    expect(Math.round(table.getBoundingClientRect().width)).toBeGreaterThan(container.clientWidth);
+    expect(container.scrollWidth).toBeGreaterThan(container.clientWidth);
+    // SiYuan mobile touch handling relies on the wrapper keeping native
+    // overflow (it probes scrollWidth to route touch pans); overriding it to
+    // hidden/clip swallows pans over the table area.
+    expect(getComputedStyle(container).overflowX).toBe("auto");
+    // Column resize handles stay native: dragging widths is meaningful here.
+    expect(getComputedStyle(resize).display).not.toBe("none");
+
+    styles.destroy();
+    hostStyle.remove();
+  });
+
+  it("still fills the editor width when the table fits", async () => {
+    await page.viewport(390, 700);
+    const hostStyle = mountNativeHostStyle();
+    const { container, table } = renderTableWithCols(
+      `<colgroup><col style="width:120px"><col style="width:120px"></colgroup>`,
+      `<td>foo</td><td>bar</td>`,
+    );
+
+    const styles = new TableFitStyles(document);
+    styles.start({ wideScroll: true });
+
+    expect(getComputedStyle(table).tableLayout).toBe("auto");
+    expect(Math.round(table.getBoundingClientRect().width)).toBe(container.clientWidth);
+    expect(container.scrollWidth).toBeLessThanOrEqual(container.clientWidth);
+
+    styles.destroy();
+    hostStyle.remove();
+  });
+
+  it("swaps the mounted stylesheet when the wide scroll option flips", () => {
+    const styles = new TableFitStyles(document);
+    styles.start({ wideScroll: false });
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)?.textContent).toBe(TABLE_FIT_CSS);
+
+    styles.start({ wideScroll: true });
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)?.textContent).toBe(TABLE_SCROLL_CSS);
+
+    styles.start({ wideScroll: false });
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)?.textContent).toBe(TABLE_FIT_CSS);
+
+    styles.destroy();
+    expect(document.getElementById(TABLE_FIT_STYLE_ID)).toBeNull();
   });
 });
 
