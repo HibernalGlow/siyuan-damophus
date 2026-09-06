@@ -179,6 +179,7 @@
   let optionOrder: PracticeOptionOrder = initialPracticePreferences.optionOrder;
   let filter: PracticeFilter = initialPracticePreferences.filter;
   let filterPresets: PracticeFilterPreset[] = initialPracticePreferences.presets ?? [];
+  let referencePresets: PracticeFilterPreset[] = initialPracticePreferences.referencePresets ?? [];
   let activeFilterPresetId = initialPracticePreferences.activePresetId;
   let persistedPracticePreferences = JSON.stringify(initialPracticePreferences);
   let busy = false;
@@ -757,6 +758,7 @@
       optionOrder,
       filter,
       ...(filterPresets.length ? { presets: filterPresets } : {}),
+      ...(referencePresets.length ? { referencePresets } : {}),
       ...(activeFilterPresetId ? { activePresetId: activeFilterPresetId } : {}),
     };
     const serializedPreferences = JSON.stringify(nextPracticePreferences);
@@ -962,7 +964,7 @@
 <QuestionBankView
   bind:rootElement bind:documentId bind:initializationPreview bind:systemDocumentId bind:rebindingPreview
   bind:view bind:composerOpen bind:examMode bind:autoScanDocument bind:dataPanelOpen bind:dataPanelUserControlled bind:fileInput
-  bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:optionOrder bind:filter bind:filterPresets bind:activeFilterPresetId
+  bind:scanPanelOpen bind:scanPanelUserControlled bind:scanDetailsOpen bind:pendingReplacement bind:topicId bind:order bind:optionOrder bind:filter bind:filterPresets bind:referencePresets bind:activeFilterPresetId
   bind:endConfirmation bind:answerCardOpen
   {currentQuestion} {topicResources} {persistTopicResource} {persistingTopicResourceIdentity} {persistedTopicResourceIdentities}
   {buildRevision} {showPracticeTitle} {showPracticeBreadcrumb} {label} {translations} {onClose} {busy} {questionIndex} {queue} {completedQuestionIndices} {documentPathHighlights} {onDocumentPathHighlightsChange}

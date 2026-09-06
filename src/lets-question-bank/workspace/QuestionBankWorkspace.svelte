@@ -112,6 +112,7 @@
   export let optionOrder: PracticeOptionOrder = "random";
   export let filter: PracticeFilter = "all";
   export let filterPresets: PracticeFilterPreset[] = [];
+  export let referencePresets: PracticeFilterPreset[] = [];
   export let activeFilterPresetId: string | undefined = undefined;
   export let bookmarkedQuestions = 0;
   export let startPractice: () => void;
@@ -347,6 +348,7 @@
       bind:optionOrder
       bind:filter
       bind:filterPresets
+      bind:referencePresets
       bind:activeFilterPresetId
       {startPractice}
     />

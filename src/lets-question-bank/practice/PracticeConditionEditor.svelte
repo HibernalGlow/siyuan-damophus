@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Check, Save, Trash2 } from "lucide-svelte";
+  import { BookMarked, Check, ChevronRight, FolderOutput, ListFilter, Lock, Save, Trash2 } from "lucide-svelte";
   import { Input } from "@/components/ui/input";
   import * as Select from "@/components/ui/select";
+  import * as Collapsible from "@/components/ui/collapsible";
   import { Button } from "@/components/ui/button";
   import ConditionEditorDialog from "@/components/condition-editor/ConditionEditorDialog.svelte";
   import { renameGroupInQuery } from "@/components/condition-editor/rename-group";
-  import type { PracticeFilterPreset } from "./practice-preferences";
+  import type { PracticeFilterPreset, PracticeReferenceTemplate } from "./practice-preferences";
+  import { PRACTICE_REFERENCE_TEMPLATES } from "./practice-preferences";
   import type { PracticeFilter, PracticeFilterField } from "@/question-bank/core/scope";
   import {
     practiceFilterToQuery,
@@ -25,6 +27,7 @@
   export let filter: PracticeFilter = "all";
   export let presets: PracticeFilterPreset[] = [];
   export let activePresetId: string | undefined = undefined;
+  export let referencePresets: PracticeFilterPreset[] = [];
 
   let sourceFilter: PracticeFilter = filter;
   let editorQuery: PracticeQueryGroup = practiceFilterToQuery(filter);
@@ -186,6 +189,71 @@
     editorQuery = renameGroupInQuery(editorQuery, path, name);
   }
 
+  // ---- Reference presets (staged templates, never rendered as launcher chips) ----
+
+  let referencesOpen = false;
+
+  interface ReferenceEntry {
+    id: string;
+    name: string;
+    filter: PracticeFilter;
+    builtin: boolean;
+  }
+
+  let referenceEntries: ReferenceEntry[] = [];
+  $: referenceEntries = [
+    ...PRACTICE_REFERENCE_TEMPLATES.map((template: PracticeReferenceTemplate) => ({
+      id: template.id,
+      name: label(template.nameKey, template.nameFallback),
+      filter: template.filter,
+      builtin: true,
+    })),
+    ...referencePresets.map((preset) => ({ id: preset.id, name: preset.name, filter: preset.filter, builtin: false })),
+  ];
+
+  /** Loads a reference into the editor; the name input pre-fills so saving overwrites a same-named preset or creates a new one. */
+  function loadReference(entry: ReferenceEntry): void {
+    editorQuery = practiceFilterToQuery(entry.filter);
+    newConditionName = entry.name;
+    nameUpdateTarget = undefined;
+  }
+
+  function promotePresetToReference(id: string): void {
+    const preset = presets.find((candidate) => candidate.id === id);
+    if (!preset) return;
+    presets = presets.filter((candidate) => candidate.id !== id);
+    referencePresets = [...referencePresets, preset];
+    if (activePresetId === id) activePresetId = undefined;
+    if (nameUpdateTarget === id) nameUpdateTarget = undefined;
+  }
+
+  function demoteReferenceToPreset(id: string): void {
+    const reference = referencePresets.find((candidate) => candidate.id === id);
+    if (!reference) return;
+    referencePresets = referencePresets.filter((candidate) => candidate.id !== id);
+    presets = [...presets, reference];
+  }
+
+  function deleteReference(id: string): void {
+    referencePresets = referencePresets.filter((candidate) => candidate.id !== id);
+  }
+
+  /** Saves the editor state into the reference library; a same-named reference is updated in place. */
+  function saveReference(): void {
+    const name = newConditionName.trim();
+    if (!name) return;
+    const nextFilter = queryToPracticeFilter(editorQuery);
+    const existing = referencePresets.find((candidate) => candidate.name === name);
+    if (existing) {
+      referencePresets = referencePresets.map((candidate) => (candidate.id === existing.id ? { ...candidate, filter: nextFilter } : candidate));
+    } else {
+      const id = typeof crypto?.randomUUID === "function" ? crypto.randomUUID() : `reference-${Date.now()}`;
+      referencePresets = [...referencePresets, { id, name, filter: nextFilter }];
+    }
+    newConditionName = "";
+    nameUpdateTarget = undefined;
+  }
+
   const bypassLabels = {
     ignore: label("bypassCondition", "忽略此条件"),
     restore: label("restoreCondition", "恢复此条件"),
@@ -276,6 +344,17 @@
                   <Save size={13} aria-hidden="true" />
                   <span>{label("saveFilterCondition", "保存条件")}</span>
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="filter-condition-save-reference"
+                  disabled={!newConditionName.trim()}
+                  title={label("saveAsReference", "存为参考（不占条件位）")}
+                  aria-label={label("saveAsReference", "存为参考（不占条件位）")}
+                  onclick={saveReference}
+                >
+                  <BookMarked size={13} aria-hidden="true" />
+                </Button>
               </div>
             </div>
           {:else}
@@ -308,6 +387,13 @@
                   <button
                     type="button"
                     class="condition-library-delete"
+                    title={label("presetToReference", "转为参考（从条件位收起）")}
+                    aria-label={`${label("presetToReference", "转为参考（从条件位收起）")} ${preset.name}`}
+                    onclick={() => promotePresetToReference(preset.id)}
+                  ><BookMarked size={12} aria-hidden="true" /></button>
+                  <button
+                    type="button"
+                    class="condition-library-delete"
                     title={label("deleteFilterPreset", "删除筛选预设")}
                     aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${preset.name}`}
                     onclick={() => deleteCondition(preset.id)}
@@ -332,9 +418,69 @@
                   <Save size={13} aria-hidden="true" />
                   <span>{label("saveFilterCondition", "保存条件")}</span>
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="filter-condition-save-reference"
+                  disabled={!newConditionName.trim()}
+                  title={label("saveAsReference", "存为参考（不占条件位）")}
+                  aria-label={label("saveAsReference", "存为参考（不占条件位）")}
+                  onclick={saveReference}
+                >
+                  <BookMarked size={13} aria-hidden="true" />
+                </Button>
               </span>
             </div>
           {/if}
+          <Collapsible.Root bind:open={referencesOpen} class="condition-references">
+            <Collapsible.Trigger
+              class="condition-references-toggle"
+              data-testid="condition-references-toggle"
+              title={label("conditionReferencesHint", "参考条件只做草稿底子：载入后改名保存即可变成自己的条件")}
+            >
+              <ChevronRight size={12} aria-hidden="true" class="condition-references-chevron {referencesOpen ? 'open' : ''}" />
+              <span>{label("conditionReferences", "参考条件")}</span>
+              <span class="condition-references-count" data-testid="condition-references-count">{referenceEntries.length}</span>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <div class="condition-references-content" data-testid="condition-references">
+                {#each referenceEntries as entry (entry.id)}
+                  <span class="condition-library-chip condition-reference-chip" data-testid="condition-reference-row">
+                    <button
+                      type="button"
+                      class="condition-library-select"
+                      title={label("loadReference", "载入到编辑器")}
+                      aria-label={`${label("loadReference", "载入到编辑器")} ${entry.name}`}
+                      onclick={() => loadReference(entry)}
+                    >
+                      <ListFilter size={12} aria-hidden="true" />
+                    </button>
+                    <span class="condition-reference-name">{entry.name}</span>
+                    {#if entry.builtin}
+                      <span class="condition-reference-lock" title={label("builtinReference", "内置参考")}><Lock size={11} aria-hidden="true" /></span>
+                    {:else}
+                      <button
+                        type="button"
+                        class="condition-library-delete"
+                        title={label("referenceToPreset", "转回条件位")}
+                        aria-label={`${label("referenceToPreset", "转回条件位")} ${entry.name}`}
+                        onclick={() => demoteReferenceToPreset(entry.id)}
+                      ><FolderOutput size={12} aria-hidden="true" /></button>
+                      <button
+                        type="button"
+                        class="condition-library-delete"
+                        title={label("deleteFilterPreset", "删除筛选预设")}
+                        aria-label={`${label("deleteFilterPreset", "删除筛选预设")} ${entry.name}`}
+                        onclick={() => deleteReference(entry.id)}
+                      ><Trash2 size={12} aria-hidden="true" /></button>
+                    {/if}
+                  </span>
+                {:else}
+                  <p class="condition-references-empty">{label("conditionReferencesEmpty", "还没有参考条件：保存时选「存为参考」，或把常用条件转为参考收起。")}</p>
+                {/each}
+              </div>
+            </Collapsible.Content>
+          </Collapsible.Root>
         </div>
       {/snippet}
     </ConditionEditorDialog>
@@ -497,6 +643,85 @@
   .condition-library-save :global(button) {
     flex: 0 0 auto;
     min-height: 28px;
+  }
+
+  /* Reference presets: a collapsed staging row inside the editor library —
+     never rendered among the launcher's condition chips. The Root/Trigger
+     classes land on bits-ui elements, so they need :global under the scoped
+     library ancestor. */
+  .condition-library :global(.condition-references) {
+    min-width: 0;
+  }
+
+  .condition-library :global(.condition-references-toggle) {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--b3-theme-on-surface);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .condition-library :global(.condition-references-toggle:hover) { color: var(--b3-theme-primary); }
+
+  .condition-library :global(.condition-references-chevron) {
+    flex: 0 0 auto;
+    transition: transform 120ms ease;
+  }
+
+  .condition-library :global(.condition-references-chevron.open) { transform: rotate(90deg); }
+
+  .condition-references-count {
+    min-width: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--b3-theme-primary) 10%, transparent);
+    color: var(--b3-theme-primary);
+    font-size: 10px;
+    line-height: 14px;
+    text-align: center;
+  }
+
+  .condition-references-content {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 0 2px;
+  }
+
+  .condition-reference-chip .condition-reference-name {
+    min-width: 0;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--b3-theme-on-surface);
+    font-size: 12px;
+  }
+
+  .condition-reference-lock {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    color: var(--b3-theme-on-surface);
+    opacity: 0.6;
+  }
+
+  .condition-references-empty {
+    margin: 0;
+    color: var(--b3-theme-on-surface);
+    font-size: 11px;
+    line-height: 1.5;
   }
 
   @media (max-width: 640px) {

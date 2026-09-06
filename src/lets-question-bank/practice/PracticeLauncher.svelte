@@ -52,6 +52,7 @@
   export let filter: PracticeFilter = "all";
   export let filterPresets: PracticeFilterPreset[] = [];
   export let activeFilterPresetId: string | undefined = undefined;
+  export let referencePresets: PracticeFilterPreset[] = [];
   export let startPractice: () => void;
   export let includeSubdocuments = false;
   export let toggleIncludeSubdocuments: (checked: boolean) => void = () => {};
@@ -262,6 +263,7 @@
           bind:filter
           bind:presets={filterPresets}
           bind:activePresetId={activeFilterPresetId}
+          bind:referencePresets
         />
       </fieldset>
     </div>

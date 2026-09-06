@@ -1,5 +1,14 @@
 import type { PracticeOptionOrder, PracticeOrder } from "@/question-bank/application/practice";
-import { normalizePracticeFilter, type PracticeFilter } from "@/question-bank/core/scope";
+import {
+  normalizePracticeFilter,
+  type PracticeFilter,
+  type PracticeFilterField,
+  type PracticeFilterOperator,
+  type PracticeFilterRule,
+  type PracticeFilterRuleValue,
+  type PracticeFilterValue,
+} from "@/question-bank/core/scope";
+import type { MasteryRating } from "@/question-bank/core/types";
 
 export interface PracticeFilterPreset {
   id: string;
@@ -13,7 +22,67 @@ export interface PracticePreferences {
   filter: PracticeFilter;
   presets?: PracticeFilterPreset[];
   activePresetId?: string;
+  /** Reference templates: staged starting points, never rendered as launcher chips. */
+  referencePresets?: PracticeFilterPreset[];
 }
+
+/** A read-only reference template shipped with the plugin; loaded into the editor, then saved as a preset. */
+export interface PracticeReferenceTemplate {
+  id: string;
+  nameKey: string;
+  nameFallback: string;
+  filter: PracticeFilter;
+}
+
+const referenceRule = (
+  field: PracticeFilterField,
+  filter: PracticeFilterOperator,
+  value?: PracticeFilterRuleValue,
+  includes?: Array<PracticeFilterValue | MasteryRating>,
+): PracticeFilterRule => ({
+  field,
+  type: "tuple",
+  filter,
+  ...(value !== undefined ? { value } : {}),
+  ...(includes ? { includes } : {}),
+});
+
+/** Built-in reference templates: canonical wrong-question redo combos for round two and beyond. */
+export const PRACTICE_REFERENCE_TEMPLATES: PracticeReferenceTemplate[] = [
+  {
+    id: "builtin-wrong-redo",
+    nameKey: "lets-question-bank.referenceWrongRedo",
+    nameFallback: "Wrong questions, next round",
+    filter: {
+      glue: "and",
+      rules: [
+        referenceRule("wrong", "equal", "yes"),
+        referenceRule("latest_rating", "equal", undefined, ["again", "hard"]),
+      ],
+    },
+  },
+  {
+    id: "builtin-stubborn-wrong",
+    nameKey: "lets-question-bank.referenceStubbornWrong",
+    nameFallback: "Stubborn wrong questions",
+    filter: {
+      glue: "and",
+      rules: [referenceRule("wrong_count", "greaterOrEqual", 2)],
+    },
+  },
+  {
+    id: "builtin-weekly-redo",
+    nameKey: "lets-question-bank.referenceWeeklyRedo",
+    nameFallback: "Weekly wrong redo",
+    filter: {
+      glue: "and",
+      rules: [
+        referenceRule("wrong", "equal", "yes"),
+        referenceRule("last_answered_days", "greaterOrEqual", 7),
+      ],
+    },
+  },
+];
 
 export const DEFAULT_PRACTICE_PREFERENCES: PracticePreferences = {
   order: "sequential",
@@ -39,7 +108,7 @@ function normalizePracticePresets(value: unknown): PracticeFilterPreset[] {
   }, []);
 }
 
-function resolvePresetState(value: unknown, fallbackFilter: PracticeFilter): Pick<PracticePreferences, "filter" | "presets" | "activePresetId"> {
+function resolvePresetState(value: unknown, fallbackFilter: PracticeFilter): Pick<PracticePreferences, "filter" | "presets" | "activePresetId" | "referencePresets"> {
   const candidate = value && typeof value === "object" ? value as Partial<PracticePreferences> : {};
   const hasPresets = Array.isArray(candidate.presets);
   const presets = normalizePracticePresets(candidate.presets);
@@ -47,10 +116,13 @@ function resolvePresetState(value: unknown, fallbackFilter: PracticeFilter): Pic
     ? candidate.activePresetId
     : undefined;
   const activePreset = activePresetId ? presets.find((preset) => preset.id === activePresetId) : undefined;
+  const hasReferencePresets = Array.isArray(candidate.referencePresets);
+  const referencePresets = normalizePracticePresets(candidate.referencePresets);
   return {
     filter: activePreset ? activePreset.filter : normalizePracticeFilter(candidate.filter, fallbackFilter),
     ...(hasPresets ? { presets } : {}),
     ...(activePresetId ? { activePresetId } : {}),
+    ...(hasReferencePresets ? { referencePresets } : {}),
   };
 }
 

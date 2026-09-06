@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { normalizePracticeFilter } from "@/question-bank/core/scope";
+import { queryToPracticeFilter, practiceFilterToQuery } from "./practice-querybuilder-adapter";
 import {
   DEFAULT_PRACTICE_PREFERENCES,
   normalizePracticeDefaults,
+  PRACTICE_REFERENCE_TEMPLATES,
   resolvePracticePreferences,
 } from "./practice-preferences";
 
@@ -67,5 +70,31 @@ describe("practice preferences", () => {
     expect(preferences.presets?.[1].id).toBe("favorites-2");
     expect(preferences.filter).toBe("bookmarked");
     expect(preferences.activePresetId).toBe("favorites");
+  });
+
+  it("normalizes reference presets independently of the launcher presets", () => {
+    const preferences = resolvePracticePreferences({
+      presets: [{ id: "kept", name: "Kept", filter: "review" }],
+      referencePresets: [
+        { id: "ref", name: " Ref ", filter: { glue: "and", rules: [{ field: "latest_rating", type: "tuple", filter: "equal", includes: ["again", "hard"] }] } },
+        { name: "", filter: "all" },
+      ],
+    }, DEFAULT_PRACTICE_PREFERENCES);
+
+    expect(preferences.presets).toHaveLength(1);
+    expect(preferences.referencePresets).toHaveLength(1);
+    expect(preferences.referencePresets?.[0]).toMatchObject({ id: "ref", name: "Ref" });
+    expect(preferences.referencePresets?.[0].filter).toEqual({
+      glue: "and",
+      rules: [{ field: "latest_rating", type: "tuple", filter: "equal", includes: ["again", "hard"] }],
+    });
+  });
+
+  it("ships built-in reference templates with valid round-trippable filters", () => {
+    expect(PRACTICE_REFERENCE_TEMPLATES.length).toBeGreaterThanOrEqual(3);
+    for (const template of PRACTICE_REFERENCE_TEMPLATES) {
+      const query = practiceFilterToQuery(template.filter);
+      expect(queryToPracticeFilter(query)).toEqual(normalizePracticeFilter(template.filter));
+    }
   });
 });

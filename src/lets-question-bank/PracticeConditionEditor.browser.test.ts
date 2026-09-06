@@ -11,13 +11,13 @@ function translation(source: Record<string, string>) {
   return (key: string, fallback: string) => source[`lets-question-bank.${key}`] ?? fallback;
 }
 
-async function render(filter: PracticeFilter, width = "100%") {
+async function render(filter: PracticeFilter, width = "100%", extraProps: Record<string, unknown> = {}) {
   const target = document.createElement("div");
   target.style.width = width;
   document.body.appendChild(target);
   mounted = mount(PracticeConditionEditor, {
     target,
-    props: { filter, label: translation(en) },
+    props: { filter, label: translation(en), ...extraProps },
   });
   await tick();
 }
@@ -332,5 +332,82 @@ describe("practice condition editor", () => {
     expect(dialog.style.width).toBe("100vw");
     expect(dialog.style.left).toBe("0px");
     expect(dialog.style.maxHeight).toBe("100dvh");
+  });
+
+  it("keeps reference presets collapsed by default and counts built-ins", async () => {
+    await render("all");
+    openEditorProgrammatically();
+    await tick();
+
+    const toggle = document.querySelector<HTMLElement>('[data-testid="condition-references-toggle"]')!;
+    expect(toggle).not.toBeNull();
+    // Built-in templates are counted; user references would add to the count.
+    expect(document.querySelector('[data-testid="condition-references-count"]')?.textContent).toBe("3");
+    // Collapsed by default: rows exist in the DOM (bits-ui keeps them mounted) but are hidden.
+    const content = document.querySelector<HTMLElement>('[data-testid="condition-references"]')!;
+    expect(content.checkVisibility()).toBe(false);
+
+    toggle.click();
+    await tick();
+    expect(content.checkVisibility()).toBe(true);
+    expect(document.querySelectorAll('[data-testid="condition-reference-row"]')).toHaveLength(3);
+  });
+
+  it("loads a built-in reference into the editor and saves it as a new condition", async () => {
+    await render("all");
+    openEditorProgrammatically();
+    await tick();
+
+    document.querySelector<HTMLElement>('[data-testid="condition-references-toggle"]')!.click();
+    await tick();
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-testid="condition-reference-row"]')];
+    expect(rows.length).toBe(3);
+    // The first built-in is the wrong-question redo template.
+    rows[0].querySelector<HTMLButtonElement>("button")!.click();
+    await tick();
+
+    const rules = [...document.querySelectorAll<HTMLElement>(".rule")].map((item) => item.innerText);
+    expect(rules).toHaveLength(2);
+    expect(rules[0]).toContain("Wrong-answer status");
+    expect(rules[1]).toContain("Latest rating");
+
+    // The name input pre-fills with the reference name; saving creates a preset.
+    const nameInput = document.querySelector<HTMLInputElement>('[data-testid="filter-condition-new-name"]')!;
+    expect(nameInput.value).toBe("Wrong questions, next round");
+    document.querySelector<HTMLButtonElement>('[data-testid="filter-condition-save"]')!.click();
+    await tick();
+
+    const presetRows = [...document.querySelectorAll<HTMLElement>('[data-testid="filter-condition-row"]')];
+    expect(presetRows).toHaveLength(1);
+    expect(presetRows[0].querySelector<HTMLInputElement>("input")?.value).toBe("Wrong questions, next round");
+  });
+
+  it("moves a condition to references and back", async () => {
+    await render("all", "100%", {
+      presets: [{ id: "p1", name: "MyCond", filter: "wrong" }],
+    });
+    openEditorProgrammatically();
+    await tick();
+
+    expect(document.querySelectorAll('[data-testid="filter-condition-row"]')).toHaveLength(1);
+    expect(document.querySelector('[data-testid="condition-references-count"]')?.textContent).toBe("3");
+
+    [...document.querySelectorAll<HTMLButtonElement>('[data-testid="filter-condition-row"] button')]
+      .find((button) => button.getAttribute("title")?.includes("Move to references"))!
+      .click();
+    await tick();
+
+    expect(document.querySelectorAll('[data-testid="filter-condition-row"]')).toHaveLength(0);
+    expect(document.querySelector('[data-testid="condition-references-count"]')?.textContent).toBe("4");
+
+    document.querySelector<HTMLElement>('[data-testid="condition-references-toggle"]')!.click();
+    await tick();
+    const referenceRows = [...document.querySelectorAll<HTMLElement>('[data-testid="condition-reference-row"]')];
+    expect(referenceRows).toHaveLength(4);
+    [...referenceRows[3].querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.getAttribute("title")?.includes("Move back to conditions"))!
+      .click();
+    await tick();
+    expect(document.querySelectorAll('[data-testid="filter-condition-row"]')).toHaveLength(1);
   });
 });
