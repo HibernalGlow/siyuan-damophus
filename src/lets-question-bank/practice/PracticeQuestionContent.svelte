@@ -540,34 +540,51 @@
     .answer-summary > strong[data-answer-result] { animation: none; }
   }
 
-  @container (max-width: 960px) {
-    .question { padding: 12px 14px 6px; }
-    .question-heading { gap: 8px; }
-    .question-title { gap: 6px; }
-    .question-heading h2 { font-size: 16px; }
-    .stem { margin-top: 8px; line-height: 1.65; }
-    .stem > :global([data-node-id]),
-    .group-material .native-content > :global([data-node-id]) {
+  
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question { padding: 12px 14px 6px; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading { gap: 8px; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question-title { gap: 6px; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading h2 { font-size: 16px; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .stem { margin-top: 8px; line-height: 1.65; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .stem > :global([data-node-id]), .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .group-material .native-content > :global([data-node-id]) {
       margin-block: 0 10px !important;
       padding-left: 8px !important;
       padding-right: 0 !important;
     }
-    .group-material { margin-top: 10px; padding-block: 9px; }
-    .options { margin-top: 12px; gap: 7px; }
-    .options > :global(button.option) { padding: 5px 8px; }
-    .answer { margin-top: 10px; padding: 14px 14px 18px; }
-  }
 
-  @container (max-width: 760px) {
-    .question { padding: 12px 12px 6px; }
-    .question-heading { gap: 8px; }
-    .question-title { gap: 6px; }
-    .question-heading h2 { font-size: 16px; }
-    .stem { margin-top: 8px; line-height: 1.65; }
-    .group-material { margin-top: 10px; padding-block: 9px; }
-    .options { margin-top: 12px; gap: 7px; }
-    .option-label { width: 22px; height: 22px; border-radius: 5px; }
-  }
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .group-material { margin-top: 10px; padding-block: 9px; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .options { margin-top: 12px; gap: 7px; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .options > :global(button.option) { padding: 5px 8px; }
+
+    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .answer { margin-top: 10px; padding: 14px 14px 18px; }
+
+  
+
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question { padding: 12px 12px 6px; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading { gap: 8px; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-title { gap: 6px; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading h2 { font-size: 16px; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .stem { margin-top: 8px; line-height: 1.65; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .group-material { margin-top: 10px; padding-block: 9px; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .options { margin-top: 12px; gap: 7px; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .option-label { width: 22px; height: 22px; border-radius: 5px; }
+
+  
 
   @media (max-height: 620px) {
     .options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -577,9 +594,10 @@
     .options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
 
-  @container (max-width: 560px) {
-    .options { grid-template-columns: 1fr; }
-  }
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .options { grid-template-columns: 1fr; }
+
+  
 
   @media (max-width: 750px) {
     .source-block-host :global(.protyle-scroll),

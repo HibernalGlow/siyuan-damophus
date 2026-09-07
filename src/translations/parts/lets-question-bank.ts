@@ -637,6 +637,10 @@ export const en = {
   "lets-question-bank.fabUnpin": "Unpin to float",
   "lets-question-bank.fabLongPressPin": "Long-press to pin, drag to move",
   "lets-question-bank.fabLongPressUnpin": "Long-press to float",
+  "lets-question-bank.uiModeTitle": "Interface layout",
+  "lets-question-bank.uiModeAuto": "Auto (follow panel width)",
+  "lets-question-bank.uiModeMobile": "Mobile UI",
+  "lets-question-bank.uiModeDesktop": "Desktop UI",
 };
 
 export const zhCN: typeof en = {
@@ -1278,4 +1282,8 @@ export const zhCN: typeof en = {
   "lets-question-bank.fabUnpin": "取消钉住，恢复悬浮",
   "lets-question-bank.fabLongPressPin": "长按钉回标题栏，拖动可移动",
   "lets-question-bank.fabLongPressUnpin": "长按改为悬浮球",
+  "lets-question-bank.uiModeTitle": "界面布局",
+  "lets-question-bank.uiModeAuto": "自动（跟随宽度）",
+  "lets-question-bank.uiModeMobile": "移动端 UI",
+  "lets-question-bank.uiModeDesktop": "桌面端 UI",
 };

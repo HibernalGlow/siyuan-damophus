@@ -379,31 +379,36 @@
     max-width: none;
   }
 
-  @container (max-width: 520px) {
-    .question-bank-display-select {
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-display-select {
       grid-template-columns: 1fr;
       gap: 12px;
     }
-  }
 
-  @container (max-width: 680px) {
-    .question-bank-settings-navigation :global([data-slot="button"]) {
+  
+
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings-navigation :global([data-slot="button"]) {
       width: 32px;
       padding: 4px;
     }
 
-    .question-bank-settings.mobile .question-bank-settings-navigation :global([data-slot="button"]) {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings.mobile .question-bank-settings-navigation :global([data-slot="button"]) {
       width: 100%;
     }
 
-    .question-bank-settings-navigation-label {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings-navigation-label {
       display: none;
     }
 
-    .question-bank-settings-navigation::-webkit-scrollbar {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings-navigation::-webkit-scrollbar {
       display: none;
     }
-  }
+
+  
 
   @media (max-width: 640px) {
     .question-bank-settings-header {

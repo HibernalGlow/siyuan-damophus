@@ -141,8 +141,8 @@
   /* Desktop keeps the document row and the unfinished list inline. */
   .workspace-fab { display: none; }
 
-  @container (max-width: 760px) {
-    .workspace-fab {
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-fab {
       position: absolute;
       right: 14px;
       bottom: calc(120px + env(safe-area-inset-bottom, 0px));
@@ -163,15 +163,18 @@
       -webkit-touch-callout: none;
     }
 
-    .workspace-fab.dragging { cursor: grabbing; }
 
-    .workspace-fab.open {
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-fab.dragging { cursor: grabbing; }
+
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-fab.open {
       background: var(--b3-theme-surface);
       color: var(--b3-theme-on-background);
       box-shadow: 0 8px 22px rgb(0 0 0 / 18%);
     }
 
-    .workspace-fab em {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-fab em {
       position: absolute;
       top: -2px;
       right: -2px;
@@ -188,5 +191,6 @@
       font-variant-numeric: tabular-nums;
       box-shadow: 0 0 0 2px var(--b3-theme-background);
     }
-  }
+
+  
 </style>

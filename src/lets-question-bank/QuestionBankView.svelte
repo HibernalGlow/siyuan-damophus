@@ -349,6 +349,8 @@
   class="question-bank damophus-theme-root damophus-question-bank-theme flex h-full min-h-0 flex-col overflow-hidden"
   data-testid="question-bank"
   data-practice-active={currentQuestion ? "true" : "false"}
+  data-ui-mode={uiMode}
+  data-ui-width={uiWidth}
 >
   <PracticeHeader
     currentQuestion={currentQuestion}
@@ -373,7 +375,7 @@
     {durationComparisonPosition}
     {breadcrumbItems}
     currentQuestionBlockId={currentQuestionBlockId}
-    {mobileBreadcrumb}
+    mobileBreadcrumb={effectiveMobileBreadcrumb}
     {breadcrumbPriority}
     {breadcrumbTextDisplay}
     {openQuestionSource}
@@ -467,6 +469,22 @@
             </Tabs.Trigger>
           </Tabs.List>
         </Tabs.Root>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="question-bank-home-ui-mode"
+          title={`${label("uiModeTitle", "界面布局")} · ${uiModeLabelText}`}
+          aria-label={`${label("uiModeTitle", "界面布局")} · ${uiModeLabelText}`}
+          onclick={cycleUiMode}
+        >
+          {#if uiMode === "mobile"}
+            <Smartphone size={17} aria-hidden="true" />
+          {:else if uiMode === "desktop"}
+            <Monitor size={17} aria-hidden="true" />
+          {:else}
+            <MonitorSmartphone size={17} aria-hidden="true" />
+          {/if}
+        </Button>
         {#if onClose}
           <Button variant="ghost" size="icon" class="question-bank-home-close" title={label("close", "Close")} aria-label={label("close", "Close")} onclick={onClose}>
             <X size={17} aria-hidden="true" />

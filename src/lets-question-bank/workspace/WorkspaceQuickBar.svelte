@@ -210,8 +210,8 @@
   /* Desktop keeps the full inline layout, so the floating shortcut bar is mobile-only. */
   .workspace-quick-bar { display: none; }
 
-  @container (max-width: 760px) {
-    .workspace-quick-bar {
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-quick-bar {
       /* Pinned to the bottom of the visible panel like SiYuan's own floating
          pill: position:absolute (against the positioned question-bank root)
          takes it out of the content flow and ignores both workspace scrolling
@@ -232,9 +232,11 @@
       box-shadow: 0 10px 26px rgb(0 0 0 / 16%);
     }
 
-    .quick-bar-peek { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
-    .peek-card {
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-peek { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-card {
       min-width: 0;
       min-height: 42px;
       padding: 5px 7px;
@@ -246,7 +248,8 @@
       background: var(--b3-theme-surface);
     }
 
-    .peek-icon {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-icon {
       width: 22px;
       height: 22px;
       flex: 0 0 22px;
@@ -257,11 +260,15 @@
       background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
     }
 
-    .peek-copy { min-width: 0; flex: 1 1 auto; display: grid; gap: 0; }
-    .peek-copy strong { font-size: 11.5px; line-height: 1.35; }
-    .peek-copy small { overflow: hidden; color: var(--b3-theme-on-surface); font-size: 10.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 
-    .peek-card :global(button) {
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-copy { min-width: 0; flex: 1 1 auto; display: grid; gap: 0; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-copy strong { font-size: 11.5px; line-height: 1.35; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-copy small { overflow: hidden; color: var(--b3-theme-on-surface); font-size: 10.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-card :global(button) {
       flex: 0 0 auto;
       min-height: 28px;
       max-width: 62px;
@@ -270,7 +277,8 @@
       font-size: 11px;
     }
 
-    .quick-bar-tabs {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tabs {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 2px;
@@ -280,7 +288,8 @@
       background: var(--b3-theme-surface);
     }
 
-    .quick-bar-tab {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab {
       position: relative;
       min-height: 36px;
       min-width: 0;
@@ -298,11 +307,14 @@
       user-select: none;
     }
 
-    .quick-bar-tab > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .quick-bar-tab.active { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); font-weight: 600; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab.active { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); font-weight: 600; }
+
 
     /* Tiny marker: the practice tab opens the answer-mode menu on long press. */
-    .tab-more {
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .tab-more {
       position: absolute;
       top: 5px;
       right: 6px;
@@ -313,7 +325,8 @@
       opacity: 0.5;
     }
 
-    .quick-bar-tab em {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab em {
       min-width: 17px;
       height: 17px;
       flex: 0 0 auto;
@@ -328,10 +341,13 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .quick-bar-tab em.tone-pending { background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent); color: var(--b3-theme-primary); }
-    .quick-bar-tab em.tone-danger { background: color-mix(in srgb, var(--b3-theme-error) 20%, transparent); color: var(--b3-theme-error); }
 
-    .quick-bar-mode-menu {
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab em.tone-pending { background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent); color: var(--b3-theme-primary); }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab em.tone-danger { background: color-mix(in srgb, var(--b3-theme-error) 20%, transparent); color: var(--b3-theme-error); }
+
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu {
       position: absolute;
       /* Anchors above the practice tab (first column), not the floating bubble. */
       left: 10px;
@@ -348,7 +364,8 @@
       transform-origin: bottom left;
     }
 
-    .quick-bar-mode-menu button {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button {
       min-height: 40px;
       display: flex;
       align-items: center;
@@ -363,8 +380,12 @@
       cursor: pointer;
     }
 
-    .quick-bar-mode-menu button span { flex: 1 1 auto; }
-    .quick-bar-mode-menu button.checked { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent); font-weight: 600; }
-    .quick-bar-mode-menu button:hover { background: var(--b3-list-hover); }
-  }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button span { flex: 1 1 auto; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button.checked { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent); font-weight: 600; }
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button:hover { background: var(--b3-list-hover); }
+
+  
 </style>

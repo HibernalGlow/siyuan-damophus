@@ -78,16 +78,18 @@
   border-top: 1px solid var(--b3-border-color);
 }
 
-@container (max-width: 760px) {
-  .workspace-panel {
+
+  .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-panel {
     margin-top: 10px;
   }
 
-  .workspace-panel-trigger {
+
+  .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-panel-trigger {
     min-height: 54px;
     padding: 9px 12px;
   }
-}
+
+
 
 @media (max-width: 768px) {
   .workspace-panel {

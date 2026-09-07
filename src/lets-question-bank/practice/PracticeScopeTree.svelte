@@ -238,15 +238,17 @@
     white-space: nowrap;
   }
 
-  @container (max-width: 700px) {
-    .scope-tree-trigger {
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .scope-tree-trigger {
       min-height: 42px;
       border-radius: 10px;
       font-size: 13px;
     }
 
-    .scope-tree-list :global(.b3-list-item) {
+
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .scope-tree-list :global(.b3-list-item) {
       min-height: 34px;
     }
-  }
+
+  
 </style>

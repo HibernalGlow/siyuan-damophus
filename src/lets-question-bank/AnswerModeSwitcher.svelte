@@ -75,7 +75,8 @@
 
   /* Mobile picks the answer mode from the quick-bar long-press menu instead,
      so the three-tab switcher never renders below the desktop breakpoint. */
-  @container (max-width: 760px) {
-    .answer-mode-switcher { display: none; }
-  }
+  
+    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .answer-mode-switcher { display: none; }
+
+  
 </style>
