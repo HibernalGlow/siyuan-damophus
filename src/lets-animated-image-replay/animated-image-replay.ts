@@ -381,35 +381,107 @@ export const startAnimatedImageReplay = ({
     replayedImages.delete(img);
   };
 
-  const syncOverlay = (controller) => {
-    if (disposed) return;
-    const {img, overlay} = controller;
-    if (!img.isConnected) {
-      disposeController(controller);
-      return;
+  // Overlay sync used to interleave writes and reads: one overlay's styles
+  // were written before the next image's offsets were read, forcing a full
+  // synchronous layout for every single image. With hundreds of embedded
+  // animations arriving in one ResizeObserver batch that meant multi-second
+  // main-thread freezes. syncControllers measures the whole batch first and
+  // writes afterwards, so a batch costs a single reflow, and secondary
+  // triggers (image loads, registration) are coalesced into one frame.
+  const syncControllers = (controllers) => {
+    if (disposed || controllers.length === 0) return;
+    // Pass 1: measure. No DOM writes happen between reads, so the whole
+    // batch costs at most one forced layout instead of one per image.
+    const batch = [];
+    const seen = new Set();
+    for (const controller of controllers) {
+      if (!controller || seen.has(controller) || !activeControllers.has(controller)) continue;
+      seen.add(controller);
+      if (!controller.img.isConnected) {
+        batch.push([controller, null]);
+        continue;
+      }
+      const img = controller.img;
+      batch.push([controller, {
+        offsetParent: img.offsetParent || document.body,
+        left: img.offsetLeft,
+        top: img.offsetTop,
+        width: img.offsetWidth,
+        height: img.offsetHeight,
+      }]);
     }
-    const offsetParent = img.offsetParent || document.body;
-    if (overlay.parentElement !== offsetParent) offsetParent.appendChild(overlay);
-    overlay.hidden = img.offsetWidth === 0 || img.offsetHeight === 0;
-    overlay.style.left = `${img.offsetLeft}px`;
-    overlay.style.top = `${img.offsetTop}px`;
-    overlay.style.width = `${img.offsetWidth}px`;
-    overlay.style.height = `${img.offsetHeight}px`;
+    // Pass 2: write. Overlays are absolutely positioned (out of flow), so
+    // these writes cannot invalidate the measurements taken in pass 1.
+    for (const [controller, reading] of batch) {
+      if (!reading) {
+        disposeController(controller);
+        continue;
+      }
+      const {overlay} = controller;
+      if (overlay.parentElement !== reading.offsetParent) reading.offsetParent.appendChild(overlay);
+      overlay.hidden = reading.width === 0 || reading.height === 0;
+      overlay.style.left = `${reading.left}px`;
+      overlay.style.top = `${reading.top}px`;
+      overlay.style.width = `${reading.width}px`;
+      overlay.style.height = `${reading.height}px`;
+    }
+  };
+
+  const pendingSyncControllers = new Set();
+  let fullSyncQueued = false;
+  let overlaySyncQueued = false;
+  const queueControllerSync = (controller) => {
+    if (disposed) return;
+    pendingSyncControllers.add(controller);
+    scheduleOverlaySync();
+  };
+  const requestFullOverlaySync = () => {
+    if (disposed) return;
+    fullSyncQueued = true;
+    scheduleOverlaySync();
+  };
+  const scheduleOverlaySync = () => {
+    if (disposed || overlaySyncQueued) return;
+    overlaySyncQueued = true;
+    overlaySyncFrame = requestAnimationFrame(() => {
+      overlaySyncFrame = 0;
+      overlaySyncQueued = false;
+      if (disposed) return;
+      let batch;
+      if (fullSyncQueued) {
+        fullSyncQueued = false;
+        pendingSyncControllers.clear();
+        batch = [...activeControllers];
+      } else {
+        if (pendingSyncControllers.size === 0) return;
+        batch = [...pendingSyncControllers];
+        pendingSyncControllers.clear();
+      }
+      syncControllers(batch);
+    });
   };
 
   const resizeObserver = new ResizeObserver((entries) => {
-    entries.forEach(({target}) => {
+    if (disposed) return;
+    // ResizeObserver already coalesces entries per frame; sync the whole
+    // batch with a single measure/write pass inside the same frame.
+    const controllers = [];
+    for (const {target} of entries) {
       const controller = controllersByImage.get(target);
-      if (controller) syncOverlay(controller);
-    });
+      if (controller) controllers.push(controller);
+    }
+    syncControllers(controllers);
   });
 
   const registerController = (controller) => {
     controllersByImage.set(controller.img, controller);
     activeControllers.add(controller);
     resizeObserver.observe(controller.img);
-    controller.img.addEventListener('load', controller.syncOnLoad = () => syncOverlay(controller));
-    syncOverlay(controller);
+    controller.img.addEventListener('load', controller.syncOnLoad = () => queueControllerSync(controller));
+    // The initial ResizeObserver delivery plus the queued sync both cover
+    // first positioning; skip the immediate per-image sync the old code ran
+    // here (one forced layout per registration during document scans).
+    queueControllerSync(controller);
     return controller;
   };
 
@@ -423,17 +495,6 @@ export const startAnimatedImageReplay = ({
     delete controller.img.dataset[PLAYER_STATE_KEY];
     controller.overlay.remove();
   }
-
-  let overlaySyncQueued = false;
-  const scheduleOverlaySync = () => {
-    if (disposed || overlaySyncQueued) return;
-    overlaySyncQueued = true;
-    overlaySyncFrame = requestAnimationFrame(() => {
-      overlaySyncFrame = 0;
-      overlaySyncQueued = false;
-      if (!disposed) [...activeControllers].forEach(syncOverlay);
-    });
-  };
 
   const addImageControls = (img, source, type) => {
     const overlay = document.createElement('span');
@@ -585,7 +646,7 @@ export const startAnimatedImageReplay = ({
           if (!img.closest(LARGE_VIEW_ROOT_SELECTOR)) enhanceImage(img);
         });
       });
-      scheduleOverlaySync();
+      requestFullOverlaySync();
       if (pendingLargeViewSources.length > 0) replayOpenedLargeImage();
     });
   };
@@ -643,7 +704,7 @@ export const startAnimatedImageReplay = ({
     blockHoverReplay();
     if (document.visibilityState === 'visible') resumeHoveredImages();
   };
-  window.addEventListener('resize', scheduleOverlaySync);
+  window.addEventListener('resize', requestFullOverlaySync);
   window.addEventListener('blur', blockHoverReplay);
   window.addEventListener('focus', handleFocus);
   document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -657,8 +718,11 @@ export const startAnimatedImageReplay = ({
     pendingScanRoots.clear();
     window.cancelAnimationFrame(scanFrame);
     window.cancelAnimationFrame(overlaySyncFrame);
+    pendingSyncControllers.clear();
+    fullSyncQueued = false;
+    overlaySyncQueued = false;
     window.clearTimeout(largeViewReplayTimer);
-    window.removeEventListener('resize', scheduleOverlaySync);
+    window.removeEventListener('resize', requestFullOverlaySync);
     window.removeEventListener('blur', blockHoverReplay);
     window.removeEventListener('focus', handleFocus);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
