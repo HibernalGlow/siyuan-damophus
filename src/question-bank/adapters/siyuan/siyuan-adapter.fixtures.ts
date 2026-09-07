@@ -28,6 +28,10 @@ export class MockKernelClient implements SiyuanKernelClient {
   readonly blockRoots = new Map<string, string>();
   readonly blockTypes = new Map<string, string>();
   readonly blockAttrs = new Map<string, Record<string, string>>();
+  /** Raw `ial` strings served by SQL queries that ask for the ial column. */
+  readonly blockIals = new Map<string, string>();
+  /** Human readable paths served by /api/filetree/getHPathByID. */
+  readonly blockPaths = new Map<string, string>();
   readonly attributeViews = new Map<string, RawAttributeView>();
   /** Rendered view bodies served by renderAttributeView, keyed `${avId}/${viewID ?? ""}`. */
   readonly renderViews = new Map<string, any>();
@@ -66,12 +70,24 @@ export class MockKernelClient implements SiyuanKernelClient {
       return [{ doOperations: [{ id }] }] as T;
     }
     if (endpoint === "/api/query/sql") {
-      const ids = [...String(payload.stmt).matchAll(/'(\d{14}-[a-z0-9]{7})'/gu)]
+      const stmt = String(payload.stmt);
+      const ids = [...stmt.matchAll(/'(\d{14}-[a-z0-9]{7})'/gu)]
         .map((match) => match[1]);
+      if (stmt.includes("ial")) {
+        return ids.flatMap((id) => {
+          const ial = this.blockIals.get(id);
+          const root = this.blockRoots.get(id);
+          if (ial === undefined && root === undefined) return [];
+          return [{ id, type: this.blockTypes.get(id), root_id: root, ial }];
+        }) as T;
+      }
       return ids.flatMap((id) => {
         const root = this.blockRoots.get(id);
         return root ? [{ id, type: this.blockTypes.get(id), root_id: root }] : [];
       }) as T;
+    }
+    if (endpoint === "/api/filetree/getHPathByID") {
+      return { path: this.blockPaths.get(payload.id) ?? "" } as T;
     }
     if (endpoint === "/api/attr/setBlockAttrs") {
       this.blockAttrs.set(payload.id, {

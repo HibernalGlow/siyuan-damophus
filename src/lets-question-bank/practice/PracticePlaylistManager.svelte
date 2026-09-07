@@ -55,7 +55,10 @@
   }
   $: if (!open) wasOpen = false;
 
-  $: relationKeys = meta?.keys.filter((key) => key.type === "relation") ?? [];
+  // Both relation columns and the primary/bind column are valid scan sources:
+  // relation columns point at rows of another database, the primary column
+  // points at the blocks bound to the rows of the point database itself.
+  $: sourceKeys = meta?.keys.filter((key) => key.type === "relation" || key.type === "block") ?? [];
   $: canSave = Boolean(name.trim()) && Boolean(pointAvId) && relationKeyIds.length > 0;
   $: editingTriggerText = editingId
     ? playlists.find((item) => item.playlist_id === editingId)?.name ?? editingId
@@ -105,12 +108,21 @@
   async function search(): Promise<void> {
     searching = true;
     message = "";
+    // A pasted block id or database id bypasses the keyword search entirely.
+    let directHit = false;
     try {
-      searchResults = (await controller?.searchPlaylistAttributeViews?.(searchKeyword)) ?? [];
+      const keyword = searchKeyword.trim();
+      const direct = await controller?.resolvePlaylistDatabaseRef?.(keyword);
+      if (direct) {
+        directHit = true;
+        chooseDatabase(direct);
+        return;
+      }
+      searchResults = (await controller?.searchPlaylistAttributeViews?.(keyword)) ?? [];
     } catch (cause) {
       message = cause instanceof Error ? cause.message : String(cause);
     } finally {
-      searched = true;
+      searched = !directHit;
       searching = false;
     }
   }
@@ -125,6 +137,8 @@
     searchResults = [];
     meta = undefined;
     preview = undefined;
+    // Default the playlist name to the database name until the user types one.
+    if (!name.trim() && result.avName) name = result.avName;
     void refreshMeta();
   }
 
@@ -166,13 +180,33 @@
     previewing = true;
     message = "";
     try {
-      preview = await controller?.resolvePlaylist?.(draftPlaylist());
+      // Preview skips question hydration; the practice session resolves fully.
+      preview = controller?.previewPlaylist
+        ? await controller.previewPlaylist(draftPlaylist())
+        : await controller?.resolvePlaylist?.(draftPlaylist());
     } catch (cause) {
       preview = undefined;
       message = cause instanceof Error ? cause.message : String(cause);
     } finally {
       previewing = false;
     }
+  }
+
+  const PREVIEW_QUESTION_LIMIT = 8;
+  const PREVIEW_UNRESOLVED_LIMIT = 30;
+
+  function rowTitleOf(rowItemId: string | undefined): string {
+    if (!rowItemId) return "";
+    return preview?.rows.find((row) => row.rowItemId === rowItemId)?.title || rowItemId;
+  }
+
+  function keyNameOf(keyId: string | undefined): string {
+    if (!keyId) return "";
+    for (const row of preview?.rows ?? []) {
+      const column = row.columns.find((entry) => entry.keyId === keyId);
+      if (column) return column.keyName || keyId;
+    }
+    return keyId;
   }
 
   async function save(): Promise<void> {
@@ -241,7 +275,11 @@
           </div>
         {/if}
         <div class="playlist-db-search">
-          <Input bind:value={searchKeyword} placeholder={label("playlist.searchPlaceholder", "Search databases by keyword")} />
+          <Input
+            bind:value={searchKeyword}
+            placeholder={label("playlist.searchPlaceholder", "Search databases by keyword, block ID, or database ID")}
+            data-testid="playlist-db-search-input"
+          />
           <Button variant="outline" size="sm" disabled={searching} onclick={search} data-testid="playlist-db-search">
             <Search size={13} aria-hidden="true" />
             <span>{label("playlist.search", "Search")}</span>
@@ -262,16 +300,16 @@
       </div>
 
       <div class="playlist-section">
-        <span class="playlist-field-label">{label("playlist.relationKeys", "Relation fields to follow")}</span>
+        <span class="playlist-field-label">{label("playlist.sourceKeys", "Fields to follow")}</span>
         {#if !pointAvId}
           <p class="playlist-hint">{label("playlist.selectDatabaseFirst", "Choose a point database first")}</p>
         {:else if !meta}
           <p class="playlist-hint">{label("playlist.loadingMeta", "Loading database fields...")}</p>
-        {:else if relationKeys.length === 0}
-          <p class="playlist-hint">{label("playlist.noRelationKeys", "This database has no relation fields")}</p>
+        {:else if sourceKeys.length === 0}
+          <p class="playlist-hint">{label("playlist.noSourceKeys", "This database has no relation or bind fields")}</p>
         {:else}
           <div class="playlist-relation-chips" data-testid="playlist-relation-chips">
-            {#each relationKeys as key (key.id)}
+            {#each sourceKeys as key (key.id)}
               <button
                 type="button"
                 class="relation-chip"
@@ -281,10 +319,15 @@
               >
                 {#if relationKeyIds.includes(key.id)}<Check size={12} aria-hidden="true" />{/if}
                 <span>{key.name || key.id}</span>
+                <small data-testid="playlist-key-kind">
+                  {key.type === "block"
+                    ? label("playlist.keyPrimary", "primary/bind")
+                    : label("playlist.keyRelation", "relation")}
+                </small>
               </button>
             {/each}
           </div>
-          <p class="playlist-hint">{label("playlist.relationKeysHint", "Only the selected fields are merged into the practice set")}</p>
+          <p class="playlist-hint">{label("playlist.sourceKeysHint", "Only the selected fields are merged into the practice set")}</p>
         {/if}
       </div>
 
@@ -324,21 +367,74 @@
         {#if preview}
           <div class="playlist-preview-rows">
             {#each preview.rows as row (row.rowItemId)}
-              <div class="playlist-preview-row">
-                <span>{row.title || row.rowItemId}</span>
-                <small>{row.questionCount}</small>
-              </div>
+              <details class="playlist-preview-row" data-testid="playlist-preview-row">
+                <summary>
+                  <span>{row.title || row.rowItemId}</span>
+                  <small>{row.totalQuestions}</small>
+                </summary>
+                <div class="playlist-preview-detail">
+                  {#each row.columns as column (column.keyId)}
+                    <div class="playlist-preview-column" data-testid="playlist-preview-column">
+                      <div class="playlist-preview-column-name">
+                        <span>{column.keyName || column.keyId}</span>
+                        <small>
+                          {column.kind === "primary"
+                            ? label("playlist.keyPrimary", "primary/bind")
+                            : label("playlist.keyRelation", "relation")}
+                        </small>
+                      </div>
+                      {#each column.blocks as block (block.blockId)}
+                        <div class="playlist-preview-block" class:unbound={block.unbound} data-testid="playlist-preview-block">
+                          <div class="playlist-preview-block-line">
+                            <code>{block.blockId}</code>
+                            {#if block.unbound}
+                              <small>{label(`playlist.unresolved.${block.unbound}`, unresolvedFallbacks[block.unbound])}</small>
+                            {:else}
+                              <small>{block.questionCount}</small>
+                            {/if}
+                          </div>
+                          {#if block.questionIds.length > 0}
+                            <div class="playlist-preview-questions">
+                              {#each block.questionIds.slice(0, PREVIEW_QUESTION_LIMIT) as questionId (questionId)}
+                                <code>{questionId}</code>
+                              {/each}
+                              {#if block.questionIds.length > PREVIEW_QUESTION_LIMIT}
+                                <small>+{block.questionIds.length - PREVIEW_QUESTION_LIMIT}</small>
+                              {/if}
+                            </div>
+                          {/if}
+                        </div>
+                      {/each}
+                      {#if column.unboundCount > 0}
+                        <div class="playlist-preview-unbound-line">
+                          {label("playlist.unboundTargets", "{n} unbound relation targets")
+                            .replace("{n}", String(column.unboundCount))}
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              </details>
             {/each}
           </div>
           {#if preview.unresolved.length > 0}
             <div class="playlist-preview-unresolved" data-testid="playlist-preview-unresolved">
               <strong>{label("playlist.unresolvedTitle", "Unresolved")} ({preview.unresolved.length})</strong>
-              {#each preview.unresolved as item (item.reason + ":" + item.blockId)}
+              {#each preview.unresolved.slice(0, PREVIEW_UNRESOLVED_LIMIT) as item (item.reason + ":" + item.blockId + ":" + (item.rowItemId ?? "") + ":" + (item.keyId ?? ""))}
                 <div class="playlist-preview-unresolved-row">
                   <span>{item.blockId}</span>
-                  <small>{label(`playlist.unresolved.${item.reason}`, unresolvedFallbacks[item.reason])}</small>
+                  <small>
+                    {rowTitleOf(item.rowItemId)}
+                    {#if item.keyId}<span> · {keyNameOf(item.keyId)}</span>{/if}
+                    <span> · {label(`playlist.unresolved.${item.reason}`, unresolvedFallbacks[item.reason])}</span>
+                  </small>
                 </div>
               {/each}
+              {#if preview.unresolved.length > PREVIEW_UNRESOLVED_LIMIT}
+                <div class="playlist-preview-unresolved-row">
+                  <small>+{preview.unresolved.length - PREVIEW_UNRESOLVED_LIMIT}</small>
+                </div>
+              {/if}
             </div>
           {/if}
         {/if}
@@ -519,6 +615,13 @@
     transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
   }
 
+  .relation-chip small {
+    padding-left: 2px;
+    font-size: 10px;
+    font-weight: 400;
+    opacity: 0.7;
+  }
+
   .relation-chip:hover {
     border-color: var(--b3-theme-primary);
   }
@@ -568,28 +671,131 @@
   }
 
   .playlist-preview-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 5px 9px;
     border: 1px solid var(--b3-border-color);
     border-radius: 6px;
     background: var(--b3-theme-surface);
     font-size: 12px;
   }
 
-  .playlist-preview-row span {
+  .playlist-preview-row > summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 9px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  .playlist-preview-row > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .playlist-preview-row > summary::before {
+    content: "▸";
+    flex: 0 0 auto;
+    color: var(--b3-theme-on-surface);
+    opacity: 0.6;
+  }
+
+  .playlist-preview-row[open] > summary::before {
+    content: "▾";
+  }
+
+  .playlist-preview-row > summary span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .playlist-preview-row small {
+  .playlist-preview-row > summary small {
     flex: 0 0 auto;
     color: var(--b3-theme-on-surface);
     font-variant-numeric: tabular-nums;
+  }
+
+  .playlist-preview-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 2px 9px 8px 20px;
+  }
+
+  .playlist-preview-column {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px;
+    border: 1px solid color-mix(in srgb, var(--b3-border-color) 70%, transparent);
+    border-radius: 5px;
+  }
+
+  .playlist-preview-column-name {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-weight: 600;
+  }
+
+  .playlist-preview-column-name small {
+    font-weight: 400;
+    opacity: 0.7;
+  }
+
+  .playlist-preview-block {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .playlist-preview-block.unbound code {
+    opacity: 0.6;
+    text-decoration: line-through;
+  }
+
+  .playlist-preview-block-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .playlist-preview-block-line code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    opacity: 0.85;
+  }
+
+  .playlist-preview-block-line small {
+    flex: 0 0 auto;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .playlist-preview-questions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 6px;
+    padding-left: 10px;
+  }
+
+  .playlist-preview-questions code {
+    font-size: 10.5px;
+    opacity: 0.65;
+  }
+
+  .playlist-preview-questions small {
+    opacity: 0.6;
+  }
+
+  .playlist-preview-unbound-line {
+    font-size: 11px;
+    opacity: 0.75;
   }
 
   .playlist-preview-unresolved {
@@ -624,6 +830,10 @@
 
   .playlist-preview-unresolved-row small {
     flex: 0 0 auto;
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     opacity: 0.85;
   }
 

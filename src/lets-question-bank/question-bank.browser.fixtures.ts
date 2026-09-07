@@ -310,7 +310,37 @@ export function mockController(options: {
       questionIds: [objectiveQuestion.id],
       questions: [objectiveQuestion],
       blockIdsByQuestionId: new Map([[objectiveQuestion.id, blockId]]),
-      rows: [{ rowItemId: "row-1", title: "Point One", targetCount: 1, questionCount: 1 }],
+      rows: [{
+        rowItemId: "row-1",
+        title: "Point One",
+        totalQuestions: 1,
+        columns: [{
+          keyId: "20260901000010-key0002",
+          keyName: "Questions",
+          kind: "relation",
+          blocks: [{ blockId, questionCount: 1, questionIds: [objectiveQuestion.id] }],
+          unboundCount: 0,
+        }],
+      }],
+      unresolved: [],
+    })),
+    previewPlaylist: vi.fn(async (playlist: PracticePlaylist): Promise<PlaylistResolution> => ({
+      playlistId: playlist.playlist_id,
+      questionIds: [objectiveQuestion.id],
+      questions: [],
+      blockIdsByQuestionId: new Map(),
+      rows: [{
+        rowItemId: "row-1",
+        title: "Point One",
+        totalQuestions: 1,
+        columns: [{
+          keyId: "20260901000010-key0002",
+          keyName: "Questions",
+          kind: "relation",
+          blocks: [{ blockId, questionCount: 1, questionIds: [objectiveQuestion.id] }],
+          unboundCount: 0,
+        }],
+      }],
       unresolved: [],
     })),
     loadPlaylistAttributeViewMeta: vi.fn(async (avId: string) => ({

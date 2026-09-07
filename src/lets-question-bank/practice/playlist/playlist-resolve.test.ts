@@ -7,6 +7,7 @@ import type { PlaylistResolveDeps } from "./playlist-resolve";
 import {
   convergePlaylistTargets,
   loadAttributeViewMeta,
+  resolveAttributeViewRef,
   resolvePlaylistQuestions,
   searchAttributeViews,
 } from "./playlist-resolve";
@@ -188,14 +189,29 @@ describe("playlist resolve", () => {
     expect(resolution.questions.map((question) => question.id)).toEqual([Q1, Q2, Q3, Q5]);
     expect(resolution.blockIdsByQuestionId.get(Q1)).toBe(`blk-${Q1}`);
 
-    const rows = Object.fromEntries(resolution.rows.map((row) => [row.title, row.questionCount]));
+    const rows = Object.fromEntries(resolution.rows.map((row) => [row.title, row.totalQuestions]));
     expect(rows).toEqual({ "Point One": 4, "Point Two": 1, "Point Three": 0 });
 
-    expect(resolution.unresolved).toEqual([
-      { blockId: ITEM_UNBOUND, reason: "unbound-row" },
-      { blockId: NOT_INDEXED_DOC, reason: "not-indexed" },
-      { blockId: UNKNOWN_BLOCK, reason: "unsupported-block" },
+    // Trace: each column lists the blocks it contributed with their questions.
+    const relationColumn = resolution.rows[0].columns[0];
+    expect(relationColumn.keyId).toBe(REL_KEY);
+    expect(relationColumn.kind).toBe("relation");
+    expect(relationColumn.unboundCount).toBe(1);
+    const byBlock = Object.fromEntries(relationColumn.blocks.map((block) => [block.blockId, block.questionCount]));
+    expect(byBlock).toEqual({
+      [Q1_BLOCK]: 1,
+      [HEADING]: 2,
+      [NOT_INDEXED_DOC]: 1,
+      [UNKNOWN_BLOCK]: 0,
+    });
+    expect(relationColumn.blocks.find((block) => block.blockId === HEADING)?.questionIds).toEqual([Q2, Q3]);
+
+    expect(resolution.unresolved.map((item) => [item.blockId, item.reason])).toEqual([
+      [ITEM_UNBOUND, "unbound-row"],
+      [NOT_INDEXED_DOC, "not-indexed"],
+      [UNKNOWN_BLOCK, "unsupported-block"],
     ]);
+    expect(resolution.unresolved[0]).toMatchObject({ rowItemId: ROW1, keyId: REL_KEY });
   });
 
   it("keeps only the rows selected by the configured view", async () => {
@@ -230,7 +246,93 @@ describe("playlist resolve", () => {
     );
 
     expect(resolution.questionIds).toEqual([]);
-    expect(resolution.rows.map((row) => row.questionCount)).toEqual([0, 0, 0]);
+    expect(resolution.rows.map((row) => row.totalQuestions)).toEqual([0, 0, 0]);
+  });
+
+  it("follows the primary bind column when it is selected", async () => {
+    const client = new MockKernelClient();
+    const av = pointAv();
+    av.keyValues[0].values = [
+      { keyID: POINT_PRIMARY, blockID: ROW1, type: "block", block: { id: Q2_BLOCK, content: "Point One" } },
+      { keyID: POINT_PRIMARY, blockID: ROW2, type: "block", block: { id: HEADING, content: "Point Two" } },
+      { keyID: POINT_PRIMARY, blockID: ROW3, type: "block", block: { content: "Point Three" } },
+    ];
+    client.attributeViews.set(POINT_AV, av);
+    client.blockRoots.set(HEADING, DOC);
+
+    const resolution = await resolvePlaylistQuestions(
+      makeDeps(client),
+      playlistFixture({ relation_key_ids: [POINT_PRIMARY] }),
+    );
+
+    // Q2_BLOCK is indexed directly, HEADING converges to its T1 subtree (Q2, Q3).
+    expect(resolution.questionIds).toEqual([Q2, Q3]);
+    const rows = Object.fromEntries(resolution.rows.map((row) => [row.title, row.totalQuestions]));
+    expect(rows).toEqual({ "Point One": 1, "Point Two": 2, "Point Three": 0 });
+
+    const primaryColumn = resolution.rows[0].columns[0];
+    expect(primaryColumn.kind).toBe("primary");
+    expect(primaryColumn.blocks).toEqual([
+      { blockId: Q2_BLOCK, questionCount: 1, questionIds: [Q2] },
+    ]);
+    expect(resolution.rows[1].columns[0].blocks).toEqual([
+      { blockId: HEADING, questionCount: 2, questionIds: [Q2, Q3] },
+    ]);
+    expect(resolution.rows[2].columns[0].blocks).toEqual([
+      { blockId: ROW3, questionCount: 0, questionIds: [], unbound: "unbound-row" },
+    ]);
+    expect(resolution.unresolved).toEqual([
+      { blockId: ROW3, reason: "unbound-row", rowItemId: ROW3, keyId: POINT_PRIMARY },
+    ]);
+  });
+
+  it("skips hydration when only the preview trace is needed", async () => {
+    const client = new MockKernelClient();
+    client.attributeViews.set(POINT_AV, pointAv());
+    client.attributeViews.set(TARGET_AV, targetAv());
+    client.blockRoots.set(HEADING, DOC);
+    client.blockRoots.set(NOT_INDEXED_DOC, NOT_INDEXED_DOC);
+    client.blockTypes.set(NOT_INDEXED_DOC, "d");
+
+    let hydrateCalls = 0;
+    const deps: PlaylistResolveDeps = {
+      ...makeDeps(client),
+      hydrateQuestionSources: async (questionIds) => {
+        hydrateCalls += 1;
+        return makeDeps(client).hydrateQuestionSources(questionIds);
+      },
+    };
+
+    const preview = await resolvePlaylistQuestions(deps, playlistFixture(), { hydrate: false });
+    expect(hydrateCalls).toBe(0);
+    expect(preview.questionIds).toEqual([Q1, Q2, Q3, Q5]);
+    expect(preview.questions).toEqual([]);
+
+    const full = await resolvePlaylistQuestions(deps, playlistFixture());
+    expect(hydrateCalls).toBe(1);
+    expect(full.questions.map((question) => question.id)).toEqual([Q1, Q2, Q3, Q5]);
+  });
+
+  it("resolves a pasted block id and a pasted database id", async () => {
+    const client = new MockKernelClient();
+    const databaseBlockId = "20260901000009-dbblk01";
+    client.attributeViews.set(POINT_AV, pointAv());
+    client.blockIals.set(databaseBlockId, `{: id="${databaseBlockId}" custom-avs="${POINT_AV}"}`);
+    client.blockPaths.set(databaseBlockId, "/Notes/Point");
+
+    await expect(resolveAttributeViewRef(client, databaseBlockId)).resolves.toEqual({
+      avId: POINT_AV,
+      avName: "Point LPQE",
+      blockId: databaseBlockId,
+      hPath: "/Notes/Point",
+    });
+    await expect(resolveAttributeViewRef(client, POINT_AV)).resolves.toEqual({
+      avId: POINT_AV,
+      avName: "Point LPQE",
+      blockId: "",
+      hPath: "",
+    });
+    await expect(resolveAttributeViewRef(client, "not-an-id")).resolves.toBeUndefined();
   });
 
   it("dedupes repeated question ids inside convergePlaylistTargets", () => {
@@ -265,6 +367,8 @@ describe("playlist resolve", () => {
     const meta = await loadAttributeViewMeta(client, POINT_AV);
     expect(meta.name).toBe("Point LPQE");
     expect(meta.keys.find((key) => key.id === REL_KEY)?.relationAvId).toBe(TARGET_AV);
+    expect(meta.keys.find((key) => key.id === POINT_PRIMARY)?.isPrimary).toBe(true);
+    expect(meta.keys.find((key) => key.id === REL_KEY)?.isPrimary).toBe(false);
     expect(meta.views).toEqual([{ id: VIEW_ID, name: "Todo view", type: "table" }]);
 
     expect((await searchAttributeViews(client, "LPQE")).map((result) => result.avId)).toEqual([POINT_AV]);

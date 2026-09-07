@@ -45,6 +45,7 @@ import {
 } from "./practice/playlist/playlist-repository";
 import {
   loadAttributeViewMeta,
+  resolveAttributeViewRef,
   resolvePlaylistQuestions,
   searchAttributeViews,
   type PlaylistAttributeViewMeta,
@@ -133,8 +134,12 @@ export interface QuestionBankUiController {
   savePracticePlaylist?(playlist: PracticePlaylist): Promise<void>;
   deletePracticePlaylist?(playlistId: string): Promise<void>;
   resolvePlaylist?(playlist: PracticePlaylist): Promise<PlaylistResolution>;
+  /** Fast preview: ids/counts/traces only, skips question hydration. */
+  previewPlaylist?(playlist: PracticePlaylist): Promise<PlaylistResolution>;
   loadPlaylistAttributeViewMeta?(avId: string): Promise<PlaylistAttributeViewMeta>;
   searchPlaylistAttributeViews?(keyword: string): Promise<PlaylistAttributeViewResult[]>;
+  /** Accepts either the id of the block hosting the database or the database id. */
+  resolvePlaylistDatabaseRef?(input: string): Promise<PlaylistAttributeViewResult | undefined>;
   assembleQuestionSet?(input: {
     blueprint: QuestionSetBlueprint;
     catalog: readonly QuestionCatalogEntry[];
@@ -451,12 +456,28 @@ export class QuestionBankController implements QuestionBankUiController {
     }, playlist);
   }
 
+  async previewPlaylist(playlist: PracticePlaylist): Promise<PlaylistResolution> {
+    const runtime = this.options.tinybaseCatalogRuntime;
+    if (!runtime) throw new Error("Playlist resolution requires the catalog runtime");
+    return resolvePlaylistQuestions({
+      client: this.client,
+      loadCatalog: () => runtime.loadCatalog(),
+      loadDocumentBundle: (documentId) => runtime.loadDocumentBundle(documentId),
+      listDocumentTreeIds: (documentId) => runtime.listDocumentTreeIds(documentId),
+      hydrateQuestionSources: (questionIds) => runtime.hydrate(questionIds),
+    }, playlist, { hydrate: false });
+  }
+
   async loadPlaylistAttributeViewMeta(avId: string): Promise<PlaylistAttributeViewMeta> {
     return loadAttributeViewMeta(this.client, avId);
   }
 
   async searchPlaylistAttributeViews(keyword: string): Promise<PlaylistAttributeViewResult[]> {
     return searchAttributeViews(this.client, keyword);
+  }
+
+  async resolvePlaylistDatabaseRef(input: string): Promise<PlaylistAttributeViewResult | undefined> {
+    return resolveAttributeViewRef(this.client, input);
   }
 
   async saveQuestionSetBlueprint(blueprint: QuestionSetBlueprint): Promise<void> {

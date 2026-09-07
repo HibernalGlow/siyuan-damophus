@@ -49,7 +49,11 @@ export function createPlaylistActions(deps: {
     state.activePlaylistId = playlistId;
     state.playlistResolution = undefined;
     state.playlistResolvedRevision = undefined;
-    if (playlistId) void run(() => ensureActivePlaylistResolution());
+    if (playlistId) {
+      void run(async () => {
+        await ensureActivePlaylistResolution();
+      });
+    }
   }
 
   /** Resolves the active playlist unless a matching cached resolution exists. */
