@@ -33,6 +33,7 @@ export class FlashcardRendererCompat {
   private activeBlockId?: string;
   private notifiedBlockId?: string;
   private applyingVisibilityFallback = false;
+  private fallbackQueued = false;
   private domObserver?: MutationObserver;
   private readonly initializedAnswerByBlockId = new Set<string>();
   private readonly initialAnswerByBlockId = new Set<string>();
@@ -54,6 +55,7 @@ export class FlashcardRendererCompat {
   preload(blockId: string, renderer: FlashcardRenderer): void {
     this.ignoredBlockIds.delete(blockId);
     this.rendererByBlockId.set(blockId, renderer);
+    this.scheduleVisibilityFallback();
   }
 
   preloadMany(entries: readonly { blockId: string; renderer: FlashcardRenderer | "unknown" }[]): void {
@@ -61,6 +63,7 @@ export class FlashcardRendererCompat {
       this.ignoredBlockIds.delete(entry.blockId);
       this.rendererByBlockId.set(entry.blockId, entry.renderer);
     }
+    if (entries.length > 0) this.scheduleVisibilityFallback();
   }
 
   /**
@@ -122,7 +125,7 @@ export class FlashcardRendererCompat {
     };
     if (typeof document !== "undefined" && document.body && typeof MutationObserver !== "undefined") {
       this.ensureVisibilityStyle();
-      this.domObserver = new MutationObserver(() => this.applyNativeVisibilityFallback());
+      this.domObserver = new MutationObserver((records) => this.handleDomMutations(records));
       this.domObserver.observe(document.body, { childList: true, subtree: true });
       this.applyNativeVisibilityFallback();
     }
@@ -152,6 +155,55 @@ export class FlashcardRendererCompat {
     this.rendererByBlockId.clear();
     this.ignoredBlockIds.clear();
     this.installed = false;
+  }
+
+  /**
+   * The observer watches the whole document body, so it also sees every
+   * protyle keystroke, caret move, and virtualization swap. Most of those
+   * records cannot touch card UI; skip them instead of re-running the
+   * document-wide fallback scan on every unrelated mutation, and coalesce
+   * the remaining runs into one animation frame.
+   */
+  private handleDomMutations(records: MutationRecord[]): void {
+    for (const record of records) {
+      if (this.mutationMayAffectCardUi(record)) {
+        this.scheduleVisibilityFallback();
+        return;
+      }
+    }
+  }
+
+  private mutationMayAffectCardUi(record: MutationRecord): boolean {
+    const target = record.target;
+    if (target instanceof Element) {
+      if (target.matches('[data-key="dialog-opencard"], .card__block, .card__action')) return true;
+      if (target.closest('[data-key="dialog-opencard"]')) return true;
+    }
+    for (const node of record.addedNodes) {
+      if (this.nodeMayAffectCardUi(node)) return true;
+    }
+    for (const node of record.removedNodes) {
+      if (this.nodeMayAffectCardUi(node)) return true;
+    }
+    return false;
+  }
+
+  private nodeMayAffectCardUi(node: Node): boolean {
+    if (!(node instanceof Element)) return false;
+    if (node.matches('[data-key="dialog-opencard"], .card__block, .card__action')) return true;
+    return node.querySelector('[data-key="dialog-opencard"], .card__block, .card__action') !== null;
+  }
+
+  private scheduleVisibilityFallback(): void {
+    if (this.fallbackQueued || typeof document === "undefined") return;
+    this.fallbackQueued = true;
+    const flush = () => {
+      this.fallbackQueued = false;
+      if (!this.installed) return;
+      this.applyNativeVisibilityFallback();
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(flush);
+    else window.setTimeout(flush, 0);
   }
 
   /**
