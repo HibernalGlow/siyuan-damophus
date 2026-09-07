@@ -1,4 +1,4 @@
-import type { Question, ScanMessage } from "../question-bank/core/types";
+import type { Question, ScanMessage, TopicNode } from "../question-bank/core/types";
 import type { StatisticsQuestion } from "../question-bank/core/statistics";
 import { questionContentSignature } from "../question-bank/assembly/fingerprint";
 import type { QuestionCatalogEntry } from "../question-bank/assembly";
@@ -75,6 +75,15 @@ interface DocumentRow {
   path?: string;
   hpath?: string;
   updated?: string;
+}
+
+/** Scan-derived bundle for one indexed document, served from the scan cache. */
+export interface DocumentScanBundle {
+  documentId: string;
+  questions: Question[];
+  topics: TopicNode[];
+  /** Heading block id -> topic id, inverted from the scan's topic anchors. */
+  topicIdByBlockId: ReadonlyMap<string, string>;
 }
 
 function previewHash(value: unknown): string {
@@ -235,6 +244,27 @@ export class TinyBaseSiyuanCatalogRuntime {
 
   async listDocumentTreeIds(documentId: string): Promise<string[]> {
     return (await this.listDocumentTreeRows(documentId)).map((row) => row.id);
+  }
+
+  /**
+   * Cached scan bundle for one indexed document: the scanned questions, the
+   * heading topic forest, and the heading-block -> topic-id inversion used to
+   * expand a topic heading into its descendant questions.
+   */
+  async loadDocumentBundle(documentId: string): Promise<DocumentScanBundle | undefined> {
+    const source = await this.documentRow(documentId);
+    if (!source?.box) return undefined;
+    const scan = await this.cachedScan(documentId, source.updated);
+    const topicIdByBlockId = new Map<string, string>();
+    for (const [topicId, blockId] of scan.topicBlockIdsByTopicId) {
+      if (blockId) topicIdByBlockId.set(blockId, topicId);
+    }
+    return {
+      documentId,
+      questions: scan.report.document.questions,
+      topics: scan.report.document.topics,
+      topicIdByBlockId,
+    };
   }
 
   async listSourceDocuments(): Promise<QuestionSourceDocument[]> {

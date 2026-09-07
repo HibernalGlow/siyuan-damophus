@@ -38,6 +38,20 @@ import { shouldAutoCreateQuickCard } from "@/question-bank/application/review";
 import type { QuestionSourceDocument, HydratedQuestionSource } from "@/question-bank/adapters/siyuan/source-catalog";
 import { loadSourceBlockIdentity, type SourceBlockIdentity } from "./source/source-identity";
 import type { PracticeSessionSnapshot, PracticeSessionSnapshotParseResult } from "@/question-bank/core";
+import {
+  deletePracticePlaylist,
+  listPracticePlaylists,
+  savePracticePlaylist,
+} from "./practice/playlist/playlist-repository";
+import {
+  loadAttributeViewMeta,
+  resolvePlaylistQuestions,
+  searchAttributeViews,
+  type PlaylistAttributeViewMeta,
+  type PlaylistAttributeViewResult,
+  type PlaylistResolution,
+} from "./practice/playlist/playlist-resolve";
+import type { PracticePlaylist } from "./practice/playlist/playlist-schema";
 import type {
   PracticeSessionLeaseCoordinator,
   PracticeSessionRepository,
@@ -115,6 +129,12 @@ export interface QuestionBankUiController {
   listQuestionSetBlueprints?(): Promise<QuestionSetBlueprint[]>;
   saveQuestionSetBlueprint?(blueprint: QuestionSetBlueprint): Promise<void>;
   removeQuestionSetBlueprint?(blueprintId: string): Promise<void>;
+  listPracticePlaylists?(): Promise<PracticePlaylist[]>;
+  savePracticePlaylist?(playlist: PracticePlaylist): Promise<void>;
+  deletePracticePlaylist?(playlistId: string): Promise<void>;
+  resolvePlaylist?(playlist: PracticePlaylist): Promise<PlaylistResolution>;
+  loadPlaylistAttributeViewMeta?(avId: string): Promise<PlaylistAttributeViewMeta>;
+  searchPlaylistAttributeViews?(keyword: string): Promise<PlaylistAttributeViewResult[]>;
   assembleQuestionSet?(input: {
     blueprint: QuestionSetBlueprint;
     catalog: readonly QuestionCatalogEntry[];
@@ -398,6 +418,45 @@ export class QuestionBankController implements QuestionBankUiController {
 
   async listQuestionSetBlueprints(): Promise<QuestionSetBlueprint[]> {
     return this.requireTinyBase().listBlueprints();
+  }
+
+  private playlistSettingsIo() {
+    return {
+      getSetting: (key: string) => this.options.getSetting(key),
+      setSetting: (key: string, value: unknown) => this.options.setSetting(key, value),
+    };
+  }
+
+  async listPracticePlaylists(): Promise<PracticePlaylist[]> {
+    return listPracticePlaylists(this.playlistSettingsIo());
+  }
+
+  async savePracticePlaylist(playlist: PracticePlaylist): Promise<void> {
+    await savePracticePlaylist(this.playlistSettingsIo(), playlist);
+  }
+
+  async deletePracticePlaylist(playlistId: string): Promise<void> {
+    await deletePracticePlaylist(this.playlistSettingsIo(), playlistId);
+  }
+
+  async resolvePlaylist(playlist: PracticePlaylist): Promise<PlaylistResolution> {
+    const runtime = this.options.tinybaseCatalogRuntime;
+    if (!runtime) throw new Error("Playlist resolution requires the catalog runtime");
+    return resolvePlaylistQuestions({
+      client: this.client,
+      loadCatalog: () => runtime.loadCatalog(),
+      loadDocumentBundle: (documentId) => runtime.loadDocumentBundle(documentId),
+      listDocumentTreeIds: (documentId) => runtime.listDocumentTreeIds(documentId),
+      hydrateQuestionSources: (questionIds) => runtime.hydrate(questionIds),
+    }, playlist);
+  }
+
+  async loadPlaylistAttributeViewMeta(avId: string): Promise<PlaylistAttributeViewMeta> {
+    return loadAttributeViewMeta(this.client, avId);
+  }
+
+  async searchPlaylistAttributeViews(keyword: string): Promise<PlaylistAttributeViewResult[]> {
+    return searchAttributeViews(this.client, keyword);
   }
 
   async saveQuestionSetBlueprint(blueprint: QuestionSetBlueprint): Promise<void> {

@@ -79,6 +79,9 @@
   import { createPracticeSessionActions } from "./practice/practice-session-actions";
   import { createDocumentScanActions } from "./workspace/document-scan-actions";
   import { createQuestionSetActions } from "./source/question-set-actions";
+  import { createPlaylistActions } from "./practice/playlist/playlist-actions";
+  import type { PracticePlaylist } from "./practice/playlist/playlist-schema";
+  import type { PlaylistResolution } from "./practice/playlist/playlist-resolve";
   import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
   import {
     completionStatusLabel as getCompletionStatusLabel,
@@ -579,6 +582,10 @@
       set assembledSourceKey(value) { assembledSourceKey = value; },
       get assembledSourceLabel() { return assembledSourceLabel; },
       set assembledSourceLabel(value) { assembledSourceLabel = value; },
+      get playlistQuestions() { return playlistResolution?.questions; },
+      get playlistBlockIdsByQuestionId() { return playlistResolution?.blockIdsByQuestionId ?? new Map<string, string>(); },
+      get activePlaylistId() { return activePlaylistId; },
+      get playlistName() { return playlists.find((item) => item.playlist_id === activePlaylistId)?.name; },
       get sourceIdentity() { return sourceIdentity; },
       get recoverableSession() { return recoverableSession; },
       set recoverableSession(value) { recoverableSession = value; },
@@ -627,6 +634,40 @@
     resetPractice,
     exitReview,
   } = practiceSessionActions;
+
+  let playlists: PracticePlaylist[] = [];
+  let playlistManagerOpen = false;
+  let activePlaylistId: string | undefined = undefined;
+  let playlistResolution: PlaylistResolution | undefined = undefined;
+  let playlistResolvedRevision: number | undefined = undefined;
+  let playlistResolving = false;
+
+  const playlistActions = createPlaylistActions({
+    state: {
+      get playlists() { return playlists; },
+      set playlists(value) { playlists = value; },
+      get playlistManagerOpen() { return playlistManagerOpen; },
+      set playlistManagerOpen(value) { playlistManagerOpen = value; },
+      get activePlaylistId() { return activePlaylistId; },
+      set activePlaylistId(value) { activePlaylistId = value; },
+      get playlistResolution() { return playlistResolution; },
+      set playlistResolution(value) { playlistResolution = value; },
+      get playlistResolvedRevision() { return playlistResolvedRevision; },
+      set playlistResolvedRevision(value) { playlistResolvedRevision = value; },
+      get playlistResolving() { return playlistResolving; },
+      set playlistResolving(value) { playlistResolving = value; },
+    },
+    controller,
+    run,
+  });
+  const {
+    loadPlaylists,
+    selectPlaylist,
+    openPlaylistManager,
+    closePlaylistManager,
+    savePlaylist,
+    deletePlaylist,
+  } = playlistActions;
 
   let statisticsSnapshot: StatisticsSnapshot | undefined;
   let statisticsTopicDictionary: TopicDictionaryDocument | undefined;
@@ -680,7 +721,7 @@
     controller,
   });
   $: questions = preview?.scan.report.document.questions ?? [];
-  $: practiceSourceQuestions = assembledQuestions ?? questions;
+  $: practiceSourceQuestions = assembledQuestions ?? playlistResolution?.questions ?? questions;
   $: progressQuestions = questions.filter((question) => question.type !== "group");
   $: examQuestions = createPracticeQueue({
     questions,
@@ -862,6 +903,9 @@
         ...normalizeSubjectQuestionTotals(workspaceTotals),
         ...normalizeSubjectQuestionTotals(controller.getSetting?.("statisticsSubjectQuestionTotals")),
       };
+      // Playlist chips need the saved list right after boot; the guard keeps
+      // test controllers without playlist services quiet.
+      if (controller.listPracticePlaylists) await loadPlaylists();
       await refreshStoredSessions();
     });
     void refreshMarkedIndexTargets();
@@ -988,6 +1032,8 @@
   {syncTopicProgress} toggleSyncTopicProgress={toggleSyncTopicProgress} rebuildTopicProgress={rebuildTopicProgress}
   {recoverableSession} {resumePractice} {confirmRestartPractice} {topics} {startPractice}
   {openQuestionSetComposer} {currentGroup} {displayedOptions} {selectedOptionIds} {revealed} {readOnlyQuestion}
+  {playlists} {activePlaylistId} {playlistResolution} {playlistResolving} {selectPlaylist} {openPlaylistManager}
+  bind:playlistManagerOpen {closePlaylistManager} {savePlaylist} {deletePlaylist}
   {objectiveCorrect} {subjectiveScore} {currentAttempt} {durationComparisons} {durationComparisonPosition} {inheritSourceStyles} {questionRenderMode} {indefinitePracticeMode} {revealActionBelowOptions} {renderedQuestionContent}
   {mountSourceBlock} {questionTypeLabel} {optionMarkdown} {formatDuration} {toggleOption} {changeSubjectiveScore}
   {resetQuestionTimer} {confirmEndPractice} {practiceSaveStatus} {practiceSaveError} {retryPracticeSave}

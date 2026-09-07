@@ -70,6 +70,11 @@ export interface PracticeSessionActionsState {
   assembledBlockIdsByQuestionId: ReadonlyMap<string, string>;
   assembledSourceKey: string;
   assembledSourceLabel: string;
+  /** Active playlist resolution; when set it overrides the document scan. */
+  playlistQuestions: Question[] | undefined;
+  playlistBlockIdsByQuestionId: ReadonlyMap<string, string>;
+  activePlaylistId: string | undefined;
+  playlistName: string | undefined;
   sourceIdentity: SourceBlockIdentity | undefined;
   recoverableSession: PracticeSessionSnapshot | undefined;
   recoveryIssues: PracticeSessionRecoveryIssue[];
@@ -110,7 +115,7 @@ export function createPracticeSessionActions(deps: {
     const session = snapshot.context.session;
     state.sessionId = session.session_id;
     state.queue = session.queue_question_ids
-      .map((questionId) => state.questions.find((question) => question.id === questionId))
+      .map((questionId) => state.practiceSourceQuestions.find((question) => question.id === questionId))
       .filter((question): question is Question => Boolean(question));
     state.completedQuestionIndices = session.completed_question_ids
       .map((questionId) => session.queue_question_ids.indexOf(questionId))
@@ -142,9 +147,13 @@ export function createPracticeSessionActions(deps: {
   }
 
   function sourceBlockId(question: Question | undefined): string | undefined {
-    return question
-      ? (state.assembledQuestions ? state.assembledBlockIdsByQuestionId : state.preview?.scan.blockIdsByQuestionId)?.get(question.id)
-      : undefined;
+    if (!question) return undefined;
+    const map = state.assembledQuestions
+      ? state.assembledBlockIdsByQuestionId
+      : state.playlistQuestions
+        ? state.playlistBlockIdsByQuestionId
+        : state.preview?.scan.blockIdsByQuestionId;
+    return map?.get(question.id);
   }
 
   function correctCurrentAnswer(answer: ObjectiveAnswer): void {
@@ -209,6 +218,20 @@ export function createPracticeSessionActions(deps: {
 
   function practiceQueue(filterOverride: PracticeFilter = state.filter): Question[] {
     if (state.assembledQuestions) return [...state.assembledQuestions];
+    if (state.playlistQuestions) {
+      return createPracticeQueue({
+        questions: state.playlistQuestions,
+        topics: [],
+        rootTopicId: undefined,
+        filter: filterOverride,
+        order: state.order,
+        aggregates: state.aggregates,
+        dueQuestionIds: new Set([...state.dueCards.keys()]),
+        bookmarkedQuestionIds: new Set([...state.bookmarks.keys()].filter((id) => !state.bookmarks.get(id)?.isArchived)),
+        reviewThreshold: state.reviewThreshold,
+        random: deps.random,
+      });
+    }
     return createPracticeQueue({
       questions: state.questions,
       topics: state.topics,
@@ -224,7 +247,7 @@ export function createPracticeSessionActions(deps: {
   }
 
   function startPractice(): void {
-    if (!state.preview) return;
+    if (!state.preview && !state.playlistQuestions) return;
     const nextQueue = practiceQueue();
     if (nextQueue.length === 0) {
       state.queue = [];
@@ -234,6 +257,14 @@ export function createPracticeSessionActions(deps: {
     }
     if (state.recoverableSession) {
       state.pendingReplacement = true;
+      return;
+    }
+    if (state.playlistQuestions && state.activePlaylistId) {
+      void run(() => beginNewPractice(
+        nextQueue,
+        `playlist:${state.activePlaylistId}`,
+        state.playlistName ?? `playlist:${state.activePlaylistId}`,
+      ));
       return;
     }
     void run(() => beginNewPractice(nextQueue));
@@ -259,7 +290,7 @@ export function createPracticeSessionActions(deps: {
     sourceLabel = state.assembledSourceLabel || state.sourceIdentity?.content,
     filterOverride?: PracticeFilter,
   ): Promise<void> {
-    if ((!state.preview && !state.assembledQuestions) || nextQueue.length === 0) return;
+    if ((!state.preview && !state.assembledQuestions && !state.playlistQuestions) || nextQueue.length === 0) return;
     if (deps.getQuestionRenderMode() !== "html" && deps.prepareSourceBlock) {
       const initialBlockIds = nextQueue.slice(0, 2)
         .map((question) => sourceBlockId(question))
@@ -280,8 +311,8 @@ export function createPracticeSessionActions(deps: {
     sourceLabel = state.assembledSourceLabel || state.sourceIdentity?.content,
     filterOverride?: PracticeFilter,
   ): PracticeSessionSnapshot {
-    if ((!state.preview && !state.assembledQuestions) || nextQueue.length === 0) throw new Error("A practice session requires at least one question");
-    if (!state.assembledQuestions && state.preview) {
+    if ((!state.preview && !state.assembledQuestions && !state.playlistQuestions) || nextQueue.length === 0) throw new Error("A practice session requires at least one question");
+    if (!state.assembledQuestions && !state.playlistQuestions && state.preview) {
       controller.saveRecentScope({
         documentId: state.documentId,
         headingBlockId: state.topicId ? state.preview.scan.topicBlockIdsByTopicId.get(state.topicId) : undefined,
@@ -291,7 +322,7 @@ export function createPracticeSessionActions(deps: {
       sessionId: deps.uuid(),
       sourceKey,
       sourceLabel,
-      scopeId: state.assembledQuestions ? undefined : state.topicId || undefined,
+      scopeId: state.assembledQuestions || state.playlistQuestions ? undefined : state.topicId || undefined,
       filter: state.assembledQuestions ? "all" : filterOverride ?? state.filter,
       order: state.assembledQuestions ? "sequential" : state.order,
       queue: nextQueue.map((question) => ({
@@ -308,7 +339,7 @@ export function createPracticeSessionActions(deps: {
 
   function resumePractice(): void {
     const snapshot = state.recoverableSession;
-    if (!snapshot || (!state.preview && !state.assembledQuestions)) return;
+    if (!snapshot || (!state.preview && !state.assembledQuestions && !state.playlistQuestions)) return;
     void run(async () => {
       await resumePracticeSession({
         host: controller,
@@ -416,7 +447,10 @@ export function createPracticeSessionActions(deps: {
         state.assembledQuestions = hydrated.questions;
         state.assembledBlockIdsByQuestionId = hydrated.blockIdsByQuestionId;
         state.assembledSourceKey = stored.sourceKey;
-        state.assembledSourceLabel = parsedStored.snapshot.source_label ?? deps.label("questionSet", "跨文档组卷");
+        state.assembledSourceLabel = parsedStored.snapshot.source_label
+          ?? (stored.sourceKey.startsWith("playlist:")
+            ? deps.label("playlist", "Playlist")
+            : deps.label("questionSet", "跨文档组卷"));
         await resumePracticeSession({
           host: controller,
           snapshot: parsedStored.snapshot,

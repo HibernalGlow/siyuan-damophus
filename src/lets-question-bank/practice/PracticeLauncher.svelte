@@ -27,6 +27,9 @@
   import type { SourceBlockIdentity } from "../controller";
   import PracticeScopeTree from "./PracticeScopeTree.svelte";
   import PracticeConditionEditor from "./PracticeConditionEditor.svelte";
+  import PracticePlaylistManager from "./PracticePlaylistManager.svelte";
+  import type { PracticePlaylist } from "./playlist/playlist-schema";
+  import type { PlaylistResolution } from "./playlist/playlist-resolve";
 
   export let label: (key: string, fallback: string) => string;
   export let preview: QuestionIndexPreview;
@@ -56,10 +59,38 @@
   export let startPractice: () => void;
   export let includeSubdocuments = false;
   export let toggleIncludeSubdocuments: (checked: boolean) => void = () => {};
+  export let playlists: PracticePlaylist[] = [];
+  export let activePlaylistId: string | undefined = undefined;
+  export let playlistResolution: PlaylistResolution | undefined = undefined;
+  export let playlistResolving = false;
+  export let playlistManagerOpen = false;
+  export let selectPlaylist: ((id: string | undefined) => void) | undefined = undefined;
+  export let openPlaylistManager: (() => void) | undefined = undefined;
+  export let closePlaylistManager: (() => void) | undefined = undefined;
+  export let savePlaylist: ((playlist: PracticePlaylist) => Promise<void>) | undefined = undefined;
+  export let deletePlaylist: ((playlistId: string) => Promise<void>) | undefined = undefined;
+  export let controller: any;
 
   $: blocked = preview.blockers.length > 0
     || preview.bindingRepairs.length > 0
     || (!syncComplete && preview.actions.some((action) => action.kind === "add"));
+
+  // A resolved playlist replaces the current-document scope entirely, so the
+  // document blockers no longer gate the start button in playlist mode.
+  $: playlistReady = Boolean(activePlaylistId) && Boolean(playlistResolution);
+  $: startBlocked = busy || (blocked && !playlistReady);
+
+  $: playlistHintText = playlistResolving
+    ? label("playlistResolving", "Resolving playlist...")
+    : playlistResolution
+      ? label("playlistHintScope", "Practice scope comes from the playlist: {n} questions")
+          .replace("{n}", String(playlistResolution.questionIds.length))
+        + (playlistResolution.unresolved.length > 0
+          ? " "
+            + label("playlistHintUnresolved", "({m} unresolved)")
+              .replace("{m}", String(playlistResolution.unresolved.length))
+          : "")
+      : label("playlistHintEmpty", "Playlist not resolved yet");
 
   let conditionEditor: { openNewCondition(): void; openCondition(id: string): void; clearFilter(): void } | undefined;
 
@@ -87,11 +118,11 @@
     </div>
 
     <aside class="practice-launcher-actions" aria-label={label("practiceModes", "答题模式")}>
-      <Button class="practice-primary-action" disabled={busy || blocked} onclick={startPractice}>
+      <Button class="practice-primary-action" disabled={startBlocked} onclick={startPractice}>
         <BookOpenCheck aria-hidden="true" />
         <span><strong>{label("start", "开始练习")}</strong><small>{label("startPracticeHint", "按当前设置立即答题")}</small></span>
       </Button>
-      {#if blocked}
+      {#if startBlocked && blocked}
         <p>{label("practiceBlockedHint", "完成必要的扫描或索引同步后即可开始答题。")}</p>
       {/if}
     </aside>
@@ -203,6 +234,56 @@
         </fieldset>
       </div>
 
+      <fieldset class="control-block playlist-control">
+        <legend><ListChecks size={12} aria-hidden="true" />{label("playlist", "Playlists")}</legend>
+        <div class="filter-condition-chips" data-testid="playlist-chips">
+          {#each playlists as playlist (playlist.playlist_id)}
+            <span
+              class="condition-chip"
+              class:active={playlist.playlist_id === activePlaylistId}
+              data-testid="playlist-chip"
+            >
+              <button
+                type="button"
+                class="condition-chip-select"
+                aria-pressed={playlist.playlist_id === activePlaylistId}
+                title={playlist.name}
+                data-testid="playlist-chip-select"
+                onclick={() => selectPlaylist?.(playlist.playlist_id === activePlaylistId ? undefined : playlist.playlist_id)}
+              >
+                {#if playlist.playlist_id === activePlaylistId}<Check size={13} aria-hidden="true" />{/if}
+                <span>{playlist.name}</span>
+              </button>
+            </span>
+          {/each}
+          <button
+            type="button"
+            class="condition-chip add"
+            aria-label={label("playlistManage", "Manage playlists")}
+            data-testid="playlist-open-manager"
+            onclick={() => openPlaylistManager?.()}
+          >
+            <Plus size={13} aria-hidden="true" />
+            <span>{label("playlistManage", "Manage playlists")}</span>
+          </button>
+          {#if activePlaylistId}
+            <button
+              type="button"
+              class="condition-chip-reset"
+              title={label("playlistClear", "Stop using this playlist")}
+              aria-label={label("playlistClear", "Stop using this playlist")}
+              data-testid="playlist-clear"
+              onclick={() => selectPlaylist?.(undefined)}
+            >
+              <X size={13} aria-hidden="true" />
+            </button>
+          {/if}
+        </div>
+        {#if activePlaylistId}
+          <p class="playlist-hint" data-testid="playlist-hint">{playlistHintText}</p>
+        {/if}
+      </fieldset>
+
       <fieldset class="control-block filter-control">
         <legend><SlidersHorizontal size={12} aria-hidden="true" />{label("filter", "题目筛选")}</legend>
         <div class="filter-condition-chips" data-testid="filter-condition-chips">
@@ -266,6 +347,16 @@
           bind:referencePresets
         />
       </fieldset>
+
+      <PracticePlaylistManager
+        bind:open={playlistManagerOpen}
+        {label}
+        {playlists}
+        {controller}
+        onSave={savePlaylist}
+        onDelete={deletePlaylist}
+        onClose={closePlaylistManager}
+      />
     </div>
   </div>
 </section>
@@ -582,6 +673,12 @@
   .condition-chip.add:hover {
     border-color: color-mix(in srgb, var(--b3-theme-primary) 52%, var(--b3-border-color));
     color: var(--b3-theme-primary);
+  }
+
+  .playlist-hint {
+    margin: 0;
+    color: var(--b3-theme-primary);
+    font-size: 11.5px;
   }
 
   .practice-order-grid {

@@ -131,6 +131,16 @@
   export let saveBlueprint: (value: any) => Promise<void>;
   export let removeBlueprint: (value: string) => Promise<void>;
   export let useFrozenPracticeSet: (value: any) => Promise<void>;
+  export let playlists: any[] = [];
+  export let activePlaylistId: string | undefined = undefined;
+  export let playlistResolution: any = undefined;
+  export let playlistResolving = false;
+  export let playlistManagerOpen = false;
+  export let selectPlaylist: ((id: string | undefined) => void) | undefined = undefined;
+  export let openPlaylistManager: (() => void) | undefined = undefined;
+  export let closePlaylistManager: (() => void) | undefined = undefined;
+  export let savePlaylist: ((playlist: any) => Promise<void>) | undefined = undefined;
+  export let deletePlaylist: ((playlistId: string) => Promise<void>) | undefined = undefined;
   export let controller: any;
   export let examQuestions: any[] = [];
   export let uuid: () => string;
@@ -351,6 +361,17 @@
       bind:referencePresets
       bind:activeFilterPresetId
       {startPractice}
+      {playlists}
+      {activePlaylistId}
+      {playlistResolution}
+      {playlistResolving}
+      bind:playlistManagerOpen
+      {selectPlaylist}
+      {openPlaylistManager}
+      {closePlaylistManager}
+      {savePlaylist}
+      {deletePlaylist}
+      {controller}
     />
   {:else if answerMode === "composer"}
     <div class="answer-mode-content" data-answer-mode="composer">

@@ -1,7 +1,13 @@
 <script lang="ts">
   import "./question-bank.css";
-  import { BarChart3, BookOpenCheck, Database, Layers3, X } from "lucide-svelte";
-  import { onDestroy } from "svelte";
+  import { BarChart3, BookOpenCheck, Database, Layers3, Monitor, MonitorSmartphone, Smartphone, X } from "lucide-svelte";
+  import { onDestroy, onMount } from "svelte";
+  import {
+    cycleUiMode as nextUiMode,
+    loadUiMode,
+    saveUiMode,
+    type QuestionBankUiMode,
+  } from "./workspace/ui-mode";
   import * as Alert from "@/components/ui/alert";
   import { Button } from "@/components/ui/button";
   import * as Tabs from "@/components/ui/tabs";
@@ -95,6 +101,16 @@
   export let saveBlueprint: any;
   export let removeBlueprint: any;
   export let useFrozenPracticeSet: any;
+  export let playlists: any[] = [];
+  export let activePlaylistId: string | undefined = undefined;
+  export let playlistResolution: any = undefined;
+  export let playlistResolving = false;
+  export let playlistManagerOpen = false;
+  export let selectPlaylist: ((id: string | undefined) => void) | undefined = undefined;
+  export let openPlaylistManager: (() => void) | undefined = undefined;
+  export let closePlaylistManager: (() => void) | undefined = undefined;
+  export let savePlaylist: ((playlist: any) => Promise<void>) | undefined = undefined;
+  export let deletePlaylist: ((playlistId: string) => Promise<void>) | undefined = undefined;
   export let statisticsSnapshot: any;
   export let statisticsLoading: boolean;
   export let statisticsBookmarkEntries: StatisticsBookmarkEntry[] = [];
@@ -250,6 +266,47 @@
   let fabPinned = loadFabPinned();
   let triggerPressTimer: ReturnType<typeof setTimeout> | undefined;
   let triggerLongPressed = false;
+
+  // Manual desktop/mobile UI switch for the workbench. The effective layout
+  // tier is written onto the root element as data-ui-width; question-bank.css
+  // keys its compact/mobile rules off that attribute instead of container
+  // queries, so a forced mode works at any panel width. "auto" measures the
+  // panel with a ResizeObserver (thresholds mirror the old container queries).
+  let uiMode: QuestionBankUiMode = loadUiMode();
+  let measuredUiWidth: "wide" | "medium" | "narrow" | "tiny" = "wide";
+  let uiModeResizeObserver: ResizeObserver | undefined;
+
+  $: uiWidth = uiMode === "mobile" ? "narrow" : uiMode === "desktop" ? "wide" : measuredUiWidth;
+  $: effectiveMobileBreadcrumb = uiMode === "mobile"
+    ? true
+    : uiMode === "desktop"
+      ? false
+      : mobileBreadcrumb;
+  $: uiModeLabelText = uiMode === "mobile"
+    ? label("uiModeMobile", "移动端 UI")
+    : uiMode === "desktop"
+      ? label("uiModeDesktop", "桌面端 UI")
+      : label("uiModeAuto", "自动（跟随宽度）");
+
+  onMount(() => {
+    measureUiWidth();
+    if (typeof ResizeObserver !== "undefined" && rootElement) {
+      uiModeResizeObserver = new ResizeObserver(measureUiWidth);
+      uiModeResizeObserver.observe(rootElement);
+    }
+  });
+
+  onDestroy(() => uiModeResizeObserver?.disconnect());
+
+  function measureUiWidth(): void {
+    const width = rootElement?.clientWidth ?? 0;
+    measuredUiWidth = width <= 430 ? "tiny" : width <= 760 ? "narrow" : width <= 960 ? "medium" : "wide";
+  }
+
+  function cycleUiMode(): void {
+    uiMode = nextUiMode(uiMode);
+    saveUiMode(uiMode);
+  }
 
   onDestroy(() => clearTimeout(triggerPressTimer));
 
@@ -551,6 +608,16 @@
       {useFrozenPracticeSet}
       {controller}
       {examQuestions}
+      {playlists}
+      {activePlaylistId}
+      {playlistResolution}
+      {playlistResolving}
+      bind:playlistManagerOpen
+      {selectPlaylist}
+      {openPlaylistManager}
+      {closePlaylistManager}
+      {savePlaylist}
+      {deletePlaylist}
       {uuid}
       {random}
       {renderQuestionMarkdown}

@@ -63,6 +63,8 @@ export interface RawAttributeView {
   id: string;
   name?: string;
   viewID?: string;
+  /** View metadata as returned by getAttributeView (id/name/type per view). */
+  views?: Array<{ id: string; name?: string; type?: string }>;
   keyValues: AttributeViewKeyValues[];
 }
 

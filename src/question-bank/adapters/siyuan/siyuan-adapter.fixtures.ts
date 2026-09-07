@@ -26,8 +26,13 @@ export class MockKernelClient implements SiyuanKernelClient {
   readonly requests: RequestRecord[] = [];
   readonly documents = new Map<string, string>();
   readonly blockRoots = new Map<string, string>();
+  readonly blockTypes = new Map<string, string>();
   readonly blockAttrs = new Map<string, Record<string, string>>();
   readonly attributeViews = new Map<string, RawAttributeView>();
+  /** Rendered view bodies served by renderAttributeView, keyed `${avId}/${viewID ?? ""}`. */
+  readonly renderViews = new Map<string, any>();
+  /** Rows served by /api/av/searchAttributeView, filtered by keyword at request time. */
+  readonly avSearchResults: Array<{ avID: string; avName: string; blockID: string; hPath: string }> = [];
   private primaryIndex = 0;
   private rowIndex = 0;
   private blockIndex = 0;
@@ -65,7 +70,7 @@ export class MockKernelClient implements SiyuanKernelClient {
         .map((match) => match[1]);
       return ids.flatMap((id) => {
         const root = this.blockRoots.get(id);
-        return root ? [{ id, root_id: root }] : [];
+        return root ? [{ id, type: this.blockTypes.get(id), root_id: root }] : [];
       }) as T;
     }
     if (endpoint === "/api/attr/setBlockAttrs") {
@@ -87,7 +92,21 @@ export class MockKernelClient implements SiyuanKernelClient {
           keyValues: [{ key: { id: primaryId, name: "Primary", type: "block" }, values: [] }],
         });
       }
-      return { id: payload.id, viewID: "view" } as T;
+      return {
+        id: payload.id,
+        viewID: payload.viewID ?? "view",
+        ...(this.renderViews.has(`${payload.id}/${payload.viewID ?? ""}`)
+          ? { view: this.renderViews.get(`${payload.id}/${payload.viewID ?? ""}`) }
+          : {}),
+      } as T;
+    }
+    if (endpoint === "/api/av/searchAttributeView") {
+      const keyword = String(payload.keyword ?? "");
+      return {
+        results: this.avSearchResults.filter((result) => !keyword
+          || result.avName.includes(keyword)
+          || result.hPath.includes(keyword)),
+      } as T;
     }
     if (endpoint === "/api/av/getAttributeView") {
       const av = this.attributeViews.get(payload.id);

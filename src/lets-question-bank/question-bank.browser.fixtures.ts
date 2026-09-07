@@ -6,6 +6,8 @@ import { en } from "@/translations/parts/lets-question-bank";
 import type { AttemptAggregate, AttemptEvent, Question, QuestionBookmark, TopicNode } from "@/question-bank/core/types";
 import type { PracticeSessionSnapshot } from "@/question-bank/core";
 import type { PracticePreferences } from "./practice/practice-preferences";
+import type { PracticePlaylist } from "./practice/playlist/playlist-schema";
+import type { PlaylistResolution } from "./practice/playlist/playlist-resolve";
 import type { QuestionIndexPreview } from "@/question-bank/application";
 import type {
   QuestionBankBinding,
@@ -166,6 +168,7 @@ export function mockController(options: {
     filter: "all" as const,
   };
   const practiceSessions = new Map<string, PracticeSessionSnapshot>();
+  const practicePlaylists = new Map<string, PracticePlaylist>();
   const sessionAttempts: AttemptEvent[] = [];
   const preview = options.preview ?? makePreview();
   const submitAttempt = vi.fn(async (
@@ -295,6 +298,36 @@ export function mockController(options: {
     saveRecentScope,
     getPracticePreferences: () => practicePreferences,
     savePracticePreferences: vi.fn((value: PracticePreferences) => { practicePreferences = value; }),
+    listPracticePlaylists: vi.fn(async () => [...practicePlaylists.values()]),
+    savePracticePlaylist: vi.fn(async (playlist: PracticePlaylist) => {
+      practicePlaylists.set(playlist.playlist_id, playlist);
+    }),
+    deletePracticePlaylist: vi.fn(async (playlistId: string) => {
+      practicePlaylists.delete(playlistId);
+    }),
+    resolvePlaylist: vi.fn(async (playlist: PracticePlaylist): Promise<PlaylistResolution> => ({
+      playlistId: playlist.playlist_id,
+      questionIds: [objectiveQuestion.id],
+      questions: [objectiveQuestion],
+      blockIdsByQuestionId: new Map([[objectiveQuestion.id, blockId]]),
+      rows: [{ rowItemId: "row-1", title: "Point One", targetCount: 1, questionCount: 1 }],
+      unresolved: [],
+    })),
+    loadPlaylistAttributeViewMeta: vi.fn(async (avId: string) => ({
+      avId,
+      name: "Point LPQE",
+      keys: [
+        { id: "20260901000010-key0001", name: "Title", type: "block" },
+        { id: "20260901000010-key0002", name: "Questions", type: "relation", relationAvId: "20260901000000-targe01" },
+      ],
+      views: [{ id: "view-1", name: "All rows", type: "table" }],
+    })),
+    searchPlaylistAttributeViews: vi.fn(async () => [{
+      avId: "20260820225815-7ng4uj8",
+      avName: "Point LPQE",
+      blockId: "20260901000000-blok001",
+      hPath: "/Notes/Point LPQE",
+    }]),
   };
   return {
     controller,
@@ -307,6 +340,11 @@ export function mockController(options: {
     persistQuestionTopicResource,
     savePracticePreferences: vi.mocked(controller.savePracticePreferences),
     practiceSessions,
+    practicePlaylists,
+    listPracticePlaylists: vi.mocked(controller.listPracticePlaylists),
+    savePracticePlaylist: vi.mocked(controller.savePracticePlaylist),
+    deletePracticePlaylist: vi.mocked(controller.deletePracticePlaylist),
+    resolvePlaylist: vi.mocked(controller.resolvePlaylist),
     sessionAttempts,
   };
 }
