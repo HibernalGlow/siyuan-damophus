@@ -380,7 +380,7 @@
   }
 
   
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-display-select {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-bank-display-select {
       grid-template-columns: 1fr;
       gap: 12px;
     }
@@ -388,23 +388,23 @@
   
 
   
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings-navigation :global([data-slot="button"]) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-bank-settings-navigation :global([data-slot="button"]) {
       width: 32px;
       padding: 4px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings.mobile .question-bank-settings-navigation :global([data-slot="button"]) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-bank-settings.mobile .question-bank-settings-navigation :global([data-slot="button"]) {
       width: 100%;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings-navigation-label {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-bank-settings-navigation-label {
       display: none;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-bank-settings-navigation::-webkit-scrollbar {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-bank-settings-navigation::-webkit-scrollbar {
       display: none;
     }
 

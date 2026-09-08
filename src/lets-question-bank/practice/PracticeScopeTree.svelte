@@ -239,14 +239,14 @@
   }
 
   
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .scope-tree-trigger {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .scope-tree-trigger {
       min-height: 42px;
       border-radius: 10px;
       font-size: 13px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .scope-tree-list :global(.b3-list-item) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .scope-tree-list :global(.b3-list-item) {
       min-height: 34px;
     }
 

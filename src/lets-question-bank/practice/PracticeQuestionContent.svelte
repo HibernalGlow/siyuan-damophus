@@ -541,48 +541,48 @@
   }
 
   
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question { padding: 12px 14px 6px; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .question { padding: 12px 14px 6px; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading { gap: 8px; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .question-heading { gap: 8px; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question-title { gap: 6px; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .question-title { gap: 6px; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading h2 { font-size: 16px; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .question-heading h2 { font-size: 16px; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .stem { margin-top: 8px; line-height: 1.65; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .stem { margin-top: 8px; line-height: 1.65; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .stem > :global([data-node-id]), .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .group-material .native-content > :global([data-node-id]) {
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .stem > :global([data-node-id]), :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .group-material .native-content > :global([data-node-id]) {
       margin-block: 0 10px !important;
       padding-left: 8px !important;
       padding-right: 0 !important;
     }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .group-material { margin-top: 10px; padding-block: 9px; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .group-material { margin-top: 10px; padding-block: 9px; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .options { margin-top: 12px; gap: 7px; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .options { margin-top: 12px; gap: 7px; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .options > :global(button.option) { padding: 5px 8px; }
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .options > :global(button.option) { padding: 5px 8px; }
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .answer { margin-top: 10px; padding: 14px 14px 18px; }
-
-  
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .answer { margin-top: 10px; padding: 14px 14px 18px; }
 
   
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question { padding: 12px 12px 6px; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading { gap: 8px; }
+  
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question { padding: 12px 12px 6px; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-title { gap: 6px; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-heading { gap: 8px; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .question-heading h2 { font-size: 16px; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-title { gap: 6px; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .stem { margin-top: 8px; line-height: 1.65; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .question-heading h2 { font-size: 16px; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .group-material { margin-top: 10px; padding-block: 9px; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .stem { margin-top: 8px; line-height: 1.65; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .options { margin-top: 12px; gap: 7px; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .group-material { margin-top: 10px; padding-block: 9px; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .option-label { width: 22px; height: 22px; border-radius: 5px; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .options { margin-top: 12px; gap: 7px; }
+
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .option-label { width: 22px; height: 22px; border-radius: 5px; }
 
   
 
@@ -595,7 +595,7 @@
   }
 
   
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .options { grid-template-columns: 1fr; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .options { grid-template-columns: 1fr; }
 
   
 

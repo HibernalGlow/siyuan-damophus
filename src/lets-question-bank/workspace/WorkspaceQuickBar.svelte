@@ -211,7 +211,7 @@
   .workspace-quick-bar { display: none; }
 
   
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .workspace-quick-bar {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .workspace-quick-bar {
       /* Pinned to the bottom of the visible panel like SiYuan's own floating
          pill: position:absolute (against the positioned question-bank root)
          takes it out of the content flow and ignores both workspace scrolling
@@ -233,10 +233,10 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-peek { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-peek { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-card {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .peek-card {
       min-width: 0;
       min-height: 42px;
       padding: 5px 7px;
@@ -249,7 +249,7 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-icon {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .peek-icon {
       width: 22px;
       height: 22px;
       flex: 0 0 22px;
@@ -261,14 +261,14 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-copy { min-width: 0; flex: 1 1 auto; display: grid; gap: 0; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .peek-copy { min-width: 0; flex: 1 1 auto; display: grid; gap: 0; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-copy strong { font-size: 11.5px; line-height: 1.35; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .peek-copy strong { font-size: 11.5px; line-height: 1.35; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-copy small { overflow: hidden; color: var(--b3-theme-on-surface); font-size: 10.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .peek-copy small { overflow: hidden; color: var(--b3-theme-on-surface); font-size: 10.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .peek-card :global(button) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .peek-card :global(button) {
       flex: 0 0 auto;
       min-height: 28px;
       max-width: 62px;
@@ -278,7 +278,7 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tabs {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-tabs {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 2px;
@@ -289,7 +289,7 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-tab {
       position: relative;
       min-height: 36px;
       min-width: 0;
@@ -308,13 +308,13 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-tab > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab.active { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); font-weight: 600; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-tab.active { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent); font-weight: 600; }
 
 
     /* Tiny marker: the practice tab opens the answer-mode menu on long press. */
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .tab-more {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .tab-more {
       position: absolute;
       top: 5px;
       right: 6px;
@@ -326,7 +326,7 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab em {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-tab em {
       min-width: 17px;
       height: 17px;
       flex: 0 0 auto;
@@ -342,12 +342,12 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab em.tone-pending { background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent); color: var(--b3-theme-primary); }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-tab em.tone-pending { background: color-mix(in srgb, var(--b3-theme-primary) 18%, transparent); color: var(--b3-theme-primary); }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-tab em.tone-danger { background: color-mix(in srgb, var(--b3-theme-error) 20%, transparent); color: var(--b3-theme-error); }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-tab em.tone-danger { background: color-mix(in srgb, var(--b3-theme-error) 20%, transparent); color: var(--b3-theme-error); }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-mode-menu {
       position: absolute;
       /* Anchors above the practice tab (first column), not the floating bubble. */
       left: 10px;
@@ -365,7 +365,7 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-mode-menu button {
       min-height: 40px;
       display: flex;
       align-items: center;
@@ -381,11 +381,11 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button span { flex: 1 1 auto; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-mode-menu button span { flex: 1 1 auto; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button.checked { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent); font-weight: 600; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-mode-menu button.checked { color: var(--b3-theme-primary); background: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent); font-weight: 600; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .quick-bar-mode-menu button:hover { background: var(--b3-list-hover); }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .quick-bar-mode-menu button:hover { background: var(--b3-list-hover); }
 
   
 </style>

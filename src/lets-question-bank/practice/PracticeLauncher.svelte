@@ -746,12 +746,12 @@
   }
 
   
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-header {
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-header {
       align-items: flex-start;
     }
 
 
-    .question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats {
+    :global(.question-bank:is([data-ui-width="medium"], [data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats {
       flex-basis: 100%;
       min-width: 0;
       grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -763,16 +763,16 @@
 
   
     /* Touch widths have no hover: the chip edit pencil stays visible. */
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .condition-chip-edit { opacity: 1; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .condition-chip-edit { opacity: 1; }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-order-grid {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-order-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) :global(.practice-order-grid [data-slot="toggle-group"]) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) :global(.practice-order-grid [data-slot="toggle-group"]) {
       padding: 3px;
       gap: 2px;
       border: 1px solid var(--b3-border-color);
@@ -781,7 +781,7 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) :global(.practice-order-grid [data-slot="toggle-group-item"]) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) :global(.practice-order-grid [data-slot="toggle-group-item"]) {
       min-width: 0;
       min-height: 38px;
       gap: 5px;
@@ -794,13 +794,13 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) :global(.practice-order-grid [data-slot="toggle-group-item"] svg) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) :global(.practice-order-grid [data-slot="toggle-group-item"] svg) {
       width: 15px;
       height: 15px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) :global(.practice-order-grid [data-slot="toggle-group-item"][data-state="on"]) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) :global(.practice-order-grid [data-slot="toggle-group-item"][data-state="on"]) {
       color: var(--b3-theme-primary);
       background: color-mix(in srgb, var(--b3-theme-primary) 14%, transparent);
     }
@@ -808,11 +808,11 @@
 
     /* Touch widths: the CTA leaves the title row and becomes a full-width row
        under the stats band, still above the form so it stays on the first screen. */
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-title { order: 1; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-title { order: 1; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats { order: 2; }
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats { order: 2; }
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-actions {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-actions {
       order: 3;
       flex-basis: 100%;
       flex-direction: column;
@@ -824,13 +824,13 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-actions p {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-actions p {
       margin: 0;
       text-align: center;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-actions :global(button) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-actions :global(button) {
       width: 100%;
       min-width: 0;
       min-height: 54px;
@@ -839,7 +839,7 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-actions :global(button > span) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-actions :global(button > span) {
       flex-direction: column;
       align-items: center;
       gap: 1px;
@@ -847,12 +847,12 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-actions :global(button small) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-actions :global(button small) {
       white-space: normal;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) :global(.practice-primary-action) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) :global(.practice-primary-action) {
       min-height: 56px !important;
       box-shadow: 0 4px 14px color-mix(in srgb, var(--b3-theme-primary) 26%, transparent);
     }
@@ -860,19 +860,19 @@
   
 
   
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher {
       border-radius: 12px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-header {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-header {
       display: grid;
       gap: 10px;
       padding: 12px 14px 11px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats {
       width: 100%;
       grid-template-columns: repeat(6, minmax(0, 1fr));
       row-gap: 0;
@@ -881,85 +881,85 @@
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats div {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats div {
       padding-inline: 5px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats div:first-child {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats div:first-child {
       border-left: 0;
       padding-left: 0;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats dd {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats dd {
       gap: 3px;
       font-size: 15px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats dd :global(svg) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats dd :global(svg) {
       width: 12px;
       height: 12px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-stats dt {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-stats dt {
       font-size: 9.5px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .practice-launcher-body {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .practice-launcher-body {
       padding: 14px;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .session-recovery {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .session-recovery {
       align-items: stretch;
       flex-direction: column;
     }
 
 
-    .question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"]) .session-recovery-actions > :global(*) {
+    :global(.question-bank:is([data-ui-width="narrow"], [data-ui-width="tiny"])) .session-recovery-actions > :global(*) {
       flex: 1;
     }
 
   
 
   
-    .question-bank:is([data-ui-width="tiny"]) .practice-launcher-body {
+    :global(.question-bank:is([data-ui-width="tiny"])) .practice-launcher-body {
       padding: 12px;
       gap: 12px;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .practice-launcher-form {
+    :global(.question-bank:is([data-ui-width="tiny"])) .practice-launcher-form {
       gap: 12px;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .practice-launcher-kicker {
+    :global(.question-bank:is([data-ui-width="tiny"])) .practice-launcher-kicker {
       display: none;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .practice-launcher-stats dd small {
+    :global(.question-bank:is([data-ui-width="tiny"])) .practice-launcher-stats dd small {
       display: none;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .practice-order-grid {
+    :global(.question-bank:is([data-ui-width="tiny"])) .practice-order-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .practice-order-grid legend {
+    :global(.question-bank:is([data-ui-width="tiny"])) .practice-order-grid legend {
       font-size: 11px;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) :global(.practice-order-grid [data-slot="toggle-group-item"]) {
+    :global(.question-bank:is([data-ui-width="tiny"])) :global(.practice-order-grid [data-slot="toggle-group-item"]) {
       min-height: 36px;
       gap: 3px;
       padding-inline: 2px;
@@ -967,27 +967,27 @@
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) :global(.practice-order-grid [data-slot="toggle-group-item"] svg) {
+    :global(.question-bank:is([data-ui-width="tiny"])) :global(.practice-order-grid [data-slot="toggle-group-item"] svg) {
       width: 12px;
       height: 12px;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .filter-condition-chips {
+    :global(.question-bank:is([data-ui-width="tiny"])) .filter-condition-chips {
       gap: 5px;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .condition-chip {
+    :global(.question-bank:is([data-ui-width="tiny"])) .condition-chip {
       min-height: 28px;
       padding: 2px 3px 2px 10px;
     }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .condition-chip-select { font-size: 11px; }
+    :global(.question-bank:is([data-ui-width="tiny"])) .condition-chip-select { font-size: 11px; }
 
 
-    .question-bank:is([data-ui-width="tiny"]) .condition-chip-reset {
+    :global(.question-bank:is([data-ui-width="tiny"])) .condition-chip-reset {
       width: 28px;
       min-height: 28px;
     }
