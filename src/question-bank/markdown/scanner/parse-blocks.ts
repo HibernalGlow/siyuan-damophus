@@ -12,11 +12,23 @@ export function rawNode(markdown: string, node: RootContent): string {
   return start === undefined || end === undefined ? "" : markdown.slice(start, end);
 }
 
+/** A deep-indented `{: …}` line is a block attribute only below a block it can attach to. */
+const NESTED_IAL_HOST = /^\s*(?:[-+*]\s|\d+[.)]\s|>|#{1,6}\s|\{:[^}\r\n]*\}\s*$)/u;
+
+/**
+ * SiYuan writes a block's own IAL immediately after its marker chain, so a list nested in a
+ * callout carries `> - ` before `{: id="…"}` and a list inside a list carries `  - `. Accept
+ * the whole chain (up to four levels); a single level would leave the attribute inline in the
+ * text, which stops `\- [ ]` from parsing as a task item and silently drops every option.
+ */
+const INLINE_IAL = /^(?:\s*(?:(?:[-+*]|\d+[.)]|>)\s+){1,4})(\{:[^}\r\n]*\})/u;
+
 export function extractIalLines(markdown: string): { markdown: string; tokens: IalToken[] } {
   const tokens: IalToken[] = [];
   const output: string[] = [];
   const lines = markdown.match(/.*(?:\r\n|\n|$)/g) ?? [];
   let offset = 0;
+  let previousContent = "";
   let fence: { marker: string; length: number } | undefined;
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
@@ -43,17 +55,21 @@ export function extractIalLines(markdown: string): { markdown: string; tokens: I
       continue;
     }
 
+    const previousLine = previousContent;
+    if (content.trim()) previousContent = content;
+
     const standaloneIal = content.match(/^\s*(\{:[^}\r\n]*\})\s*$/u);
     const blockIal = !fence
       ? standaloneIal
-        ?? content.match(/^(?:\s{0,3}(?:(?:[-+*]|\d+[.)]|>)\s+))?(\{:[^}\r\n]*\})/u)
+        ?? content.match(INLINE_IAL)
       : undefined;
     if (blockIal) {
       const ialSource = blockIal[1];
       const parsed = parseIal(ialSource);
-      const standaloneIndent = standaloneIal ? content.indexOf(ialSource) : 0;
-      const isSiyuanNestedIal = standaloneIndent < 4
-        || siyuanNodeId.test(parsed?.attributes.id ?? "");
+      const indent = standaloneIal ? content.indexOf(standaloneIal[1]) : 0;
+      const isSiyuanNestedIal = siyuanNodeId.test(parsed?.attributes.id ?? "")
+        || indent < 4
+        || (standaloneIal !== null && NESTED_IAL_HOST.test(previousLine));
       if (parsed && isSiyuanNestedIal) {
         const ialOffset = content.indexOf(ialSource);
         tokens.push({
@@ -64,9 +80,12 @@ export function extractIalLines(markdown: string): { markdown: string; tokens: I
         });
         const prefix = content.slice(0, ialOffset);
         const suffix = content.slice(ialOffset + ialSource.length);
+        // Keep the line's own prefix (`> `, list markers, indentation) when blanking a
+        // standalone IAL: a spaces-only line is blank to CommonMark and would terminate the
+        // enclosing blockquote, splitting one option callout into one blockquote per option.
         output.push(
-          (suffix.trim() ? prefix + suffix + " ".repeat(ialSource.length) : " ".repeat(content.length))
-          + ending,
+          (suffix.trim() ? prefix + suffix + " ".repeat(ialSource.length)
+            : prefix + " ".repeat(ialSource.length)) + ending,
         );
         offset += line.length;
         continue;

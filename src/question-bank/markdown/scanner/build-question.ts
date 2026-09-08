@@ -19,7 +19,12 @@ import {
   stringifyNodes,
   stripOptionLists,
 } from "./options";
-import { isLikelySolutionStart, solutionBoundaryIndex } from "./solution";
+import {
+  inferNestedSolutionSplit,
+  isLikelySolutionStart,
+  solutionBoundaryIndex,
+  splitNestedSolution,
+} from "./solution";
 import type {
   MarkdownBlock,
   MarkdownIalUpdate,
@@ -114,9 +119,14 @@ export function buildQuestion(
   let solutionIndex = solutionIndexes[0] === undefined
     ? undefined
     : solutionBoundaryIndex(bodyBlocks, solutionIndexes[0]);
+  let nested = solutionIndex === undefined ? undefined : splitNestedSolution(bodyBlocks[solutionIndex]);
   if (solutionIndex === undefined && type !== "group") {
-    solutionIndex = bodyBlocks.findIndex(isLikelySolutionStart);
-    if (solutionIndex >= 0) {
+    const topLevel = bodyBlocks.findIndex(isLikelySolutionStart);
+    const nestedIndex = topLevel >= 0 ? -1 : bodyBlocks.findIndex(
+      (block) => inferNestedSolutionSplit(block) !== undefined,
+    );
+    if (topLevel >= 0) {
+      solutionIndex = topLevel;
       report.inferences.push({
         code: "inferred-solution-boundary",
         message: "Inferred the solution boundary from a visible answer or explanation label",
@@ -132,6 +142,17 @@ export function buildQuestion(
         { "custom-qb-section": "solution" },
         "inferred-solution-boundary",
       );
+    } else if (nestedIndex >= 0) {
+      solutionIndex = nestedIndex;
+      nested = inferNestedSolutionSplit(bodyBlocks[nestedIndex]);
+      report.inferences.push({
+        code: "inferred-solution-boundary",
+        message: "Inferred the solution boundary from the answer-shaped child list inside the case card",
+        questionId: id,
+        line: bodyBlocks[nestedIndex].line,
+        title,
+        sourceMarkdown: bodyBlocks[nestedIndex].raw,
+      });
     } else {
       report.issues.push({
         code: "missing-solution-boundary",
@@ -144,8 +165,22 @@ export function buildQuestion(
     }
   }
   solutionIndex ??= bodyBlocks.length;
-  const stemBlocks = bodyBlocks.slice(0, solutionIndex);
-  const solutionNodes = bodyBlocks.slice(solutionIndex).map((block) => block.node);
+  const markedBlock = bodyBlocks[solutionIndex];
+  nested ??= markedBlock ? splitNestedSolution(markedBlock) : undefined;
+  const stemBlocks = nested
+    ? [
+      ...bodyBlocks.slice(0, solutionIndex),
+      {
+        node: nested.stemNode,
+        raw: markedBlock?.raw ?? "",
+        attributes: {},
+        line: markedBlock?.line,
+      },
+    ]
+    : bodyBlocks.slice(0, solutionIndex);
+  const solutionNodes = nested
+    ? [...nested.solution, ...bodyBlocks.slice(solutionIndex + 1).map((block) => block.node)]
+    : bodyBlocks.slice(solutionIndex).map((block) => block.node);
   const explicitOptionResults = stemBlocks.map((block) => ({ block, option: explicitOption(block) }));
   const invalidExplicitOption = explicitOptionResults.find(
     ({ block, option }) => block.attributes["custom-qb-option"] !== undefined && !option,

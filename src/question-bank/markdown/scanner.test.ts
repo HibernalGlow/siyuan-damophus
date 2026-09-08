@@ -184,6 +184,100 @@ describe("question Markdown scanner", () => {
     expect(report.document.questions[0].stemMarkdown).toContain('{: custom-example="keep"}');
   });
 
+  it("indexes a case card whose choices sit in a nested SELECTION callout", () => {
+    const report = scanQuestionMarkdown(`##### [调解·多选] 5.
+{: custom-qb-id="cp-cc-5" custom-qb-type="multiple" custom-qb-answer="C,D" custom-qb-question-topic-ids="civil-procedure-mediation"}
+
+- 朱某已签收调解书，刘某一直未领取。后朱某反悔，不愿意离婚。下列说法哪些正确？
+
+    > [!SELECTION] 选项
+    >
+    > - [ ] A. 朱某可以反悔，法院依调解协议制作判决书
+    > - [ ] B. 朱某可以反悔，法院应当根据案件审理情况制作判决书
+    > - [ ] C. 朱某不能反悔，因为其已经签收调解书
+    > - [ ] D. 朱某可以向法院申请撤回起诉
+
+    - 正确答案：CD。
+    {: custom-qb-section="solution"}
+    - 已签收的一方不得反悔。`);
+    const question = report.document.questions[0];
+
+    expect(report.issues).toEqual([]);
+    expect(report.conflicts).toEqual([]);
+    expect(question.options.map((option) => option.id)).toEqual(["A", "B", "C", "D"]);
+    expect(question.answer).toEqual({ kind: "options", optionIds: ["C", "D"] });
+    expect(question.stemMarkdown).toContain("朱某反悔");
+    expect(question.stemMarkdown).not.toContain("撤回起诉");
+    expect(question.solutionMarkdown).toContain("正确答案：CD");
+  });
+
+  it("infers the solution boundary of a case card from its answer-shaped child list", () => {
+    const report = scanQuestionMarkdown(`##### [调解·多选] 5.
+{: custom-qb-id="cp-cc-5b" custom-qb-type="multiple" custom-qb-answer="C,D" custom-qb-question-topic-ids="civil-procedure-mediation"}
+
+- 朱某已签收调解书，刘某一直未领取。后朱某反悔，不愿意离婚。下列说法哪些正确？
+
+    > [!SELECTION] 选项
+    >
+    > - [ ] A. 朱某可以反悔，法院依调解协议制作判决书
+    > - [ ] B. 朱某可以反悔，法院应当根据案件审理情况制作判决书
+    > - [ ] C. 朱某不能反悔，因为其已经签收调解书
+    > - [ ] D. 朱某可以向法院申请撤回起诉
+
+    - 正确答案：CD。
+    - 已签收的一方不得反悔。`);
+    const question = report.document.questions[0];
+
+    expect(report.issues).toEqual([]);
+    expect(question.options.map((option) => option.id)).toEqual(["A", "B", "C", "D"]);
+    expect(question.stemMarkdown).not.toContain("撤回起诉");
+    expect(question.solutionMarkdown).toContain("正确答案：CD");
+    expect(report.inferences.map((inference) => inference.code)).toContain("inferred-solution-boundary");
+    expect(report.ialUpdates.filter((update) => update.reason === "inferred-solution-boundary")).toEqual([]);
+  });
+
+  it("indexes a fused case card from real getBlockKramdown content", () => {
+    // SiYuan writes every block's own IAL inline after its marker chain, so an option inside a
+    // callout arrives as `> - {: id="…"}[ ] A. …` and the item's trailing IAL line must not
+    // become a blank line, or the blockquote splits into one quote per option.
+    const report = scanQuestionMarkdown(`##### [调解·多选] 5.
+{: id="20260908173505-0qbu8rm" updated="20260908173505" custom-qb-answer="C" custom-qb-id="cp-cc-kramdown" custom-qb-type="single"}
+
+- {: id="20260908173505-b3xlo9l" updated="20260908173505"}⚖️ 朱某已签收调解书，刘某一直未领取。后朱某反悔，下列说法正确？
+  {: id="20260908173505-rvsz0n4" updated="20260908173505"}
+
+  > [!SELECTION] SELECTION
+  > - {: id="20260908173505-uqe0f8y" updated="20260908173505"}[ ] A. 朱某可以反悔，法院依调解协议制作判决书
+  >   {: id="20260908173505-e11z6j9" updated="20260908173505"}
+  > - {: id="20260908173505-4z1quni" updated="20260908173505"}[ ] B. 朱某可以反悔，法院应当制作判决书
+  >   {: id="20260908173505-dac51ev" updated="20260908173505"}
+  > - {: id="20260908173505-vmr76w2" updated="20260908173505"}[ ] C. 朱某不能反悔，因为其已经签收调解书
+  >   {: id="20260908173505-d149106" updated="20260908173505"}
+  > {: id="20260908173505-jrgy746" updated="20260908173505"}
+  >
+  {: id="20260908173505-x6cqwfd" updated="20260908173505"}
+
+  - {: id="20260908173505-gy1mf2m" updated="20260908173505"}正确答案：C。
+    {: id="20260908173505-w64qrip" updated="20260908173505"}
+  - {: id="20260908173505-hg4h5y0" updated="20260908173505"}已签收的一方不得反悔。
+    {: id="20260908173505-kp3z1aa" updated="20260908173505"}
+  {: id="20260908173505-57gy7kh" updated="20260908173505" custom-dm-card-id="fc-cp-cc-5"}
+{: id="20260908173505-0binqf6" updated="20260908173505"}`);
+    const question = report.document.questions[0];
+
+    expect(report.issues).toEqual([]);
+    expect(report.conflicts).toEqual([]);
+    expect(question.options.map((option) => option.id)).toEqual(["A", "B", "C"]);
+    expect(question.answer).toEqual({ kind: "options", optionIds: ["C"] });
+    expect(question.stemMarkdown).toContain("朱某反悔");
+    expect(question.stemMarkdown).not.toContain("制作判决书");
+    expect(question.solutionMarkdown).toContain("正确答案：C");
+    for (const markdown of [question.stemMarkdown, question.solutionMarkdown,
+      ...question.options.map((option) => option.markdown)]) {
+      expect(markdown).not.toContain("{: id=");
+    }
+  });
+
   it("supports true/false and subjective questions", () => {
     const trueFalse = scanQuestionMarkdown(fixture("true-false"));
     const subjective = scanQuestionMarkdown(fixture("subjective"));

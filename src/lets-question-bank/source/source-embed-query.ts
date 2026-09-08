@@ -146,22 +146,51 @@ export function sourceEmbedBlockIds(
   const byId = new Map(rows.map((row) => [row.id, row]));
 
   const subtree = descendants(question, byParent);
-  const solutionIndex = subtree.findIndex((row) => (
+  const answerLabel = /^(?:综合考向|答案(?:与解析)?|参考答案|正确答案|解析|参考解析|评分要点)\s*(?:[:：]|为|是|$)/iu;
+  let solutionIndex = subtree.findIndex((row) => (
     row.id !== questionBlockId && attributes(row)["custom-qb-section"] === "solution"
   ));
-  // The marker often sits deep inside the answer section (e.g. on the
-  // answer list below the section heading). Both sections must treat the
-  // marker's top-level ancestor as the section start: otherwise blocks before
-  // the marker but inside that ancestor (the heading itself, images) leak into
-  // the stem while the solution subtree renders them as well.
-  let solutionRoot = solutionIndex >= 0 ? subtree[solutionIndex] : undefined;
-  while (solutionRoot?.parent_id && solutionRoot.parent_id !== questionBlockId) {
-    const parent = byId.get(solutionRoot.parent_id);
-    if (!parent) break;
-    solutionRoot = parent;
+  if (solutionIndex < 0) {
+    // A case card writes no marker: the nested `{: …}` line would break the
+    // flashcard front/back boundary. Infer the boundary from the first
+    // answer-shaped descendant instead.
+    solutionIndex = subtree.findIndex((row, index) => index > 0
+      && ["i", "l", "p", "h"].includes(row.type ?? "")
+      && answerLabel.test(blockText(row)));
   }
-  const solutionRootIndex = solutionRoot
-    ? subtree.findIndex((row) => row.id === solutionRoot!.id)
+  // Ascend from the boundary to the highest "solution-pure" container. Blocks that
+  // merely precede the marker inside an answer heading (images, sub-headings) stay in
+  // the solution, so climb while the ancestor holds no option-shaped row before the
+  // boundary. Stop at a mixed container - the case-card item that also holds the stem
+  // paragraph and the option callout - so its inner answer list becomes the section
+  // root while its stem part stays in the stem.
+  let pureRoot = solutionIndex >= 0 ? subtree[solutionIndex] : undefined;
+  for (let guard = 0; pureRoot && guard < 64; guard += 1) {
+    const parent = byId.get(pureRoot.parent_id ?? "");
+    if (!parent || parent.id === questionBlockId) break;
+    const parentSubtree = descendants(parent, byParent);
+    const boundaryAt = parentSubtree.findIndex((row) => row.id === pureRoot!.id);
+    if (parentSubtree.slice(0, Math.max(boundaryAt, 0)).some(looksLikeOption)) break;
+    pureRoot = parent;
+  }
+  const siblingsFrom = (row: SourceEmbedBlockRow): SourceEmbedBlockRow[] => {
+    const parent = byId.get(row.parent_id ?? "");
+    const siblings = parent ? (byParent.get(parent.id) ?? []) : [];
+    const index = siblings.findIndex((item) => item.id === row.id);
+    return index >= 0 ? siblings.slice(index) : [row];
+  };
+  const solutionRoots: SourceEmbedBlockRow[] = pureRoot ? siblingsFrom(pureRoot) : [];
+  if (pureRoot) {
+    // A mixed ancestor keeps its prefix in the stem, but everything after it
+    // (metadata blocks, later sections) still belongs to the solution.
+    let ancestor = byId.get(pureRoot.parent_id ?? "");
+    for (let guard = 0; ancestor && ancestor.id !== questionBlockId && guard < 64; guard += 1) {
+      solutionRoots.push(...siblingsFrom(ancestor).slice(1));
+      ancestor = byId.get(ancestor.parent_id ?? "");
+    }
+  }
+  const solutionRootIndex = pureRoot
+    ? subtree.findIndex((row) => row.id === pureRoot!.id)
     : -1;
   const stemRows = solutionRootIndex < 0 ? subtree.slice(1) : subtree.slice(1, solutionRootIndex);
   const optionRoots = stemRows.filter(looksLikeOption);
@@ -179,15 +208,9 @@ export function sourceEmbedBlockIds(
   const selected: string[] = [];
   if (section === "solution" && solutionIndex < 0) return [];
   if (section === "solution" && solutionIndex >= 0) {
-    // Mount only the question's top-level solution roots. Protyle renders each
-    // root's descendants, so mounting children separately would duplicate
-    // answer lists, diagrams, and callouts.
-    const root = solutionRoot!;
-    const questionChildren = byParent.get(questionBlockId) ?? [];
-    const topLevelRootIndex = questionChildren.findIndex((row) => row.id === root.id);
-    const solutionRoots = topLevelRootIndex >= 0
-      ? questionChildren.slice(topLevelRootIndex)
-      : [subtree[solutionIndex]];
+    // Mount only section roots: Protyle renders each root's descendants, so
+    // mounting children separately would duplicate answer lists, diagrams,
+    // and callouts.
     for (const row of solutionRoots) {
       if (options.hideEmptySolutionBlocks && isEmptyDisplayBlock(row, byParent)) continue;
       selected.push(row.id);

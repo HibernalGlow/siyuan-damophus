@@ -231,4 +231,31 @@ describe("source embed query", () => {
       "20260806130003-answhead",
     ]);
   });
+
+  it("splits a marker-free case card at its answer-shaped child list", () => {
+    // 错题卡一体式：题干、SELECTION 选项 callout、答案与解析都在同一个列表项里，
+    // 且不写 custom-qb-section 标记（嵌套 IAL 会破坏闪卡正面/背面边界）。
+    const cardRows: SourceEmbedBlockRow[] = [
+      { id: "20260806140001-q000001", type: "h", ial: '{: custom-qb-id="case-card-1" custom-qb-answer="A,B,C"}' },
+      { id: "20260806140002-cardlist", parent_id: "20260806140001-q000001", type: "l" },
+      { id: "20260806140003-carditem", parent_id: "20260806140002-cardlist", type: "i", content: "⚖️ 张某委托李律师代为参加诉讼…" },
+      { id: "20260806140004-callout0", parent_id: "20260806140003-carditem", type: "b" },
+      { id: "20260806140005-optlist0", parent_id: "20260806140004-callout0", type: "l" },
+      { id: "20260806140006-opta00001", parent_id: "20260806140005-optlist0", type: "i", content: "[ ] A. 签署调解协议" },
+      { id: "20260806140007-optb00001", parent_id: "20260806140005-optlist0", type: "i", content: "[ ] B. 签收调解书" },
+      { id: "20260806140008-innerlst", parent_id: "20260806140003-carditem", type: "l" },
+      { id: "20260806140009-answ0001", parent_id: "20260806140008-innerlst", type: "i", content: "正确答案：ABC。" },
+      { id: "20260806140010-expla001", parent_id: "20260806140008-innerlst", type: "i", content: "✅ A、C 可以代为" },
+      { id: "20260806140011-yml00001", parent_id: "20260806140003-carditem", type: "c", content: "cc: …" },
+      { id: "20260806140012-report00", parent_id: "20260806140001-q000001", type: "c", content: "report: …" },
+    ];
+
+    const stem = sourceEmbedBlockIds(cardRows, "20260806140001-q000001", "stem");
+    expect(stem).toEqual(["20260806140001-q000001"]);
+    expect(sourceEmbedBlockIds(cardRows, "20260806140001-q000001", "solution")).toEqual([
+      "20260806140008-innerlst",
+      "20260806140011-yml00001",
+      "20260806140012-report00",
+    ]);
+  });
 });

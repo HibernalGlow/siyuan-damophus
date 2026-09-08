@@ -1,0 +1,978 @@
+npm warn Unknown project config "only-built-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/1STUDY/3-Resource/法考/siyuan-damophus[39m
+
+ [31m❯[39m src/lets-question-bank/practice/practice-condition-graph.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/module-defaults.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/open-actions.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/siyuan/siyuan-adapter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/flashcard/fsrs-optimizer-internal.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/more-background.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/libs/plugin-icons.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/tinybase-runtime.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-mobile-appearance/index.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[32m 16[2mms[22m[39m
+[31m     [31m×[31m owns one mobile top bar entry and removes it when disabled[39m[32m 8[2mms[22m[39m
+[31m     [31m×[31m skips top bar shortcut when topBarShortcut setting is disabled[39m[32m 2[2mms[22m[39m
+     [32m✓[39m skips title path listeners when titlePath setting is disabled[32m 3[2mms[22m[39m
+[31m     [31m×[31m dynamically toggles sub-features when onDataChanged is triggered[39m[32m 2[2mms[22m[39m
+ [31m❯[39m src/lets-question-bank/tinybase-catalog-runtime.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/markdown/scanner.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-flashcard/registration-flow.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-flashcard/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/cover-export.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-remote-access/index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/cover-gacha.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/flashcard/fsrs-optimizer-local-service.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/tinybase/migration.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/tinybase/tinybase-adapter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/cover-favorite-sync.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/siyuan/topic-index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-question-bank/sync-coordinator.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [31m❯[39m src/question-bank/application/batch-indexing.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/application/practice-runtime.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/flashcard/renderer-compat.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/storage/storage.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/core/session.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [31m❯[39m src/question-bank/adapters/tinybase/exam-session-repository.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/assembly/assembly.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-tab-icons/tab-icon-controller.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/flashcard/review-log-export.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/core.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/flashcard/runtime.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/statistics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [31m❯[39m src/lets-more-background/booru.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/application/projection.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/exam/exam.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/adapters/siyuan/topic-dictionary.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [31m❯[39m src/lets-question-bank/session-host.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/application/practice-lifecycle.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lets-network-assets-local/network-assets-local.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [31m❯[39m src/lets-question-bank/workspace/exam-session-host.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/source/source-embed-query.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/markdown/renderer.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-ai-config-sync/sync-model.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [31m❯[39m src/lets-kramdown-export/batch.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/flashcard/siyuan-adapter.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [31m❯[39m src/flashcard/fsrs-optimizer-protocol.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/core/rating-corrections.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/pause-on-blur.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/source/source-rendering-binding.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-remote-access/remote-access.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-document-format/empty-paragraphs.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [31m❯[39m src/lets-more-background/tag-dictionary.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/theme/schema.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-search-group/index.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [31m❯[39m src/question-bank/adapters/siyuan/document-topic-anchor.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/flashcard/native-review-timer.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [31m❯[39m src/lets-block-attr/custom-properties.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/siyuan/source-catalog.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/topic-dictionary.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [31m❯[39m src/flashcard/fsrs-settings-adapter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-topic-relations/topic-relations.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/siyuan/riff.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lets-agent-surface/agent-surface.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/flashcard/category-module.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/cover-favorites.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [31m❯[39m src/libs/unified-entry-point.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-document-history-diff/history-service.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-expanded-plugin-menu/discovered-entries.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [31m❯[39m src/flashcard/mobile-surface-adapter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-layout-actions/actions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [31m❯[39m src/lets-database-enhancements/database-enhancements.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-image-converter/image-converter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/libs/menu-identity.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [31m❯[39m src/question-bank/application/recovery.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/flashcard/types.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [31m❯[39m src/question-bank/application/authoring-export.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/plugin-registry.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/libs/plugin-declarations.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lets-skill-manager/chezmoi-backend.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/theme/library.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [31m❯[39m src/lets-question-bank/practice/practice-preferences.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/libs/plugin-entry-settings.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/core/recovery.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/flashcard/priority-tags.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/source/source-identity.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/tinybase/siyuan-file-io.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [31m❯[39m src/lets-image-converter/batch-converter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-more-background/local-cover-cache-maintenance.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [31m❯[39m src/lets-question-bank/practice/practice-querybuilder-adapter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/cover-dedup.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-agent-surface/agent-model.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [31m❯[39m src/lets-question-bank/statistics/attempt-duration-comparison.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-expanded-plugin-menu/settings-model.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/cover-condition.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-style-brush/index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/topic-subjects.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/flashcard/priority-queue.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [31m❯[39m src/kramdown-export/ial.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/markdown/ial.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/plugin-reload.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [31m❯[39m src/lets-database-enhancements/av-column-binding.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/source/source-navigation.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/statistics/statistics-bookmarks.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/application/practice.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-skill-manager/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/source/source-embed-presentation.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/flashcard/review-action-registry.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-mobile-slash-menu/slash-menu-settings.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-skill-manager/native-markdown.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 7[2mms[22m[39m
+ [31m❯[39m src/libs/unified-entry-point.mobile.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/tab-replacement.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-snippet-audit/snippet-audit.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/libs/document-path-highlights.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [31m❯[39m src/settings-document.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-list-merge/list-merge.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-question-bank/tab-contract.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lets-mobile-appearance/appearance-menu.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [31m❯[39m src/flashcard/fsrs-weight-history.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-dock-visibility/visibility.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/flashcard/sfp-migration.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 7[2mms[22m[39m
+ [31m❯[39m src/lets-question-bank/statistics/duration-comparison-position.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/libs/settings-nav-state.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/settings-migrations.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [31m❯[39m src/libs/siyuan-block-types.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/libs/module-settings.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [31m❯[39m src/theme/runtime.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/topic-relation-events.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/libs/setting-categories.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/subject-dashboard.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [31m❯[39m src/lets-mobile-slash-menu/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/libs/open-document-tabs.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-topic-dictionary/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/flashcard/review-stats.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/lets-layout-actions/plugin.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [31m❯[39m src/libs/menu-order.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-question-bank/launch-target.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lets-document-format/plugin.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lets-kramdown-export/plugin.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [31m❯[39m src/lets-style-brush/style-brush.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/libs/plugin-toolbar-keymap.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-skill-manager/tab-contract.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-skill-manager/api.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/application/review.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/libs/live-style-preview.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [31m❯[39m src/lets-agent-bridge/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-animated-image-replay/plugin.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/flashcard/fsrs-optimizer.integration.test.ts [2m([22m[2m0 test[22m[2m)[22m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 97 [49m[22m[31m⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/module-defaults.test.ts[2m [ src/module-defaults.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278265917-tweg2ddwe5f' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\382fbf6f38adc7b45c698ca46c7fb410a6318d4d'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/plugin-registry.test.ts[2m [ src/plugin-registry.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278281986-x3q22eqjnyc' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\5d6b04fa2de057216dcb5a2dee93e2e35bb627f6'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/settings-document.test.ts[2m [ src/settings-document.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278287803-zk6j28c4die' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\e17dba388478076ecb959c2745f234cd81c492d4'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/fsrs-optimizer-internal.test.ts[2m [ src/flashcard/fsrs-optimizer-internal.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278266539-jhq4jfx9c6l' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\d533d84ee214522793ec55a348d806485272c067'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/fsrs-optimizer-local-service.test.ts[2m [ src/flashcard/fsrs-optimizer-local-service.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278269219-79ycfpt145d' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\b807ba8b7174493cd39dd757f1ac96b566465fb6'[39m
+[36m [2m❯[22m src/flashcard/fsrs-optimizer-local-service.test.ts:[2m4:1[22m[39m
+    [90m  2|[39m [35mimport[39m [33m*[39m [35mas[39m http [35mfrom[39m [32m"node:http"[39m[33m;[39m
+    [90m  3|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  4|[39m import { FsrsOptimizerLocalService, type OptimizerAssets } from "./fsr…
+    [90m   |[39m [31m^[39m
+    [90m  5|[39m [35mimport[39m { buildFsrsTrainingDataset } [35mfrom[39m [32m"./fsrs-optimizer-protocol"[39m[33m;[39m
+    [90m  6|[39m [35mimport[39m type { [33mRiffReviewLogEntry[39m } [35mfrom[39m [32m"./review-log-export"[39m[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/fsrs-optimizer-protocol.test.ts[2m [ src/flashcard/fsrs-optimizer-protocol.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278276302-3c8i3lazlcw' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\0348e76ad7b323aa84d778c6184d37a163542286'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/fsrs-optimizer.integration.test.ts[2m [ src/flashcard/fsrs-optimizer.integration.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278292834-qmo8382h43k' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\7524202953ff9ecf4530762beb33cfbcc3bb2432'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/fsrs-settings-adapter.test.ts[2m [ src/flashcard/fsrs-settings-adapter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278279201-eg5natpiqdv' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\41d0c1fa2377631c730629bceabb47de618f34fb'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/fsrs-weight-history.test.ts[2m [ src/flashcard/fsrs-weight-history.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278288405-nzczi1kr5kp' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\641e903487c2abafa105d5648fad2bfcda7d0824'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/mobile-surface-adapter.test.ts[2m [ src/flashcard/mobile-surface-adapter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278280425-6ncwi9izmvl' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\b63fa31d733f7e7cd03bbe1539b34e0975193c45'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/renderer-compat.test.ts[2m [ src/flashcard/renderer-compat.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278270710-75i9zj32mrr' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\ad7e8957460250905f695cc19411b13956c2508b'[39m
+[36m [2m❯[22m src/flashcard/renderer-compat.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { afterEach[33m,[39m describe[33m,[39m expect[33m,[39m it[33m,[39m vi } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { [33mFlashcardRendererCompat[39m } [35mfrom[39m [32m"./renderer-compat"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"flashcard renderer compatibility"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/flashcard/review-action-registry.test.ts[2m [ src/flashcard/review-action-registry.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278286547-4mhnxcxjd6o' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\8fa20dda7c9a15b44bad34ed7d9fde16211702c9'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/kramdown-export/ial.test.ts[2m [ src/kramdown-export/ial.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278285090-z7w6rjpv6xs' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\5a684894037bf68f193a3fc9e03d8c409b9a9d71'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-agent-bridge/plugin.test.ts[2m [ src/lets-agent-bridge/plugin.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278292530-wf87fm9wsdd' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\51aaa6a9ef511002138fdc4a144cb58b2ea535ef'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-block-attr/custom-properties.test.ts[2m [ src/lets-block-attr/custom-properties.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278278462-l3isoxlykab' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\22060352d4463daf9c3654c4b0a8a51408a972ab'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-animated-image-replay/plugin.test.ts[2m [ src/lets-animated-image-replay/plugin.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278292567-jaze2ujj4no' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\213ac0135315ec93e37c58a509706d33c88a84bb'[39m
+[36m [2m❯[22m src/lets-animated-image-replay/plugin.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m metadata [35mfrom[39m [32m"./plugin"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"animated image replay settings"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-database-enhancements/av-column-binding.test.ts[2m [ src/lets-database-enhancements/av-column-binding.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278285909-0f0vy7w6nqi' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\5c2c3dc9837f51b4182584c45f5422026b41252a'[39m
+[36m [2m❯[22m src/lets-database-enhancements/av-column-binding.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m   isAttributeViewValueEmpty[33m,[39m
+    [90m  4|[39m   matchesBindingOperator[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-database-enhancements/database-enhancements.test.ts[2m [ src/lets-database-enhancements/database-enhancements.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278281016-q3abxdxzd5b' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\fefb3704c44c7a7b5be768b77058276f09164fb9'[39m
+[36m [2m❯[22m src/lets-database-enhancements/database-enhancements.test.ts:[2m10:1[22m[39m
+    [90m  8|[39m   [33mAvCoverInheritManager[39m[33m,[39m
+    [90m  9|[39m } [35mfrom[39m [32m"./av/av-cover-inherit"[39m[33m;[39m
+    [90m 10|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m 11|[39m   detectSubject[33m,[39m
+    [90m 12|[39m   extractTopicNumber[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-document-history-diff/history-service.test.ts[2m [ src/lets-document-history-diff/history-service.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278280326-2oahrt1nb1t' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\fe5fe5ef3e8e98f08db24f78b569a712408b8abc'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-dock-visibility/visibility.test.ts[2m [ src/lets-dock-visibility/visibility.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278288599-1vl9t7mpq4v' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\29f946c5757cda6a4eec5f8c48f2229361f442c3'[39m
+[36m [2m❯[22m src/lets-dock-visibility/visibility.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m   buildDockVisibilityCss[33m,[39m
+    [90m  4|[39m   isDockHiddenOn[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-flashcard/plugin.test.ts[2m [ src/lets-flashcard/plugin.test.ts ][22m
+[41m[1m FAIL [22m[49m src/lets-flashcard/registration-flow.test.ts[2m [ src/lets-flashcard/registration-flow.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278267894-373el16kkj' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\135db652299e35a80cb90fba4aa47d3e8ed6916e'[39m
+[36m [2m❯[22m node_modules/.pnpm/svelte@5.56.8/node_modules/svelte/src/index-server.js:[2m3:1[22m[39m
+    [90m  1|[39m [90m/** @import { SSRContext } from '#server' */[39m
+    [90m  2|[39m [90m/** @import { Renderer } from './internal/server/renderer.js' */[39m
+    [90m  3|[39m [35mimport[39m { ssr_context } [35mfrom[39m [32m'./internal/server/context.js'[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  4|[39m [35mimport[39m { noop } [35mfrom[39m [32m'./internal/shared/utils.js'[39m[33m;[39m
+    [90m  5|[39m [35mimport[39m [33m*[39m [35mas[39m e [35mfrom[39m [32m'./internal/server/errors.js'[39m[33m;[39m
+[90m [2m❯[22m src/lets-flashcard/index.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-kramdown-export/batch.test.ts[2m [ src/lets-kramdown-export/batch.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278276088-pnzikp8twz' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\7f68362ce7790df075c322933a59acdf0c54a481'[39m
+[36m [2m❯[22m src/lets-kramdown-export/batch.test.ts:[2m3:1[22m[39m
+    [90m  1|[39m [35mimport[39m [33mJSZip[39m [35mfrom[39m [32m"jszip"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  3|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  4|[39m   archivePath[33m,[39m
+    [90m  5|[39m   relativeDocumentTreePaths[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-expanded-plugin-menu/settings-model.test.ts[2m [ src/lets-expanded-plugin-menu/settings-model.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278284270-weok9yjzwvl' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\c347e014fff2b155c0435f0e6fdea0aa1eea56d6'[39m
+[36m [2m❯[22m src/lets-expanded-plugin-menu/settings-model.test.ts:[2m3:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m type { [33mDiscoveredPluginMenuEntry[39m } [35mfrom[39m [32m"./discovered-entries"[39m[33m;[39m
+    [90m  3|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  4|[39m   mergeDiscoveredPluginMenuAnchors[33m,[39m
+    [90m  5|[39m   parseDiscoveredPluginMenuAnchors[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-image-converter/batch-converter.test.ts[2m [ src/lets-image-converter/batch-converter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278283609-gxi7d4gsywv' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\80f3bfcde608f118d233df1e95ce89c3b4ca261d'[39m
+[36m [2m❯[22m src/lets-image-converter/batch-converter.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m {beforeEach[33m,[39m describe[33m,[39m expect[33m,[39m it[33m,[39m vi} [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import {replaceAssetReferences, resolveBatchDocuments} from "./batch-c…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m [35mimport[39m {lsNotebooks[33m,[39m sqlStrict} [35mfrom[39m [32m"@/api"[39m[33m;[39m
+    [90m  4|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-image-converter/image-converter.test.ts[2m [ src/lets-image-converter/image-converter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278281077-kl4ndrysgws' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\dcafe199278a07b4930c865918a15c7b3920bc8b'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-list-merge/list-merge.test.ts[2m [ src/lets-list-merge/list-merge.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278288219-psn89j7pgf7' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\58fc6f1e0e19d0a5df48cb7b7c8ae44537e6065b'[39m
+[36m [2m❯[22m src/lets-list-merge/list-merge.test.ts:[2m6:1[22m[39m
+    [90m  4|[39m   type [33mListMergeSelection[39m[33m,[39m
+    [90m  5|[39m } [35mfrom[39m [32m"./list-merge"[39m[33m;[39m
+    [90m  6|[39m [35mimport[39m pluginMetadata [35mfrom[39m [32m"./plugin"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  7|[39m
+    [90m  8|[39m [34mdescribe[39m([32m"list merge settings"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-mobile-slash-menu/plugin.test.ts[2m [ src/lets-mobile-slash-menu/plugin.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278290530-3s8zbpekc3l' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\d32666a8a2bdb1889e02fdb0fba5aa98b74cd9a7'[39m
+[36m [2m❯[22m src/lets-mobile-slash-menu/plugin.test.ts:[2m6:1[22m[39m
+    [90m  4|[39m
+    [90m  5|[39m [35mimport[39m pluginMetadata [35mfrom[39m [32m"./plugin"[39m[33m;[39m
+    [90m  6|[39m import { isMobileSlashMenuFrontend, supportsMobileSlashMenu } from "./…
+    [90m   |[39m [31m^[39m
+    [90m  7|[39m
+    [90m  8|[39m [34mdescribe[39m([32m"mobile slash menu module"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-mobile-slash-menu/slash-menu-settings.test.ts[2m [ src/lets-mobile-slash-menu/slash-menu-settings.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278286769-4rdikeihd4n' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\483051aaa9330875e6f2bb0e2c205dca9f3f5970'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/booru.test.ts[2m [ src/lets-more-background/booru.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278274050-ogbfwnpc4qk' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\0c9d15af12319519042f72f53471e883537c178e'[39m
+[36m [2m❯[22m src/lets-more-background/booru.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { afterEach[33m,[39m describe[33m,[39m expect[33m,[39m it[33m,[39m vi } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m   isBooruSource[33m,[39m
+    [90m  4|[39m   parseBooruUri[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/cover-condition.test.ts[2m [ src/lets-more-background/cover-condition.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278284913-oiuakxcgxwr' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\e0c7479df3fdead7850d6cf5825420e33ae4620f'[39m
+[36m [2m❯[22m src/lets-more-background/sources.ts:[2m116:1[22m[39m
+    [90m114|[39m export const DEFAULT_BLACKLISTED_TAGS = "grayscale, gay, two_males, ba…
+    [90m115|[39m
+    [90m116|[39m [35mimport[39m allArtistsData [35mfrom[39m [32m"./all_artists.json"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m117|[39m
+    [90m118|[39m [35mexport[39m [35mconst[39m [33mDEFAULT_TAG_POOLS[39m[33m:[39m [33mTagPool[39m[] [33m=[39m [
+[90m [2m❯[22m src/lets-more-background/cover-condition.test.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/cover-dedup.test.ts[2m [ src/lets-more-background/cover-dedup.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278284132-ixrx5xvejve' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\b44856f99cac6bfc702fc8c127f0e8283789ea43'[39m
+[36m [2m❯[22m src/lets-more-background/cover-dedup.test.ts:[2m2:1[22m[39m
+
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/cover-export.test.ts[2m [ src/lets-more-background/cover-export.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278268469-iqnwewk0bmn' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\0e9267040d9417169f4e7a8f56ef3638e6c7a20b'[39m
+[36m [2m❯[22m src/lets-more-background/cover-export.ts:[2m3:1[22m[39m
+    [90m  1|[39m [35mimport[39m { getHPathByID[33m,[39m sql } [35mfrom[39m [32m"@/api"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { getLogger } [35mfrom[39m [32m"@/libs/logger"[39m[33m;[39m
+    [90m  3|[39m import { getCoverHistory, getSeenCovers, type SeenCoverEntry } from ".…
+    [90m   |[39m [31m^[39m
+    [90m  4|[39m [35mimport[39m type { [33mCoverHistoryEntry[39m } [35mfrom[39m [32m"./sources"[39m[33m;[39m
+    [90m  5|[39m
+[90m [2m❯[22m src/lets-more-background/cover-export.test.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/cover-favorite-sync.test.ts[2m [ src/lets-more-background/cover-favorite-sync.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278269956-ia8936q8y6o' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\82eb37ba873305f5fa38bb2c51f09af4ffef4d09'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/cover-gacha.test.ts[2m [ src/lets-more-background/cover-gacha.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278268987-ngi7d3o3rul' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\cc2d07cd9c89f25812d1b43f288335d7a25e65ab'[39m
+[36m [2m❯[22m src/lets-more-background/cover-gacha.ts:[2m5:1[22m[39m
+    [90m  3|[39m [35mimport[39m { getLogger } [35mfrom[39m [32m"@/libs/logger"[39m[33m;[39m
+    [90m  4|[39m import { isolateMobileDialogGestures } from "@/lets-question-bank/work…
+    [90m  5|[39m [35mimport[39m { coverFavoriteKey } [35mfrom[39m [32m"./cover-favorites"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  6|[39m [35mimport[39m type { [33mBooruResolvedInfo[39m } [35mfrom[39m [32m"./booru"[39m[33m;[39m
+    [90m  7|[39m
+[90m [2m❯[22m src/lets-more-background/cover-gacha.test.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/more-background.test.ts[2m [ src/lets-more-background/more-background.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278267351-lpug9ds1es' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\e0c7479df3fdead7850d6cf5825420e33ae4620f'[39m
+[36m [2m❯[22m src/lets-more-background/sources.ts:[2m116:1[22m[39m
+    [90m114|[39m export const DEFAULT_BLACKLISTED_TAGS = "grayscale, gay, two_males, ba…
+    [90m115|[39m
+    [90m116|[39m [35mimport[39m allArtistsData [35mfrom[39m [32m"./all_artists.json"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m117|[39m
+    [90m118|[39m [35mexport[39m [35mconst[39m [33mDEFAULT_TAG_POOLS[39m[33m:[39m [33mTagPool[39m[] [33m=[39m [
+[90m [2m❯[22m src/lets-more-background/more-background.test.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/plugin.test.ts[2m [ src/lets-more-background/plugin.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278288327-2spww7kwlfx' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\acf5f1033aad0daea6c0102de4f8425a08114eab'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/tag-dictionary.test.ts[2m [ src/lets-more-background/tag-dictionary.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278277646-gvnwgrzg3ot' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\907a2c9ce27f437848a437706d16770377ef6e69'[39m
+[36m [2m❯[22m src/lets-more-background/tag-dictionary.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import { getDetailedTagInfo, parseTagLine, formatTagLine } from "./tag…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"tag-dictionary"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-remote-access/index.test.ts[2m [ src/lets-remote-access/index.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278268948-0uisd4hy0xf8' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\0e2f3927d63f3389804dcd13846cd5280566a543'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-remote-access/remote-access.test.ts[2m [ src/lets-remote-access/remote-access.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278277041-51sjv5mf8xg' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\1ed466a9694405c2d3dcddf3a482e0009d329585'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/open-actions.test.ts[2m [ src/lets-question-bank/open-actions.test.ts ][22m
+[31m[1mError[22m: No test suite found in file D:/1STUDY/3-Resource/法考/siyuan-damophus/src/lets-question-bank/open-actions.test.ts[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/pause-on-blur.test.ts[2m [ src/lets-question-bank/pause-on-blur.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278277021-tqsnz0f5iyb' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\6889cde641dea274cd46677261e26b526d94b512'[39m
+[36m [2m❯[22m src/lets-question-bank/pause-on-blur.test.ts:[2m4:1[22m[39m
+    [90m  2|[39m [35mimport[39m { createActor } [35mfrom[39m [32m"xstate"[39m[33m;[39m
+    [90m  3|[39m import { practiceSessionMachine } from "../question-bank/core/session-…
+    [90m  4|[39m import { practiceQuestionElapsedMs, practiceSessionElapsedMs, createPr…
+    [90m   |[39m [31m^[39m
+    [90m  5|[39m [35mimport[39m type { [33mQuestion[39m } [35mfrom[39m [32m"../question-bank/core/types"[39m[33m;[39m
+    [90m  6|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/plugin.test.ts[2m [ src/lets-question-bank/plugin.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278284151-i0ik7dj3lu' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\fdf9b04a2d1274e05d24c6bd2c1e1adfc5972054'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[42/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/session-host.test.ts[2m [ src/lets-question-bank/session-host.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278274887-u21gjvlhpcc' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\d93048c30dad386e7278caa9d7c91ee1ac2dc5db'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[43/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/tab-replacement.test.ts[2m [ src/lets-question-bank/tab-replacement.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278287431-l32l9ierk8j' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\da1e0aaaaa024ccbb69bc64e7744bfffe93ab9e9'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[44/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/tinybase-catalog-runtime.test.ts[2m [ src/lets-question-bank/tinybase-catalog-runtime.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278267892-6vk0ldel6pu' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\3eb3c523d9537100be4f81f80831e5b624b48c40'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[45/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/tinybase-runtime.test.ts[2m [ src/lets-question-bank/tinybase-runtime.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278267545-ngk99n5yiq' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\66620b04f7c36780be9324950853fd40dd480add'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[46/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/topic-relation-events.test.ts[2m [ src/lets-question-bank/topic-relation-events.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278289848-8bzw8rqzlj9' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\355812858fbe5e13a0e9447a482b615980e43d50'[39m
+[36m [2m❯[22m src/lets-question-bank/topic-relation-events.test.ts:[2m3:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import type { QuestionBankBinding } from "@/question-bank/adapters/siy…
+    [90m  3|[39m [35mimport[39m { updatesManagedTopicRelation } [35mfrom[39m [32m"./topic-relation-events"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  4|[39m
+    [90m  5|[39m [35mconst[39m binding [33m=[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[47/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-skill-manager/api.test.ts[2m [ src/lets-skill-manager/api.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278291977-c8v53wv98yd' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\fd1d5b37530dbe277f077e776a7ed458085413b4'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[48/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-skill-manager/plugin.test.ts[2m [ src/lets-skill-manager/plugin.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278286495-69hwix65pk8' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\6cf07cbb772b622fe14642679e47eeefcc968784'[39m
+[36m [2m❯[22m src/lets-skill-manager/plugin.test.ts:[2m4:1[22m[39m
+    [90m  2|[39m [35mimport[39m { resolveSiyuanPluginIcon } [35mfrom[39m [32m"../libs/plugin-icons"[39m[33m;[39m
+    [90m  3|[39m
+    [90m  4|[39m [35mimport[39m pluginMetadata[33m,[39m { skillManagerAppearance } [35mfrom[39m [32m"./plugin"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  5|[39m
+    [90m  6|[39m [34mdescribe[39m([32m"skill manager settings"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[49/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-skill-manager/tab-contract.test.ts[2m [ src/lets-skill-manager/tab-contract.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278292049-uh6a97uc41' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\806ed3ed89485a6b16f975c6f23e8de14ac5746a'[39m
+[36m [2m❯[22m src/lets-skill-manager/tab-contract.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import { skillManagerDockType, skillManagerTabTarget, skillManagerTabT…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"skill manager custom tab contract"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[50/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-tab-icons/tab-icon-controller.test.ts[2m [ src/lets-tab-icons/tab-icon-controller.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278272192-4mwnco0r504' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\a0396fd6cbbd17d4bed4452cac43c3d191287aa1'[39m
+[36m [2m❯[22m src/lets-tab-icons/tab-icon-controller.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it[33m,[39m vi } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import { getTabRootId, isBlockId, isDescendantHPath, normalizeHPath, T…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"tab icon controller"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[51/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-style-brush/index.test.ts[2m [ src/lets-style-brush/index.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278284988-zilgz6pcnzj' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\251a7492108de6b075bc20ccca83dfe2fef45fdf'[39m
+[36m [2m❯[22m src/lets-style-brush/index.test.ts:[2m16:1[22m[39m
+    [90m 14|[39m vi[33m.[39m[34mmock[39m([32m"siyuan"[39m[33m,[39m () [33m=>[39m ({ [33mDialog[39m[33m:[39m [35mclass[39m {}[33m,[39m showMessage[33m:[39m vi[33m.[39m[34mfn[39m() }))[33m;[39m
+    [90m 15|[39m
+    [90m 16|[39m [35mimport[39m [33mStyleBrushPlugin[39m [35mfrom[39m [32m"./index"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m 17|[39m
+    [90m 18|[39m [34mdescribe[39m([32m"same-text format painter integration"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[52/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-style-brush/style-brush.test.ts[2m [ src/lets-style-brush/style-brush.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278291833-q3a9ald63y' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\836a932a891e54ba478f85fc70988d6e9ea27033'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[53/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-topic-dictionary/plugin.test.ts[2m [ src/lets-topic-dictionary/plugin.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278290859-3vkprf0vuuy' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\62a5b56d052d4cbb8b5a4e5356af58315d92cf38'[39m
+[36m [2m❯[22m src/lets-topic-dictionary/plugin.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m pluginMetadata [35mfrom[39m [32m"./plugin"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"topic dictionary plugin metadata"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[54/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/menu-order.test.ts[2m [ src/libs/menu-order.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278291108-gyjn31byz0k' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\5c939016da00eaa1bdda2d4412f0c0f449c5f12a'[39m
+[36m [2m❯[22m src/libs/menu-order.ts:[2m1:1[22m[39m
+    [90m  1|[39m [35mimport[39m { orderByPreference } [35mfrom[39m [32m"./settings-nav-state"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  2|[39m
+    [90m  3|[39m [35mexport[39m [35mconst[39m [33mMENU_ORDER_KEY[39m [33m=[39m [32m"uiPluginMenuOrder"[39m[33m;[39m
+[90m [2m❯[22m src/libs/menu-order.test.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[55/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/open-document-tabs.test.ts[2m [ src/libs/open-document-tabs.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278290753-5nbcngezr17' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\cd675498818e27b3269af0ac5ae600f16fa352cc'[39m
+[36m [2m❯[22m src/libs/open-document-tabs.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import { openDocumentTabLabel, openDocumentTabParentPath, openDocument…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"open document tabs"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[56/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/plugin-entry-settings.test.ts[2m [ src/libs/plugin-entry-settings.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278282788-14udhvraf4j' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\27294bbc37f1c33224ec3a0e84aa8ca7c5d5e7ab'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[57/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/plugin-icons.test.ts[2m [ src/libs/plugin-icons.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278267345-s0d0znnlk6' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\b87f605fa000be75ab1224a6e81b218187fd7fb8'[39m
+[36m [2m❯[22m src/libs/plugin-icons.test.ts:[2m1:38[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m   |[39m                                      [31m^[39m
+    [90m  2|[39m [35mimport[39m type { [33mPluginMetadata[39m } [35mfrom[39m [32m"@/types/plugin"[39m[33m;[39m
+    [90m  3|[39m import { resolvePluginIconName, settingGroupIcons } from "./plugin-ico…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[58/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/plugin-toolbar-keymap.test.ts[2m [ src/libs/plugin-toolbar-keymap.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278291948-n1u5ncz0elb' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\aafdacef086c4fc412014f9e730a3c9e52862f53'[39m
+[36m [2m❯[22m src/libs/plugin-toolbar-keymap.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { syncPluginToolbarKeymap } [35mfrom[39m [32m"./plugin-toolbar-keymap"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"syncPluginToolbarKeymap"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[59/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/settings-nav-state.test.ts[2m [ src/libs/settings-nav-state.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278289087-j6fpisjxip' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\17cfa9bc88f334cbbf2493a7c84cb6a6e2ac8121'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[60/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/siyuan-block-types.test.ts[2m [ src/libs/siyuan-block-types.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278289471-v9vuafgu1c' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\adfd4deedee581a9427cff04e696e0103327876e'[39m
+[36m [2m❯[22m src/libs/siyuan-block-types.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { normalizeSiyuanBlockTypes } [35mfrom[39m [32m"./siyuan-block-types"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"SiYuan block type selection"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[61/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/unified-entry-point.mobile.test.ts[2m [ src/libs/unified-entry-point.mobile.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278287152-d47w41bvuqf' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\31e62aa9c9406166ed4b21c488949cc367d73818'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[62/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/libs/unified-entry-point.test.ts[2m [ src/libs/unified-entry-point.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278280321-slz5mxl5v3' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\2c713e8cba4cb411d56081423dd3ea13d82f2264'[39m
+[36m [2m❯[22m src/libs/unified-entry-point.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it[33m,[39m vi } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { [33mUnifiedEntryPoint[39m } [35mfrom[39m [32m"./unified-entry-point"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"UnifiedEntryPoint"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[63/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/theme/runtime.test.ts[2m [ src/theme/runtime.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278289489-kq697h4fz4' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\c84bc3c8ec9d9c6fd16934af1606f054660389e2'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[64/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/theme/schema.test.ts[2m [ src/theme/schema.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278277629-v7gb907vfjl' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\980da5b765146ddd58a57e86ffef6ab0770e3bcf'[39m
+[36m [2m❯[22m src/theme/schema.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { importThemesJson } [35mfrom[39m [32m"./schema"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [35mfunction[39m [34mtheme[39m(overrides[33m:[39m [33mRecord[39m[33m<[39mstring[33m,[39m unknown[33m>[39m [33m=[39m {}) {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[65/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/practice/practice-condition-graph.test.ts[2m [ src/lets-question-bank/practice/practice-condition-graph.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278265106-5cx6z9c1z68' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\51966c738f18adbb0246f279bb848c0caeea67fe'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[66/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/practice/practice-preferences.test.ts[2m [ src/lets-question-bank/practice/practice-preferences.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278282600-9f1cl9zsawj' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\a5881b8ff0b292e6c789b859c395d6d3d309f62d'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[67/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/practice/practice-querybuilder-adapter.test.ts[2m [ src/lets-question-bank/practice/practice-querybuilder-adapter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278284129-s59314rtgsj' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\89151c76dbd9963143d752e1adbd9a6607a5fd5e'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[68/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/source/source-embed-presentation.test.ts[2m [ src/lets-question-bank/source/source-embed-presentation.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278286493-jcitucv2guq' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\249e75d4192cf865fcee3f94336db44d011ca561'[39m
+[36m [2m❯[22m src/lets-question-bank/source/source-embed-presentation.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m   normalizeSourceEmbedHeadingMode[33m,[39m
+    [90m  4|[39m   sourceBlockEditorMode[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[69/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/source/source-embed-query.test.ts[2m [ src/lets-question-bank/source/source-embed-query.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278275654-r0zsvhhs6r' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\e5e68b61261bb6fba0f295f6090598e5a75ea546'[39m
+[36m [2m❯[22m src/lets-question-bank/source/source-embed-query.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m   loadSourceEmbedRows[33m,[39m
+    [90m  4|[39m   sourceEmbedBlockIds[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[70/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/source/source-navigation.test.ts[2m [ src/lets-question-bank/source/source-navigation.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278285878-kk875eoprq' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\ef67e0ea65dc62d6c75d7829463b5648cebecab0'[39m
+[36m [2m❯[22m src/lets-question-bank/source/source-navigation.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { questionSourceOpenTarget } [35mfrom[39m [32m"./source-navigation"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"questionSourceOpenTarget"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[71/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/source/source-rendering-binding.test.ts[2m [ src/lets-question-bank/source/source-rendering-binding.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278277032-d85cut07dmw' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\9d37ff371741f56423e09143bd984086c7d65662'[39m
+[36m [2m❯[22m src/lets-question-bank/source/source-rendering-binding.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it[33m,[39m vi } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import { initialized } from "../../question-bank/adapters/siyuan/siyua…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m import { resolveSourceRenderingBinding } from "./source-rendering-bind…
+    [90m  4|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[72/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/statistics/attempt-duration-comparison.test.ts[2m [ src/lets-question-bank/statistics/attempt-duration-comparison.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278284127-uk0ov3473g' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\df4fb6e1ad8aab98553fd91b19426a590b50bff5'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[73/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/statistics/duration-comparison-position.test.ts[2m [ src/lets-question-bank/statistics/duration-comparison-position.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278289078-ojwm7kyab' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\83b7ed4484d3628d409fa0765cc6c23e7dab8960'[39m
+[36m [2m❯[22m src/lets-question-bank/statistics/duration-comparison-position.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import { normalizeDurationComparisonPosition } from "./duration-compar…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m
+    [90m  4|[39m [34mdescribe[39m([32m"normalizeDurationComparisonPosition"[39m[33m,[39m () [33m=>[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[74/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/statistics/statistics-bookmarks.test.ts[2m [ src/lets-question-bank/statistics/statistics-bookmarks.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278285969-y34cuax7v2j' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\ce119d8973490c11e8aea0ceaa68232804042cd6'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[75/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/workspace/exam-session-host.test.ts[2m [ src/lets-question-bank/workspace/exam-session-host.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278275377-xlkc5hfu7dc' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\08f1fc1fa021fb724bf310075d76fa5f2eb2d5b5'[39m
+[36m [2m❯[22m src/question-bank/exam/index.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./schema"[39m[33m;[39m
+    [90m  2|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./scoring"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session"[39m[33m;[39m
+    [90m  4|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session-merge"[39m[33m;[39m
+[90m [2m❯[22m src/lets-question-bank/workspace/exam-session-host.test.ts:[2m3:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[76/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/assembly/assembly.test.ts[2m [ src/question-bank/assembly/assembly.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278271915-0b28ksmxya36' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\391d633b72c1e3427b25ea72c346c9e8c8decc12'[39m
+[36m [2m❯[22m src/question-bank/assembly/assembly.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m   assembleQuestionSet[33m,[39m
+    [90m  4|[39m   deduplicateQuestionCatalog[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[77/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/application/authoring-export.test.ts[2m [ src/question-bank/application/authoring-export.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278281796-s8f9driqwts' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\5e99c3429d45568caad6c3800fd25352eba7837f'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[78/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/application/batch-indexing.test.ts[2m [ src/question-bank/application/batch-indexing.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278270517-n7g5prpobbr' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\5c8a58d6ccb29c4c803ed617fa7747b2aea70594'[39m
+[36m [2m❯[22m src/question-bank/application/batch-indexing.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m type { [33mScanMessage[39m } [35mfrom[39m [32m"../core/types"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { questionContentSignature } [35mfrom[39m [32m"../assembly/fingerprint"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m [35mimport[39m {
+    [90m  4|[39m   applyQuestionIndexPreview[33m,[39m
+[90m [2m❯[22m src/question-bank/application/batch-indexing.test.ts:[2m4:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[79/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/application/practice-runtime.test.ts[2m [ src/question-bank/application/practice-runtime.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278270586-elbcuuw4t57' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\fc5a1108662fd20d47f55cb4fcbee27075674077'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[80/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/application/practice.test.ts[2m [ src/question-bank/application/practice.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278286300-bjuwvkjrry4' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\54282baf4ad647842c7cbb9c4afbb7ca81574050'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[81/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/application/projection.test.ts[2m [ src/question-bank/application/projection.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278274279-nzxobh6mh4' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\356833e0e590a68873674ad7a1e3601a2810aa91'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[82/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/application/recovery.test.ts[2m [ src/question-bank/application/recovery.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278281550-nwja36w03v' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\12d395edd47217cc8321051d533d50d49ee2be49'[39m
+[36m [2m❯[22m src/question-bank/application/recovery.test.ts:[2m4:1[22m[39m
+    [90m  2|[39m [35mimport[39m { createAttemptArchive } [35mfrom[39m [32m"../core/recovery"[39m[33m;[39m
+    [90m  3|[39m [35mimport[39m { createAttemptEvent } [35mfrom[39m [32m"../core/attempts"[39m[33m;[39m
+    [90m  4|[39m [35mimport[39m { createAttemptImportPlan } [35mfrom[39m [32m"./recovery"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  5|[39m
+    [90m  6|[39m [35mfunction[39m [34mevent[39m(attemptId[33m:[39m string[33m,[39m questionId[33m:[39m string) {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[83/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/core/rating-corrections.test.ts[2m [ src/question-bank/core/rating-corrections.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278276509-qbrs0hh2yl' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\954ab322dc69fbc0ce7f8c659b01186b5729dae1'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[84/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/core/recovery.test.ts[2m [ src/question-bank/core/recovery.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278282656-d7eirw8y6v' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\147ef13bee3513e1bae79aa1ef401707b5af4d73'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[85/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/markdown/renderer.test.ts[2m [ src/question-bank/markdown/renderer.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278275781-jhssj5rpjba' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\aeaf2a2a67e55590d47e3741a71612811e6c1c13'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[86/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/markdown/scanner.test.ts[2m [ src/question-bank/markdown/scanner.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278267842-u59h0bgd819' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\5380f00e2bb4a0a2db506fdda2fd08cffaf72694'[39m
+[36m [2m❯[22m src/question-bank/markdown/scanner.test.ts:[2m3:1[22m[39m
+    [90m  1|[39m [35mimport[39m { readFileSync } [35mfrom[39m [32m"node:fs"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  3|[39m [35mimport[39m { scanQuestionMarkdown } [35mfrom[39m [32m"./scanner"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  4|[39m
+    [90m  5|[39m [35mfunction[39m [34mfixture[39m(name[33m:[39m string)[33m:[39m string {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[87/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/exam/exam.test.ts[2m [ src/question-bank/exam/exam.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278274644-mzqhpbvo33' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\08f1fc1fa021fb724bf310075d76fa5f2eb2d5b5'[39m
+[36m [2m❯[22m src/question-bank/exam/index.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./schema"[39m[33m;[39m
+    [90m  2|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./scoring"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session"[39m[33m;[39m
+    [90m  4|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session-merge"[39m[33m;[39m
+[90m [2m❯[22m src/question-bank/exam/exam.test.ts:[2m3:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[88/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/storage/storage.test.ts[2m [ src/question-bank/storage/storage.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278271278-ivf056tlqgi' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\ab9595501d0f790ae8266747429f31210ce3f304'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[89/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/siyuan/document-topic-anchor.test.ts[2m [ src/question-bank/adapters/siyuan/document-topic-anchor.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278278143-3mgmzua9kwi' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\bebab6ad237a7ea0bdb082ff5a5eec163309b768'[39m
+[36m [2m❯[22m src/question-bank/markdown/scanner/scan.ts:[2m5:1[22m[39m
+    [90m  3|[39m [35mimport[39m type { [33mQuestionGroup[39m[33m,[39m [33mTopicNode[39m } [35mfrom[39m [32m"../../core/types"[39m[33m;[39m
+    [90m  4|[39m [35mimport[39m { stableTopicIdPattern } [35mfrom[39m [32m"./markdown"[39m[33m;[39m
+    [90m  5|[39m [35mimport[39m { inferredTopicId[33m,[39m inheritedMetadata } [35mfrom[39m [32m"./metadata"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  6|[39m import { extractIalLines, isHeading, makeBlocks } from "./parse-blocks…
+    [90m  7|[39m [35mimport[39m { markdownParser } [35mfrom[39m [32m"./markdown"[39m[33m;[39m
+[90m [2m❯[22m src/question-bank/markdown/scanner/index.ts:[2m1:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[90/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/siyuan/siyuan-adapter.test.ts[2m [ src/question-bank/adapters/siyuan/siyuan-adapter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278266110-x18eajcbtgf' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\40f716613711bf701c253dc2c7514a43f4a170d9'[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[91/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/siyuan/source-catalog.test.ts[2m [ src/question-bank/adapters/siyuan/source-catalog.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278278430-fy3fcio6u5l' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\f7a84833206321cfcf13a2f31f7f8fc15497c8b4'[39m
+[36m [2m❯[22m src/question-bank/adapters/siyuan/source-catalog.test.ts:[2m3:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m type { [33mRawAttributeView[39m } [35mfrom[39m [32m"./types"[39m[33m;[39m
+    [90m  3|[39m import { buildQuestionSourceCatalog, type QuestionSourceBlockRow } fro…
+    [90m   |[39m [31m^[39m
+    [90m  4|[39m
+    [90m  5|[39m [35mconst[39m binding [33m=[39m {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[92/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/siyuan/topic-index.test.ts[2m [ src/question-bank/adapters/siyuan/topic-index.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278269453-oaboncvr4tm' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\34b302995f3fe161a491ebf4bcb8882e2df5a819'[39m
+[36m [2m❯[22m src/question-bank/adapters/siyuan/binding/index.ts:[2m1:1[22m[39m
+    [90m  1|[39m [35mexport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  2|[39m   [33mQuestionBankBindingSchema[39m[33m,[39m
+    [90m  3|[39m   questionFields[33m,[39m
+[90m [2m❯[22m src/question-bank/application/indexing.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[93/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/tinybase/exam-session-repository.test.ts[2m [ src/question-bank/adapters/tinybase/exam-session-repository.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278271635-4fg3we3rspu' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\08f1fc1fa021fb724bf310075d76fa5f2eb2d5b5'[39m
+[36m [2m❯[22m src/question-bank/exam/index.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./schema"[39m[33m;[39m
+    [90m  2|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./scoring"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session"[39m[33m;[39m
+    [90m  4|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session-merge"[39m[33m;[39m
+[90m [2m❯[22m src/question-bank/adapters/tinybase/exam-session-repository.test.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[94/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/tinybase/migration.test.ts[2m [ src/question-bank/adapters/tinybase/migration.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278269241-nwy43sooj8a' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\54ca0d5c632982f5b3ad2d434869688b35e81ef0'[39m
+[36m [2m❯[22m scripts/migrate-av-to-tinybase.ts:[2m15:1[22m[39m
+    [90m 13|[39m   [33mTopicAnchorRecord[39m[33m,[39m
+    [90m 14|[39m } [35mfrom[39m [32m"../src/question-bank/storage/schemas"[39m[33m;[39m
+    [90m 15|[39m import { AnnualShardRouter } from "../src/question-bank/adapters/tinyb…
+    [90m   |[39m [31m^[39m
+    [90m 16|[39m import { TinyBaseWarehouse } from "../src/question-bank/adapters/tinyb…
+    [90m 17|[39m [35mimport[39m {
+[90m [2m❯[22m src/question-bank/adapters/tinybase/migration.test.ts:[2m6:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[95/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/tinybase/tinybase-adapter.test.ts[2m [ src/question-bank/adapters/tinybase/tinybase-adapter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\.tmp-1788278269241-nwy43sooj8a' -> 'D:\1Dev\Python\temp\pFw5XgJT39DV3J7y1IT8O\ssr\54ca0d5c632982f5b3ad2d434869688b35e81ef0'[39m
+[36m [2m❯[22m src/question-bank/adapters/tinybase/tinybase-adapter.test.ts:[2m7:1[22m[39m
+    [90m  5|[39m [35mimport[39m type { [33mNewAttemptInput[39m } [35mfrom[39m [32m"../../core/attempts"[39m[33m;[39m
+    [90m  6|[39m [35mimport[39m { createDamophusStore[33m,[39m [33mTABLE[39m } [35mfrom[39m [32m"./tables"[39m[33m;[39m
+    [90m  7|[39m import { AnnualShardRouter, ShardSizeMigrationRequiredError } from "./…
+    [90m   |[39m [31m^[39m
+    [90m  8|[39m [35mimport[39m {
+    [90m  9|[39m   createEnvelope[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[96/100]⎯[22m[39m
+
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/lets-mobile-appearance/index.test.ts[2m > [22mmobile appearance module lifecycle[2m > [22mowns one mobile top bar entry and removes it when disabled
+[31m[1mTypeError[22m: window.setTimeout is not a function[39m
+[36m [2m❯[22m MobileAppearancePlugin.startTitlePath src/lets-mobile-appearance/index.ts:[2m83:12[22m[39m
+    [90m 81|[39m     [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mstart[39m()[33m;[39m
+    [90m 82|[39m     [35mvoid[39m [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mshowCardsFromDatabase[39m()[33m;[39m
+    [90m 83|[39m     window[33m.[39m[34msetTimeout[39m(() [33m=>[39m {
+    [90m   |[39m            [31m^[39m
+    [90m 84|[39m       [35mvoid[39m [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mshowCardsFromDatabase[39m()[33m;[39m
+    [90m 85|[39m     }[33m,[39m [34m500[39m)[33m;[39m
+[90m [2m❯[22m MobileAppearancePlugin.applySettings src/lets-mobile-appearance/index.ts:[2m50:12[22m[39m
+[90m [2m❯[22m MobileAppearancePlugin.onLayoutReady src/lets-mobile-appearance/index.ts:[2m20:10[22m[39m
+[90m [2m❯[22m src/lets-mobile-appearance/index.test.ts:[2m67:12[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[97/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-mobile-appearance/index.test.ts[2m > [22mmobile appearance module lifecycle[2m > [22mskips top bar shortcut when topBarShortcut setting is disabled
+[31m[1mTypeError[22m: window.setTimeout is not a function[39m
+[36m [2m❯[22m MobileAppearancePlugin.startTitlePath src/lets-mobile-appearance/index.ts:[2m83:12[22m[39m
+    [90m 81|[39m     [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mstart[39m()[33m;[39m
+    [90m 82|[39m     [35mvoid[39m [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mshowCardsFromDatabase[39m()[33m;[39m
+    [90m 83|[39m     window[33m.[39m[34msetTimeout[39m(() [33m=>[39m {
+    [90m   |[39m            [31m^[39m
+    [90m 84|[39m       [35mvoid[39m [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mshowCardsFromDatabase[39m()[33m;[39m
+    [90m 85|[39m     }[33m,[39m [34m500[39m)[33m;[39m
+[90m [2m❯[22m MobileAppearancePlugin.applySettings src/lets-mobile-appearance/index.ts:[2m50:12[22m[39m
+[90m [2m❯[22m MobileAppearancePlugin.onLayoutReady src/lets-mobile-appearance/index.ts:[2m20:10[22m[39m
+[90m [2m❯[22m src/lets-mobile-appearance/index.test.ts:[2m85:12[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[98/100]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-mobile-appearance/index.test.ts[2m > [22mmobile appearance module lifecycle[2m > [22mdynamically toggles sub-features when onDataChanged is triggered
+[31m[1mTypeError[22m: window.setTimeout is not a function[39m
+[36m [2m❯[22m MobileAppearancePlugin.startTitlePath src/lets-mobile-appearance/index.ts:[2m83:12[22m[39m
+    [90m 81|[39m     [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mstart[39m()[33m;[39m
+    [90m 82|[39m     [35mvoid[39m [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mshowCardsFromDatabase[39m()[33m;[39m
+    [90m 83|[39m     window[33m.[39m[34msetTimeout[39m(() [33m=>[39m {
+    [90m   |[39m            [31m^[39m
+    [90m 84|[39m       [35mvoid[39m [35mthis[39m[33m.[39mtitlePath[33m.[39m[34mshowCardsFromDatabase[39m()[33m;[39m
+    [90m 85|[39m     }[33m,[39m [34m500[39m)[33m;[39m
+[90m [2m❯[22m MobileAppearancePlugin.applySettings src/lets-mobile-appearance/index.ts:[2m50:12[22m[39m
+[90m [2m❯[22m MobileAppearancePlugin.onLayoutReady src/lets-mobile-appearance/index.ts:[2m20:10[22m[39m
+[90m [2m❯[22m src/lets-mobile-appearance/index.test.ts:[2m111:12[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[99/100]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m98 failed[39m[22m[2m | [22m[1m[32m53 passed[39m[22m[90m (151)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m269 passed[39m[22m[90m (272)[39m
+[2m   Start at [22m 23:57:43
+[2m   Duration [22m 29.58s[2m (transform 106.72s, setup 0ms, import 72.45s, tests 742ms, environment 31ms)[22m
+

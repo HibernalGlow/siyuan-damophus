@@ -1,0 +1,175 @@
+npm warn Unknown project config "only-built-dependencies". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/1STUDY/3-Resource/法考/siyuan-damophus[39m
+
+ [31m❯[39m src/lets-question-bank/open-actions.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/practice/practice-condition-graph.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-more-background/cover-favorite-sync.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/lets-question-bank/sync-coordinator.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/cover-gacha.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [31m❯[39m src/question-bank/adapters/tinybase/exam-session-repository.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/application/practice-runtime.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/session.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [31m❯[39m src/question-bank/application/batch-indexing.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/tinybase-catalog-runtime.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/siyuan/siyuan-adapter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/tinybase/tinybase-adapter.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/question-bank/adapters/siyuan/topic-index.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [31m❯[39m src/lets-question-bank/tinybase-runtime.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/storage/storage.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [31m❯[39m src/question-bank/assembly/assembly.test.ts [2m([22m[2m0 test[22m[2m)[22m
+ [32m✓[39m src/question-bank/core/core.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/tinybase/migration.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1674[2mms[22m[39m
+     [33m[2m✓[22m[39m is idempotent and records a reconciliation report [33m 1672[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/booru.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/statistics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/siyuan/topic-dictionary.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/question-bank/application/practice-lifecycle.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/source/source-embed-query.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/question-bank/markdown/scanner.test.ts [2m([22m[2m32 tests[22m[2m)[22m[33m 382[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/rating-corrections.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/siyuan/document-topic-anchor.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/question-bank/exam/exam.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/session-host.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/workspace/exam-session-host.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/question-bank/application/projection.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/source/source-rendering-binding.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/pause-on-blur.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/question-bank/markdown/renderer.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 38[2mms[22m[39m
+(node:34904) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/lets-question-bank/tab-replacement.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/tag-dictionary.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/cover-favorites.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/question-bank/application/authoring-export.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/question-bank/topic-dictionary.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/practice/practice-querybuilder-adapter.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/siyuan/riff.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/question-bank/application/recovery.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lets-database-enhancements/database-enhancements.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/tinybase/siyuan-file-io.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/question-bank/adapters/siyuan/source-catalog.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/source/source-identity.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/practice/practice-preferences.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/statistics/attempt-duration-comparison.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/cover-dedup.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/recovery.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/local-cover-cache-maintenance.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/question-bank/topic-subjects.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/cover-condition.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/question-bank/markdown/ial.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lets-database-enhancements/av-column-binding.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/statistics/statistics-bookmarks.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/source/source-navigation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/source/source-embed-presentation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/plugin.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/question-bank/application/practice.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/tab-contract.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/topic-relation-events.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/plugin.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/statistics/duration-comparison-position.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/question-bank/core/subject-dashboard.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/question-bank/application/review.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lets-question-bank/launch-target.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+(node:22952) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:44828) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+00:06:15 [vite-plugin-svelte] src/lets-question-bank/statistics/Statistics.svelte:873:2 Unused CSS selector ".statistics-expand-btn"
+https://svelte.dev/e/css_unused_selector
+00:06:15 [vite-plugin-svelte] src/lets-question-bank/statistics/Statistics.svelte:884:2 Unused CSS selector ".statistics-expand-btn:hover"
+https://svelte.dev/e/css_unused_selector
+00:06:15 [vite-plugin-svelte] src/lets-question-bank/QuestionBankMapping.svelte:89:2 Unused CSS selector ".mapping-marked-refresh"
+https://svelte.dev/e/css_unused_selector
+ [32m✓[39m src/lets-more-background/cover-export.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lets-more-background/more-background.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 11 [49m[22m[31m⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/lets-more-background/cover-favorite-sync.test.ts[2m [ src/lets-more-background/cover-favorite-sync.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\.tmp-1788278433549-jf7ij5wt7cq' -> 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\e319a9fd4c1388f8b6cd11a5c19503772c27edbf'[39m
+[36m [2m❯[22m src/lets-more-background/cover-favorite-sync.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { afterEach[33m,[39m describe[33m,[39m expect[33m,[39m it[33m,[39m vi } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m import { supportsCoverFavoriteSync, syncCoverFavoriteToSite } from "./…
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m [35mimport[39m type { [33mCoverFavorite[39m } [35mfrom[39m [32m"./cover-favorites"[39m[33m;[39m
+    [90m  4|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/open-actions.test.ts[2m [ src/lets-question-bank/open-actions.test.ts ][22m
+[31m[1mError[22m: No test suite found in file D:/1STUDY/3-Resource/法考/siyuan-damophus/src/lets-question-bank/open-actions.test.ts[39m
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/tinybase-catalog-runtime.test.ts[2m [ src/lets-question-bank/tinybase-catalog-runtime.test.ts ][22m
+[41m[1m FAIL [22m[49m src/lets-question-bank/tinybase-runtime.test.ts[2m [ src/lets-question-bank/tinybase-runtime.test.ts ][22m
+[41m[1m FAIL [22m[49m src/question-bank/adapters/siyuan/siyuan-adapter.test.ts[2m [ src/question-bank/adapters/siyuan/siyuan-adapter.test.ts ][22m
+[41m[1m FAIL [22m[49m src/question-bank/adapters/tinybase/tinybase-adapter.test.ts[2m [ src/question-bank/adapters/tinybase/tinybase-adapter.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\.tmp-1788278437403-yntuxh2p6wk' -> 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\ba75b4eb374dd3b4f8a3b89eca058c08693bcf1f'[39m
+[36m [2m❯[22m src/question-bank/adapters/siyuan/binding/index.ts:[2m23:1[22m[39m
+    [90m 21|[39m   previewQuestionBankInitialization[33m,[39m
+    [90m 22|[39m } [35mfrom[39m [32m"./initialize"[39m[33m;[39m
+    [90m 23|[39m [35mexport[39m {
+    [90m   |[39m [31m^[39m
+    [90m 24|[39m   confirmQuestionBankRebinding[33m,[39m
+    [90m 25|[39m   previewQuestionBankRebinding[33m,[39m
+[90m [2m❯[22m src/question-bank/adapters/siyuan/attempt-store.ts:[2m4:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/lets-question-bank/practice/practice-condition-graph.test.ts[2m [ src/lets-question-bank/practice/practice-condition-graph.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\.tmp-1788278433746-ra26n80oy3b' -> 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\335b56b6798013541b63ac003c0ec287ac9716d6'[39m
+[36m [2m❯[22m node_modules/.pnpm/lucide-svelte@0.545.0_svelte@5.56.8/node_modules/lucide-svelte/dist/lucide-svelte.js:[2m45:1[22m[39m
+    [90m 43|[39m  *
+    [90m 44|[39m  */[39m
+    [90m 45|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m'./icons/index'[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m 46|[39m [35mexport[39m [33m*[39m [35mas[39m icons [35mfrom[39m [32m'./icons/index'[39m[33m;[39m
+    [90m 47|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m'./aliases'[39m[33m;[39m
+[90m [2m❯[22m src/lets-question-bank/practice/practice-condition-graph.ts:[2m3:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/application/batch-indexing.test.ts[2m [ src/question-bank/application/batch-indexing.test.ts ][22m
+[41m[1m FAIL [22m[49m src/question-bank/adapters/siyuan/topic-index.test.ts[2m [ src/question-bank/adapters/siyuan/topic-index.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\.tmp-1788278437403-yntuxh2p6wk' -> 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\ba75b4eb374dd3b4f8a3b89eca058c08693bcf1f'[39m
+[36m [2m❯[22m src/question-bank/adapters/siyuan/binding/index.ts:[2m23:1[22m[39m
+    [90m 21|[39m   previewQuestionBankInitialization[33m,[39m
+    [90m 22|[39m } [35mfrom[39m [32m"./initialize"[39m[33m;[39m
+    [90m 23|[39m [35mexport[39m {
+    [90m   |[39m [31m^[39m
+    [90m 24|[39m   confirmQuestionBankRebinding[33m,[39m
+    [90m 25|[39m   previewQuestionBankRebinding[33m,[39m
+[90m [2m❯[22m src/question-bank/application/indexing.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/assembly/assembly.test.ts[2m [ src/question-bank/assembly/assembly.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\.tmp-1788278437405-j9crfbv6lrk' -> 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\391d633b72c1e3427b25ea72c346c9e8c8decc12'[39m
+[36m [2m❯[22m src/question-bank/assembly/assembly.test.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mimport[39m { describe[33m,[39m expect[33m,[39m it } [35mfrom[39m [32m"vitest"[39m[33m;[39m
+    [90m  2|[39m [35mimport[39m {
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m   assembleQuestionSet[33m,[39m
+    [90m  4|[39m   deduplicateQuestionCatalog[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/question-bank/adapters/tinybase/exam-session-repository.test.ts[2m [ src/question-bank/adapters/tinybase/exam-session-repository.test.ts ][22m
+[31m[1mError[22m: EPERM: operation not permitted, rename 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\.tmp-1788278435016-l470ld3k2o' -> 'D:\1Dev\Python\temp\p0g7piCpVCIw1OJaA19dK\ssr\08f1fc1fa021fb724bf310075d76fa5f2eb2d5b5'[39m
+[36m [2m❯[22m src/question-bank/exam/index.ts:[2m2:1[22m[39m
+    [90m  1|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./schema"[39m[33m;[39m
+    [90m  2|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./scoring"[39m[33m;[39m
+    [90m   |[39m [31m^[39m
+    [90m  3|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session"[39m[33m;[39m
+    [90m  4|[39m [35mexport[39m [33m*[39m [35mfrom[39m [32m"./session-merge"[39m[33m;[39m
+[90m [2m❯[22m src/question-bank/adapters/tinybase/exam-session-repository.test.ts:[2m2:1[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m11 failed[39m[22m[2m | [22m[1m[32m57 passed[39m[22m[90m (68)[39m
+[2m      Tests [22m [1m[32m305 passed[39m[22m[90m (305)[39m
+[2m   Start at [22m 00:00:25
+[2m   Duration [22m 359.25s[2m (transform 828.83s, setup 0ms, import 834.35s, tests 3.17s, environment 31ms)[22m
+

@@ -1,0 +1,716 @@
+[
+  {
+    "level": "E",
+    "code": "701",
+    "line": 1,
+    "message": "Source image link was not preserved: file:///D:/1STUDY/3-Resource/%E6%B3%95%E8%80%83/%E5%AE%A2%E8%A7%82/03-%E7%9C%9F%E9%87%91%E9%A2%98/%E7%90%86%E8%AE%BA%E6%B3%95/2026-%E9%A9%AC%E5%B3%B0/10-mineru/images/f020b6009dbf23cf078007e97a2fb21088f7c764dfd452cae50bad9c7c594db3.jpg"
+  },
+  {
+    "level": "E",
+    "code": "701",
+    "line": 1,
+    "message": "Source image link was not preserved: file:///D:/1STUDY/3-Resource/%E6%B3%95%E8%80%83/%E5%AE%A2%E8%A7%82/03-%E7%9C%9F%E9%87%91%E9%A2%98/%E7%90%86%E8%AE%BA%E6%B3%95/2026-%E9%A9%AC%E5%B3%B0/10-mineru/images/97a94e024171e86d760929c20d6f25fc52ab2031b6558338a144200915ef9fc8.jpg"
+  },
+  {
+    "level": "E",
+    "code": "701",
+    "line": 1,
+    "message": "Source image link was not preserved: file:///D:/1STUDY/3-Resource/%E6%B3%95%E8%80%83/%E5%AE%A2%E8%A7%82/03-%E7%9C%9F%E9%87%91%E9%A2%98/%E7%90%86%E8%AE%BA%E6%B3%95/2026-%E9%A9%AC%E5%B3%B0/10-mineru/images/8633598305bae5e7cf7a142ed0d16e3471738e174ffb26fee214a64edb376a9f.jpg"
+  },
+  {
+    "level": "E",
+    "code": "702",
+    "line": 1,
+    "message": "Output has fewer Markdown table rows than source (0 < 363)."
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "703",
+    "line": 1,
+    "message": "Source SiYuan table merge token was not preserved: {: class='fn__none'}"
+  },
+  {
+    "level": "E",
+    "code": "640",
+    "line": 1656,
+    "message": "Medium-or-higher complexity analysis needs a substantive Callout integrated at the reasoning point it supports."
+  },
+  {
+    "level": "E",
+    "code": "643",
+    "line": 1744,
+    "message": "Callout must carry a source-grounded rule, condition, exception, procedure, or legal effect; generic review advice and answer restatements do not count."
+  },
+  {
+    "level": "E",
+    "code": "643",
+    "line": 1749,
+    "message": "Callout must carry a source-grounded rule, condition, exception, procedure, or legal effect; generic review advice and answer restatements do not count."
+  },
+  {
+    "level": "E",
+    "code": "640",
+    "line": 1768,
+    "message": "Medium-or-higher complexity analysis needs a substantive Callout integrated at the reasoning point it supports."
+  },
+  {
+    "level": "E",
+    "code": "643",
+    "line": 1859,
+    "message": "Callout must carry a source-grounded rule, condition, exception, procedure, or legal effect; generic review advice and answer restatements do not count."
+  },
+  {
+    "level": "E",
+    "code": "640",
+    "line": 3402,
+    "message": "Medium-or-higher complexity analysis needs a substantive Callout integrated at the reasoning point it supports."
+  },
+  {
+    "level": "E",
+    "code": "643",
+    "line": 3491,
+    "message": "Callout must carry a source-grounded rule, condition, exception, procedure, or legal effect; generic review advice and answer restatements do not count."
+  },
+  {
+    "level": "E",
+    "code": "640",
+    "line": 3621,
+    "message": "Medium-or-higher complexity analysis needs a substantive Callout integrated at the reasoning point it supports."
+  },
+  {
+    "level": "E",
+    "code": "643",
+    "line": 3707,
+    "message": "Callout must carry a source-grounded rule, condition, exception, procedure, or legal effect; generic review advice and answer restatements do not count."
+  }
+]
