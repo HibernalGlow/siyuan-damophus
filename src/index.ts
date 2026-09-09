@@ -233,6 +233,9 @@ export default class DamophusPlugin extends Plugin {
   }
 
   override async onDataChanged(): Promise<void> {
+    // Re-apply the master logging switch before sub-plugins sync their own
+    // scope levels, so their decisions see the authoritative global level.
+    enableLogging(settings.get("debugLogging") === true);
     await this.pluginRegistry.initializeEnabledPlugins();
     await this.pluginRegistry.unloadDisabledPlugins();
 

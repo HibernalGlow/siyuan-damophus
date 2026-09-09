@@ -55,4 +55,20 @@ describe("Damophus logger", () => {
       args: ["answer graded", { selected: ["B", "C"] }],
     }]);
   });
+
+  it("silences leftover scope overrides and persisted state when the master switch turns off", async () => {
+    const loggerModule = await import("./logger");
+    loggerModule.setLogLevel("debug");
+    window.__damophusLog?.setScopeLevel("lets-more-background", "debug");
+    const background = loggerModule.getLogger("lets-more-background");
+
+    loggerModule.enableLogging(false);
+
+    background.debug("restore position: attrs received", { blockId: "b1" });
+    expect(window.__damophusLog?.getRecords()).toEqual([]);
+    expect(loggerModule.getLogLevel()).toBe("silent");
+    expect(window.__damophusLog?.getScopeLevels()).toEqual({});
+    expect(window.localStorage.getItem(loggerModule.LOG_LEVEL_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(loggerModule.LOG_SCOPE_STORAGE_KEY)).toBeNull();
+  });
 });

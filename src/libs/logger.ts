@@ -61,7 +61,18 @@ export function enableLogging(enabled: boolean): void {
   setLogLevel(enabled ? "debug" : "silent", { persist: false });
   if (enabled) {
     getLogger("logging").info("debug logging enabled", { level: getLogLevel() });
+    return;
   }
+  // A disabled master switch must win over leftover state, otherwise stale
+  // per-scope overrides keep emitting and a persisted level resurrects after
+  // the next reload. Scope levels only ever widen the global level, so
+  // "silent" plus surviving scope entries still logs — clear them all.
+  if (scopeLevels.size > 0) {
+    scopeLevels.clear();
+    applyLevels();
+  }
+  removeStorage(LOG_LEVEL_STORAGE_KEY);
+  removeStorage(LOG_SCOPE_STORAGE_KEY);
 }
 
 export function isLoggingEnabled(): boolean {

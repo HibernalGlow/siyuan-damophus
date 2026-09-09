@@ -1,6 +1,6 @@
 import { mount, unmount } from "svelte";
 import { confirm, Dialog, getAllEditor, openTab, showMessage, type IEventBusMap, type Menu } from "siyuan";
-import { setScopeLogLevel } from "@/libs/logger";
+import { getLogLevel, setScopeLogLevel } from "@/libs/logger";
 import { SubPluginBase } from "@/libs/sub-plugin-base";
 import { resolveSiyuanPluginIcon } from "@/libs/plugin-icons";
 import { isMobile, plugin } from "@/utils";
@@ -262,7 +262,10 @@ export default class MoreBackgroundPlugin extends SubPluginBase {
   }
 
   private syncLogging(): void {
-    setScopeLogLevel("lets-more-background", this.getSetting("debugLogging") === true ? "debug" : undefined);
+    // Scope levels widen the global level, so a module-local switch must not
+    // resurrect debug output while the master switch is off.
+    const enabled = this.getSetting("debugLogging") === true && getLogLevel() !== "silent";
+    setScopeLogLevel("lets-more-background", enabled ? "debug" : undefined);
   }
 
   onLayoutReady(): void {
