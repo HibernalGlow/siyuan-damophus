@@ -139,6 +139,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   public mobileNativeEntryBound = false;
   public mobileReviewButtonObserver: MutationObserver | undefined;
   private breadcrumbButtonRegistered = false;
+  private flashcardBooted = false;
   private readonly reviewToolbarActionDisposers: Array<() => void> = [];
   public optimizerService: FsrsOptimizerLocalService | undefined;
   public readonly fsrsHistoryStorage: FsrsWeightHistoryStorage = {
@@ -214,6 +215,11 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onload(): void {
+    // `initializeEnabledPlugins` re-runs onload on every onDataChanged; without this
+    // guard the second run dies in registerReviewToolbarActions on the already
+    // registered `toolbar-action:*` contributions and skips the rest of the setup.
+    if (this.flashcardBooted) return;
+    this.flashcardBooted = true;
     this.registerReviewToolbarActions();
     this.reviewTimer.installActivityTracking(
       window,
@@ -468,6 +474,7 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   override onunload(): void {
+    this.flashcardBooted = false;
     this.disposeCategoryContribution?.();
     this.disposeCategoryContribution = undefined;
     this.disposeCategoryToolbar?.();
@@ -555,6 +562,8 @@ export default class FlashcardPlugin extends SubPluginBase {
   }
 
   private registerReviewToolbarActions(): void {
+    // Defense in depth: re-registering must not collide with stale contributions.
+    for (const dispose of this.reviewToolbarActionDisposers.splice(0)) dispose();
     this.reviewToolbarActionDisposers.push(...registerFlashcardReviewToolbarActions(this));
   }
 
