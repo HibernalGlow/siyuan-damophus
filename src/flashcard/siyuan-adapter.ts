@@ -71,6 +71,16 @@ function idsClause(ids: readonly string[]): string {
   return dedupeIds(ids).map(sqlQuote).join(", ");
 }
 
+/**
+ * Format a due date the way the SiYuan kernel parses it:
+ * `time.ParseInLocation("20060102150405", due, time.Local)` (model/flashcard.go).
+ * ISO timestamps fail to parse there and the whole batch write is dropped.
+ */
+export function formatDueLocal(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
 function normalizeRiffCard(value: unknown): RiffCardRecord | undefined {
   if (!value || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
@@ -516,9 +526,18 @@ export class FlashcardSiyuanAdapter {
 
   async postponeCards(cards: readonly RiffCardRecord[], days: number): Promise<void> {
     if (cards.length === 0) return;
-    const due = new Date(Date.now() + Math.max(0, days) * 86_400_000).toISOString();
+    await this.alignCardDues(cards, new Date(Date.now() + Math.max(0, days) * 86_400_000));
+  }
+
+  /**
+   * Set an absolute due time for the given cards.
+   * The kernel parses due with `time.ParseInLocation("20060102150405", ...)`,
+   * so the value must be a local-time 14-digit string, never an ISO timestamp.
+   */
+  async alignCardDues(cards: readonly RiffCardRecord[], due: Date): Promise<void> {
+    if (cards.length === 0) return;
     await requestStrict<unknown>("/api/riff/batchSetRiffCardsDueTime", {
-      cardDues: cards.map((card) => ({ id: card.cardID, due })),
+      cardDues: cards.map((card) => ({ id: card.cardID, due: formatDueLocal(due) })),
     });
   }
 

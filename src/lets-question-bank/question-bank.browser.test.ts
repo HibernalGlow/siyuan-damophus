@@ -7,6 +7,19 @@ import type { FrozenQuestionSet, QuestionCatalogEntry } from "@/question-bank/as
 import type { QuestionSourceDocument } from "@/question-bank/adapters/siyuan/source-catalog";
 import { TINYBASE_READ_VIEW_UPDATED_EVENT } from "./sync-coordinator";
 import { attempt, blockId, button, documentId, flush, indefiniteQuestion, makePreview, mockController, objectiveQuestion, option, render, scan, scanAndSync, selectScope, subjectiveQuestion, systemDocumentId } from "./question-bank.browser.fixtures";
+
+type RecordedItem = { label?: string; click?: (element?: HTMLElement, event?: Event) => void };
+
+/** Opens the practice overflow menu and clicks one of the rows SiYuan received. */
+function clickOverflowItem(labelPrefix: string): void {
+  document.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")?.click();
+  const menu = (globalThis as unknown as { __damophusLastMenu?: { items: RecordedItem[]; opened: boolean } })
+    .__damophusLastMenu;
+  if (!menu || !menu.opened) throw new Error("the practice overflow menu was never opened");
+  const item = menu.items.find((entry) => entry.label?.startsWith(labelPrefix));
+  if (!item?.click) throw new Error(`overflow item "${labelPrefix}" was not added to the menu`);
+  item.click();
+}
 describe("question bank browser flow", () => {
   it("refreshes attempts and resumable sessions after a synchronized read-view update", async () => {
     const { controller } = mockController();
@@ -950,13 +963,8 @@ describe("question bank browser flow", () => {
     await flush();
 
     expect(document.querySelector('[data-question-type="single"]')).not.toBeNull();
-    document.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")?.click();
+    clickOverflowItem("Indefinite practice mode");
     await flush();
-    const modeToggle = document.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]");
-    expect(modeToggle?.getAttribute("aria-checked")).toBe("false");
-    modeToggle?.click();
-    await flush();
-
     expect(onIndefinitePracticeModeChange).toHaveBeenCalledWith(true);
     expect(document.querySelector("[data-question-type]")).toBeNull();
     expect(document.querySelector("h2")?.textContent).toBe("2015-3-82");
@@ -966,9 +974,7 @@ describe("question bank browser flow", () => {
     expect(option("Alpha").getAttribute("aria-pressed")).toBe("true");
     expect(option("Beta").getAttribute("aria-pressed")).toBe("true");
 
-    document.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")?.click();
-    await flush();
-    document.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]")?.click();
+    clickOverflowItem("Indefinite practice mode");
     await flush();
     expect(onIndefinitePracticeModeChange).toHaveBeenLastCalledWith(false);
     expect(document.querySelector('[data-question-type="single"]')).not.toBeNull();

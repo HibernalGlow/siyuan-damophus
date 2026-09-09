@@ -23,7 +23,11 @@
   } from "@/question-bank/core/subject-dashboard";
   import type { TopicDictionaryDocument } from "@/question-bank/topic-dictionary";
   import type { PracticeFilter } from "@/question-bank/core/scope";
-  import type { PracticeFilterPreset } from "./practice/practice-preferences";
+  import {
+    normalizePracticeHeaderActions,
+    type PracticeFilterPreset,
+    type PracticeHeaderAction,
+  } from "./practice/practice-preferences";
   import {
     buildStatisticsBookmarkEntries,
   } from "./statistics/statistics-bookmarks";
@@ -213,6 +217,8 @@
   let answerCardOpen = false;
   let sourceEditingLocked = mobileBreadcrumb;
   let showStemStyles = false;
+  let showStemTags = controller.getSetting?.("practiceStemTags") !== false;
+  let practiceHeaderActions = normalizePracticeHeaderActions(controller.getSetting?.("practiceHeaderActions"));
   let completedQuestionIndices: number[] = [];
   let complete = false;
   let practiceRuntime: PracticeSessionRuntime | undefined;
@@ -987,6 +993,16 @@
     showStemStyles = !showStemStyles;
   }
 
+  function toggleStemTags(): void {
+    showStemTags = !showStemTags;
+    controller.setSetting?.("practiceStemTags", showStemTags);
+  }
+
+  function toggleHeaderAction(action: PracticeHeaderAction): void {
+    practiceHeaderActions = { ...practiceHeaderActions, [action]: !practiceHeaderActions[action] };
+    controller.setSetting?.("practiceHeaderActions", practiceHeaderActions);
+  }
+
   function toggleIndefinitePracticeMode(): void {
     indefinitePracticeMode = !indefinitePracticeMode;
     onIndefinitePracticeModeChange?.(indefinitePracticeMode);
@@ -1016,6 +1032,7 @@
   {breadcrumbTextDisplay} {openQuestionSource} {submitting} {reviewing} {answerTimerPaused} {timerEffectivelyPaused}
   {sourceEditingLocked} {toggleSourceEditingLock} {showStemStyles} {toggleStemStyles} {toggleIndefinitePracticeMode}
   {pauseOnBlur} {togglePauseOnBlur}
+  {showStemTags} {toggleStemTags} {practiceHeaderActions} {toggleHeaderAction}
   {previousQuestion} {nextQuestion} {togglePracticeTimer} {exitReview} {pausePractice} {requestEndPractice} {error} {binding}
   {validDocument} {useCurrentDocument} {getOpenDocumentTabs} {previewInitialization} {confirmInitialization} {invalidateSystemDocumentTarget} {previewRebinding}
   {confirmRebinding} {invalidateDocumentTarget} {practiceRuntime} {complete} {selectView} {questionCatalog} {sourceDocuments}

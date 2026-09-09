@@ -694,6 +694,29 @@ export default class FlashcardPlugin extends SubPluginBase {
     await reviewAllCards(this);
   }
 
+  /** Manual entry for twin-card due reconciliation (see docs/flashcard-twin-sync-spec.md). */
+  public async syncTwinCards(): Promise<void> {
+    try {
+      const outcome = await this.runtime.reconcileTwinCards();
+      if (outcome.status === "disabled") {
+        showMessage("孪生卡同步未开启：请在闪卡设置 → 基础与自动化中打开", 5000, "info");
+        return;
+      }
+      const result = outcome.result;
+      if (!result) {
+        showMessage("孪生卡同步完成", 4000, "info");
+        return;
+      }
+      if (result.aligned === 0 && result.twinGroups === 0) {
+        showMessage(`孪生卡同步完成：无需要对齐的副本（已对齐 ${result.alreadyAligned} 张，未制卡跳过 ${result.unregistered} 张）`, 5000, "info");
+        return;
+      }
+      showMessage(`孪生卡同步完成：对齐 ${result.aligned} 张 / ${result.twinGroups} 组（未制卡跳过 ${result.unregistered} 张${result.unreadable ? `，无法读取 ${result.unreadable} 张` : ""}）`, 6000, "info");
+    } catch (error) {
+      showMessage(`孪生卡同步失败：${error instanceof Error ? error.message : String(error)}`, 7000, "error");
+    }
+  }
+
   public async reviewGroup(group: FlashcardGroup): Promise<void> {
     await reviewGroupCards(this, group);
   }

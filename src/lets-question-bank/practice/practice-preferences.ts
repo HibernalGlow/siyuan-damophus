@@ -90,6 +90,26 @@ export const DEFAULT_PRACTICE_PREFERENCES: PracticePreferences = {
   filter: "all",
 };
 
+export const PRACTICE_HEADER_ACTIONS = ["locate", "lock", "bookmark", "correct", "timer"] as const;
+export type PracticeHeaderAction = (typeof PRACTICE_HEADER_ACTIONS)[number];
+export type PracticeHeaderActions = Record<PracticeHeaderAction, boolean>;
+
+export const DEFAULT_PRACTICE_HEADER_ACTIONS: PracticeHeaderActions = {
+  locate: true,
+  lock: true,
+  bookmark: true,
+  correct: true,
+  timer: true,
+};
+
+export function normalizePracticeHeaderActions(value: unknown): PracticeHeaderActions {
+  const candidate = value && typeof value === "object" ? value as Partial<Record<PracticeHeaderAction, unknown>> : {};
+  return Object.fromEntries(PRACTICE_HEADER_ACTIONS.map((action) => {
+    const stored = candidate[action];
+    return [action, typeof stored === "boolean" ? stored : DEFAULT_PRACTICE_HEADER_ACTIONS[action]];
+  })) as PracticeHeaderActions;
+}
+
 function normalizePracticePresets(value: unknown): PracticeFilterPreset[] {
   if (!Array.isArray(value)) return [];
   const used = new Set<string>();

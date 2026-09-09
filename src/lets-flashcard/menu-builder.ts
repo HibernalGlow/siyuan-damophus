@@ -20,6 +20,7 @@ export interface FlashcardMenuHost {
   cancelCategory(targetIds: readonly string[], label: string, notebook?: boolean): IMenu;
   scopeActionLabel(scope: FlashcardReviewScope): string;
   reviewAll(): Promise<void>;
+  syncTwinCards(): Promise<void>;
   reviewGroup(group: FlashcardGroup): Promise<void>;
   reviewScopeCards(scope: FlashcardReviewScope, retryAfterRegistration?: boolean): Promise<void>;
   openMakeScope(scope: FlashcardReviewScope): Promise<void>;
@@ -46,6 +47,11 @@ export function buildFlashcardMenu(host: FlashcardMenuHost, menu: Menu): void {
       click: () => host.openSettings(),
     });
   }
+  submenu.push({
+    icon: "iconRefresh",
+    label: "同步孪生卡进度",
+    click: () => void host.syncTwinCards(),
+  });
   const context = host.currentReviewContext();
   const groups = host.runtime.getEnabledGroups();
   const contextScopes = context

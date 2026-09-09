@@ -1,6 +1,9 @@
 <script lang="ts">
-  import { ArrowLeft, Check, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, ListChecks, LocateFixed, LockKeyhole, Pause, Pencil, Play, Star, Timer, Type, UnlockKeyhole, X } from "lucide-svelte";
+  import { ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, LayoutGrid, LocateFixed, LockKeyhole, Pause, Pencil, Play, Star, UnlockKeyhole, X } from "lucide-svelte";
+  import { Menu, showMessage } from "siyuan";
   import type { BlockBreadcrumbItem } from "@/api";
+  import { getLogger } from "@/libs/logger";
+  import { isMobile } from "@/utils";
   import { Badge } from "@/components/ui/badge";
   import { Button } from "@/components/ui/button";
   import {
@@ -14,6 +17,14 @@
   import type { DurationComparisonPosition } from "../statistics/duration-comparison-position";
   import PracticeDurationComparison from "./PracticeDurationComparison.svelte";
   import QuestionBookmarkModal from "../QuestionBookmarkModal.svelte";
+  import { buildPracticeOverflowItems } from "./practice-overflow-menu";
+  import {
+    DEFAULT_PRACTICE_HEADER_ACTIONS,
+    type PracticeHeaderAction,
+    type PracticeHeaderActions,
+  } from "./practice-preferences";
+
+  const overflowLog = getLogger("practice-overflow");
 
   export let currentQuestion: Question | undefined;
   export let buildRevision: string;
@@ -55,6 +66,10 @@
   export let toggleSourceEditingLock: () => void = () => {};
   export let showStemStyles = false;
   export let toggleStemStyles: () => void = () => {};
+  export let showStemTags = true;
+  export let toggleStemTags: () => void = () => {};
+  export let headerActions: PracticeHeaderActions = DEFAULT_PRACTICE_HEADER_ACTIONS;
+  export let toggleHeaderAction: (action: PracticeHeaderAction) => void = () => {};
   export let indefinitePracticeMode = false;
   export let toggleIndefinitePracticeMode: () => void = () => {};
   export let pauseOnBlur = false;
@@ -67,7 +82,7 @@
 
   let bookmarkModalOpen = false;
   let correctionOpen = false;
-  let overflowOpen = false;
+  let overflowTrigger: HTMLButtonElement | null = null;
   let selectedCorrectionIds: string[] = [];
   let selectedCorrectionBoolean = "";
 
@@ -79,9 +94,87 @@
     correctionOpen = true;
   }
 
-  function runOverflowAction(action: () => void): void {
-    overflowOpen = false;
-    action();
+  let overflowMenu: Menu | undefined;
+
+  function closeOverflowMenu(): void {
+    const menu = overflowMenu;
+    overflowMenu = undefined;
+    if (!menu) return;
+    try {
+      menu.close();
+    } catch (error) {
+      overflowLog.warn("close-failed", error);
+    }
+  }
+
+  function openOverflowMenu(event: MouseEvent): void {
+    if (overflowMenu) {
+      closeOverflowMenu();
+      return;
+    }
+    const trigger = overflowTrigger
+      ?? (event?.target as HTMLElement | null)?.closest<HTMLElement>("[data-practice-overflow-trigger]");
+    if (!trigger) return;
+    const items = buildPracticeOverflowItems({
+      label,
+      canLocate: Boolean(currentQuestionBlockId && openQuestionSource),
+      canEditSource: sourceEditingAvailable,
+      sourceEditingLocked,
+      canBookmark: Boolean(onToggleBookmark),
+      hasBookmark: Boolean(currentBookmark),
+      canCorrect: revealed && Boolean(currentQuestion?.answer) && Boolean(onCorrectAnswer) && !reviewing,
+      canToggleTimer: timingEnabled,
+      timerPaused: timerEffectivelyPaused,
+      indefinitePracticeMode,
+      pauseOnBlur,
+      showStemStyles,
+      showStemTags,
+      headerActions,
+      onLocate: () => currentQuestionBlockId && openQuestionSource?.(currentQuestionBlockId),
+      onToggleSourceEditingLock: toggleSourceEditingLock,
+      onBookmarkDetail: () => {
+        if (!currentBookmark) onToggleBookmark?.();
+        bookmarkModalOpen = true;
+      },
+      onCorrect: openCorrection,
+      onToggleTimer: togglePracticeTimer,
+      onToggleIndefinitePracticeMode: toggleIndefinitePracticeMode,
+      onTogglePauseOnBlur: togglePauseOnBlur,
+      onToggleStemStyles: toggleStemStyles,
+      onToggleStemTags: toggleStemTags,
+      onToggleHeaderAction: toggleHeaderAction,
+    });
+    if (items.length === 0) return;
+    try {
+      // The menu id is left unset on purpose: SiYuan keys a menu by `data-name` and
+      // treats a second `new Menu(id)` with the same name as "click again to close",
+      // silently skipping every addItem/open call. If a previous menu was dismissed
+      // without going through the menu itself, that name survives and the trigger
+      // stays dead for good. Toggle state is tracked here instead.
+      const menu = new Menu(undefined, () => {
+        if (overflowMenu === menu) overflowMenu = undefined;
+      });
+      for (const item of items) {
+        menu.addItem(item as never);
+      }
+      if (isMobile) {
+        menu.fullscreen();
+        return;
+      }
+      const rect = trigger.getBoundingClientRect();
+      const position = { x: rect.left, y: rect.bottom, isLeft: false, h: rect.height, w: rect.width };
+      // `open` is the documented plugin API; `popup` is the internal name it delegates to.
+      const opener = menu as unknown as {
+        open?: (options: typeof position) => void;
+        popup?: (options: typeof position) => void;
+      };
+      if (typeof opener.open === "function") opener.open(position);
+      else if (typeof opener.popup === "function") opener.popup(position);
+      else throw new Error("SiYuan menu API is unavailable");
+    } catch (error) {
+      overflowLog.error("open-failed", error);
+      showMessage(`更多操作菜单打开失败：${error instanceof Error ? error.message : String(error)}`, 6000, "error");
+    }
   }
 
   function toggleCorrectionOption(optionId: string): void {
@@ -142,7 +235,7 @@
             {questionTypeLabel(currentQuestion.type)}
           </Badge>
         {/if}
-        {#if timingEnabled}
+        {#if timingEnabled && headerActions.timer}
           <span class="timer" title={label("questionElapsed", "Question elapsed time")}>
             <svg aria-hidden="true"><use href="#iconClock"></use></svg>
             {formatDuration(questionElapsedMs)}
@@ -184,7 +277,7 @@
         >
           {#if timerEffectivelyPaused}<Play size={17} aria-hidden="true" />{:else}<Pause size={17} aria-hidden="true" />{/if}
         </Button>
-        {#if currentQuestionBlockId && openQuestionSource}
+        {#if headerActions.locate && currentQuestionBlockId && openQuestionSource}
           <Button
             variant="ghost"
             size="icon"
@@ -197,7 +290,7 @@
             <LocateFixed size={17} aria-hidden="true" />
           </Button>
         {/if}
-        {#if sourceEditingAvailable}
+        {#if headerActions.lock && sourceEditingAvailable}
           <Button
             variant="ghost"
             size="icon"
@@ -211,7 +304,7 @@
             {#if sourceEditingLocked}<LockKeyhole size={17} aria-hidden="true" />{:else}<UnlockKeyhole size={17} aria-hidden="true" />{/if}
           </Button>
         {/if}
-        {#if onToggleBookmark}
+        {#if headerActions.bookmark && onToggleBookmark}
           <Button
             variant="ghost"
             size="icon"
@@ -231,7 +324,7 @@
             <Star size={17} class={currentBookmark ? "fill-amber-400 text-amber-500" : ""} aria-hidden="true" />
           </Button>
         {/if}
-        {#if revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}
+        {#if headerActions.correct && revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}
           <Button
             variant="ghost"
             size="icon"
@@ -249,85 +342,14 @@
           size="icon"
           class="practice-overflow-trigger"
           data-practice-overflow-trigger
+          bind:ref={overflowTrigger}
           title={label("moreActions", "More actions")}
           aria-label={label("moreActions", "More actions")}
           aria-haspopup="menu"
-          aria-expanded={overflowOpen}
-          onclick={() => overflowOpen = !overflowOpen}
+          onclick={openOverflowMenu}
         >
           <Ellipsis size={17} aria-hidden="true" />
         </Button>
-        {#if overflowOpen}
-          <button class="practice-overflow-backdrop" aria-label={label("closeMoreActions", "Close more actions")} onclick={() => overflowOpen = false}></button>
-          <div class="practice-overflow-menu" role="menu" aria-label={label("moreActions", "More actions")}>
-            {#if onToggleBookmark}
-              <Button
-                variant="ghost"
-                class="practice-overflow-compact-action"
-                role="menuitem"
-                data-practice-bookmark-detail
-                onclick={() => runOverflowAction(() => {
-                  if (!currentBookmark) onToggleBookmark?.();
-                  bookmarkModalOpen = true;
-                })}
-              >
-                <Star size={16} class={currentBookmark ? "fill-amber-400 text-amber-500" : ""} aria-hidden="true" />
-                {currentBookmark ? label("editBookmarkNote", "编辑收藏与批注") : label("bookmarkWithNote", "收藏并添加批注")}
-              </Button>
-            {/if}
-            <Button
-              variant="ghost"
-              role="menuitemcheckbox"
-              aria-checked={indefinitePracticeMode}
-              data-toggle-indefinite-practice-mode
-              onclick={() => runOverflowAction(toggleIndefinitePracticeMode)}
-            >
-              <ListChecks size={16} aria-hidden="true" />
-              {label("indefinitePracticeMode", "Indefinite practice mode")}
-              {#if indefinitePracticeMode}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
-            </Button>
-            <Button
-              variant="ghost"
-              role="menuitemcheckbox"
-              aria-checked={showStemStyles}
-              data-toggle-stem-styles
-              onclick={() => runOverflowAction(toggleStemStyles)}
-            >
-              <Type size={16} aria-hidden="true" />
-              {label("showStemStyles", "Show question styles")}
-              {#if showStemStyles}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
-            </Button>
-            <Button
-              variant="ghost"
-              role="menuitemcheckbox"
-              aria-checked={pauseOnBlur}
-              data-toggle-pause-on-blur
-              onclick={() => runOverflowAction(togglePauseOnBlur)}
-            >
-              <Timer size={16} aria-hidden="true" />
-              {label("pauseOnBlur", "Pause timer on blur")}
-              {#if pauseOnBlur}<Check class="practice-menu-check" size={16} aria-hidden="true" />{/if}
-            </Button>
-            {#if currentQuestionBlockId && openQuestionSource}
-              <Button variant="ghost" class="practice-overflow-compact-action" role="menuitem" onclick={() => runOverflowAction(() => openQuestionSource?.(currentQuestionBlockId as string))}>
-                <LocateFixed size={16} aria-hidden="true" />
-                {label("openSource", "Open source in SiYuan")}
-              </Button>
-            {/if}
-            {#if sourceEditingAvailable}
-              <Button variant="ghost" class="practice-overflow-compact-action" role="menuitem" aria-pressed={sourceEditingLocked} onclick={() => runOverflowAction(toggleSourceEditingLock)}>
-                {#if sourceEditingLocked}<LockKeyhole size={16} aria-hidden="true" />{:else}<UnlockKeyhole size={16} aria-hidden="true" />{/if}
-                {sourceEditingLocked ? label("unlockSourceEditing", "Unlock source editing") : label("lockSourceEditing", "Lock source editing")}
-              </Button>
-            {/if}
-            {#if revealed && currentQuestion.answer && onCorrectAnswer && !reviewing}
-              <Button variant="ghost" class="practice-overflow-compact-action" role="menuitem" onclick={() => runOverflowAction(openCorrection)}>
-                <Pencil size={16} aria-hidden="true" />
-                {label("correctAnswer", "Correct answer")}
-              </Button>
-            {/if}
-          </div>
-        {/if}
         {#if reviewing}
           <Button variant="ghost" size="icon" data-practice-return title={label("exitReview", "Return to summary")} aria-label={label("exitReview", "Return to summary")} onclick={exitReview}>
             <ArrowLeft size={17} aria-hidden="true" />
@@ -411,8 +433,4 @@
   .correction-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
   .correction-options--boolean { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .correction-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-  .practice-overflow-backdrop { position: fixed; z-index: 20; inset: 0; border: 0; background: transparent; }
-  .practice-overflow-menu { position: absolute; z-index: 21; top: calc(100% + 4px); right: 0; min-width: 210px; padding: 4px; border: 1px solid var(--b3-border-color); border-radius: 6px; background: var(--b3-menu-background, var(--b3-theme-background)); box-shadow: var(--b3-dialog-shadow); display: grid; }
-  .practice-overflow-menu :global(button) { width: 100%; height: 36px; padding-inline: 10px; justify-content: flex-start; gap: 9px; white-space: nowrap; }
-  :global(.practice-menu-check) { margin-left: auto; }
 </style>

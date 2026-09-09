@@ -3,13 +3,60 @@ export async function fetchSyncPost(): Promise<{ code: number; data: unknown; ms
 }
 
 export class Dialog {}
-export class Menu {
-  addItem(): Menu {
+
+/**
+ * Native SiYuan menus live outside the component tree, so tests can only reach
+ * them through this recorder: the last built menu is published on
+ * `globalThis.__damophusLastMenu`, and its items keep the real `click` handlers.
+ */
+export interface RecordedMenuItem {
+  icon?: string;
+  label?: string;
+  type?: string;
+  submenu?: RecordedMenuItem[];
+  click?: (element?: HTMLElement, event?: Event) => void;
+}
+
+export interface RecordedMenu {
+  items: RecordedMenuItem[];
+  opened: boolean;
+  closed: boolean;
+}
+
+export class Menu implements RecordedMenu {
+  items: RecordedMenuItem[] = [];
+  opened = false;
+  closed = false;
+  private readonly closeCB?: () => void;
+
+  constructor(_id?: string, closeCB?: () => void) {
+    this.closeCB = closeCB;
+    (globalThis as typeof globalThis & { __damophusLastMenu?: Menu }).__damophusLastMenu = this;
+  }
+
+  addItem(item: RecordedMenuItem): Menu {
+    this.items.push(item);
     return this;
   }
 
-  open(): void {}
-  close(): void {}
+  addSeparator(): Menu {
+    return this;
+  }
+
+  showSubMenu(): void {}
+
+  open(): void {
+    this.opened = true;
+  }
+
+  fullscreen(): void {
+    this.opened = true;
+  }
+
+  close(): void {
+    this.closed = true;
+    this.closeCB?.();
+  }
 }
 export class Plugin {}
 export class ProtyleMethod {

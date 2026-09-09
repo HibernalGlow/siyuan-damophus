@@ -96,6 +96,7 @@
       </ToggleGroup.Root>
     </div>
     <div class="setting-row"><div><strong>自动推迟今日新卡</strong><span>按设定天数延后今天创建的新卡</span></div><Switch checked={config.postponeEnabled} onCheckedChange={(value) => { config.postponeEnabled = value; onSaveGlobalOnChange(); }} aria-label="自动推迟今日新卡" /></div>
+    <div class="setting-row"><div><strong>孪生卡进度同步</strong><span>按 custom-dm-card-id 分组，把组内最新的到期时间对齐到其余副本；未制卡或已删除的副本自动跳过</span></div><Switch checked={config.twinSyncEnabled} onCheckedChange={(value) => { config.twinSyncEnabled = value; onSaveGlobalOnChange(); }} aria-label="孪生卡进度同步" /></div>
     <div class="setting-row"><div><strong>登记前额外确认</strong><span>预览界面始终显示；开启后点击制卡还会再弹出一次确认</span></div><Switch checked={config.confirmBeforeAutoRegister} onCheckedChange={(value) => { config.confirmBeforeAutoRegister = value; onSaveGlobalOnChange(); }} aria-label="登记前额外确认" /></div>
     <div class="section-actions"><Button size="sm" onclick={onUpdateGlobal} disabled={saving}><Save />保存并应用</Button></div>
   </section>

@@ -223,6 +223,10 @@
   export let toggleSourceEditingLock: any;
   export let showStemStyles: boolean;
   export let toggleStemStyles: any;
+  export let showStemTags = true;
+  export let toggleStemTags: any;
+  export let practiceHeaderActions: any;
+  export let toggleHeaderAction: any;
   export let renderedQuestionContent: any;
   export let mountSourceBlock: any;
   export let questionTypeLabel: any;
@@ -394,6 +398,10 @@
     {toggleIndefinitePracticeMode}
     {pauseOnBlur}
     {togglePauseOnBlur}
+    {showStemTags}
+    {toggleStemTags}
+    headerActions={practiceHeaderActions}
+    {toggleHeaderAction}
     onCorrectAnswer={correctCurrentAnswer}
     {previousQuestion}
     {nextQuestion}
@@ -666,6 +674,7 @@
       {indefinitePracticeMode}
       {revealActionBelowOptions}
       {showStemStyles}
+      {showStemTags}
       {sourceEditingLocked}
       {renderedQuestionContent}
       {mountSourceBlock}

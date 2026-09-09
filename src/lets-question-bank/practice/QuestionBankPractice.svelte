@@ -35,6 +35,7 @@
   export let revealActionBelowOptions = false;
   export let sourceEditingLocked = false;
   export let showStemStyles = false;
+  export let showStemTags = true;
   export let indefinitePracticeMode = false;
   export let renderedQuestionContent: (markdown: string, sourceStyles: boolean) => string;
   export let mountSourceBlock: ((target: HTMLElement, blockId: string, editable: boolean, section?: "stem" | "solution", renderMode?: "native" | "embed") => (() => void) | Promise<() => void>) | undefined;
@@ -149,6 +150,7 @@
       {questionRenderMode}
       {sourceEditingLocked}
       {showStemStyles}
+      {showStemTags}
       {indefinitePracticeMode}
       renderQuestionContent={renderedQuestionContent}
       {mountSourceBlock}

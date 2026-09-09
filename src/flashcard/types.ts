@@ -129,6 +129,8 @@ export interface FlashcardSettings {
   scanInterval: number;
   postponeEnabled: boolean;
   postponeDays: number;
+  /** Align due times across copies that share one `custom-dm-card-id`. */
+  twinSyncEnabled: boolean;
   confirmBeforeAutoRegister: boolean;
   autoReviewAfterRegistration: boolean;
   groups: FlashcardGroup[];
@@ -187,6 +189,7 @@ export const DEFAULT_FLASHCARD_SETTINGS: FlashcardSettings = {
   scanInterval: 15,
   postponeEnabled: false,
   postponeDays: 2,
+  twinSyncEnabled: false,
   confirmBeforeAutoRegister: false,
   autoReviewAfterRegistration: true,
   rendererInterceptionEnabled: true,

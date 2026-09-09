@@ -45,6 +45,7 @@
   export let questionRenderMode: "html" | "native" | "embed" = "native";
   export let sourceEditingLocked = false;
   export let showStemStyles = false;
+  export let showStemTags = true;
   export let indefinitePracticeMode = false;
   export let renderQuestionContent: RenderMarkdown;
   export let mountSourceBlock: MountSourceBlock | undefined = undefined;
@@ -170,7 +171,7 @@
         <div class="markdown native-content protyle-wysiwyg" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="native-question-source" class:stem-styles-hidden={!showStemStyles}>
+    <div class="native-question-source" class:stem-styles-hidden={!showStemStyles} class:stem-tags-hidden={!showStemTags}>
       {#key `${currentQuestionBlockId}:${indefinitePracticeMode}`}
         <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, section: "stem", renderMode: "native" }}></div>
       {/key}
@@ -200,7 +201,7 @@
         <div class="markdown native-content protyle-wysiwyg" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="embedded-question-source" class:stem-styles-hidden={!showStemStyles}>
+    <div class="embedded-question-source" class:stem-styles-hidden={!showStemStyles} class:stem-tags-hidden={!showStemTags}>
       {#key `${currentQuestionBlockId}:${indefinitePracticeMode}`}
         <div class="source-block-host" use:maskQuestionTypeMarkers={indefinitePracticeMode} use:sourceBlockMount={{ blockId: currentQuestionBlockId, editable: !sourceEditingLocked, renderMode: "embed" }}></div>
       {/key}
@@ -235,7 +236,7 @@
         <div class="markdown native-content protyle-wysiwyg" contenteditable="false" use:staticContentRender>{@html renderQuestionContent(currentGroup.materialMarkdown, inheritSourceStyles)}</div>
       </div>
     {/if}
-    <div class="markdown native-content protyle-wysiwyg stem" class:stem-styles-hidden={!showStemStyles} contenteditable="false" use:staticContentRender>{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
+    <div class="markdown native-content protyle-wysiwyg stem" class:stem-styles-hidden={!showStemStyles} class:stem-tags-hidden={!showStemTags} contenteditable="false" use:staticContentRender>{@html renderQuestionContent(indefinitePracticeMode ? hideTrailingQuestionTypeMarker(currentQuestion.stemMarkdown) : currentQuestion.stemMarkdown, inheritSourceStyles)}</div>
     {#if displayedOptions.length > 0}
       <div class="options" class:stem-styles-hidden={!showStemStyles}>
         {#each displayedOptions as option (option.originalId)}
@@ -365,6 +366,10 @@
   .stem-styles-hidden :global([data-type="NodeHeading"]) {
     font-weight: inherit !important;
     letter-spacing: 0 !important;
+  }
+  .stem-tags-hidden :global(.tag),
+  .stem-tags-hidden :global([data-type="NodeTag"]) {
+    display: none !important;
   }
   .stem-styles-hidden :global([style]) {
     color: inherit !important;

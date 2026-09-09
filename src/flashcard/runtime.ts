@@ -14,6 +14,7 @@ import {
   type FlashcardSettings,
 } from "./types";
 import { FlashcardSiyuanAdapter, type DueCardsData } from "./siyuan-adapter";
+import { reconcileTwinCards as reconcileTwinDueTimes, type TwinSyncResult } from "./twin-sync";
 import { getHPathByID } from "@/api";
 
 const log = getLogger("flashcard-runtime");
@@ -71,6 +72,7 @@ function mergeSettings(value: unknown): FlashcardSettings {
     scanInterval: Math.max(1, Number(input.scanInterval ?? DEFAULT_FLASHCARD_SETTINGS.scanInterval)),
     postponeEnabled: input.postponeEnabled === true,
     postponeDays: Math.max(0, Number(input.postponeDays ?? DEFAULT_FLASHCARD_SETTINGS.postponeDays)),
+    twinSyncEnabled: input.twinSyncEnabled === true,
     confirmBeforeAutoRegister: input.confirmBeforeAutoRegister === true,
     autoReviewAfterRegistration: input.autoReviewAfterRegistration !== false,
     rendererInterceptionEnabled: input.rendererInterceptionEnabled !== false,
@@ -500,6 +502,18 @@ export class FlashcardRuntime {
     }
   }
 
+  /**
+   * Align due times across copies that share one `custom-dm-card-id`.
+   * Returns a disabled status when the twin-sync switch is off, so callers can
+   * distinguish "nothing to do" from "feature not enabled".
+   */
+  async reconcileTwinCards(): Promise<{ status: "disabled" | "completed"; result?: TwinSyncResult }> {
+    if (!this.load().twinSyncEnabled) return { status: "disabled" };
+    const result = await reconcileTwinDueTimes(this.adapter);
+    log.info("twin-sync-reconciled", result);
+    return { status: "completed", result };
+  }
+
   startAutomation(): void {
     this.stopAutomation();
     const settings = this.load();
@@ -509,6 +523,7 @@ export class FlashcardRuntime {
     }, interval);
     void this.refreshEnabledGroups(true).catch((error) => log.warn("initial-group-refresh-failed", error));
     if (settings.postponeEnabled) void this.postponeTodayCards().catch((error) => log.warn("initial-postpone-failed", error));
+    if (settings.twinSyncEnabled) void this.reconcileTwinCards().catch((error) => log.warn("initial-twin-sync-failed", error));
   }
 
   stopAutomation(): void {

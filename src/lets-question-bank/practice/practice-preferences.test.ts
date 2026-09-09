@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  DEFAULT_PRACTICE_HEADER_ACTIONS,
+  normalizePracticeHeaderActions,
+} from "./practice-preferences";
 import { normalizePracticeFilter } from "@/question-bank/core/scope";
 import { queryToPracticeFilter, practiceFilterToQuery } from "./practice-querybuilder-adapter";
 import {
@@ -96,5 +100,15 @@ describe("practice preferences", () => {
       const query = practiceFilterToQuery(template.filter);
       expect(queryToPracticeFilter(query)).toEqual(normalizePracticeFilter(template.filter));
     }
+  });
+  it("keeps every header action visible unless the stored preference disables it", () => {
+    expect(normalizePracticeHeaderActions(undefined)).toEqual(DEFAULT_PRACTICE_HEADER_ACTIONS);
+    expect(normalizePracticeHeaderActions({ locate: false, timer: "no" })).toEqual({
+      locate: false,
+      lock: true,
+      bookmark: true,
+      correct: true,
+      timer: true,
+    });
   });
 });

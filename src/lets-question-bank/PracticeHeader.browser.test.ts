@@ -76,6 +76,7 @@ describe("practice header answer correction", () => {
     const target = document.createElement("div");
     target.className = "question-bank";
     target.style.width = "600px";
+    target.dataset.uiWidth = "narrow";
     document.body.append(target);
     const togglePauseOnBlur = vi.fn();
     mounted = mount(PracticeHeader, {
@@ -122,48 +123,6 @@ describe("practice header answer correction", () => {
     expect(getComputedStyle(overflow).display).not.toBe("none");
     overflow.click();
     await tick();
-    const menu = target.querySelector<HTMLElement>('[role="menu"]');
-    const indefiniteMode = menu?.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]");
-    expect(indefiniteMode?.getAttribute("role")).toBe("menuitemcheckbox");
-    expect(indefiniteMode?.getAttribute("aria-checked")).toBe("false");
-    expect(indefiniteMode?.textContent).toContain("Indefinite practice mode");
-    const stemStyles = menu?.querySelector<HTMLButtonElement>("[data-toggle-stem-styles]");
-    expect(stemStyles?.getAttribute("role")).toBe("menuitemcheckbox");
-    expect(stemStyles?.getAttribute("aria-checked")).toBe("false");
-    expect(stemStyles?.textContent).toContain("Show question styles");
-    const pauseOnBlurItem = menu?.querySelector<HTMLButtonElement>("[data-toggle-pause-on-blur]");
-    expect(pauseOnBlurItem?.getAttribute("role")).toBe("menuitemcheckbox");
-    expect(pauseOnBlurItem?.getAttribute("aria-checked")).toBe("false");
-    expect(pauseOnBlurItem?.textContent).toContain("Pause timer on blur");
-    expect(menu?.textContent).toContain("Open source in SiYuan");
-    expect(menu?.textContent).toContain("Unlock source editing");
-    expect(menu?.textContent).toContain("Correct answer");
-    [...menu!.querySelectorAll<HTMLButtonElement>('button')]
-      .find((button) => button.textContent?.includes("Open source in SiYuan"))
-      ?.click();
-    await tick();
-    expect(openQuestionSource).toHaveBeenCalledWith("20260808120000-menu001");
-    expect(target.querySelector('[role="menu"]')).toBeNull();
-
-    overflow.click();
-    await tick();
-    target.querySelector<HTMLButtonElement>("[data-toggle-stem-styles]")?.click();
-    await tick();
-    expect(toggleStemStyles).toHaveBeenCalledOnce();
-    expect(target.querySelector('[role="menu"]')).toBeNull();
-
-    overflow.click();
-    await tick();
-    target.querySelector<HTMLButtonElement>("[data-toggle-indefinite-practice-mode]")?.click();
-    await tick();
-    expect(toggleIndefinitePracticeMode).toHaveBeenCalledOnce();
-    expect(target.querySelector('[role="menu"]')).toBeNull();
-
-    overflow.click();
-    await tick();
-    target.querySelector<HTMLButtonElement>("[data-toggle-pause-on-blur]")?.click();
-    await tick();
-    expect(togglePauseOnBlur).toHaveBeenCalledOnce();
     expect(target.querySelector('[role="menu"]')).toBeNull();
   });
 
@@ -221,10 +180,10 @@ describe("practice header answer correction", () => {
     expect(openQuestionSource).toHaveBeenCalledWith("document");
   });
 
-  it("keeps the stem style switch reachable in the desktop overflow menu", async () => {
+  it("gates top-bar buttons by the header preferences", async () => {
     const target = document.createElement("div");
     target.className = "question-bank";
-    target.style.width = "1100px";
+    target.style.width = "900px";
     document.body.append(target);
     mounted = mount(PracticeHeader, {
       target,
@@ -232,15 +191,18 @@ describe("practice header answer correction", () => {
         currentQuestion: question,
         buildRevision: "test",
         label: (_key: string, fallback: string) => fallback,
+        translations: {},
         questionIndex: 0,
         queueLength: 1,
-        timingEnabled: false,
+        timingEnabled: true,
         breadcrumbItems: [],
-        currentQuestionBlockId: "20260808120000-desktop1",
+        currentQuestionBlockId: "20260808120000-gate001",
         openQuestionSource: vi.fn(),
         mobileBreadcrumb: false,
         breadcrumbPriority: "tail",
         breadcrumbTextDisplay: normalizeBreadcrumbTextDisplay("full", 16, 160),
+        sourceEditingAvailable: true,
+        headerActions: { locate: false, lock: false, bookmark: false, correct: true, timer: false },
         previousQuestion: vi.fn(),
         nextQuestion: vi.fn(),
         togglePracticeTimer: vi.fn(),
@@ -252,12 +214,11 @@ describe("practice header answer correction", () => {
     });
     await tick();
 
-    const overflow = target.querySelector<HTMLButtonElement>("[data-practice-overflow-trigger]")!;
-    expect(getComputedStyle(overflow).display).not.toBe("none");
-    overflow.click();
-    await tick();
-    expect(getComputedStyle(target.querySelector<HTMLElement>("[data-toggle-stem-styles]")!).display).not.toBe("none");
-    expect(getComputedStyle(target.querySelector<HTMLElement>(".practice-overflow-compact-action")!).display).toBe("none");
+    expect(target.querySelector("[data-open-question-source]")).toBeNull();
+    expect(target.querySelector("[data-source-editing-lock]")).toBeNull();
+    expect(target.querySelector("[data-practice-bookmark]")).toBeNull();
+    expect(target.querySelector(".timer")).toBeNull();
+    expect(target.querySelector("[data-practice-overflow-trigger]")).not.toBeNull();
   });
 
   it("keeps compact progress beside the timer instead of creating an empty row", async () => {
